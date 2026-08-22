@@ -10,7 +10,6 @@
     <Project Path="src/Nexus.GameEngine.IO/Nexus.GameEngine.IO.csproj" />
     <Project Path="src/Nexus.GameEngine.Network/Nexus.GameEngine.Network.csproj" />
     <Project Path="src/Nexus.GameEngine.Physics/Nexus.GameEngine.Physics.csproj" />
-    <Project Path="src/Nexus.GameEngine.Platform/Nexus.GameEngine.Platform.csproj" />
     <Project Path="src/Nexus.GameEngine.Runtime/Nexus.GameEngine.Runtime.csproj" />
     <Project Path="src/Nexus.GameEngine.SceneGraph/Nexus.GameEngine.SceneGraph.csproj" />
     <Project Path="src/Nexus.GameEngine.Testing/Nexus.GameEngine.Testing.csproj" />
