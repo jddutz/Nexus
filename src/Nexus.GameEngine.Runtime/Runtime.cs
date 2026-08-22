@@ -4,11 +4,17 @@ namespace Nexus.GameEngine.Runtime;
 /// Coordinates the lifecycle and interaction of services participating
 /// in a running Nexus game environment.
 /// </summary>
-public sealed class Runtime : IDisposable
+public sealed class Runtime : IRuntime
 {
     private readonly IServiceProvider _services;
     private bool _initialized;
     private bool _disposed;
+
+    public IServiceProvider Services => _services;
+
+    public bool IsInitialized => _initialized;
+
+    public bool IsRunning { get; private set; }
 
     public Runtime(IServiceProvider services)
     {
@@ -30,6 +36,7 @@ public sealed class Runtime : IDisposable
         // Runtime initialization and subsystem orchestration will live here.
 
         _initialized = true;
+        IsRunning = true;
     }
 
     /// <summary>
@@ -47,6 +54,12 @@ public sealed class Runtime : IDisposable
         // Timing, scene, physics, and other update orchestration will live here.
     }
 
+    public void Stop()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        IsRunning = false;
+    }
+
     /// <summary>
     /// Shuts down the runtime and releases its resources.
     /// </summary>
@@ -60,6 +73,7 @@ public sealed class Runtime : IDisposable
         if (_services is IDisposable disposable)
             disposable.Dispose();
 
+        IsRunning = false;
         _disposed = true;
     }
 }

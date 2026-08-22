@@ -56,6 +56,8 @@ public class RuntimeBuilder : IRuntimeBuilder
     /// </summary>
     protected virtual void AddCoreServices()
     {
+        Services.AddSingleton<IWindowService, WindowService>();
+
         // Timing
         // Content
         // Scene graph

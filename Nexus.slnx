@@ -12,4 +12,7 @@
     <Project Path="src/Nexus.GameEngine.SceneGraph/Nexus.GameEngine.SceneGraph.csproj" />
     <Project Path="src/Nexus.GameEngine.Testing/Nexus.GameEngine.Testing.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/HelloNexus/HelloNexus.csproj" />
+  </Folder>
 </Solution>

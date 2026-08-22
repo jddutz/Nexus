@@ -15,17 +15,18 @@ public class WindowService : IWindowService, IDisposable
     /// </summary>
     /// <returns>The initialized Silk.NET <see cref="IWindow"/> instance.</returns>
     /// <exception cref="InvalidOperationException">Thrown if the window has not been created.</exception>
-    public IWindow GetWindow() => _window ??
-        throw new InvalidOperationException("Application Window has not been initialized yet.");
+    public IWindow GetWindow() =>
+        _window
+        ?? throw new InvalidOperationException("Application Window has not been initialized yet.");
 
     /// <summary>
     /// Gets the singleton application window, creating it if it does not already exist.
     /// </summary>
     /// <param name="options">The Silk.NET window options to use for creation.</param>
     /// <returns>The Silk.NET <see cref="IWindow"/> instance.</returns>
-    public IWindow GetOrCreateWindow(WindowOptions options)
+    public IWindow GetOrCreateWindow()
     {
-        _window ??= Window.Create(options);
+        _window ??= Window.Create(WindowOptions.Default);
         return _window!;
     }
 

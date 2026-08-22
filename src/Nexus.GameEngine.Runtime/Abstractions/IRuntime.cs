@@ -8,6 +8,11 @@ namespace Nexus.GameEngine.Runtime.Abstractions;
 public interface IRuntime : IDisposable
 {
     /// <summary>
+    /// Gets the service provider containing the configured runtime services.
+    /// </summary>
+    IServiceProvider Services { get; }
+
+    /// <summary>
     /// Gets whether the runtime has been initialized.
     /// </summary>
     bool IsInitialized { get; }
