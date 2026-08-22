@@ -1,1 +1,15 @@
-<Solution />
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Nexus.GameEngine.Audio/Nexus.GameEngine.Audio.csproj" />
+    <Project Path="src/Nexus.GameEngine.Content/Nexus.GameEngine.Content.csproj" />
+    <Project Path="src/Nexus.GameEngine.Core/Nexus.GameEngine.Core.csproj" />
+    <Project Path="src/Nexus.GameEngine.Graphics.Vulkan/Nexus.GameEngine.Graphics.Vulkan.csproj" />
+    <Project Path="src/Nexus.GameEngine.Graphics/Nexus.GameEngine.Graphics.csproj" />
+    <Project Path="src/Nexus.GameEngine.Input/Nexus.GameEngine.Input.csproj" />
+    <Project Path="src/Nexus.GameEngine.IO/Nexus.GameEngine.IO.csproj" />
+    <Project Path="src/Nexus.GameEngine.Platform/Nexus.GameEngine.Platform.csproj" />
+    <Project Path="src/Nexus.GameEngine.Runtime/Nexus.GameEngine.Runtime.csproj" />
+    <Project Path="src/Nexus.GameEngine.SceneGraph/Nexus.GameEngine.SceneGraph.csproj" />
+    <Project Path="src/Nexus.GameEngine.Testing/Nexus.GameEngine.Testing.csproj" />
+  </Folder>
+</Solution>
