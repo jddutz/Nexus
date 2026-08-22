@@ -2,13 +2,13 @@
 
 public sealed class VulkanApi : IDisposable
 {
-	private Vk? _api;
+    private Vk? _api;
 
-	public Vk Api => _api ??= Vk.GetApi();
+    public Vk Api => _api ??= Vk.GetApi();
 
-	public void Dispose()
-	{
-		_api?.Dispose();
-		_api = null;
-	}
+    public void Dispose()
+    {
+        _api?.Dispose();
+        _api = null;
+    }
 }
