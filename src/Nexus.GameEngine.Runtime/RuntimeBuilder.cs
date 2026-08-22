@@ -31,7 +31,7 @@ public class RuntimeBuilder : IRuntimeBuilder
 
         var serviceProvider = Services.BuildServiceProvider();
 
-        return new Runtime(serviceProvider);
+        return new NexusRuntime(serviceProvider);
     }
 
     /// <summary>

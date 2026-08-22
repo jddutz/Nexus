@@ -4,7 +4,7 @@ namespace Nexus.GameEngine.Runtime;
 /// Coordinates the lifecycle and interaction of services participating
 /// in a running Nexus game environment.
 /// </summary>
-public sealed class Runtime : IRuntime
+public sealed class NexusRuntime : IRuntime
 {
     private readonly IServiceProvider _services;
     private bool _initialized;
@@ -16,7 +16,7 @@ public sealed class Runtime : IRuntime
 
     public bool IsRunning { get; private set; }
 
-    public Runtime(IServiceProvider services)
+    public NexusRuntime(IServiceProvider services)
     {
         ArgumentNullException.ThrowIfNull(services);
 
