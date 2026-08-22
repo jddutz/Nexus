@@ -1,6 +1,6 @@
 namespace Nexus.GameEngine.Testing;
 
-public class TimeSourceFixture : ITimingSource
+public class TimingSourceFixture : ITimingSource
 {
     public TimeSpan Elapsed { get; set; }
 }

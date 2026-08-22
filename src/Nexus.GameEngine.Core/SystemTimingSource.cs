@@ -1,6 +1,6 @@
 namespace Nexus.GameEngine.Core;
 
-internal sealed class SystemTimeSource : ITimingSource
+internal sealed class TimingSourceFixture : ITimingSource
 {
     private readonly long _startTimestamp = Stopwatch.GetTimestamp();
 
