@@ -1,7 +1,7 @@
 ﻿using System.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Nexus.GameEngine.Runtime;
+using Nexus.Runtime;
 
 namespace HelloNexus;
 

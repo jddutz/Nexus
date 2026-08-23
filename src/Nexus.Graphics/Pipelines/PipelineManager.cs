@@ -1,0 +1,912 @@
+using System.Collections.Concurrent;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+using Nexus.Runtime.Systems;
+using Silk.NET.Core.Native;
+
+namespace Nexus.Graphics.Pipelines;
+
+/// <summary>
+/// Manages Vulkan graphics pipelines with caching, lifecycle management, and hot-reload support.
+/// Thread-safe implementation using ConcurrentDictionary for multi-threaded loading.
+/// Subscribes to window resize events for automatic pipeline invalidation.
+/// </summary>
+public unsafe class PipelineManager : IPipelineManager
+{
+    private readonly IGraphicsContext _context;
+    private readonly IWindow _window;
+    private readonly IResourceManager _resources;
+    private readonly IDescriptorManager _descriptorManager;
+    private readonly Vk _vk;
+
+    // Thread-safe pipeline cache
+    private readonly ConcurrentDictionary<string, CachedPipeline> _pipelines = new();
+
+    // Track shader dependencies for invalidation
+    private readonly ConcurrentDictionary<string, HashSet<string>> _shaderToPipelines = new();
+
+    // Statistics tracking
+    private int _totalCreateRequests;
+    private int _cacheHits;
+    private int _cacheMisses;
+    private int _compilationFailures;
+    private int _invalidationCount;
+    private double _totalCreationTimeMs;
+
+    // Temporary GC handles for vertex input descriptions during pipeline creation
+    private readonly List<GCHandle> _tempGCHandles = [];
+    private readonly ISwapChain _swapChain;
+
+    public PipelineManager(
+        IGraphicsContext context,
+        IWindowService windowService,
+        ISwapChain swapChain,
+        IResourceManager resourceManager,
+        IDescriptorManager descriptorManager
+    )
+    {
+        _context = context;
+        _window = windowService.GetWindow();
+        _swapChain = swapChain;
+        _resources = resourceManager;
+        _descriptorManager = descriptorManager;
+        _vk = _context.VulkanApi;
+
+        // Subscribe to window resize events
+        _window.Resize += OnWindowResize;
+    }
+
+    /// <inheritdoc/>
+    public PipelineHandle Get(string name)
+    {
+        // Try to get from cache
+        if (_pipelines.TryGetValue(name, out var cached))
+        {
+            Interlocked.Increment(ref _cacheHits);
+            cached.AccessCount++;
+            cached.LastAccessedAt = DateTime.UtcNow;
+            return new PipelineHandle(cached.Handle, cached.Layout, cached.Descriptor.Name)
+            {
+                ShaderStageFlags = cached.Descriptor.ShaderStageFlags,
+            };
+        }
+        else
+        {
+            throw new InvalidOperationException($"Pipeline '{name}' is undefined.");
+        }
+    }
+
+    /// <inheritdoc/>
+    public PipelineHandle GetOrCreate(PipelineDefinition definition)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+
+        // Try to get from cache by name
+        if (_pipelines.TryGetValue(definition.Name, out var cached))
+        {
+            Interlocked.Increment(ref _cacheHits);
+            cached.AccessCount++;
+            cached.LastAccessedAt = DateTime.UtcNow;
+            return new PipelineHandle(cached.Handle, cached.Layout, cached.Descriptor.Name)
+            {
+                ShaderStageFlags = cached.Descriptor.ShaderStageFlags,
+            };
+        }
+
+        // Build using definition's configuration
+        var builder = GetBuilder();
+        builder = definition.ConfigureBuilder(builder);
+        return builder.Build(definition.Name);
+    }
+
+    /// <inheritdoc/>
+    public IPipelineBuilder GetBuilder()
+    {
+        return new PipelineBuilder(this, _swapChain, _resources, _descriptorManager);
+    }
+
+    /// <inheritdoc/>
+    public PipelineHandle GetOrCreatePipeline(PipelineDescriptor descriptor)
+    {
+        ArgumentNullException.ThrowIfNull(descriptor);
+
+        Interlocked.Increment(ref _totalCreateRequests);
+
+        // Try to get from cache
+        if (_pipelines.TryGetValue(descriptor.Name, out var cached))
+        {
+            Interlocked.Increment(ref _cacheHits);
+            cached.AccessCount++;
+            cached.LastAccessedAt = DateTime.UtcNow;
+            return new PipelineHandle(cached.Handle, cached.Layout, descriptor.Name)
+            {
+                ShaderStageFlags = cached.Descriptor.ShaderStageFlags,
+            };
+        }
+
+        // Cache miss - create new pipeline
+        Interlocked.Increment(ref _cacheMisses);
+
+        var stopwatch = Stopwatch.StartNew();
+        var (pipeline, pipelineLayout) = CreatePipeline(descriptor);
+        stopwatch.Stop();
+
+        _totalCreationTimeMs += stopwatch.Elapsed.TotalMilliseconds;
+
+        if (pipeline.Handle == 0)
+        {
+            Interlocked.Increment(ref _compilationFailures);
+            return GetErrorPipeline(descriptor.RenderPass);
+        }
+
+        // Cache the pipeline
+        var cachedPipeline = new CachedPipeline
+        {
+            Descriptor = descriptor,
+            Handle = pipeline,
+            Layout = pipelineLayout,
+            CreatedAt = DateTime.UtcNow,
+            LastAccessedAt = DateTime.UtcNow,
+            AccessCount = 1,
+        };
+
+        _pipelines.TryAdd(descriptor.Name, cachedPipeline);
+
+        // Track shader dependencies (if using legacy path-based loading)
+        if (descriptor.VertexShaderPath != null)
+            TrackShaderDependency(descriptor.VertexShaderPath, descriptor.Name);
+        if (descriptor.FragmentShaderPath != null)
+            TrackShaderDependency(descriptor.FragmentShaderPath, descriptor.Name);
+        if (descriptor.GeometryShaderPath != null)
+            TrackShaderDependency(descriptor.GeometryShaderPath, descriptor.Name);
+
+        return new PipelineHandle(pipeline, pipelineLayout, descriptor.Name)
+        {
+            ShaderStageFlags = descriptor.ShaderStageFlags,
+        };
+    }
+
+    /// <inheritdoc/>
+    public PipelineHandle GetSpritePipeline(RenderPass renderPass)
+    {
+        var descriptor = new PipelineDescriptor
+        {
+            Name = "SpritePipeline",
+            VertexShaderPath = "shaders/sprite.vert.spv",
+            FragmentShaderPath = "shaders/sprite.frag.spv",
+            VertexInputDescription = GetSpriteVertexDescription(),
+            Topology = PrimitiveTopology.TriangleList,
+            RenderPass = renderPass,
+            EnableDepthTest = false,
+            EnableDepthWrite = false,
+            EnableBlending = true,
+            SrcBlendFactor = BlendFactor.SrcAlpha,
+            DstBlendFactor = BlendFactor.OneMinusSrcAlpha,
+            CullMode = CullModeFlags.None,
+        };
+
+        return GetOrCreatePipeline(descriptor);
+    }
+
+    /// <inheritdoc/>
+    public PipelineHandle GetMeshPipeline(RenderPass renderPass)
+    {
+        var descriptor = new PipelineDescriptor
+        {
+            Name = "MeshPipeline",
+            VertexShaderPath = "shaders/mesh.vert.spv",
+            FragmentShaderPath = "shaders/mesh.frag.spv",
+            VertexInputDescription = GetMeshVertexDescription(),
+            Topology = PrimitiveTopology.TriangleList,
+            RenderPass = renderPass,
+            EnableDepthTest = true,
+            EnableDepthWrite = true,
+            DepthCompareOp = CompareOp.Less,
+            EnableBlending = false,
+            CullMode = CullModeFlags.BackBit,
+        };
+
+        return GetOrCreatePipeline(descriptor);
+    }
+
+    /// <inheritdoc/>
+    public PipelineHandle GetUIPipeline(RenderPass renderPass)
+    {
+        var descriptor = new PipelineDescriptor
+        {
+            Name = "UIPipeline",
+            VertexShaderPath = "shaders/ui.vert.spv",
+            FragmentShaderPath = "shaders/ui.frag.spv",
+            VertexInputDescription = GetUIVertexDescription(),
+            Topology = PrimitiveTopology.TriangleList,
+            RenderPass = renderPass,
+            EnableDepthTest = false,
+            EnableDepthWrite = false,
+            EnableBlending = true,
+            SrcBlendFactor = BlendFactor.SrcAlpha,
+            DstBlendFactor = BlendFactor.OneMinusSrcAlpha,
+            CullMode = CullModeFlags.None,
+        };
+
+        return GetOrCreatePipeline(descriptor);
+    }
+
+    /// <inheritdoc/>
+    public bool InvalidatePipeline(string pipelineName)
+    {
+        if (_pipelines.TryRemove(pipelineName, out var cached))
+        {
+            Interlocked.Increment(ref _invalidationCount);
+            DestroyPipeline(cached);
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <inheritdoc/>
+    public int InvalidatePipelinesUsingShader(string shaderPath)
+    {
+        if (!_shaderToPipelines.TryGetValue(shaderPath, out var pipelineNames))
+            return 0;
+
+        int count = 0;
+        foreach (var pipelineName in pipelineNames)
+        {
+            if (InvalidatePipeline(pipelineName))
+                count++;
+        }
+
+        return count;
+    }
+
+    /// <inheritdoc/>
+    public void ReloadAllShaders()
+    {
+        // Wait for GPU to finish all operations
+        _vk.DeviceWaitIdle(_context.Device);
+
+        // Destroy all pipelines
+        foreach (var cached in _pipelines.Values)
+        {
+            DestroyPipeline(cached);
+        }
+
+        // Clear caches
+        _pipelines.Clear();
+        _shaderToPipelines.Clear();
+    }
+
+    /// <inheritdoc/>
+    public PipelineStatistics GetStatistics()
+    {
+        return new PipelineStatistics
+        {
+            CachedPipelineCount = _pipelines.Count,
+            TotalCreateRequests = _totalCreateRequests,
+            CacheHits = _cacheHits,
+            CacheMisses = _cacheMisses,
+            CompilationFailures = _compilationFailures,
+            InvalidationCount = _invalidationCount,
+            TotalCreationTimeMs = _totalCreationTimeMs,
+            EstimatedMemoryUsageBytes = _pipelines.Count * 1024, // Rough estimate
+        };
+    }
+
+    /// <inheritdoc/>
+    public IEnumerable<PipelineInfo> GetAllPipelines()
+    {
+        foreach (var kvp in _pipelines)
+        {
+            var cached = kvp.Value;
+            yield return new PipelineInfo
+            {
+                Name = kvp.Key,
+                Handle = cached.Handle,
+                VertexShaderPath =
+                    cached.Descriptor.VertexShaderPath
+                    ?? cached.Descriptor.ShaderResource?.Name + ".vert"
+                    ?? "unknown",
+                FragmentShaderPath =
+                    cached.Descriptor.FragmentShaderPath
+                    ?? cached.Descriptor.ShaderResource?.Name + ".frag"
+                    ?? "unknown",
+                GeometryShaderPath = cached.Descriptor.GeometryShaderPath,
+                AccessCount = cached.AccessCount,
+                CreatedAt = cached.CreatedAt,
+                LastAccessedAt = cached.LastAccessedAt,
+                EstimatedMemoryUsageBytes = 1024, // Rough estimate
+                IsSpecialized = false,
+                Topology = cached.Descriptor.Topology,
+                DepthTestEnabled = cached.Descriptor.EnableDepthTest,
+                BlendingEnabled = cached.Descriptor.EnableBlending,
+            };
+        }
+    }
+
+    /// <inheritdoc/>
+    public bool ValidatePipelineDescriptor(PipelineDescriptor descriptor)
+    {
+        // TODO: Implement proper validation
+        // - Validate vertex input matches shader expectations
+        // - Check render pass compatibility
+        // - Validate descriptor set layouts
+
+        if (string.IsNullOrEmpty(descriptor.Name))
+        {
+            return false;
+        }
+
+        // Must have either ShaderResource or shader paths
+        if (descriptor.ShaderResource == null)
+        {
+            if (string.IsNullOrEmpty(descriptor.VertexShaderPath))
+            {
+                return false;
+            }
+
+            if (string.IsNullOrEmpty(descriptor.FragmentShaderPath))
+            {
+                return false;
+            }
+        }
+
+        if (descriptor.RenderPass.Handle == 0)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    private PipelineHandle? _errorPipeline = null;
+
+    /// <inheritdoc/>
+    public PipelineHandle GetErrorPipeline(RenderPass renderPass)
+    {
+        // TODO: Create actual error pipeline with pink/magenta shader
+        // For now, return invalid handle
+        if (_errorPipeline == null || !_errorPipeline.Value.IsValid)
+        {
+            // Create a simple error pipeline (placeholder)
+            _errorPipeline = PipelineHandle.Invalid;
+        }
+        return _errorPipeline.Value;
+    }
+
+    /// <summary>
+    /// Handles window resize events.
+    /// Invalidates pipelines that depend on viewport dimensions.
+    /// </summary>
+    private void OnWindowResize(Silk.NET.Maths.Vector2D<int> newSize)
+    {
+        // TODO: Only invalidate pipelines that have viewport-dependent state
+        // For now, we'll let pipelines with DynamicViewport=true handle it themselves
+        // Static viewport pipelines would need to be recreated here
+    }
+
+    /// <summary>
+    /// Creates a Vulkan graphics pipeline from a descriptor.
+    /// </summary>
+    /// <returns>Tuple containing the Pipeline handle and its associated PipelineLayout</returns>
+    private (Pipeline pipeline, PipelineLayout layout) CreatePipeline(PipelineDescriptor descriptor)
+    {
+        if (!ValidatePipelineDescriptor(descriptor))
+        {
+            return default;
+        }
+
+        try
+        {
+            // Get shader modules - prefer ShaderResource, fall back to loading from paths
+            ShaderModule vertShaderModule;
+            ShaderModule fragShaderModule;
+
+            if (descriptor.ShaderResource != null)
+            {
+                // Use pre-loaded shader modules from ShaderResource
+                vertShaderModule = descriptor.ShaderResource.VertexShader;
+                fragShaderModule = descriptor.ShaderResource.FragmentShader;
+            }
+            else
+            {
+                // Legacy path: Load shader modules from file paths
+                vertShaderModule = CreateShaderModule(descriptor.VertexShaderPath!);
+                fragShaderModule = CreateShaderModule(descriptor.FragmentShaderPath!);
+            }
+
+            if (vertShaderModule.Handle == 0 || fragShaderModule.Handle == 0)
+            {
+                return default;
+            }
+
+            // Define shader stages
+            var shaderStages = stackalloc PipelineShaderStageCreateInfo[2];
+
+            shaderStages[0] = new PipelineShaderStageCreateInfo
+            {
+                SType = StructureType.PipelineShaderStageCreateInfo,
+                Stage = ShaderStageFlags.VertexBit,
+                Module = vertShaderModule,
+                PName = (byte*)SilkMarshal.StringToPtr("main"),
+            };
+
+            shaderStages[1] = new PipelineShaderStageCreateInfo
+            {
+                SType = StructureType.PipelineShaderStageCreateInfo,
+                Stage = ShaderStageFlags.FragmentBit,
+                Module = fragShaderModule,
+                PName = (byte*)SilkMarshal.StringToPtr("main"),
+            };
+
+            // Vertex input state
+            var vertexInputInfo = CreateVertexInputState(descriptor.VertexInputDescription);
+
+            // Input assembly state
+            var inputAssembly = new PipelineInputAssemblyStateCreateInfo
+            {
+                SType = StructureType.PipelineInputAssemblyStateCreateInfo,
+                Topology = descriptor.Topology,
+                PrimitiveRestartEnable = false,
+            };
+
+            // Viewport and scissor (dynamic or static)
+            var viewportState = CreateViewportState(descriptor);
+
+            // Rasterization state
+            var rasterizer = new PipelineRasterizationStateCreateInfo
+            {
+                SType = StructureType.PipelineRasterizationStateCreateInfo,
+                DepthClampEnable = false,
+                RasterizerDiscardEnable = false,
+                PolygonMode = descriptor.PolygonMode,
+                LineWidth = descriptor.LineWidth,
+                CullMode = descriptor.CullMode,
+                FrontFace = descriptor.FrontFace,
+                DepthBiasEnable = false,
+            };
+
+            // Multisampling state (no MSAA for now)
+            var multisampling = new PipelineMultisampleStateCreateInfo
+            {
+                SType = StructureType.PipelineMultisampleStateCreateInfo,
+                SampleShadingEnable = false,
+                RasterizationSamples = SampleCountFlags.Count1Bit,
+            };
+
+            // Depth/stencil state
+            var depthStencil = CreateDepthStencilState(descriptor);
+
+            // Color blend state
+            var colorBlendAttachment = CreateColorBlendAttachment(descriptor);
+            var colorBlending = new PipelineColorBlendStateCreateInfo
+            {
+                SType = StructureType.PipelineColorBlendStateCreateInfo,
+                LogicOpEnable = false,
+                AttachmentCount = 1,
+                PAttachments = &colorBlendAttachment,
+            };
+
+            // Dynamic state
+            var dynamicStates = stackalloc DynamicState[2];
+            dynamicStates[0] = DynamicState.Viewport;
+            dynamicStates[1] = DynamicState.Scissor;
+
+            var dynamicState = new PipelineDynamicStateCreateInfo
+            {
+                SType = StructureType.PipelineDynamicStateCreateInfo,
+                DynamicStateCount = 2,
+                PDynamicStates = dynamicStates,
+            };
+
+            // Pipeline layout with push constants and descriptor sets support
+            var pipelineLayoutInfo = new PipelineLayoutCreateInfo
+            {
+                SType = StructureType.PipelineLayoutCreateInfo,
+                SetLayoutCount = 0,
+                PushConstantRangeCount = 0,
+            };
+
+            // Add descriptor set layouts if specified
+            if (
+                descriptor.DescriptorSetLayouts != null
+                && descriptor.DescriptorSetLayouts.Length > 0
+            )
+            {
+                var setLayouts =
+                    stackalloc DescriptorSetLayout[descriptor.DescriptorSetLayouts.Length];
+                for (int i = 0; i < descriptor.DescriptorSetLayouts.Length; i++)
+                {
+                    setLayouts[i] = descriptor.DescriptorSetLayouts[i];
+                }
+                pipelineLayoutInfo.SetLayoutCount = (uint)descriptor.DescriptorSetLayouts.Length;
+                pipelineLayoutInfo.PSetLayouts = setLayouts;
+            }
+
+            // Add push constant ranges if specified
+            if (descriptor.PushConstantRanges != null && descriptor.PushConstantRanges.Length > 0)
+            {
+                var pushConstantRanges =
+                    stackalloc PushConstantRange[descriptor.PushConstantRanges.Length];
+                for (int i = 0; i < descriptor.PushConstantRanges.Length; i++)
+                {
+                    pushConstantRanges[i] = descriptor.PushConstantRanges[i];
+                }
+                pipelineLayoutInfo.PushConstantRangeCount = (uint)
+                    descriptor.PushConstantRanges.Length;
+                pipelineLayoutInfo.PPushConstantRanges = pushConstantRanges;
+            }
+
+            PipelineLayout pipelineLayout;
+            var result = _vk.CreatePipelineLayout(
+                _context.Device,
+                &pipelineLayoutInfo,
+                null,
+                &pipelineLayout
+            );
+            if (result != Result.Success)
+            {
+                CleanupShaderModules(vertShaderModule, fragShaderModule, shaderStages);
+                return default;
+            }
+
+            // Debug: log descriptor set layouts used to create this pipeline layout so we can
+            // compare them with descriptor sets allocated later for elements.
+            if (
+                descriptor.DescriptorSetLayouts != null
+                && descriptor.DescriptorSetLayouts.Length > 0
+            )
+            {
+                try
+                {
+                    var layoutHandles = string.Join(
+                        ", ",
+                        descriptor.DescriptorSetLayouts.Select((l, i) => $"set{i}=0x{l.Handle:X}")
+                    );
+                }
+                catch
+                { /* best-effort logging, don't throw */
+                }
+            }
+
+            // Create graphics pipeline
+            var pipelineInfo = new GraphicsPipelineCreateInfo
+            {
+                SType = StructureType.GraphicsPipelineCreateInfo,
+                StageCount = 2,
+                PStages = shaderStages,
+                PVertexInputState = &vertexInputInfo,
+                PInputAssemblyState = &inputAssembly,
+                PViewportState = &viewportState,
+                PRasterizationState = &rasterizer,
+                PMultisampleState = &multisampling,
+                PDepthStencilState = &depthStencil,
+                PColorBlendState = &colorBlending,
+                PDynamicState = &dynamicState,
+                Layout = pipelineLayout,
+                RenderPass = descriptor.RenderPass,
+                Subpass = descriptor.Subpass,
+                BasePipelineHandle = default,
+            };
+
+            Pipeline pipeline;
+            result = _vk.CreateGraphicsPipelines(
+                _context.Device,
+                default,
+                1,
+                &pipelineInfo,
+                null,
+                &pipeline
+            );
+
+            // Cleanup shader modules (only if we loaded them from paths, not from ShaderResource)
+            bool shouldCleanupShaders = descriptor.ShaderResource == null;
+            if (shouldCleanupShaders)
+            {
+                CleanupShaderModules(vertShaderModule, fragShaderModule, shaderStages);
+            }
+            else
+            {
+                // Still need to free string pointers
+                SilkMarshal.Free((nint)shaderStages[0].PName);
+                SilkMarshal.Free((nint)shaderStages[1].PName);
+            }
+
+            // Free temporary GC handles for vertex input descriptions
+            CleanupTempGCHandles();
+
+            if (result != Result.Success)
+            {
+                _vk.DestroyPipelineLayout(_context.Device, pipelineLayout, null);
+                return default;
+            }
+
+            return (pipeline, pipelineLayout);
+        }
+        catch
+        {
+            CleanupTempGCHandles();
+            return default;
+        }
+    }
+
+    /// <summary>
+    /// Creates a Vulkan shader module from a SPIR-V file.
+    /// Loads shaders from embedded resources in the assembly.
+    /// </summary>
+    private ShaderModule CreateShaderModule(string shaderPath)
+    {
+        try
+        {
+            // Convert path to embedded resource name
+            // "Shaders/vert.spv" -> "Nexus.Shaders.vert.spv"
+            var resourceName = $"Nexus.{shaderPath.Replace('/', '.')}";
+
+            var assembly = typeof(PipelineManager).Assembly;
+            using var stream = assembly.GetManifestResourceStream(resourceName);
+
+            if (stream == null)
+                return default;
+
+            var code = new byte[stream.Length];
+            var bytesRead = stream.Read(code, 0, code.Length);
+
+            if (bytesRead != code.Length)
+                return default;
+
+            fixed (byte* codePtr = code)
+            {
+                var createInfo = new ShaderModuleCreateInfo
+                {
+                    SType = StructureType.ShaderModuleCreateInfo,
+                    CodeSize = (nuint)code.Length,
+                    PCode = (uint*)codePtr,
+                };
+
+                ShaderModule shaderModule;
+                var result = _vk.CreateShaderModule(
+                    _context.Device,
+                    &createInfo,
+                    null,
+                    &shaderModule
+                );
+
+                if (result != Result.Success)
+                    return default;
+
+                return shaderModule;
+            }
+        }
+        catch
+        {
+            return default;
+        }
+    }
+
+    /// <summary>
+    /// Creates vertex input state from descriptor.
+    /// </summary>
+    private unsafe PipelineVertexInputStateCreateInfo CreateVertexInputState(
+        VertexInputDescription vertexInput
+    )
+    {
+        if (vertexInput == null || vertexInput.Bindings.Length == 0)
+        {
+            // No vertex input required
+            return new PipelineVertexInputStateCreateInfo
+            {
+                SType = StructureType.PipelineVertexInputStateCreateInfo,
+                VertexBindingDescriptionCount = 0,
+                VertexAttributeDescriptionCount = 0,
+            };
+        }
+
+        // Pin the binding and attribute arrays so they don't get moved by GC
+        var bindingsHandle = GCHandle.Alloc(vertexInput.Bindings, GCHandleType.Pinned);
+        var attributesHandle = GCHandle.Alloc(vertexInput.Attributes, GCHandleType.Pinned);
+
+        // Store handles so we can free them later (after pipeline creation)
+        _tempGCHandles.Add(bindingsHandle);
+        _tempGCHandles.Add(attributesHandle);
+
+        return new PipelineVertexInputStateCreateInfo
+        {
+            SType = StructureType.PipelineVertexInputStateCreateInfo,
+            VertexBindingDescriptionCount = (uint)vertexInput.Bindings.Length,
+            PVertexBindingDescriptions = (VertexInputBindingDescription*)
+                bindingsHandle.AddrOfPinnedObject(),
+            VertexAttributeDescriptionCount = (uint)vertexInput.Attributes.Length,
+            PVertexAttributeDescriptions = (VertexInputAttributeDescription*)
+                attributesHandle.AddrOfPinnedObject(),
+        };
+    }
+
+    /// <summary>
+    /// Creates viewport state.
+    /// </summary>
+    private PipelineViewportStateCreateInfo CreateViewportState(PipelineDescriptor descriptor)
+    {
+        // Using dynamic viewport/scissor, so we just specify count
+        return new PipelineViewportStateCreateInfo
+        {
+            SType = StructureType.PipelineViewportStateCreateInfo,
+            ViewportCount = 1,
+            ScissorCount = 1,
+        };
+    }
+
+    /// <summary>
+    /// Creates depth/stencil state from descriptor.
+    /// </summary>
+    private PipelineDepthStencilStateCreateInfo CreateDepthStencilState(
+        PipelineDescriptor descriptor
+    )
+    {
+        return new PipelineDepthStencilStateCreateInfo
+        {
+            SType = StructureType.PipelineDepthStencilStateCreateInfo,
+            DepthTestEnable = descriptor.EnableDepthTest,
+            DepthWriteEnable = descriptor.EnableDepthWrite,
+            DepthCompareOp = descriptor.DepthCompareOp,
+            DepthBoundsTestEnable = false,
+            StencilTestEnable = false,
+        };
+    }
+
+    /// <summary>
+    /// Creates color blend attachment state from descriptor.
+    /// </summary>
+    private PipelineColorBlendAttachmentState CreateColorBlendAttachment(
+        PipelineDescriptor descriptor
+    )
+    {
+        return new PipelineColorBlendAttachmentState
+        {
+            ColorWriteMask =
+                ColorComponentFlags.RBit
+                | ColorComponentFlags.GBit
+                | ColorComponentFlags.BBit
+                | ColorComponentFlags.ABit,
+            BlendEnable = descriptor.EnableBlending,
+            SrcColorBlendFactor = descriptor.SrcBlendFactor,
+            DstColorBlendFactor = descriptor.DstBlendFactor,
+            ColorBlendOp = descriptor.BlendOp,
+            SrcAlphaBlendFactor = descriptor.SrcBlendFactor,
+            DstAlphaBlendFactor = descriptor.DstBlendFactor,
+            AlphaBlendOp = descriptor.BlendOp,
+        };
+    }
+
+    /// <summary>
+    /// Cleans up shader modules after pipeline creation.
+    /// </summary>
+    private void CleanupShaderModules(
+        ShaderModule vert,
+        ShaderModule frag,
+        PipelineShaderStageCreateInfo* stages
+    )
+    {
+        if (vert.Handle != 0)
+            _vk.DestroyShaderModule(_context.Device, vert, null);
+
+        if (frag.Handle != 0)
+            _vk.DestroyShaderModule(_context.Device, frag, null);
+
+        // Free string pointers
+        if (stages != null)
+        {
+            SilkMarshal.Free((nint)stages[0].PName);
+            SilkMarshal.Free((nint)stages[1].PName);
+        }
+    }
+
+    /// <summary>
+    /// Cleans up temporary GC handles used for vertex input descriptions.
+    /// </summary>
+    private void CleanupTempGCHandles()
+    {
+        foreach (var handle in _tempGCHandles)
+        {
+            if (handle.IsAllocated)
+                handle.Free();
+        }
+        _tempGCHandles.Clear();
+    }
+
+    /// <summary>
+    /// Tracks shader dependency for invalidation.
+    /// </summary>
+    private void TrackShaderDependency(string shaderPath, string pipelineName)
+    {
+        _shaderToPipelines.AddOrUpdate(
+            shaderPath,
+            _ => [pipelineName],
+            (_, set) =>
+            {
+                lock (set)
+                {
+                    set.Add(pipelineName);
+                }
+                return set;
+            }
+        );
+    }
+
+    /// <summary>
+    /// Destroys a cached pipeline and its resources.
+    /// </summary>
+    private void DestroyPipeline(CachedPipeline cached)
+    {
+        if (cached.Handle.Handle != 0)
+        {
+            _vk.DestroyPipeline(_context.Device, cached.Handle, null);
+        }
+    }
+
+    /// <summary>
+    /// Gets sprite vertex description (pos, uv, color).
+    /// </summary>
+    private static VertexInputDescription GetSpriteVertexDescription()
+    {
+        // TODO: Implement actual vertex descriptions
+        return new VertexInputDescription { Bindings = [], Attributes = [] };
+    }
+
+    /// <summary>
+    /// Gets mesh vertex description (pos, normal, uv, tangent).
+    /// </summary>
+    private static VertexInputDescription GetMeshVertexDescription()
+    {
+        // TODO: Implement actual vertex descriptions
+        return new VertexInputDescription { Bindings = [], Attributes = [] };
+    }
+
+    /// <summary>
+    /// Gets UI vertex description (pos, uv, color).
+    /// </summary>
+    private static VertexInputDescription GetUIVertexDescription()
+    {
+        // TODO: Implement actual vertex descriptions
+        return new VertexInputDescription { Bindings = [], Attributes = [] };
+    }
+
+    public void Dispose()
+    {
+        // Unsubscribe from window events
+        try
+        {
+            _window.Resize -= OnWindowResize;
+        }
+        catch
+        {
+            // Window may already be disposed
+        }
+
+        // Wait for GPU idle before destroying pipelines
+        _vk.DeviceWaitIdle(_context.Device);
+
+        // Destroy all cached pipelines
+        foreach (var cached in _pipelines.Values)
+        {
+            DestroyPipeline(cached);
+        }
+
+        _pipelines.Clear();
+        _shaderToPipelines.Clear();
+
+        GC.SuppressFinalize(this);
+    }
+
+    /// <summary>
+    /// Internal cache entry for a pipeline.
+    /// </summary>
+    private class CachedPipeline
+    {
+        public required PipelineDescriptor Descriptor { get; init; }
+        public required Pipeline Handle { get; init; }
+        public required PipelineLayout Layout { get; init; }
+        public DateTime CreatedAt { get; init; }
+        public DateTime LastAccessedAt { get; set; }
+        public int AccessCount { get; set; }
+    }
+}
