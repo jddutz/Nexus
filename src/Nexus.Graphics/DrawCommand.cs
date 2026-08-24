@@ -9,12 +9,12 @@ public readonly struct DrawCommand
     // REQUIRED
     public required uint RenderMask { get; init; }
     public required PipelineHandle Pipeline { get; init; }
-    public required Silk.NET.Vulkan.Buffer VertexBuffer { get; init; }
+    public required GpuHandle VertexBuffer { get; init; }
     public required uint VertexCount { get; init; }
 
     // OPTIONAL with sensible defaults
-    public Silk.NET.Vulkan.Buffer IndexBuffer { get; init; }
-    public DescriptorSet DescriptorSet { get; init; }
+    public GpuHandle IndexBuffer { get; init; }
+    public GpuHandle DescriptorSet { get; init; }
     public uint FirstVertex { get; init; }
     public uint InstanceCount { get; init; }
 

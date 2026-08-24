@@ -1,4 +1,4 @@
-namespace Nexus.Graphics.Pipelines;
+namespace Nexus.Graphics;
 
 public static partial class PipelineDefinitions
 {

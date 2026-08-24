@@ -1,6 +1,6 @@
 using Semaphore = Silk.NET.Vulkan.Semaphore;
 
-namespace Nexus.Graphics;
+namespace Nexus.Graphics.Vulkan;
 
 /// <summary>
 /// Manages the Vulkan swap chain and the complete presentation pipeline.

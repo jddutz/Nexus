@@ -1,4 +1,4 @@
-namespace Nexus.Graphics.Cameras;
+namespace Nexus.Graphics.Vulkan.Cameras;
 
 /// <summary>
 /// A typical 3D perspective camera with configurable FOV, view range, and perspective control.
@@ -10,10 +10,9 @@ public partial class PerspectiveCamera : Component, ICamera
     private readonly IGraphicsContext _graphicsContext;
 
     // ViewProjection UBO resources
-    private Silk.NET.Vulkan.Buffer _viewProjectionBuffer;
-    private DeviceMemory _viewProjectionMemory;
-    private DescriptorSet _viewProjectionDescriptorSet;
-    private DescriptorSetLayout _viewProjectionDescriptorLayout;
+    private GpuHandle _viewProjectionBuffer;
+    private GpuHandle _viewProjectionDescriptorSet;
+    private GpuHandle _viewProjectionDescriptorLayout;
     private bool _uboInitialized;
 
     public PerspectiveCamera(
@@ -306,9 +305,7 @@ public partial class PerspectiveCamera : Component, ICamera
         const ulong uboSize = 64; // Size of ViewProjectionUBO (single mat4)
 
         // Create uniform buffer for ViewProjection matrix
-        (_viewProjectionBuffer, _viewProjectionMemory) = _bufferManager.CreateUniformBuffer(
-            uboSize
-        );
+        _viewProjectionBuffer = _bufferManager.CreateUniformBuffer(uboSize);
 
         // Create descriptor set layout for the UBO
         var layoutBinding = new DescriptorSetLayoutBinding
@@ -330,7 +327,7 @@ public partial class PerspectiveCamera : Component, ICamera
         // Write descriptor set to bind UBO
         var bufferInfo = new DescriptorBufferInfo
         {
-            Buffer = _viewProjectionBuffer,
+            Buffer = new Silk.NET.Vulkan.Buffer(_viewProjectionBuffer.Value),
             Offset = 0,
             Range = uboSize,
         };
@@ -338,7 +335,7 @@ public partial class PerspectiveCamera : Component, ICamera
         var writeDescriptorSet = new WriteDescriptorSet
         {
             SType = StructureType.WriteDescriptorSet,
-            DstSet = _viewProjectionDescriptorSet,
+            DstSet = new DescriptorSet(_viewProjectionDescriptorSet.Value),
             DstBinding = 0,
             DstArrayElement = 0,
             DescriptorType = DescriptorType.UniformBuffer,
@@ -370,7 +367,7 @@ public partial class PerspectiveCamera : Component, ICamera
 
         ReadOnlySpan<ViewProjectionUBO> uboSpan = [ubo];
         _bufferManager.UpdateUniformBuffer(
-            _viewProjectionMemory,
+            _viewProjectionBuffer,
             System.Runtime.InteropServices.MemoryMarshal.AsBytes(uboSpan)
         );
     }
@@ -380,11 +377,11 @@ public partial class PerspectiveCamera : Component, ICamera
         if (!_uboInitialized)
             return;
 
-        _bufferManager.DestroyBuffer(_viewProjectionBuffer, _viewProjectionMemory);
+        _bufferManager.DestroyBuffer(_viewProjectionBuffer);
         _uboInitialized = false;
     }
 
-    public DescriptorSet GetViewProjectionDescriptorSet()
+    public GpuHandle GetViewProjectionDescriptorSet()
     {
         if (!_uboInitialized)
         {

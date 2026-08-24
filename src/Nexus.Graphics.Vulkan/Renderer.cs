@@ -1,21 +1,11 @@
 using System.Runtime.InteropServices;
 using Microsoft.Extensions.Options;
-using Nexus.Graphics.Commands;
-using Nexus.Graphics.Synchronization;
+using Nexus.Graphics.Vulkan.Commands;
+using Nexus.Graphics.Vulkan.Synchronization;
 using Nexus.Performance;
 using Nexus.Runtime.Systems;
 
-namespace Nexus.Graphics;
-
-/// <summary>
-/// Event args for batching statistics.
-/// </summary>
-public class BatchingStatisticsEventArgs : EventArgs
-{
-    public uint PassIndex { get; init; }
-    public string PassName { get; init; } = string.Empty;
-    public DefaultBatchStrategy.BatchingStatistics Statistics { get; init; }
-}
+namespace Nexus.Graphics.Vulkan;
 
 /// <summary>
 /// Vulkan renderer implementation that orchestrates frame rendering.
@@ -521,15 +511,17 @@ public unsafe class Renderer(
     )
     {
         // Only bind pipeline if it changed
-        if (lastPipelineHandle != drawCommand.Pipeline.Pipeline.Handle)
+        if (lastPipelineHandle != drawCommand.Pipeline.Pipeline.Value)
         {
             context.VulkanApi.CmdBindPipeline(
                 commandBuffer,
                 PipelineBindPoint.Graphics,
-                drawCommand.Pipeline.Pipeline
+                new Pipeline(drawCommand.Pipeline.Pipeline.Value)
             );
-            lastPipelineHandle = drawCommand.Pipeline.Pipeline.Handle;
+            lastPipelineHandle = drawCommand.Pipeline.Pipeline.Value;
         }
+
+        var pipelineLayout = new PipelineLayout(drawCommand.Pipeline.Layout.Value);
 
         // Bind descriptor sets based on pipeline type
         if (drawCommand.Pipeline.Name == "UI_Element")
@@ -539,16 +531,16 @@ public unsafe class Renderer(
             // set=1: Texture sampler (from command)
 
             // Bind ViewProjection at set=0
-            if (renderContext.ViewProjectionDescriptorSet.Handle != 0)
+            if (renderContext.ViewProjectionDescriptorSet.IsValid)
             {
                 var vpDescriptorSets = stackalloc DescriptorSet[]
                 {
-                    renderContext.ViewProjectionDescriptorSet,
+                    new DescriptorSet(renderContext.ViewProjectionDescriptorSet.Value),
                 };
                 context.VulkanApi.CmdBindDescriptorSets(
                     commandBuffer,
                     PipelineBindPoint.Graphics,
-                    drawCommand.Pipeline.Layout,
+                    pipelineLayout,
                     0, // first set
                     1, // descriptor set count
                     vpDescriptorSets,
@@ -558,16 +550,16 @@ public unsafe class Renderer(
             }
 
             // Bind texture at set=1
-            if (drawCommand.DescriptorSet.Handle != 0)
+            if (drawCommand.DescriptorSet.IsValid)
             {
                 var textureDescriptorSets = stackalloc DescriptorSet[]
                 {
-                    drawCommand.DescriptorSet,
+                    new DescriptorSet(drawCommand.DescriptorSet.Value),
                 };
                 context.VulkanApi.CmdBindDescriptorSets(
                     commandBuffer,
                     PipelineBindPoint.Graphics,
-                    drawCommand.Pipeline.Layout,
+                    pipelineLayout,
                     1, // first set
                     1, // descriptor set count
                     textureDescriptorSets,
@@ -580,27 +572,30 @@ public unsafe class Renderer(
         {
             // Standard single descriptor set binding
             if (
-                drawCommand.DescriptorSet.Handle != 0
-                && drawCommand.DescriptorSet.Handle != lastDescriptorSetHandle
+                drawCommand.DescriptorSet.IsValid
+                && drawCommand.DescriptorSet.Value != lastDescriptorSetHandle
             )
             {
-                var descriptorSets = stackalloc DescriptorSet[] { drawCommand.DescriptorSet };
+                var descriptorSets = stackalloc DescriptorSet[]
+                {
+                    new DescriptorSet(drawCommand.DescriptorSet.Value),
+                };
                 context.VulkanApi.CmdBindDescriptorSets(
                     commandBuffer,
                     PipelineBindPoint.Graphics,
-                    drawCommand.Pipeline.Layout,
+                    pipelineLayout,
                     0, // first set
                     1, // descriptor set count
                     descriptorSets,
                     0, // dynamic offset count
                     null
                 ); // dynamic offsets
-                lastDescriptorSetHandle = drawCommand.DescriptorSet.Handle;
+                lastDescriptorSetHandle = drawCommand.DescriptorSet.Value;
             }
         }
 
         // Push constants if provided (these typically change per draw, so pin and push per-draw)
-        if (drawCommand.PushConstants != null && drawCommand.Pipeline.Layout.Handle != 0)
+        if (drawCommand.PushConstants != null && drawCommand.Pipeline.Layout.IsValid)
         {
             // Determine size of the concrete push-constant struct at runtime
             var handle = GCHandle.Alloc(drawCommand.PushConstants, GCHandleType.Pinned);
@@ -610,7 +605,7 @@ public unsafe class Renderer(
             {
                 context.VulkanApi.CmdPushConstants(
                     commandBuffer,
-                    drawCommand.Pipeline.Layout,
+                    pipelineLayout,
                     drawCommand.Pipeline.ShaderStageFlags,
                     0, // offset
                     (uint)Marshal.SizeOf(drawCommand.PushConstants),
@@ -623,7 +618,10 @@ public unsafe class Renderer(
             }
         }
 
-        var vertexBuffers = stackalloc Silk.NET.Vulkan.Buffer[] { drawCommand.VertexBuffer };
+        var vertexBuffers = stackalloc Silk.NET.Vulkan.Buffer[]
+        {
+            new Silk.NET.Vulkan.Buffer(drawCommand.VertexBuffer.Value),
+        };
         var offsets = stackalloc ulong[] { 0 };
         context.VulkanApi.CmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
 

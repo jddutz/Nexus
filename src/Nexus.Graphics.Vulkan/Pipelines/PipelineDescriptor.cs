@@ -1,4 +1,4 @@
-namespace Nexus.Graphics.Pipelines;
+namespace Nexus.Graphics.Vulkan.Pipelines;
 
 /// <summary>
 /// Complete description of a graphics pipeline's configuration.

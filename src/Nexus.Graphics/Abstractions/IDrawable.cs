@@ -1,4 +1,4 @@
-namespace Nexus.Graphics;
+namespace Nexus.Graphics.Abstractions;
 
 /// <summary>
 /// Interface for components that issue draw commands.

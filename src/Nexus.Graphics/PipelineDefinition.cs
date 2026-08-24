@@ -1,4 +1,4 @@
-namespace Nexus.Graphics.Pipelines;
+namespace Nexus.Graphics;
 
 /// <summary>
 /// Defines a reusable graphics pipeline configuration.

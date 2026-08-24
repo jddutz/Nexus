@@ -5,7 +5,7 @@ using System.Text.RegularExpressions;
 using Microsoft.Extensions.Options;
 using Silk.NET.Vulkan.Extensions.EXT;
 
-namespace Nexus.Graphics;
+namespace Nexus.Graphics.Vulkan;
 
 /// <summary>
 /// Manages Vulkan validation layers and debug messenger for runtime error detection and diagnostics.

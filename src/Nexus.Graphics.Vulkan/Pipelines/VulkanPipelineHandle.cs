@@ -1,13 +1,18 @@
-namespace Nexus.Graphics.Pipelines;
+namespace Nexus.Graphics.Vulkan.Pipelines;
 
 /// <summary>
 /// Immutable wrapper containing both a Vulkan Pipeline and its associated PipelineLayout.
-/// Components hold references to this for rendering. The PipelineManager owns the lifecycle.
+/// Internal to the Vulkan backend - PipelineManager converts this to/from the backend-agnostic
+/// <see cref="Nexus.Graphics.PipelineHandle"/> at the Nexus.Graphics.Abstractions boundary.
 /// </summary>
 /// <param name="Pipeline">The Vulkan graphics pipeline handle</param>
 /// <param name="Layout">The Vulkan pipeline layout handle (needed for push constants and descriptor sets)</param>
 /// <param name="Name">Human-readable name for debugging and identification</param>
-public readonly record struct PipelineHandle(Pipeline Pipeline, PipelineLayout Layout, string Name)
+public readonly record struct VulkanPipelineHandle(
+    Pipeline Pipeline,
+    PipelineLayout Layout,
+    string Name
+)
 {
     /// <summary>
     /// Shader stages active for this pipeline. Populated from the pipeline descriptor
@@ -25,5 +30,12 @@ public readonly record struct PipelineHandle(Pipeline Pipeline, PipelineLayout L
     /// <summary>
     /// Returns an invalid/empty pipeline handle.
     /// </summary>
-    public static PipelineHandle Invalid => new(default, default, "Invalid");
+    public static VulkanPipelineHandle Invalid => new(default, default, "Invalid");
+
+    /// <summary>Converts to the backend-agnostic handle exposed across the Abstractions boundary.</summary>
+    public Nexus.Graphics.PipelineHandle ToPipelineHandle() =>
+        new(new GpuHandle(Pipeline.Handle), new GpuHandle(Layout.Handle), Name)
+        {
+            ShaderStageFlags = ShaderStageFlags,
+        };
 }

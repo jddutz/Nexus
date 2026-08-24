@@ -1,8 +1,8 @@
-﻿using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Options;
 using Silk.NET.Vulkan.Extensions.KHR;
 using Semaphore = Silk.NET.Vulkan.Semaphore;
 
-namespace Nexus.Graphics;
+namespace Nexus.Graphics.Vulkan;
 
 /// <summary>
 /// Manages the Vulkan swap chain and the complete presentation pipeline.

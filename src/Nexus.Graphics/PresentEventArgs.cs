@@ -12,8 +12,8 @@ public class PresentEventArgs : EventArgs
     public required uint ImageIndex { get; init; }
 
     /// <summary>
-    /// Gets the Vulkan image handle that is about to be presented.
+    /// Gets the backend image handle that is about to be presented.
     /// This image is in PresentSrcKhr layout and ready for readback operations.
     /// </summary>
-    public required Image Image { get; init; }
+    public required GpuHandle Image { get; init; }
 }

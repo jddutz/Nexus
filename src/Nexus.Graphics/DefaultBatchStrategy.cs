@@ -41,22 +41,22 @@ public class DefaultBatchStrategy : IBatchStrategy
             else
             {
                 // Compare with previous to detect state changes
-                if (cmd.Pipeline.Pipeline.Handle != previous.Value.Pipeline.Pipeline.Handle)
+                if (cmd.Pipeline.Pipeline.Value != previous.Value.Pipeline.Pipeline.Value)
                 {
                     stats.PipelineChanges++;
                 }
 
-                if (cmd.DescriptorSet.Handle != previous.Value.DescriptorSet.Handle)
+                if (cmd.DescriptorSet.Value != previous.Value.DescriptorSet.Value)
                 {
                     stats.DescriptorSetChanges++;
                 }
 
-                if (cmd.VertexBuffer.Handle != previous.Value.VertexBuffer.Handle)
+                if (cmd.VertexBuffer.Value != previous.Value.VertexBuffer.Value)
                 {
                     stats.VertexBufferChanges++;
                 }
 
-                if (cmd.IndexBuffer.Handle != previous.Value.IndexBuffer.Handle)
+                if (cmd.IndexBuffer.Value != previous.Value.IndexBuffer.Value)
                 {
                     stats.IndexBufferChanges++;
                 }
@@ -123,22 +123,22 @@ public class DefaultBatchStrategy : IBatchStrategy
         // Order by cost: pipeline (most expensive) → descriptor set → vertex buffer → index buffer → push constants (least expensive)
 
         // 1. Sort by pipeline (most expensive to change)
-        var pipelineCompare = x.Pipeline.Pipeline.Handle.CompareTo(y.Pipeline.Pipeline.Handle);
+        var pipelineCompare = x.Pipeline.Pipeline.Value.CompareTo(y.Pipeline.Pipeline.Value);
         if (pipelineCompare != 0)
             return pipelineCompare;
 
         // 2. Then by descriptor set (textures/uniforms)
-        var descriptorCompare = x.DescriptorSet.Handle.CompareTo(y.DescriptorSet.Handle);
+        var descriptorCompare = x.DescriptorSet.Value.CompareTo(y.DescriptorSet.Value);
         if (descriptorCompare != 0)
             return descriptorCompare;
 
         // 3. Then by vertex buffer
-        var vertexCompare = x.VertexBuffer.Handle.CompareTo(y.VertexBuffer.Handle);
+        var vertexCompare = x.VertexBuffer.Value.CompareTo(y.VertexBuffer.Value);
         if (vertexCompare != 0)
             return vertexCompare;
 
         // 4. Then by index buffer
-        var indexCompare = x.IndexBuffer.Handle.CompareTo(y.IndexBuffer.Handle);
+        var indexCompare = x.IndexBuffer.Value.CompareTo(y.IndexBuffer.Value);
         if (indexCompare != 0)
             return indexCompare;
 

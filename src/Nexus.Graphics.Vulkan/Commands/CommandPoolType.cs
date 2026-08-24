@@ -1,4 +1,4 @@
-namespace Nexus.Graphics.Commands;
+namespace Nexus.Graphics.Vulkan.Commands;
 
 /// <summary>
 /// Type of command pool based on its intended use.

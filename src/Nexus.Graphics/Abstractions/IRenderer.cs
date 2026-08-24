@@ -1,4 +1,4 @@
-namespace Nexus.Graphics;
+namespace Nexus.Graphics.Abstractions;
 
 /// <summary>
 /// Event args for rendering events that include the swapchain image index.

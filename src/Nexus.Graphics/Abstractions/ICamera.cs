@@ -1,4 +1,4 @@
-namespace Nexus.Graphics.Cameras;
+namespace Nexus.Graphics.Abstractions;
 
 public interface ICamera : IComponent, IRenderPriority
 {
@@ -63,7 +63,7 @@ public interface ICamera : IComponent, IRenderPriority
     /// This descriptor set should be bound at set=0, binding=0 for shaders that need the transformation matrix.
     /// </summary>
     /// <returns>The descriptor set containing the ViewProjection uniform buffer.</returns>
-    DescriptorSet GetViewProjectionDescriptorSet();
+    GpuHandle GetViewProjectionDescriptorSet();
 
     /// <summary>
     /// Gets the up direction vector of the camera in world space.

@@ -1,4 +1,4 @@
-namespace Nexus.Graphics;
+namespace Nexus.Graphics.Abstractions;
 
 /// <summary>
 /// Provides an abstraction for batching strategies in the rendering pipeline.

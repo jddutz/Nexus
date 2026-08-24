@@ -1,6 +1,6 @@
 using VkSemaphore = Silk.NET.Vulkan.Semaphore;
 
-namespace Nexus.Graphics.Synchronization;
+namespace Nexus.Graphics.Vulkan.Synchronization;
 
 /// <summary>
 /// Synchronization primitives for a specific swapchain image.

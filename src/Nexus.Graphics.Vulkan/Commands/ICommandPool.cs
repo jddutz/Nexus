@@ -1,6 +1,6 @@
 using VkCommandPool = Silk.NET.Vulkan.CommandPool;
 
-namespace Nexus.Graphics.Commands;
+namespace Nexus.Graphics.Vulkan.Commands;
 
 /// <summary>
 /// Manages Vulkan command buffer allocation and lifecycle.

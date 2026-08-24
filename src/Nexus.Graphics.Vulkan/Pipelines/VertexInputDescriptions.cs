@@ -1,4 +1,4 @@
-namespace Nexus.Graphics.Pipelines;
+namespace Nexus.Graphics.Vulkan.Pipelines;
 
 /// <summary>
 /// Provides static vertex input descriptions for common vertex formats.

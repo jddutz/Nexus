@@ -1,6 +1,6 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 
-namespace Nexus.Graphics.Commands;
+namespace Nexus.Graphics.Vulkan.Commands;
 
 /// <summary>
 /// Central manager for command pools across different queue families.

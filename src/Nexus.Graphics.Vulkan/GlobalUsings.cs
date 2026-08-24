@@ -1,2 +1,11 @@
 global using System;
+global using Nexus.Graphics;
+global using Nexus.Graphics.Abstractions;
+global using Nexus.Graphics.Vulkan.Buffers;
+global using Nexus.Graphics.Vulkan.Cameras;
+global using Nexus.Graphics.Vulkan.Commands;
+global using Nexus.Graphics.Vulkan.Descriptors;
+global using Nexus.Graphics.Vulkan.Pipelines;
+global using Nexus.Graphics.Vulkan.Synchronization;
+global using Silk.NET.Maths;
 global using Silk.NET.Vulkan;

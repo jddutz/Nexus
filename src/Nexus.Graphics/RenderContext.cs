@@ -43,7 +43,7 @@ public readonly struct RenderContext
     /// Components should include this in their DrawCommands to enable UBO-based matrix transformation.
     /// Bound at set=0, binding=0 in shaders.
     /// </summary>
-    public required DescriptorSet ViewProjectionDescriptorSet { get; init; }
+    public required GpuHandle ViewProjectionDescriptorSet { get; init; }
 
     /// <summary>
     /// Gets the combined view-projection matrix from the camera.

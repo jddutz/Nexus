@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 using Nexus.Runtime.Systems;
 using Silk.NET.Core.Native;
 
-namespace Nexus.Graphics.Pipelines;
+namespace Nexus.Graphics.Vulkan.Pipelines;
 
 /// <summary>
 /// Manages Vulkan graphics pipelines with caching, lifecycle management, and hot-reload support.
@@ -65,7 +65,11 @@ public unsafe class PipelineManager : IPipelineManager
             Interlocked.Increment(ref _cacheHits);
             cached.AccessCount++;
             cached.LastAccessedAt = DateTime.UtcNow;
-            return new PipelineHandle(cached.Handle, cached.Layout, cached.Descriptor.Name)
+            return new PipelineHandle(
+                new GpuHandle(cached.Handle.Handle),
+                new GpuHandle(cached.Layout.Handle),
+                cached.Descriptor.Name
+            )
             {
                 ShaderStageFlags = cached.Descriptor.ShaderStageFlags,
             };
@@ -87,7 +91,11 @@ public unsafe class PipelineManager : IPipelineManager
             Interlocked.Increment(ref _cacheHits);
             cached.AccessCount++;
             cached.LastAccessedAt = DateTime.UtcNow;
-            return new PipelineHandle(cached.Handle, cached.Layout, cached.Descriptor.Name)
+            return new PipelineHandle(
+                new GpuHandle(cached.Handle.Handle),
+                new GpuHandle(cached.Layout.Handle),
+                cached.Descriptor.Name
+            )
             {
                 ShaderStageFlags = cached.Descriptor.ShaderStageFlags,
             };
@@ -105,8 +113,11 @@ public unsafe class PipelineManager : IPipelineManager
         return new PipelineBuilder(this, _swapChain, _resources, _descriptorManager);
     }
 
-    /// <inheritdoc/>
-    public PipelineHandle GetOrCreatePipeline(PipelineDescriptor descriptor)
+    /// <summary>
+    /// Gets or creates a pipeline based on the provided descriptor. Internal to the Vulkan
+    /// backend - not part of the backend-agnostic <see cref="IPipelineManager"/> contract.
+    /// </summary>
+    public VulkanPipelineHandle GetOrCreatePipeline(PipelineDescriptor descriptor)
     {
         ArgumentNullException.ThrowIfNull(descriptor);
 
@@ -118,7 +129,7 @@ public unsafe class PipelineManager : IPipelineManager
             Interlocked.Increment(ref _cacheHits);
             cached.AccessCount++;
             cached.LastAccessedAt = DateTime.UtcNow;
-            return new PipelineHandle(cached.Handle, cached.Layout, descriptor.Name)
+            return new VulkanPipelineHandle(cached.Handle, cached.Layout, descriptor.Name)
             {
                 ShaderStageFlags = cached.Descriptor.ShaderStageFlags,
             };
@@ -160,14 +171,14 @@ public unsafe class PipelineManager : IPipelineManager
         if (descriptor.GeometryShaderPath != null)
             TrackShaderDependency(descriptor.GeometryShaderPath, descriptor.Name);
 
-        return new PipelineHandle(pipeline, pipelineLayout, descriptor.Name)
+        return new VulkanPipelineHandle(pipeline, pipelineLayout, descriptor.Name)
         {
             ShaderStageFlags = descriptor.ShaderStageFlags,
         };
     }
 
-    /// <inheritdoc/>
-    public PipelineHandle GetSpritePipeline(RenderPass renderPass)
+    /// <summary>Internal legacy helper, not part of the Nexus.Graphics.Abstractions contract.</summary>
+    public VulkanPipelineHandle GetSpritePipeline(RenderPass renderPass)
     {
         var descriptor = new PipelineDescriptor
         {
@@ -188,8 +199,8 @@ public unsafe class PipelineManager : IPipelineManager
         return GetOrCreatePipeline(descriptor);
     }
 
-    /// <inheritdoc/>
-    public PipelineHandle GetMeshPipeline(RenderPass renderPass)
+    /// <summary>Internal legacy helper, not part of the Nexus.Graphics.Abstractions contract.</summary>
+    public VulkanPipelineHandle GetMeshPipeline(RenderPass renderPass)
     {
         var descriptor = new PipelineDescriptor
         {
@@ -209,8 +220,8 @@ public unsafe class PipelineManager : IPipelineManager
         return GetOrCreatePipeline(descriptor);
     }
 
-    /// <inheritdoc/>
-    public PipelineHandle GetUIPipeline(RenderPass renderPass)
+    /// <summary>Internal legacy helper, not part of the Nexus.Graphics.Abstractions contract.</summary>
+    public VulkanPipelineHandle GetUIPipeline(RenderPass renderPass)
     {
         var descriptor = new PipelineDescriptor
         {
@@ -293,7 +304,7 @@ public unsafe class PipelineManager : IPipelineManager
         };
     }
 
-    /// <inheritdoc/>
+    /// <summary>Internal legacy helper, not part of the Nexus.Graphics.Abstractions contract.</summary>
     public IEnumerable<PipelineInfo> GetAllPipelines()
     {
         foreach (var kvp in _pipelines)
@@ -324,7 +335,7 @@ public unsafe class PipelineManager : IPipelineManager
         }
     }
 
-    /// <inheritdoc/>
+    /// <summary>Internal legacy helper, not part of the Nexus.Graphics.Abstractions contract.</summary>
     public bool ValidatePipelineDescriptor(PipelineDescriptor descriptor)
     {
         // TODO: Implement proper validation
@@ -359,17 +370,17 @@ public unsafe class PipelineManager : IPipelineManager
         return true;
     }
 
-    private PipelineHandle? _errorPipeline = null;
+    private VulkanPipelineHandle? _errorPipeline = null;
 
-    /// <inheritdoc/>
-    public PipelineHandle GetErrorPipeline(RenderPass renderPass)
+    /// <summary>Internal legacy helper, not part of the Nexus.Graphics.Abstractions contract.</summary>
+    public VulkanPipelineHandle GetErrorPipeline(RenderPass renderPass)
     {
         // TODO: Create actual error pipeline with pink/magenta shader
         // For now, return invalid handle
         if (_errorPipeline == null || !_errorPipeline.Value.IsValid)
         {
             // Create a simple error pipeline (placeholder)
-            _errorPipeline = PipelineHandle.Invalid;
+            _errorPipeline = VulkanPipelineHandle.Invalid;
         }
         return _errorPipeline.Value;
     }

@@ -1,4 +1,4 @@
-namespace Nexus.Graphics.Commands;
+namespace Nexus.Graphics.Vulkan.Commands;
 
 /// <summary>
 /// Aggregated statistics for all command pools managed by ICommandPoolManager.

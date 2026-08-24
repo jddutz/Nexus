@@ -1,6 +1,6 @@
-﻿using Buffer = Silk.NET.Vulkan.Buffer;
+using Buffer = Silk.NET.Vulkan.Buffer;
 
-namespace Nexus.Graphics.Buffers;
+namespace Nexus.Graphics.Vulkan.Buffers;
 
 /// <summary>
 /// Implements Vulkan buffer creation and destruction.
@@ -8,8 +8,15 @@ namespace Nexus.Graphics.Buffers;
 /// </summary>
 public unsafe class BufferManager(IGraphicsContext context) : IBufferManager
 {
+    // Tracks the DeviceMemory backing each buffer, keyed by the buffer's native handle
+    // (which also serves as the buffer's GpuHandle value).
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<
+        ulong,
+        DeviceMemory
+    > _memoryByBuffer = new();
+
     /// <inheritdoc />
-    public (Buffer, DeviceMemory) CreateVertexBuffer(ReadOnlySpan<byte> data)
+    public GpuHandle CreateVertexBuffer(ReadOnlySpan<byte> data)
     {
         var bufferSize = (ulong)data.Length;
 
@@ -71,11 +78,12 @@ public unsafe class BufferManager(IGraphicsContext context) : IBufferManager
 
         context.VulkanApi.UnmapMemory(context.Device, memory);
 
-        return (buffer, memory);
+        _memoryByBuffer[buffer.Handle] = memory;
+        return new GpuHandle(buffer.Handle);
     }
 
     /// <inheritdoc />
-    public (Buffer, DeviceMemory) CreateUniformBuffer(ulong size)
+    public GpuHandle CreateUniformBuffer(ulong size)
     {
         // Create buffer with uniform buffer usage
         var bufferInfo = new BufferCreateInfo
@@ -125,12 +133,18 @@ public unsafe class BufferManager(IGraphicsContext context) : IBufferManager
         // Bind buffer to memory
         context.VulkanApi.BindBufferMemory(context.Device, buffer, memory, 0);
 
-        return (buffer, memory);
+        _memoryByBuffer[buffer.Handle] = memory;
+        return new GpuHandle(buffer.Handle);
     }
 
     /// <inheritdoc />
-    public void UpdateUniformBuffer(DeviceMemory memory, ReadOnlySpan<byte> data)
+    public void UpdateUniformBuffer(GpuHandle buffer, ReadOnlySpan<byte> data)
     {
+        if (!_memoryByBuffer.TryGetValue(buffer.Value, out var memory))
+        {
+            throw new ArgumentException("Unknown buffer handle", nameof(buffer));
+        }
+
         var size = (ulong)data.Length;
 
         // Map memory
@@ -148,12 +162,19 @@ public unsafe class BufferManager(IGraphicsContext context) : IBufferManager
     }
 
     /// <inheritdoc />
-    public void DestroyBuffer(Buffer buffer, DeviceMemory memory)
+    public void DestroyBuffer(GpuHandle buffer)
     {
+        if (!_memoryByBuffer.TryRemove(buffer.Value, out var memory))
+        {
+            return;
+        }
+
+        var vkBuffer = new Buffer(buffer.Value);
+
         // Wait for GPU to finish using the buffer
         context.VulkanApi.DeviceWaitIdle(context.Device);
 
-        context.VulkanApi.DestroyBuffer(context.Device, buffer, null);
+        context.VulkanApi.DestroyBuffer(context.Device, vkBuffer, null);
         context.VulkanApi.FreeMemory(context.Device, memory, null);
     }
 

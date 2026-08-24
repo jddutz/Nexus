@@ -1,4 +1,4 @@
-namespace Nexus.Graphics.Pipelines;
+namespace Nexus.Graphics.Vulkan.Pipelines;
 
 /// <summary>
 /// Describes vertex input bindings and attributes for a pipeline.

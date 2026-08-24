@@ -1,6 +1,6 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 
-namespace Nexus.Graphics.Descriptors;
+namespace Nexus.Graphics.Vulkan.Descriptors;
 
 /// <summary>
 /// Implements Vulkan descriptor management: pools, layouts, and sets.
@@ -21,7 +21,7 @@ public unsafe class DescriptorManager(IGraphicsContext context) : IDescriptorMan
     private int _totalPoolsCreated = 0;
 
     /// <inheritdoc/>
-    public DescriptorSetLayout CreateDescriptorSetLayout(DescriptorSetLayoutBinding[] bindings)
+    public GpuHandle CreateDescriptorSetLayout(DescriptorSetLayoutBinding[] bindings)
     {
         if (bindings == null || bindings.Length == 0)
         {
@@ -36,7 +36,7 @@ public unsafe class DescriptorManager(IGraphicsContext context) : IDescriptorMan
 
         // Return cached layout if exists
         if (_layoutCache.TryGetValue(hash, out var cachedLayout))
-            return cachedLayout;
+            return new GpuHandle(cachedLayout.Handle);
 
         // Create new layout
         fixed (DescriptorSetLayoutBinding* pBindings = bindings)
@@ -65,23 +65,25 @@ public unsafe class DescriptorManager(IGraphicsContext context) : IDescriptorMan
 
             _layoutCache.TryAdd(hash, layout);
 
-            return layout;
+            return new GpuHandle(layout.Handle);
         }
     }
 
     /// <inheritdoc/>
-    public DescriptorSet AllocateDescriptorSet(DescriptorSetLayout layout)
+    public GpuHandle AllocateDescriptorSet(GpuHandle layout)
     {
-        if (layout.Handle == 0)
+        if (!layout.IsValid)
         {
             throw new ArgumentException("Invalid descriptor set layout", nameof(layout));
         }
+
+        var vkLayout = new DescriptorSetLayout(layout.Value);
 
         // Get or create descriptor pool
         var pool = GetOrCreatePool();
 
         // Allocate descriptor set from pool
-        var layouts = stackalloc DescriptorSetLayout[] { layout };
+        var layouts = stackalloc DescriptorSetLayout[] { vkLayout };
         var allocInfo = new DescriptorSetAllocateInfo
         {
             SType = StructureType.DescriptorSetAllocateInfo,
@@ -119,31 +121,34 @@ public unsafe class DescriptorManager(IGraphicsContext context) : IDescriptorMan
 
         _totalSetsAllocated++;
 
-        return descriptorSet;
+        return new GpuHandle(descriptorSet.Handle);
     }
 
     /// <inheritdoc/>
     public void UpdateDescriptorSet(
-        DescriptorSet descriptorSet,
-        Silk.NET.Vulkan.Buffer buffer,
+        GpuHandle descriptorSet,
+        GpuHandle buffer,
         ulong size,
         uint binding = 0
     )
     {
-        if (descriptorSet.Handle == 0)
+        if (!descriptorSet.IsValid)
         {
             throw new ArgumentException("Invalid descriptor set", nameof(descriptorSet));
         }
 
-        if (buffer.Handle == 0)
+        if (!buffer.IsValid)
         {
             throw new ArgumentException("Invalid buffer", nameof(buffer));
         }
 
+        var vkDescriptorSet = new DescriptorSet(descriptorSet.Value);
+        var vkBuffer = new Silk.NET.Vulkan.Buffer(buffer.Value);
+
         // Describe the buffer binding
         var bufferInfo = new DescriptorBufferInfo
         {
-            Buffer = buffer,
+            Buffer = vkBuffer,
             Offset = 0,
             Range = size,
         };
@@ -152,7 +157,7 @@ public unsafe class DescriptorManager(IGraphicsContext context) : IDescriptorMan
         var descriptorWrite = new WriteDescriptorSet
         {
             SType = StructureType.WriteDescriptorSet,
-            DstSet = descriptorSet,
+            DstSet = vkDescriptorSet,
             DstBinding = binding,
             DstArrayElement = 0,
             DescriptorType = DescriptorType.UniformBuffer,
@@ -166,33 +171,35 @@ public unsafe class DescriptorManager(IGraphicsContext context) : IDescriptorMan
 
     /// <inheritdoc/>
     public void UpdateDescriptorSet(
-        DescriptorSet descriptorSet,
-        ImageView imageView,
-        Sampler sampler,
+        GpuHandle descriptorSet,
+        GpuHandle imageView,
+        GpuHandle sampler,
         ImageLayout imageLayout,
         uint binding = 0
     )
     {
-        if (descriptorSet.Handle == 0)
+        if (!descriptorSet.IsValid)
         {
             throw new ArgumentException("Invalid descriptor set", nameof(descriptorSet));
         }
 
-        if (imageView.Handle == 0)
+        if (!imageView.IsValid)
         {
             throw new ArgumentException("Invalid image view", nameof(imageView));
         }
 
-        if (sampler.Handle == 0)
+        if (!sampler.IsValid)
         {
             throw new ArgumentException("Invalid sampler", nameof(sampler));
         }
 
+        var vkDescriptorSet = new DescriptorSet(descriptorSet.Value);
+
         // Describe the image binding
         var imageInfo = new DescriptorImageInfo
         {
-            ImageView = imageView,
-            Sampler = sampler,
+            ImageView = new ImageView(imageView.Value),
+            Sampler = new Sampler(sampler.Value),
             ImageLayout = imageLayout,
         };
 
@@ -200,7 +207,7 @@ public unsafe class DescriptorManager(IGraphicsContext context) : IDescriptorMan
         var descriptorWrite = new WriteDescriptorSet
         {
             SType = StructureType.WriteDescriptorSet,
-            DstSet = descriptorSet,
+            DstSet = vkDescriptorSet,
             DstBinding = binding,
             DstArrayElement = 0,
             DescriptorType = DescriptorType.CombinedImageSampler,

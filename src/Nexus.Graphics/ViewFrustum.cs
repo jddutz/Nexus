@@ -1,4 +1,4 @@
-namespace Nexus.Graphics.Cameras;
+namespace Nexus.Graphics;
 
 /// <summary>
 /// Represents a camera's view frustum for culling calculations.

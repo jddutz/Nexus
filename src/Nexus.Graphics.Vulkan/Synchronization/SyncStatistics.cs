@@ -1,4 +1,4 @@
-namespace Nexus.Graphics.Synchronization;
+namespace Nexus.Graphics.Vulkan.Synchronization;
 
 /// <summary>
 /// Statistics about synchronization primitive usage and performance.

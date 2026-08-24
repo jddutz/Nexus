@@ -1,8 +1,8 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using VkFence = Silk.NET.Vulkan.Fence;
 using VkSemaphore = Silk.NET.Vulkan.Semaphore;
 
-namespace Nexus.Graphics.Synchronization;
+namespace Nexus.Graphics.Vulkan.Synchronization;
 
 /// <summary>
 /// Manages Vulkan synchronization primitives for the "frames in flight" pattern.

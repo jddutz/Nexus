@@ -1,4 +1,4 @@
-namespace Nexus.Graphics;
+namespace Nexus.Graphics.Abstractions;
 
 /// <summary>
 /// Interface for managing viewport creation and lifecycle.

@@ -1,4 +1,4 @@
-﻿namespace Nexus.Graphics;
+namespace Nexus.Graphics;
 
 /// <summary>
 /// Immutable record representing Vulkan rendering state for a viewport.

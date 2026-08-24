@@ -1,4 +1,4 @@
-namespace Nexus.Graphics.Descriptors;
+namespace Nexus.Graphics.Abstractions;
 
 /// <summary>
 /// Manages Vulkan descriptor pools, layouts, and sets for binding resources to shaders.
@@ -57,7 +57,7 @@ public interface IDescriptorManager : IDisposable
     /// Descriptor set layouts define the "blueprint" for descriptor sets - what resources
     /// can be bound and at which binding points. They are used when creating pipeline layouts.
     /// </remarks>
-    DescriptorSetLayout CreateDescriptorSetLayout(DescriptorSetLayoutBinding[] bindings);
+    GpuHandle CreateDescriptorSetLayout(DescriptorSetLayoutBinding[] bindings);
 
     /// <summary>
     /// Allocates a descriptor set from the pool using the specified layout.
@@ -68,7 +68,7 @@ public interface IDescriptorManager : IDisposable
     /// Allocates from an internal descriptor pool. If pool is exhausted, a new pool is created.
     /// Descriptor sets cannot be individually freed - entire pools are reset together.
     /// </remarks>
-    DescriptorSet AllocateDescriptorSet(DescriptorSetLayout layout);
+    GpuHandle AllocateDescriptorSet(GpuHandle layout);
 
     /// <summary>
     /// Updates a descriptor set to bind a uniform buffer.
@@ -82,8 +82,8 @@ public interface IDescriptorManager : IDisposable
     /// For more complex updates, a lower-level method accepting WriteDescriptorSet[] may be needed.
     /// </remarks>
     void UpdateDescriptorSet(
-        DescriptorSet descriptorSet,
-        Silk.NET.Vulkan.Buffer buffer,
+        GpuHandle descriptorSet,
+        GpuHandle buffer,
         ulong size,
         uint binding = 0
     );
@@ -97,9 +97,9 @@ public interface IDescriptorManager : IDisposable
     /// <param name="imageLayout">Image layout (typically ShaderReadOnlyOptimal)</param>
     /// <param name="binding">Binding point (default 0)</param>
     void UpdateDescriptorSet(
-        DescriptorSet descriptorSet,
-        ImageView imageView,
-        Sampler sampler,
+        GpuHandle descriptorSet,
+        GpuHandle imageView,
+        GpuHandle sampler,
         ImageLayout imageLayout,
         uint binding = 0
     );

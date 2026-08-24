@@ -1,4 +1,4 @@
-namespace Nexus.Graphics;
+namespace Nexus.Graphics.Vulkan;
 
 /// <summary>
 /// Provides access to the Vulkan API and core resources.

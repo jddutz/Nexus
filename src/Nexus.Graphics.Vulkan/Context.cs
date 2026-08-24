@@ -1,4 +1,4 @@
-﻿using System.Runtime.InteropServices;
+using System.Runtime.InteropServices;
 using Microsoft.Extensions.Options;
 using Nexus.Runtime.Settings;
 using Silk.NET.Core;
@@ -6,7 +6,7 @@ using Silk.NET.Core.Native;
 using Silk.NET.Vulkan.Extensions.EXT;
 using Silk.NET.Vulkan.Extensions.KHR;
 
-namespace Nexus.Graphics;
+namespace Nexus.Graphics.Vulkan;
 
 /// <summary>
 /// Vulkan context implementation that initializes all Vulkan resources in the constructor.

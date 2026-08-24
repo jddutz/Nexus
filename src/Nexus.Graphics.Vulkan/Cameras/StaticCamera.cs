@@ -1,6 +1,6 @@
 using Nexus.Runtime.Systems;
 
-namespace Nexus.Graphics.Cameras;
+namespace Nexus.Graphics.Vulkan.Cameras;
 
 /// <summary>
 /// Orthographic camera for UI rendering with top-left origin coordinate system.
@@ -15,10 +15,9 @@ public partial class StaticCamera : Component, ICamera
     public StaticCamera() { }
 
     // UBO for ViewProjection matrix
-    private Silk.NET.Vulkan.Buffer _viewProjectionBuffer;
-    private DeviceMemory _viewProjectionMemory;
-    private DescriptorSet _viewProjectionDescriptorSet;
-    private DescriptorSetLayout _viewProjectionDescriptorLayout;
+    private GpuHandle _viewProjectionBuffer;
+    private GpuHandle _viewProjectionDescriptorSet;
+    private GpuHandle _viewProjectionDescriptorLayout;
     private bool _uboInitialized = false;
 
     // Viewport dimensions in pixels
@@ -222,9 +221,9 @@ public partial class StaticCamera : Component, ICamera
         var uboSize = (ulong)sizeof(ViewProjectionUBO);
 
         // Create UBO buffer
-        (_viewProjectionBuffer, _viewProjectionMemory) = (
-            (ResourceSystem)Resources
-        ).BufferManager.CreateUniformBuffer(uboSize);
+        _viewProjectionBuffer = ((ResourceSystem)Resources).BufferManager.CreateUniformBuffer(
+            uboSize
+        );
 
         // Create descriptor set layout for UBO (set=0, binding=0)
         var layoutBinding = new DescriptorSetLayoutBinding
@@ -246,7 +245,7 @@ public partial class StaticCamera : Component, ICamera
         // Write descriptor set to bind UBO
         var bufferInfo = new DescriptorBufferInfo
         {
-            Buffer = _viewProjectionBuffer,
+            Buffer = new Silk.NET.Vulkan.Buffer(_viewProjectionBuffer.Value),
             Offset = 0,
             Range = uboSize,
         };
@@ -254,7 +253,7 @@ public partial class StaticCamera : Component, ICamera
         var writeDescriptorSet = new WriteDescriptorSet
         {
             SType = StructureType.WriteDescriptorSet,
-            DstSet = _viewProjectionDescriptorSet,
+            DstSet = new DescriptorSet(_viewProjectionDescriptorSet.Value),
             DstBinding = 0,
             DstArrayElement = 0,
             DescriptorType = DescriptorType.UniformBuffer,
@@ -278,7 +277,7 @@ public partial class StaticCamera : Component, ICamera
 
         var ubo = ViewProjectionUBO.FromMatrix(GetViewProjectionMatrix());
         var span = new ReadOnlySpan<byte>(&ubo, sizeof(ViewProjectionUBO));
-        ((ResourceSystem)Resources).BufferManager.UpdateUniformBuffer(_viewProjectionMemory, span);
+        ((ResourceSystem)Resources).BufferManager.UpdateUniformBuffer(_viewProjectionBuffer, span);
     }
 
     private void CleanupViewProjectionUBO()
@@ -286,16 +285,13 @@ public partial class StaticCamera : Component, ICamera
         if (!_uboInitialized)
             return;
 
-        ((ResourceSystem)Resources).BufferManager.DestroyBuffer(
-            _viewProjectionBuffer,
-            _viewProjectionMemory
-        );
+        ((ResourceSystem)Resources).BufferManager.DestroyBuffer(_viewProjectionBuffer);
         // Descriptor set is freed automatically when pool is reset
 
         _uboInitialized = false;
     }
 
-    public DescriptorSet GetViewProjectionDescriptorSet()
+    public GpuHandle GetViewProjectionDescriptorSet()
     {
         return _uboInitialized ? _viewProjectionDescriptorSet : default;
     }

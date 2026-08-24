@@ -1,4 +1,4 @@
-namespace Nexus.Graphics.Pipelines;
+namespace Nexus.Graphics;
 
 /// <summary>
 /// Statistics about pipeline cache performance and usage.

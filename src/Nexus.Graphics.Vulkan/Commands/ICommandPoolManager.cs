@@ -1,4 +1,4 @@
-namespace Nexus.Graphics.Commands;
+namespace Nexus.Graphics.Vulkan.Commands;
 
 /// <summary>
 /// Manages multiple command pools for different queue families and use cases.

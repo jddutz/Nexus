@@ -65,22 +65,22 @@ public class DepthSortBatchStrategy : IBatchStrategy
         // Within same priority and depth, optimize for batching to minimize state changes
 
         // Sort by pipeline (most expensive to change)
-        var pipelineCompare = x.Pipeline.Pipeline.Handle.CompareTo(y.Pipeline.Pipeline.Handle);
+        var pipelineCompare = x.Pipeline.Pipeline.Value.CompareTo(y.Pipeline.Pipeline.Value);
         if (pipelineCompare != 0)
             return pipelineCompare;
 
         // Then by descriptor set (textures/uniforms)
-        var descriptorCompare = x.DescriptorSet.Handle.CompareTo(y.DescriptorSet.Handle);
+        var descriptorCompare = x.DescriptorSet.Value.CompareTo(y.DescriptorSet.Value);
         if (descriptorCompare != 0)
             return descriptorCompare;
 
         // Then by vertex buffer
-        var vertexCompare = x.VertexBuffer.Handle.CompareTo(y.VertexBuffer.Handle);
+        var vertexCompare = x.VertexBuffer.Value.CompareTo(y.VertexBuffer.Value);
         if (vertexCompare != 0)
             return vertexCompare;
 
         // Finally by index buffer
-        return x.IndexBuffer.Handle.CompareTo(y.IndexBuffer.Handle);
+        return x.IndexBuffer.Value.CompareTo(y.IndexBuffer.Value);
     }
 
     /// <summary>

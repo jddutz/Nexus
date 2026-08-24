@@ -1,4 +1,4 @@
-namespace Nexus.Graphics.Commands;
+namespace Nexus.Graphics.Vulkan.Commands;
 
 /// <summary>
 /// Statistics about command pool usage and performance.

@@ -1,4 +1,4 @@
-namespace Nexus.Graphics.Synchronization;
+namespace Nexus.Graphics.Vulkan.Synchronization;
 
 /// <summary>
 /// Manages Vulkan synchronization primitives for frame rendering.

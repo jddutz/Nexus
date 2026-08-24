@@ -1,68 +1,149 @@
-namespace Nexus.Graphics.Pipelines;
+namespace Nexus.Graphics.Vulkan.Pipelines;
 
 /// <summary>
 /// Fluent builder for creating graphics pipelines.
 /// Provides a readable API for configuring pipeline state.
-/// Use extension methods to configure the builder.
 /// </summary>
 public class PipelineBuilder(
-    IPipelineManager manager,
+    PipelineManager manager,
     ISwapChain swapChain,
     IResourceManager resources,
     IDescriptorManager descriptorManager
 ) : IPipelineBuilder
 {
-    // Internal state accessible by extension methods
-    internal ShaderResource? Shader { get; set; }
-    internal ShaderDefinition? ShaderDefinition { get; set; }
-    internal Silk.NET.Vulkan.ShaderStageFlags ShaderStages { get; set; } =
-        Silk.NET.Vulkan.ShaderStageFlags.VertexBit | Silk.NET.Vulkan.ShaderStageFlags.FragmentBit;
-    internal IResourceManager Resources { get; } = resources;
-    internal ISwapChain SwapChain { get; } = swapChain;
-    internal IDescriptorManager DescriptorManager { get; } = descriptorManager;
-    internal RenderPass? RenderPass { get; set; }
-    internal PrimitiveTopology Topology { get; set; } = PrimitiveTopology.TriangleList;
-    internal CullModeFlags CullMode { get; set; } = CullModeFlags.BackBit;
-    internal FrontFace FrontFace { get; set; } = FrontFace.CounterClockwise;
-    internal bool EnableDepthTest { get; set; } = true;
-    internal bool EnableDepthWrite { get; set; } = true;
-    internal bool EnableBlending { get; set; } = false;
-    internal uint Subpass { get; set; } = 0;
+    private ShaderResource? _shader;
+    private ShaderDefinition? _shaderDefinition;
+    private ShaderStageFlags _shaderStages =
+        ShaderStageFlags.VertexBit | ShaderStageFlags.FragmentBit;
+    private RenderPass? _renderPass;
+    private PrimitiveTopology _topology = PrimitiveTopology.TriangleList;
+    private CullModeFlags _cullMode = CullModeFlags.BackBit;
+    private FrontFace _frontFace = FrontFace.CounterClockwise;
+    private bool _enableDepthTest = true;
+    private bool _enableDepthWrite = true;
+    private bool _enableBlending;
+    private uint _subpass;
+
+    /// <inheritdoc/>
+    public IPipelineBuilder WithShader(
+        ShaderResource shader,
+        ShaderStageFlags flags = ShaderStageFlags.VertexBit | ShaderStageFlags.FragmentBit
+    )
+    {
+        _shader = shader ?? throw new ArgumentNullException(nameof(shader));
+        _shaderStages = flags;
+        return this;
+    }
+
+    /// <inheritdoc/>
+    public IPipelineBuilder WithShader(ShaderDefinition shaderDefinition)
+    {
+        _shaderDefinition =
+            shaderDefinition ?? throw new ArgumentNullException(nameof(shaderDefinition));
+        return this;
+    }
+
+    /// <inheritdoc/>
+    public IPipelineBuilder WithTopology(PrimitiveTopology topology)
+    {
+        _topology = topology;
+        return this;
+    }
+
+    /// <inheritdoc/>
+    public IPipelineBuilder WithCullMode(CullModeFlags cullMode)
+    {
+        _cullMode = cullMode;
+        return this;
+    }
+
+    /// <inheritdoc/>
+    public IPipelineBuilder WithFrontFace(FrontFace frontFace)
+    {
+        _frontFace = frontFace;
+        return this;
+    }
+
+    /// <inheritdoc/>
+    public IPipelineBuilder WithDepthTest(bool enable = true)
+    {
+        _enableDepthTest = enable;
+        return this;
+    }
+
+    /// <inheritdoc/>
+    public IPipelineBuilder WithDepthWrite(bool enable = true)
+    {
+        _enableDepthWrite = enable;
+        return this;
+    }
+
+    /// <inheritdoc/>
+    public IPipelineBuilder WithBlending(bool enable = true)
+    {
+        _enableBlending = enable;
+        return this;
+    }
+
+    /// <inheritdoc/>
+    public IPipelineBuilder WithSubpass(uint subpass)
+    {
+        _subpass = subpass;
+        return this;
+    }
+
+    /// <inheritdoc/>
+    public IPipelineBuilder WithRenderPasses(uint renderPassMask)
+    {
+        // Ensure only a single bit is set
+        if (renderPassMask == 0 || (renderPassMask & (renderPassMask - 1)) != 0)
+        {
+            throw new ArgumentException(
+                "WithRenderPasses only supports a single render pass.",
+                nameof(renderPassMask)
+            );
+        }
+
+        // Convert bit flag to array index using Log2
+        int passIndex = (int)Math.Log2(renderPassMask);
+        _renderPass = swapChain.Passes[passIndex];
+        return this;
+    }
 
     /// <inheritdoc/>
     public PipelineHandle Build(string? name)
     {
         // Get shader resource from definition if needed
-        if (Shader == null && ShaderDefinition != null)
+        if (_shader == null && _shaderDefinition != null)
         {
-            Shader = Resources.Shaders.GetOrCreate(ShaderDefinition);
+            _shader = resources.Shaders.GetOrCreate(_shaderDefinition);
         }
 
         // Validate required fields
-        if (Shader == null)
+        if (_shader == null)
             throw new InvalidOperationException(
                 "Shader is required. Call WithShader() before Build()."
             );
-        if (RenderPass == null)
+        if (_renderPass == null)
             throw new InvalidOperationException(
-                "RenderPass is required. Call WithRenderPass() before Build()."
+                "RenderPass is required. Call WithRenderPasses() before Build()."
             );
 
         // Create descriptor set layouts if shader uses descriptor sets
-        DescriptorSetLayout[]? descriptorSetLayouts = null;
+        GpuHandle[]? descriptorSetLayouts = null;
 
         if (
-            Shader.Definition.DescriptorSetLayouts != null
-            && Shader.Definition.DescriptorSetLayouts.Count > 0
+            _shader.Definition.DescriptorSetLayouts != null
+            && _shader.Definition.DescriptorSetLayouts.Count > 0
         )
         {
             // Create one descriptor set layout per set index
-            var maxSetIndex = Shader.Definition.DescriptorSetLayouts.Keys.Max();
-            descriptorSetLayouts = new DescriptorSetLayout[maxSetIndex + 1];
+            var maxSetIndex = _shader.Definition.DescriptorSetLayouts.Keys.Max();
+            descriptorSetLayouts = new GpuHandle[maxSetIndex + 1];
 
-            foreach (var (setIndex, bindings) in Shader.Definition.DescriptorSetLayouts)
+            foreach (var (setIndex, bindings) in _shader.Definition.DescriptorSetLayouts)
             {
-                descriptorSetLayouts[setIndex] = DescriptorManager.CreateDescriptorSetLayout(
+                descriptorSetLayouts[setIndex] = descriptorManager.CreateDescriptorSetLayout(
                     bindings
                 );
             }
@@ -72,46 +153,48 @@ public class PipelineBuilder(
         var descriptor = new PipelineDescriptor
         {
             Name = name ?? GenerateAutomaticName(),
-            ShaderResource = Shader, // Pass the loaded shader resource with compiled modules
-            VertexShaderPath = Shader.Definition.Name + ".vert", // Legacy fallback for tracking
-            FragmentShaderPath = Shader.Definition.Name + ".frag", // Legacy fallback for tracking
-            VertexInputDescription = Shader.Definition.InputDescription,
-            PushConstantRanges = Shader.Definition.PushConstantRanges,
-            ShaderStageFlags = ShaderStages,
-            DescriptorSetLayouts = descriptorSetLayouts,
-            RenderPass = RenderPass.Value,
-            Topology = Topology,
-            CullMode = CullMode,
-            FrontFace = FrontFace,
-            EnableDepthTest = EnableDepthTest,
-            EnableDepthWrite = EnableDepthWrite,
-            EnableBlending = EnableBlending,
-            Subpass = Subpass,
+            ShaderResource = _shader, // Pass the loaded shader resource with compiled modules
+            VertexShaderPath = _shader.Definition.Name + ".vert", // Legacy fallback for tracking
+            FragmentShaderPath = _shader.Definition.Name + ".frag", // Legacy fallback for tracking
+            VertexInputDescription = _shader.Definition.InputDescription,
+            PushConstantRanges = _shader.Definition.PushConstantRanges,
+            ShaderStageFlags = _shaderStages,
+            DescriptorSetLayouts = descriptorSetLayouts
+                ?.Select(h => new DescriptorSetLayout(h.Value))
+                .ToArray(),
+            RenderPass = _renderPass.Value,
+            Topology = _topology,
+            CullMode = _cullMode,
+            FrontFace = _frontFace,
+            EnableDepthTest = _enableDepthTest,
+            EnableDepthWrite = _enableDepthWrite,
+            EnableBlending = _enableBlending,
+            Subpass = _subpass,
         };
 
-        // Let the manager create and cache the pipeline
-        return manager.GetOrCreatePipeline(descriptor);
+        // Let the manager create and cache the pipeline, then expose the opaque handle
+        return manager.GetOrCreatePipeline(descriptor).ToPipelineHandle();
     }
 
     private string GenerateAutomaticName()
     {
         // Generate a deterministic name from configuration
         var hash = ComputeConfigurationHash();
-        return $"Pipeline_{Shader!.Name}_{hash:X8}";
+        return $"Pipeline_{_shader!.Name}_{hash:X8}";
     }
 
     private int ComputeConfigurationHash()
     {
         var hashCode = new HashCode();
-        hashCode.Add(Shader?.Name);
-        hashCode.Add(RenderPass);
-        hashCode.Add(Topology);
-        hashCode.Add(CullMode);
-        hashCode.Add(FrontFace);
-        hashCode.Add(EnableDepthTest);
-        hashCode.Add(EnableDepthWrite);
-        hashCode.Add(EnableBlending);
-        hashCode.Add(Subpass);
+        hashCode.Add(_shader?.Name);
+        hashCode.Add(_renderPass);
+        hashCode.Add(_topology);
+        hashCode.Add(_cullMode);
+        hashCode.Add(_frontFace);
+        hashCode.Add(_enableDepthTest);
+        hashCode.Add(_enableDepthWrite);
+        hashCode.Add(_enableBlending);
+        hashCode.Add(_subpass);
         return hashCode.ToHashCode();
     }
 }
