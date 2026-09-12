@@ -1,5 +1,4 @@
-﻿using System.Diagnostics;
-using Microsoft.Extensions.Configuration;
+﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace HelloNexus;
@@ -15,22 +14,28 @@ internal static class Program
 
         try
         {
-            var configuration = new ConfigurationBuilder().AddJsonFile("appsettings.json").Build();
+            Console.WriteLine("Starting Hello Nexus...");
+
+            var configuration = new ConfigurationBuilder()
+                .AddJsonFile(Path.Combine(AppContext.BaseDirectory, "appsettings.json"))
+                .Build();
 
             var services = new ServiceCollection();
 
             // Register game-specific services here.
             // services.AddMyGameServices();
 
-            var application = new Application(configuration, services);
+            using var application = new Application(configuration, services);
 
             application.Run();
 
             Environment.ExitCode = 0;
+            Console.WriteLine("Hello Nexus exited normally.");
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"Program Error: {ex.Message}{Environment.NewLine}{ex.StackTrace}");
+            Console.Error.WriteLine("Hello Nexus encountered an unhandled error:");
+            Console.Error.WriteLine(ex);
         }
     }
 }
