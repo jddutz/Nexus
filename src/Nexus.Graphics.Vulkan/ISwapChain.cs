@@ -83,16 +83,16 @@ public interface ISwapChain : IDisposable
     /// <summary>
     /// Acquires the next available swapchain image for rendering.
     /// </summary>
-    /// <param name="imageAvailableSemaphore">Semaphore to signal when image is available.</param>
-    /// <param name="result">Result code (Success, ErrorOutOfDateKhr, SuboptimalKhr, etc.).</param>
-    /// <returns>Index of the acquired image (use with Framebuffers dictionary).</returns>
+    /// <param name="imageAvailableSemaphore">The semaphore to signal when the image is available for rendering.</param>
+    /// <param name="result">Receives the Vulkan result of the acquisition operation.</param>
+    /// <returns>The index of the acquired swapchain image.</returns>
     uint AcquireNextImage(Semaphore imageAvailableSemaphore, out Result result);
 
     /// <summary>
     /// Presents the rendered image to the screen.
     /// </summary>
-    /// <param name="imageIndex">Index of the image to present (from AcquireNextImage).</param>
-    /// <param name="renderFinishedSemaphore">Semaphore to wait on before presenting.</param>
+    /// <param name="imageIndex">The index of the image to present, as returned by <see cref="AcquireNextImage"/>.</param>
+    /// <param name="renderFinishedSemaphore">The semaphore to wait on before presenting the image.</param>
     void Present(uint imageIndex, Semaphore renderFinishedSemaphore);
 
     /// <summary>

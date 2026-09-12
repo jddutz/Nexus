@@ -1,9 +1,6 @@
-using System.Runtime.InteropServices;
-using Microsoft.Extensions.Options;
-using Nexus.Graphics.Vulkan.Commands;
-using Nexus.Graphics.Vulkan.Synchronization;
-using Nexus.Performance;
-using Nexus.Runtime.Systems;
+using System.Formats.Asn1;
+using CommandBufferPool = Nexus.Graphics.Vulkan.Commands.CommandBufferPool;
+using VkViewport = Silk.NET.Vulkan.Viewport;
 
 namespace Nexus.Graphics.Vulkan;
 
@@ -12,602 +9,239 @@ namespace Nexus.Graphics.Vulkan;
 /// Manages image acquisition, command recording, and presentation.
 /// Uses ContentManager to get active cameras for rendering.
 /// </summary>
-public unsafe class Renderer(
-    IGraphicsContext context,
-    ISwapChain swapChain,
-    ISyncManager syncManager,
-    ICommandPoolManager commandPoolManager,
-    IContentManager contentManager,
-    IWindowService windowService,
-    IComponentFactory componentFactory,
-    IOptions<GraphicsSettings> graphicsOptions,
-    IProfiler profiler
-) : IRenderer
+public unsafe class Renderer : IRenderer
 {
-    private readonly GraphicsSettings _graphicsSettings = graphicsOptions.Value;
-    private readonly ICamera _defaultCamera = CreateAndActivateDefaultCamera(
-        componentFactory,
-        graphicsOptions.Value
-    );
-    private int _currentFrameIndex = 0;
-    private ICommandPool? _graphicsCommandPool;
+    private const string VK_CONTEXT_NULL = "Vulkan _context has not been initialized yet.";
+
+    private Context _context;
+    private ISwapChain _swapChain;
+    private CommandBufferPool _commandPool;
+    private ISyncManager _syncManager;
+    private PipelineManager _pipelineManager;
+    private FrameSync? _frameSync;
+    private ImageSync? _imageSync;
+    private uint _imageIndex;
+    private CommandBuffer _commandBuffer;
+    private AttachmentDescription _colorAttachment;
+    private ClearValue _clearValue;
+    private IProfiler? _profiler;
+    private uint _currentFrameIndex = 0;
 
     public event EventHandler<RenderEventArgs>? BeforeRendering;
     public event EventHandler<RenderEventArgs>? AfterRendering;
-    public event EventHandler<BatchingStatisticsEventArgs>? BatchingStatisticsAvailable;
 
-    /// <summary>
-    /// Gets or sets whether to collect and report batching statistics.
-    /// Disabled by default for performance. Enable for validation and debugging.
-    /// </summary>
-    public bool CollectBatchingStatistics { get; set; } = false;
-
-    private static ICamera CreateAndActivateDefaultCamera(
-        IComponentFactory factory,
-        GraphicsSettings settings
+    internal Renderer(
+        Context context,
+        ISwapChain swapChain,
+        ISyncManager syncManager,
+        PipelineManager pipelineManager,
+        CommandBufferPool commandPool
     )
     {
-        var template = new StaticCameraTemplate
-        {
-            Name = "DefaultCamera",
-            ClearColor = settings.BackgroundColor ?? Colors.DarkBlue,
-            ScreenRegion = new Rectangle<float>(0, 0, 1, 1),
-            RenderPriority = 100, // High priority - renders last (UI overlay)
-            RenderPassMask = RenderPasses.All,
-        };
-
-        var camera = factory.CreateInstance(template) as ICamera;
-        if (camera is IComponent runtimeComponent)
-        {
-            runtimeComponent.Activate();
-        }
-
-        return camera ?? throw new InvalidOperationException("Failed to create default camera");
+        _context = context;
+        _swapChain = swapChain;
+        _syncManager = syncManager;
+        _pipelineManager = pipelineManager;
+        _commandPool = commandPool;
     }
 
-    public void OnRender(double deltaTime)
-    {
-        using var _ = new PerformanceScope("Render", profiler);
+    public RenderDefinition[] Definitions { get; set; } = [new()];
 
+    public bool CanRender() =>
+        _context != null
+        && _swapChain != null
+        && Definitions.Length > 0
+        && _swapChain.SwapchainExtent.Width > 0
+        && _swapChain.SwapchainExtent.Height > 0;
+
+    public bool Render()
+    {
         try
         {
-            // Skip rendering if window is minimized (swapchain extent is 0x0)
-            if (swapChain.SwapchainExtent.Width == 0 || swapChain.SwapchainExtent.Height == 0)
+            if (!CanRender())
+                return false;
+
+            if (!PrepareFrame())
+                return false;
+
+            BeginCommandBuffer();
+
+            foreach (var definition in Definitions)
             {
-                return;
-            }
+                var viewport = definition.Viewport;
+                _context.VulkanApi.CmdSetViewport(_commandBuffer, 0, 1, &viewport);
 
-            // Prepare frame synchronization and acquire next image
-            var (frameSync, imageIndex, imageSync) = PrepareFrame();
+                var scissor = definition.Scissor;
+                _context.VulkanApi.CmdSetScissor(_commandBuffer, 0, 1, &scissor);
 
-            BeforeRendering?.Invoke(this, new RenderEventArgs { ImageIndex = imageIndex });
-
-            int cameraCount = 0;
-
-            // Iterate over all cameras: content cameras + default screen-space camera
-            foreach (var camera in GetAllCameras())
-            {
-                cameraCount++;
-
-                // Update camera viewport size to match swapchain (handles window resize)
-                if (camera is StaticCamera staticCamera)
+                foreach (var pass in definition.RenderPassDefinitions)
                 {
-                    staticCamera.SetViewportSize(
-                        swapChain.SwapchainExtent.Width,
-                        swapChain.SwapchainExtent.Height
-                    );
+                    var clearValues = pass.ClearValues;
+
+                    fixed (ClearValue* clearValuesPointer = clearValues)
+                    {
+                        BeginRenderPass(
+                            RenderPasses.GetIndex(pass.RenderPass),
+                            (uint)clearValues.Length,
+                            clearValuesPointer
+                        );
+                    }
+
+                    ulong lastPipelineId = 0;
+                    ulong lastDescriptorSetHandle = 0;
+
+                    foreach (var command in definition.DrawCommands)
+                    {
+                        if ((command.RenderMask & pass.RenderPass) != 0)
+                            Draw(command, ref lastPipelineId, ref lastDescriptorSetHandle);
+                    }
+
+                    _context.VulkanApi.CmdEndRenderPass(_commandBuffer);
                 }
-
-                // Create viewport from camera
-                var viewport = camera.GetViewport();
-
-                // Create render context for this frame
-                var renderContext = new RenderContext
-                {
-                    Camera = camera,
-                    Viewport = viewport,
-                    AvailableRenderPasses = RenderPasses.All,
-                    RenderPassNames = RenderPasses.Configurations.Select(c => c.Name).ToArray(),
-                    DeltaTime = deltaTime,
-                    ViewProjectionDescriptorSet = camera.GetViewProjectionDescriptorSet(),
-                };
-
-                // Collect and sort draw commands from component tree
-                var (activePasses, passCommandSets) = CollectDrawCommands(renderContext);
-
-                // Allocate and record command buffer
-                _graphicsCommandPool ??= commandPoolManager.GetOrCreatePool(
-                    CommandPoolType.Graphics
-                );
-
-                // Allocate command buffer for this frame
-                var commandBuffers = _graphicsCommandPool.AllocateCommandBuffers(
-                    1,
-                    CommandBufferLevel.Primary
-                );
-
-                // Record rendering commands
-                RecordCommandBuffer(
-                    commandBuffers[0],
-                    imageIndex,
-                    renderContext,
-                    activePasses,
-                    passCommandSets
-                );
-
-                // Submit commands to GPU
-                SubmitFrame(commandBuffers[0], frameSync, imageSync);
             }
 
-            if (cameraCount > 0)
+            if (_context.VulkanApi.EndCommandBuffer(_commandBuffer) != Result.Success)
             {
-                // Present rendered image to screen
-                PresentFrame(imageIndex, imageSync);
-
-                AfterRendering?.Invoke(this, new RenderEventArgs { ImageIndex = imageIndex });
-
-                // Move to next frame
-                _currentFrameIndex = (_currentFrameIndex + 1) % syncManager.MaxFramesInFlight;
+                // TODO: Clean up allocated resources before exiting
+                // so the CommandBuffer and sync fence can be released
+                return false;
             }
-            else
-            {
-                throw new InvalidOperationException("No active viewports to render.");
-            }
+
+            SubmitFrame();
+            PresentFrame();
+
+            _currentFrameIndex = (_currentFrameIndex + 1) % _syncManager.MaxFramesInFlight;
         }
         catch (Exception)
         {
-            windowService.GetWindow().Close();
+            _context.Window.Close();
+            return false;
         }
+
+        return true;
     }
 
     /// <summary>
-    /// Gets all cameras to render: content cameras from ContentManager + default screen-space camera.
-    /// Cameras are sorted by RenderPriority (default camera has priority 100, renders last for UI overlay).
-    /// </summary>
-    private IEnumerable<ICamera> GetAllCameras()
-    {
-        // Yield content cameras first (sorted by priority)
-        foreach (var camera in contentManager.ActiveCameras)
-        {
-            yield return camera;
-        }
-
-        // Always include default screen-space camera for UI rendering
-        yield return _defaultCamera;
-    }
-
-    /// <summary>
-    /// Prepares frame synchronization and acquires the next swapchain image.
+    /// Prepares frame synchronization and acquires the next _swapChain image.
     /// </summary>
     /// <returns>Frame sync, image index, and image sync objects.</returns>
-    private (FrameSync frameSync, uint imageIndex, ImageSync imageSync) PrepareFrame()
+    private bool PrepareFrame()
     {
-        // Get synchronization primitives for current frame
-        var frameSync = syncManager.GetFrameSync(_currentFrameIndex);
+        _frameSync = _syncManager.GetFrameSync(_currentFrameIndex);
 
-        // Wait for this frame to finish (ensures command buffers aren't in use)
-        syncManager.WaitForFence(frameSync.InFlightFence);
-        syncManager.ResetFence(frameSync.InFlightFence);
+        // This frame slot is no longer being used by the GPU.
+        _syncManager.WaitForFence(_frameSync.InFlightFence);
 
-        // Acquire next swapchain image (signals per-frame ImageAvailable semaphore)
-        var imageIndex = swapChain.AcquireNextImage(
-            frameSync.ImageAvailable,
-            out var acquireResult
-        );
+        if (!_commandPool.TryGetCommandBuffer(_frameSync.InFlightFence, out _commandBuffer))
+            return false;
 
-        if (acquireResult == Result.ErrorOutOfDateKhr)
+        _imageIndex = _swapChain.AcquireNextImage(_frameSync.ImageAvailable, out var result);
+
+        if (result == Result.ErrorOutOfDateKhr)
         {
-            swapChain.Recreate();
-            throw new InvalidOperationException("Swapchain is out of date, recreating.");
-        }
-        else if (acquireResult != Result.Success && acquireResult != Result.SuboptimalKhr)
-        {
-            throw new Exception($"Failed to acquire swap chain image: {acquireResult}");
+            _swapChain.Recreate();
+            return false;
         }
 
-        // Get per-image render semaphore
-        var imageSync = syncManager.GetImageSync(imageIndex);
+        if (result != Result.Success && result != Result.SuboptimalKhr)
+        {
+            throw new InvalidOperationException($"Failed to acquire swapchain image: {result}");
+        }
 
-        return (frameSync, imageIndex, imageSync);
+        _imageSync = _syncManager.GetImageSync(_imageIndex);
+
+        _syncManager.ResetFence(_frameSync.InFlightFence);
+        return true;
     }
 
-    /// <summary>
-    /// Collects and sorts draw commands from the component tree into per-pass buckets.
-    /// </summary>
-    /// <returns>Active passes mask and per-pass sorted command sets.</returns>
-    private (uint activePasses, SortedSet<DrawCommand>[] passCommandSets) CollectDrawCommands(
-        RenderContext renderContext
-    )
+    private bool BeginCommandBuffer()
     {
-        // OPTIMIZATION: Pre-allocate per-pass sorted sets (8 passes = indices 0-7)
-        // Commands are automatically sorted on insertion using batch strategy comparer
-        // Note: RenderPasses.Configurations is static, so BatchStrategy instances are already cached
-        const int PassCount = 8;
-        var passCommandSets = new SortedSet<DrawCommand>[PassCount];
-        for (int i = 0; i < PassCount; i++)
+        var beginInfo = new CommandBufferBeginInfo
         {
-            passCommandSets[i] = new SortedSet<DrawCommand>(
-                RenderPasses.Configurations[i].BatchStrategy
-            );
-        }
+            SType = StructureType.CommandBufferBeginInfo,
+            Flags = CommandBufferUsageFlags.OneTimeSubmitBit,
+        };
 
-        // OPTIMIZATION: Collect and sort draw commands into per-pass buckets
-        // Main pass always executes to handle initial image layout transitions
-        // UI pass always executes to transition image to PresentSrcKhr for presentation
-        uint activePasses = RenderPasses.Main | RenderPasses.UI;
+        var result = _context.VulkanApi.BeginCommandBuffer(_commandBuffer, &beginInfo);
 
-        // Use cached visible drawables list built during Update (no tree traversal needed!)
-        var visibleDrawables = contentManager.VisibleDrawables.ToList();
-
-        int commandCount = 0;
-        foreach (var drawable in visibleDrawables)
-        {
-            foreach (var drawCommand in drawable.GetDrawCommands(renderContext))
-            {
-                commandCount++;
-                activePasses |= drawCommand.RenderMask; // HOT PATH: Bitwise OR accumulation
-
-                // Add command to all passes it participates in (auto-sorted on insertion)
-                for (int bitPos = 0; bitPos < PassCount; bitPos++)
-                {
-                    uint passMask = 1u << bitPos;
-                    if ((drawCommand.RenderMask & passMask) != 0)
-                    {
-                        passCommandSets[bitPos].Add(drawCommand); // O(log N) insertion, maintains sort
-                    }
-                }
-            }
-        }
-
-        return (activePasses, passCommandSets);
+        return result == Result.Success;
     }
 
-    /// <summary>
-    /// Records all rendering commands into the command buffer.
-    /// </summary>
-    private void RecordCommandBuffer(
-        CommandBuffer cmd,
-        uint imageIndex,
-        RenderContext renderContext,
-        uint activePasses,
-        SortedSet<DrawCommand>[] passCommandSets
-    )
+    private void BeginRenderPass(int index, uint clearValueCount, ClearValue* passClearValues)
     {
-        const int PassCount = 8;
-
-        unsafe
-        {
-            // Begin command buffer
-            var beginInfo = new CommandBufferBeginInfo
-            {
-                SType = StructureType.CommandBufferBeginInfo,
-                Flags = CommandBufferUsageFlags.OneTimeSubmitBit,
-            };
-
-            var result = context.VulkanApi.BeginCommandBuffer(cmd, &beginInfo);
-            if (result != Result.Success)
-            {
-                throw new InvalidOperationException($"Failed to begin command buffer: {result}");
-            }
-
-            // Pre-allocate clear values buffer outside loop to avoid stack overflow
-            ClearValue* passClearValues = stackalloc ClearValue[2]; // Max 2: color + depth
-
-            // Iterate all 8 passes in order (pass index corresponds to bit position)
-            for (uint passMask = 1u, p = 0; p < PassCount; passMask <<= 1, p++)
-            {
-                // Skip inactive passes
-                if ((activePasses & passMask) == 0)
-                    continue;
-
-                // Skip empty passes except Main and UI
-                if (
-                    passMask != RenderPasses.Main
-                    && passMask != RenderPasses.UI
-                    && passCommandSets[p].Count == 0
-                )
-                    continue;
-
-                // Record this render pass
-                RecordRenderPass(
-                    cmd,
-                    imageIndex,
-                    p,
-                    passClearValues,
-                    renderContext,
-                    passCommandSets[p]
-                );
-
-                // Analyze batching effectiveness if enabled
-                if (CollectBatchingStatistics && passCommandSets[p].Count > 0)
-                {
-                    var passConfig = RenderPasses.Configurations[p];
-                    var batchStrategy = passConfig.BatchStrategy as DefaultBatchStrategy;
-                    if (batchStrategy != null)
-                    {
-                        var stats = batchStrategy.AnalyzeBatching(passCommandSets[p]);
-
-                        BatchingStatisticsAvailable?.Invoke(
-                            this,
-                            new BatchingStatisticsEventArgs
-                            {
-                                PassIndex = p,
-                                PassName = passConfig.Name,
-                                Statistics = stats,
-                            }
-                        );
-                    }
-                }
-            }
-
-            // End command buffer
-            result = context.VulkanApi.EndCommandBuffer(cmd);
-            if (result != Result.Success)
-            {
-                throw new InvalidOperationException($"Failed to end command buffer: {result}");
-            }
-        }
-    }
-
-    /// <summary>
-    /// Records a single render pass with its draw commands.
-    /// </summary>
-    private unsafe void RecordRenderPass(
-        CommandBuffer cmd,
-        uint imageIndex,
-        uint passIndex,
-        ClearValue* passClearValues,
-        RenderContext renderContext,
-        SortedSet<DrawCommand> drawCommands
-    )
-    {
-        // Build clear values dynamically based on pass configuration
-        var config = RenderPasses.Configurations[passIndex];
-
-        var clearValueCount = 0;
-
-        // Add color clear value if this pass clears color
-        if (config.ColorLoadOp == AttachmentLoadOp.Clear)
-        {
-            // Convert viewport's ClearColor to Vulkan clear value
-            var clearColor = renderContext.Viewport.ClearColor;
-            passClearValues[clearValueCount++] = new ClearValue
-            {
-                Color = new ClearColorValue(clearColor.X, clearColor.Y, clearColor.Z, clearColor.W),
-            };
-        }
-        else if (config.ColorFormat != Format.Undefined)
-        {
-            // Color attachment exists but not clearing - still need placeholder
-            passClearValues[clearValueCount++] = default;
-        }
-
-        // Add depth clear value if this pass has depth and clears it
-        if (config.DepthFormat != Format.Undefined)
-        {
-            if (config.DepthLoadOp == AttachmentLoadOp.Clear)
-            {
-                passClearValues[clearValueCount++] = new ClearValue
-                {
-                    DepthStencil = new ClearDepthStencilValue { Depth = 1.0f, Stencil = 0 },
-                };
-            }
-            else
-            {
-                // Depth attachment exists but not clearing - still need placeholder
-                passClearValues[clearValueCount++] = default;
-            }
-        }
-
-        // Begin render pass
         var renderPassInfo = new RenderPassBeginInfo
         {
             SType = StructureType.RenderPassBeginInfo,
-            RenderPass = swapChain.Passes[passIndex],
-            Framebuffer = swapChain.Framebuffers[passIndex][imageIndex],
+            RenderPass = _swapChain.Passes[index],
+            Framebuffer = _swapChain.Framebuffers[index][_imageIndex],
             RenderArea = new Rect2D
             {
                 Offset = new Offset2D(0, 0),
-                Extent = swapChain.SwapchainExtent,
+                Extent = _swapChain.SwapchainExtent,
             },
-            ClearValueCount = (uint)clearValueCount,
+            ClearValueCount = clearValueCount,
             PClearValues = passClearValues,
         };
 
-        context.VulkanApi.CmdBeginRenderPass(cmd, &renderPassInfo, SubpassContents.Inline);
-
-        // Set dynamic viewport and scissor state from the viewport extent
-        var extent = renderContext.Viewport.Extent;
-        var vulkanViewport = new Silk.NET.Vulkan.Viewport
-        {
-            X = 0,
-            Y = 0,
-            Width = extent.Width,
-            Height = extent.Height,
-            MinDepth = 0.0f,
-            MaxDepth = 1.0f,
-        };
-        context.VulkanApi.CmdSetViewport(cmd, 0, 1, &vulkanViewport);
-
-        var scissor = new Rect2D { Offset = new Offset2D(0, 0), Extent = extent };
-        context.VulkanApi.CmdSetScissor(cmd, 0, 1, &scissor);
-
-        // Track state to avoid redundant Vulkan calls
-        ulong lastPipelineHandle = 0;
-        ulong lastDescriptorSetHandle = 0;
-
-        // Draw sorted commands for this pass
-        foreach (var drawCommand in drawCommands)
-        {
-            Draw(
-                cmd,
-                drawCommand,
-                renderContext,
-                ref lastPipelineHandle,
-                ref lastDescriptorSetHandle
-            );
-        }
-
-        // End render pass
-        context.VulkanApi.CmdEndRenderPass(cmd);
-    }
-
-    /// <summary>
-    /// Submits the recorded command buffer to the GPU queue.
-    /// </summary>
-    private unsafe void SubmitFrame(CommandBuffer cmd, FrameSync frameSync, ImageSync imageSync)
-    {
-        var waitStages = PipelineStageFlags.ColorAttachmentOutputBit;
-        var imageAvailableSemaphore = frameSync.ImageAvailable; // Per-frame acquire semaphore
-        var renderFinishedSemaphore = imageSync.RenderFinished; // Per-image render semaphore
-        var commandBuffer = cmd;
-
-        var submitInfo = new SubmitInfo
-        {
-            SType = StructureType.SubmitInfo,
-            WaitSemaphoreCount = 1,
-            PWaitSemaphores = &imageAvailableSemaphore,
-            PWaitDstStageMask = &waitStages,
-            CommandBufferCount = 1,
-            PCommandBuffers = &commandBuffer,
-            SignalSemaphoreCount = 1,
-            PSignalSemaphores = &renderFinishedSemaphore,
-        };
-
-        var result = context.VulkanApi.QueueSubmit(
-            context.GraphicsQueue,
-            1,
-            &submitInfo,
-            frameSync.InFlightFence
+        _context.VulkanApi.CmdBeginRenderPass(
+            _commandBuffer,
+            &renderPassInfo,
+            SubpassContents.Inline
         );
-        if (result != Result.Success)
-        {
-            throw new InvalidOperationException($"Failed to submit queue: {result}");
-        }
-    }
-
-    /// <summary>
-    /// Presents the rendered image to the screen.
-    /// </summary>
-    private void PresentFrame(uint imageIndex, ImageSync imageSync)
-    {
-        try
-        {
-            swapChain.Present(imageIndex, imageSync.RenderFinished);
-        }
-        catch (Exception ex)
-            when (ex.Message.Contains("out of date") || ex.Message.Contains("suboptimal"))
-        {
-            swapChain.Recreate();
-        }
     }
 
     private void Draw(
-        CommandBuffer commandBuffer,
         DrawCommand drawCommand,
-        RenderContext renderContext,
-        ref ulong lastPipelineHandle,
+        ref ulong lastPipelineId,
         ref ulong lastDescriptorSetHandle
     )
     {
-        // Only bind pipeline if it changed
-        if (lastPipelineHandle != drawCommand.Pipeline.Pipeline.Value)
+        var pipeline = _pipelineManager.Get(drawCommand.PipelineId);
+
+        if (drawCommand.PipelineId != lastPipelineId)
         {
-            context.VulkanApi.CmdBindPipeline(
-                commandBuffer,
+            _context.VulkanApi.CmdBindPipeline(
+                _commandBuffer,
                 PipelineBindPoint.Graphics,
-                new Pipeline(drawCommand.Pipeline.Pipeline.Value)
+                pipeline.Pipeline
             );
-            lastPipelineHandle = drawCommand.Pipeline.Pipeline.Value;
+
+            lastPipelineId = drawCommand.PipelineId;
+            lastDescriptorSetHandle = 0;
         }
 
-        var pipelineLayout = new PipelineLayout(drawCommand.Pipeline.Layout.Value);
-
-        // Bind descriptor sets based on pipeline type
-        if (drawCommand.Pipeline.Name == "UI_Element")
+        if (
+            drawCommand.DescriptorSet.Handle != 0
+            && drawCommand.DescriptorSet.Handle != lastDescriptorSetHandle
+        )
         {
-            // UIElement shader needs two descriptor sets:
-            // set=0: ViewProjection UBO (from camera)
-            // set=1: Texture sampler (from command)
+            var descriptorSet = drawCommand.DescriptorSet;
 
-            // Bind ViewProjection at set=0
-            if (renderContext.ViewProjectionDescriptorSet.IsValid)
-            {
-                var vpDescriptorSets = stackalloc DescriptorSet[]
-                {
-                    new DescriptorSet(renderContext.ViewProjectionDescriptorSet.Value),
-                };
-                context.VulkanApi.CmdBindDescriptorSets(
-                    commandBuffer,
-                    PipelineBindPoint.Graphics,
-                    pipelineLayout,
-                    0, // first set
-                    1, // descriptor set count
-                    vpDescriptorSets,
-                    0, // dynamic offset count
-                    null
-                ); // dynamic offsets
-            }
+            _context.VulkanApi.CmdBindDescriptorSets(
+                _commandBuffer,
+                PipelineBindPoint.Graphics,
+                pipeline.Layout,
+                0,
+                1,
+                &descriptorSet,
+                0,
+                null
+            );
 
-            // Bind texture at set=1
-            if (drawCommand.DescriptorSet.IsValid)
-            {
-                var textureDescriptorSets = stackalloc DescriptorSet[]
-                {
-                    new DescriptorSet(drawCommand.DescriptorSet.Value),
-                };
-                context.VulkanApi.CmdBindDescriptorSets(
-                    commandBuffer,
-                    PipelineBindPoint.Graphics,
-                    pipelineLayout,
-                    1, // first set
-                    1, // descriptor set count
-                    textureDescriptorSets,
-                    0, // dynamic offset count
-                    null
-                ); // dynamic offsets
-            }
-        }
-        else
-        {
-            // Standard single descriptor set binding
-            if (
-                drawCommand.DescriptorSet.IsValid
-                && drawCommand.DescriptorSet.Value != lastDescriptorSetHandle
-            )
-            {
-                var descriptorSets = stackalloc DescriptorSet[]
-                {
-                    new DescriptorSet(drawCommand.DescriptorSet.Value),
-                };
-                context.VulkanApi.CmdBindDescriptorSets(
-                    commandBuffer,
-                    PipelineBindPoint.Graphics,
-                    pipelineLayout,
-                    0, // first set
-                    1, // descriptor set count
-                    descriptorSets,
-                    0, // dynamic offset count
-                    null
-                ); // dynamic offsets
-                lastDescriptorSetHandle = drawCommand.DescriptorSet.Value;
-            }
+            lastDescriptorSetHandle = descriptorSet.Handle;
         }
 
-        // Push constants if provided (these typically change per draw, so pin and push per-draw)
-        if (drawCommand.PushConstants != null && drawCommand.Pipeline.Layout.IsValid)
+        if (drawCommand.PushConstants != null && pipeline.Layout.Handle != 0)
         {
-            // Determine size of the concrete push-constant struct at runtime
             var handle = GCHandle.Alloc(drawCommand.PushConstants, GCHandleType.Pinned);
 
-            // Pin the boxed value-type (push-constant structs are blittable) and pass pointer to Vulkan
             try
             {
-                context.VulkanApi.CmdPushConstants(
-                    commandBuffer,
-                    pipelineLayout,
-                    drawCommand.Pipeline.ShaderStageFlags,
-                    0, // offset
+                _context.VulkanApi.CmdPushConstants(
+                    _commandBuffer,
+                    pipeline.Layout,
+                    pipeline.ShaderStageFlags,
+                    0,
                     (uint)Marshal.SizeOf(drawCommand.PushConstants),
                     handle.AddrOfPinnedObject().ToPointer()
                 );
@@ -618,19 +252,85 @@ public unsafe class Renderer(
             }
         }
 
-        var vertexBuffers = stackalloc Silk.NET.Vulkan.Buffer[]
-        {
-            new Silk.NET.Vulkan.Buffer(drawCommand.VertexBuffer.Value),
-        };
-        var offsets = stackalloc ulong[] { 0 };
-        context.VulkanApi.CmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+        var vertexBuffer = drawCommand.VertexBuffer;
+        ulong offset = 0;
 
-        context.VulkanApi.CmdDraw(
-            commandBuffer,
+        _context.VulkanApi.CmdBindVertexBuffers(_commandBuffer, 0, 1, &vertexBuffer, &offset);
+
+        _context.VulkanApi.CmdDraw(
+            _commandBuffer,
             drawCommand.VertexCount,
             drawCommand.InstanceCount,
             drawCommand.FirstVertex,
             0
         );
+
+        var vertexBuffers = stackalloc Silk.NET.Vulkan.Buffer[] { drawCommand.VertexBuffer };
+        var offsets = stackalloc ulong[] { 0 };
+        _context.VulkanApi.CmdBindVertexBuffers(_commandBuffer, 0, 1, vertexBuffers, offsets);
+
+        _context.VulkanApi.CmdDraw(
+            _commandBuffer,
+            drawCommand.VertexCount,
+            drawCommand.InstanceCount,
+            drawCommand.FirstVertex,
+            0
+        );
+    }
+
+    /// <summary>
+    /// Submits the recorded command buffer to the GPU queue.
+    /// </summary>
+    private void SubmitFrame()
+    {
+        if (_frameSync == null || _imageSync == null || _commandBuffer.Handle == 0)
+            return;
+
+        var waitStages = PipelineStageFlags.ColorAttachmentOutputBit;
+        var imageAvailableSemaphore = _frameSync.ImageAvailable; // Per-frame acquire semaphore
+        var renderFinishedSemaphore = _imageSync.RenderFinished; // Per-image render semaphore
+        var cmdBuffer = (CommandBuffer)_commandBuffer;
+
+        var submitInfo = new SubmitInfo
+        {
+            SType = StructureType.SubmitInfo,
+            WaitSemaphoreCount = 1,
+            PWaitSemaphores = &imageAvailableSemaphore,
+            PWaitDstStageMask = &waitStages,
+            CommandBufferCount = 1,
+            PCommandBuffers = &cmdBuffer,
+            SignalSemaphoreCount = 1,
+            PSignalSemaphores = &renderFinishedSemaphore,
+        };
+
+        var result = _context.VulkanApi.QueueSubmit(
+            _context.GraphicsQueue,
+            1,
+            &submitInfo,
+            _frameSync.InFlightFence
+        );
+        if (result != Result.Success)
+        {
+            throw new InvalidOperationException($"Failed to submit queue: {result}");
+        }
+    }
+
+    /// <summary>
+    /// Presents the rendered image to the screen.
+    /// </summary>
+    private void PresentFrame()
+    {
+        if (_imageSync == null)
+            return;
+
+        try
+        {
+            _swapChain.Present(_imageIndex, _imageSync.RenderFinished);
+        }
+        catch (Exception ex)
+            when (ex.Message.Contains("out of date") || ex.Message.Contains("suboptimal"))
+        {
+            _swapChain.Recreate();
+        }
     }
 }

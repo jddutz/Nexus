@@ -8,7 +8,7 @@
 
   <ItemGroup>
     <PackageReference Include="Silk.NET.Maths" />
-    <PackageReference Include="Silk.NET.Vulkan" />
-    <PackageReference Include="Silk.NET.Vulkan.Extensions.KHR" />
+    <PackageReference Include="Silk.NET.Windowing" />
+    <ProjectReference Include="..\Nexus.Core\Nexus.Core.csproj" />
   </ItemGroup>
 </Project>

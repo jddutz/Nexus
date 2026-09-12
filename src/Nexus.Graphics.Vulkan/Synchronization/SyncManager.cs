@@ -10,20 +10,20 @@ namespace Nexus.Graphics.Vulkan.Synchronization;
 /// </summary>
 public sealed class SyncManager : ISyncManager
 {
-    private readonly IGraphicsContext _context;
+    private readonly Context _context;
     private readonly FrameSync[] _frameSyncs;
     private readonly Dictionary<uint, ImageSync> _imageSyncs = [];
     private readonly object _imageSyncLock = new();
     private readonly Stopwatch _waitStopwatch = new();
 
     // Statistics
-    private long _totalFenceWaits;
-    private long _fenceWaitTimeouts;
-    private long _totalFenceResets;
+    private ulong _totalFenceWaits;
+    private ulong _fenceWaitTimeouts;
+    private ulong _totalFenceResets;
     private double _totalFenceWaitTimeMs;
-    private long _deviceWaitIdleCalls;
-    private long _queueWaitIdleCalls;
-    private long _totalFramesRendered;
+    private ulong _deviceWaitIdleCalls;
+    private ulong _queueWaitIdleCalls;
+    private ulong _totalFramesRendered;
 
     private bool _disposed;
 
@@ -33,7 +33,7 @@ public sealed class SyncManager : ISyncManager
     /// <param name="context">Graphics context providing device and Vulkan API access</param>
     /// <param name="loggerFactory">Logger factory for diagnostics</param>
     /// <param name="maxFramesInFlight">Maximum number of frames that can be processed simultaneously (default: 2)</param>
-    public SyncManager(IGraphicsContext context, int maxFramesInFlight = 2)
+    public SyncManager(Context context, uint maxFramesInFlight = 2)
     {
         if (maxFramesInFlight < 1)
             throw new ArgumentOutOfRangeException(nameof(maxFramesInFlight), "Must be at least 1");
@@ -59,10 +59,10 @@ public sealed class SyncManager : ISyncManager
     }
 
     /// <inheritdoc/>
-    public int MaxFramesInFlight { get; }
+    public uint MaxFramesInFlight { get; }
 
     /// <inheritdoc/>
-    public FrameSync GetFrameSync(int frameIndex)
+    public FrameSync GetFrameSync(uint frameIndex)
     {
         if (frameIndex < 0 || frameIndex >= MaxFramesInFlight)
         {
@@ -143,7 +143,7 @@ public sealed class SyncManager : ISyncManager
         var vk = _context.VulkanApi;
 
         _waitStopwatch.Restart();
-        _totalFenceWaits += fences.Length;
+        _totalFenceWaits += (ulong)fences.Length;
 
         unsafe
         {
@@ -210,7 +210,7 @@ public sealed class SyncManager : ISyncManager
         var device = _context.Device;
         var vk = _context.VulkanApi;
 
-        _totalFenceResets += fences.Length;
+        _totalFenceResets += (ulong)fences.Length;
 
         unsafe
         {
@@ -273,7 +273,7 @@ public sealed class SyncManager : ISyncManager
             TotalFenceWaitTimeMs = _totalFenceWaitTimeMs,
             DeviceWaitIdleCalls = _deviceWaitIdleCalls,
             QueueWaitIdleCalls = _queueWaitIdleCalls,
-            CurrentFrameIndex = (int)(_totalFramesRendered % MaxFramesInFlight),
+            CurrentFrameIndex = (uint)(_totalFramesRendered % MaxFramesInFlight),
             TotalFramesRendered = _totalFramesRendered,
             ActiveSemaphoreCount = MaxFramesInFlight * 2,
             ActiveFenceCount = MaxFramesInFlight,

@@ -1,0 +1,10 @@
+namespace Nexus.Core;
+
+internal sealed class TimingSourceFixture : ITimingSource
+{
+    private readonly long _startTimestamp = Stopwatch.GetTimestamp();
+
+    public TimeSpan Elapsed => Stopwatch.GetElapsedTime(_startTimestamp);
+
+    public void Update() { }
+}

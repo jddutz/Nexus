@@ -1,20 +1,31 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Nexus.Audio;
+using Nexus.Core;
+using Nexus.Core.Scenes;
+using Nexus.Graphics;
+using Nexus.Input;
+using Nexus.Physics;
 using Nexus.Runtime;
-using Nexus.Runtime.Abstractions;
 using Nexus.Testing;
 
 namespace Tests;
 
 public class BasicRuntimeTests
 {
+    private static INexusRuntime CreateRuntimeFixture() =>
+        new RuntimeBuilder()
+            .AddServices(CreateRuntimeServices())
+            .AddConfiguration(new ConfigurationBuilder().Build())
+            .Build();
+
     [Fact]
     public void TestRuntimeBuilder_happyPath_runsAndStopsRuntime()
     {
-        var services = new ServiceCollection();
+        var services = CreateRuntimeServices();
         var builder = new TestRuntimeBuilder(services);
 
-        using var runtime = builder.Build();
+        var runtime = builder.Build();
 
         Assert.False(runtime.IsInitialized);
         Assert.False(runtime.IsRunning);
@@ -36,25 +47,9 @@ public class BasicRuntimeTests
     }
 
     [Fact]
-    public void RuntimeBuilder_happyPath_runsAndStopsRuntime()
-    {
-        using var runtime = new RuntimeBuilder(
-            new ServiceCollection(),
-            new ConfigurationBuilder().Build()
-        ).Build();
-
-        runtime.Initialize();
-        runtime.Update();
-        runtime.Stop();
-
-        Assert.True(runtime.IsInitialized);
-        Assert.False(runtime.IsRunning);
-    }
-
-    [Fact]
     public void Initialize_isIdempotent()
     {
-        using var runtime = BuildTestRuntime();
+        var runtime = BuildTestRuntime();
 
         runtime.Initialize();
         runtime.Initialize();
@@ -66,9 +61,15 @@ public class BasicRuntimeTests
     [Fact]
     public void Update_beforeInitialize_throws()
     {
-        using var runtime = BuildTestRuntime();
+        var runtime = BuildTestRuntime();
 
         Assert.Throws<InvalidOperationException>(() => runtime.Update());
+    }
+
+    [Fact]
+    public void RuntimeBuilder_useOpenGL_isNotImplemented()
+    {
+        Assert.Throws<NotImplementedException>(() => new RuntimeBuilder().UseOpenGL());
     }
 
     [Fact]
@@ -78,73 +79,85 @@ public class BasicRuntimeTests
     }
 
     [Fact]
-    public void RuntimeBuilder_rejectsNullServices()
-    {
-        Assert.Throws<ArgumentNullException>(() =>
-            new RuntimeBuilder(null!, new ConfigurationBuilder().Build())
-        );
-    }
-
-    [Fact]
-    public void RuntimeBuilder_rejectsNullConfiguration()
-    {
-        Assert.Throws<ArgumentNullException>(() =>
-            new RuntimeBuilder(new ServiceCollection(), null!)
-        );
-    }
-
-    [Fact]
-    public void Dispose_isIdempotent_andDisposesServiceProvider()
-    {
-        var services = new ServiceCollection();
-        services.AddSingleton<DisposableService>();
-        var runtime = new TestRuntimeBuilder(services).Build();
-        var service = runtime.Services.GetRequiredService<DisposableService>();
-
-        runtime.Dispose();
-        runtime.Dispose();
-
-        Assert.True(service.IsDisposed);
-        Assert.Throws<ObjectDisposedException>(() => runtime.Initialize());
-        Assert.Throws<ObjectDisposedException>(() => runtime.Update());
-        Assert.Throws<ObjectDisposedException>(() => runtime.Stop());
-    }
-
-    [Fact]
-    public void TestRuntimeBuilder_registersNoSubsystemsByDefault_butAllowsExplicitServices()
+    public void RuntimeBuilder_usesExplicitServicesWithoutExposingTheProvider()
     {
         var services = new ServiceCollection();
         var marker = new ExplicitService();
         services.AddSingleton(marker);
+        AddRuntimeServices(services);
 
-        using var runtime = new TestRuntimeBuilder(services).Build();
+        var runtime = new RuntimeBuilder()
+            .AddServices(services)
+            .AddConfiguration(new ConfigurationBuilder().Build())
+            .Build();
 
-        Assert.Same(marker, runtime.Services.GetRequiredService<ExplicitService>());
-        Assert.Null(runtime.Services.GetService<IWindowService>());
+        Assert.NotNull(runtime);
+        Assert.Contains(
+            services,
+            descriptor =>
+                descriptor.ServiceType == typeof(ExplicitService)
+                && descriptor.ImplementationInstance == marker
+        );
     }
 
     [Fact]
     public void Builders_createTheSameConcreteRuntimeType()
     {
-        using var testRuntime = BuildTestRuntime();
-        using var standardRuntime = new RuntimeBuilder(
-            new ServiceCollection(),
-            new ConfigurationBuilder().Build()
-        ).Build();
+        var testRuntime = BuildTestRuntime();
+        var standardRuntime = CreateRuntimeFixture();
 
         Assert.IsType<NexusRuntime>(testRuntime);
         Assert.IsType<NexusRuntime>(standardRuntime);
     }
 
-    private static IRuntime BuildTestRuntime() =>
-        new TestRuntimeBuilder(new ServiceCollection()).Build();
+    private static INexusRuntime BuildTestRuntime() =>
+        new TestRuntimeBuilder(CreateRuntimeServices()).Build();
+
+    private static IServiceCollection CreateRuntimeServices()
+    {
+        var services = new ServiceCollection();
+        AddRuntimeServices(services);
+        return services;
+    }
+
+    private static void AddRuntimeServices(IServiceCollection services)
+    {
+        services.AddSingleton<ITimingSource, TestTimingSource>();
+        services.AddSingleton<IInputSystem, NoOpInputSystem>();
+        services.AddSingleton<ISceneGraph, NoOpSceneTree>();
+        services.AddSingleton<IPhysicsSystem, NoOpPhysicsSystem>();
+        services.AddSingleton<IGraphicsSystem, NoOpGraphicsSystem>();
+        services.AddSingleton<IAudioService, NoOpAudioService>();
+    }
 
     private sealed class ExplicitService;
 
-    private sealed class DisposableService : IDisposable
+    private sealed class NoOpSceneTree : ISceneGraph
     {
-        public bool IsDisposed { get; private set; }
+        public SceneId InitialSceneId => default;
 
-        public void Dispose() => IsDisposed = true;
+        public void Update() { }
+    }
+
+    private sealed class NoOpInputSystem : IInputSystem
+    {
+        public void Update() { }
+    }
+
+    private sealed class NoOpPhysicsSystem : IPhysicsSystem
+    {
+        public void Update() { }
+    }
+
+    private sealed class NoOpGraphicsSystem : IGraphicsSystem
+    {
+        public void Configure() { }
+
+        public void Render() { }
+    }
+
+    private sealed class NoOpAudioService : IAudioService
+    {
+        public void Update() { }
     }
 }

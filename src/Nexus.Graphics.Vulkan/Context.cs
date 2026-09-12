@@ -1,54 +1,45 @@
-using System.Runtime.InteropServices;
-using Microsoft.Extensions.Options;
-using Nexus.Runtime.Settings;
-using Silk.NET.Core;
+﻿using Silk.NET.Core;
 using Silk.NET.Core.Native;
 using Silk.NET.Vulkan.Extensions.EXT;
-using Silk.NET.Vulkan.Extensions.KHR;
 
 namespace Nexus.Graphics.Vulkan;
 
 /// <summary>
 /// Vulkan context implementation that initializes all Vulkan resources in the constructor.
 /// </summary>
-/// <remarks>
+///
 /// Initialization sequence (based on Vulkan tutorial):
 /// [x] Create Instance
 /// [x] Setup Debug Messenger
 /// [x] Create Surface
 /// [x] Pick Physical Device
 /// [x] Create Logical Device
-/// [x] Create Swap Chain
-/// [x] Create Image Views
-/// [x] Create Render Pass
-/// [x] Create Framebuffers
+/// [ ] Create Swap Chain
+/// [ ] Create Image Views
+/// [ ] Create Render Pass
+/// [ ] Create Framebuffers
 /// [ ] Create Graphics Pipeline
 /// [ ] Create Command Pool
 ///
 /// All initialization happens in the constructor because the new startup sequence ensures
 /// the window exists before VulkanContext is resolved from the DI container.
-/// </remarks>
-public unsafe class Context : IGraphicsContext
+public unsafe class Context
 {
-    private readonly IVkValidation? _validationLayers;
-    private readonly VulkanSettings _vkSettings;
+    public const string GRAPHICS_ENGINE_NAME = "Nexus Game Engine";
 
-    public Context(
-        IWindowService windowService,
-        IOptions<ApplicationSettings> options,
-        IOptions<VulkanSettings> vkSettings,
-        IVkValidation? validationLayers = null
-    )
+    private const string NOT_VK_SURFACE_WINDOW =
+        "The main application window was not set up for Vulkan.";
+
+    private readonly IValidation? _validationLayers;
+
+    public VulkanSettings Settings { get; private set; }
+    public IWindow Window { get; private set; }
+
+    public Context(IWindow window, VulkanSettings vkSettings, IValidation? validationLayers = null)
     {
         _validationLayers = validationLayers;
-        _vkSettings = vkSettings.Value;
-
-        // Step 1: Get the window - it's guaranteed to exist at this point
-        var window = windowService.GetWindow();
-        if (window.VkSurface is null)
-        {
-            throw new Exception("Windowing platform doesn't support Vulkan.");
-        }
+        Settings = vkSettings;
+        Window = window;
 
         // Step 2: Load Vulkan API - provides access to all Vulkan functions
         _vulkanApi = Vk.GetApi();
@@ -58,9 +49,9 @@ public unsafe class Context : IGraphicsContext
         {
             SType = StructureType.ApplicationInfo,
             PApplicationName = (byte*)
-                Marshal.StringToHGlobalAnsi(options.Value.General.ApplicationName),
+                Marshal.StringToHGlobalAnsi(window.Title ?? GRAPHICS_ENGINE_NAME),
             ApplicationVersion = new Version32(1, 0, 0),
-            PEngineName = (byte*)Marshal.StringToHGlobalAnsi(options.Value.General.EngineName),
+            PEngineName = (byte*)Marshal.StringToHGlobalAnsi(GRAPHICS_ENGINE_NAME),
             EngineVersion = new Version32(1, 0, 0),
             ApiVersion = Vk.Version12,
         };
@@ -71,8 +62,11 @@ public unsafe class Context : IGraphicsContext
             PApplicationInfo = &appInfo,
         };
 
+        if (window.VkSurface == null)
+            throw new InvalidOperationException(NOT_VK_SURFACE_WINDOW);
+
         // Get required extensions from the window system (platform-specific like Win32, X11, etc.)
-        var glfwExtensions = window!.VkSurface!.GetRequiredExtensions(out var glfwExtensionCount);
+        var glfwExtensions = window.VkSurface.GetRequiredExtensions(out var glfwExtensionCount);
 
         // Count total extensions needed
         var totalExtensions = glfwExtensionCount;
@@ -402,7 +396,7 @@ public unsafe class Context : IGraphicsContext
             .ToHashSet();
 
         // Check all required extensions from settings
-        foreach (var required in _vkSettings.RequiredDeviceExtensions)
+        foreach (var required in Settings.RequiredDeviceExtensions)
         {
             if (!availableExtensionNames.Contains(required))
             {
@@ -421,7 +415,7 @@ public unsafe class Context : IGraphicsContext
         int score = 0;
 
         // Prefer discrete GPU if configured
-        if (_vkSettings.PreferDiscreteGpu && props.DeviceType == PhysicalDeviceType.DiscreteGpu)
+        if (Settings.PreferDiscreteGpu && props.DeviceType == PhysicalDeviceType.DiscreteGpu)
         {
             score += 1000;
         }
@@ -447,7 +441,7 @@ public unsafe class Context : IGraphicsContext
             .Select(ext => Marshal.PtrToStringAnsi((nint)ext.ExtensionName))
             .ToHashSet();
 
-        foreach (var optional in _vkSettings.OptionalDeviceExtensions)
+        foreach (var optional in Settings.OptionalDeviceExtensions)
         {
             if (availableExtensionNames.Contains(optional))
             {

@@ -11,7 +11,6 @@
     <Project Path="src/Nexus.Network/Nexus.Network.csproj" />
     <Project Path="src/Nexus.Physics/Nexus.Physics.csproj" />
     <Project Path="src/Nexus.Runtime/Nexus.Runtime.csproj" />
-    <Project Path="src/Nexus.Scenes/Nexus.Scenes.csproj" />
     <Project Path="src/Nexus.Testing/Nexus.Testing.csproj" />
   </Folder>
   <Folder Name="/tests/">

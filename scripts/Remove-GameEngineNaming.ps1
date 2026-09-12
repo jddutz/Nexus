@@ -53,7 +53,7 @@ $csprojRenames = [ordered]@{
     'Nexus.Network'         = @{ Old = 'Nexus.GameEngine.Network.csproj'; New = 'Nexus.Network.csproj' }
     'Nexus.Physics'         = @{ Old = 'Nexus.GameEngine.Physics.csproj'; New = 'Nexus.Physics.csproj' }
     'Nexus.Runtime'         = @{ Old = 'Nexus.GameEngine.Runtime.csproj'; New = 'Nexus.Runtime.csproj' }
-    'Nexus.Scenes'          = @{ Old = 'Nexus.GameEngine.SceneGraph.csproj'; New = 'Nexus.Scenes.csproj' }
+    'Nexus.Scenes'          = @{ Old = 'Nexus.GameEngine.SceneTree.csproj'; New = 'Nexus.Scenes.csproj' }
     'Nexus.Testing'         = @{ Old = 'Nexus.GameEngine.Testing.csproj'; New = 'Nexus.Testing.csproj' }
 }
 
@@ -157,7 +157,7 @@ $slnx = Join-Path $repoRoot 'Nexus.slnx'
 if (Test-Path $slnx) {
     $content = Get-Content -Path $slnx -Raw
     $updated = $content `
-        -replace [regex]::Escape('src/Nexus.Scenes/Nexus.SceneGraph.csproj'), 'src/Nexus.Scenes/Nexus.Scenes.csproj' `
+        -replace [regex]::Escape('src/Nexus.Scenes/Nexus.SceneTree.csproj'), 'src/Nexus.Scenes/Nexus.Scenes.csproj' `
         -replace [regex]::Escape('tests/GameEngineTests/GameEngineTests.csproj'), 'tests/Tests/Tests.csproj'
     if ($updated -ne $content) {
         if ($PSCmdlet.ShouldProcess($slnx, 'Update project paths')) {

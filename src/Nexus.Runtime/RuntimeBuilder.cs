@@ -1,70 +1,50 @@
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-
 namespace Nexus.Runtime;
 
 /// <summary>
-/// Builds a configured Nexus runtime from application services and configuration.
+/// Defines a builder capable of constructing a configured Nexus runtime.
 /// </summary>
 public class RuntimeBuilder : IRuntimeBuilder
 {
-    protected IServiceCollection Services { get; }
+    private readonly IServiceCollection _services;
+    private IConfiguration? _configuration;
 
-    protected IConfiguration Configuration { get; }
+    public RuntimeBuilder()
+    {
+        _services = new ServiceCollection();
+    }
 
-    public RuntimeBuilder(IServiceCollection services, IConfiguration configuration)
+    public IRuntimeBuilder AddServices(IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
-        ArgumentNullException.ThrowIfNull(configuration);
 
-        Services = services;
-        Configuration = configuration;
+        foreach (var service in services)
+        {
+            _services.Add(service);
+        }
+
+        return this;
     }
 
-    /// <summary>
-    /// Builds the runtime using the configured application services
-    /// and the default Nexus platform services.
-    /// </summary>
-    public virtual IRuntime Build()
+    public IRuntimeBuilder AddConfiguration(IConfiguration config)
     {
-        ConfigureServices();
+        ArgumentNullException.ThrowIfNull(config);
 
-        var serviceProvider = Services.BuildServiceProvider();
-
-        return new NexusRuntime(serviceProvider);
+        _configuration = config;
+        return this;
     }
 
-    /// <summary>
-    /// Configures the services required by the standard Nexus runtime.
-    /// </summary>
-    protected virtual void ConfigureServices()
-    {
-        AddConfiguration();
-        AddCoreServices();
-    }
+    public IRuntimeBuilder UseVulkan() => this;
 
-    /// <summary>
-    /// Makes application configuration available through dependency injection.
-    /// </summary>
-    protected virtual void AddConfiguration()
-    {
-        Services.AddSingleton(Configuration);
-    }
+    public IRuntimeBuilder UseOpenGL() => throw new NotImplementedException();
 
-    /// <summary>
-    /// Adds the services required by the standard Nexus runtime.
-    /// </summary>
-    protected virtual void AddCoreServices()
+    /// <inheritdoc/>
+    public INexusRuntime Build()
     {
-        Services.AddSingleton<IWindowService, WindowService>();
+        _services.TryAddSingleton(_configuration ?? new ConfigurationBuilder().Build());
+        _services.TryAddSingleton<INexusRuntime, NexusRuntime>();
 
-        // Timing
-        // Content
-        // Scene graph
-        // Graphics
-        // Windowing
-        // Performance
-        // Runtime lifecycle
-        // etc.
+        var serviceProvider = _services.BuildServiceProvider();
+
+        return serviceProvider.GetRequiredService<INexusRuntime>();
     }
 }

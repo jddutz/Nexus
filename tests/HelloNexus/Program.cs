@@ -1,7 +1,6 @@
 ﻿using System.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Nexus.Runtime;
 
 namespace HelloNexus;
 
@@ -23,9 +22,7 @@ internal static class Program
             // Register game-specific services here.
             // services.AddMyGameServices();
 
-            var runtime = new RuntimeBuilder(services, configuration).Build();
-
-            var application = new Application(runtime);
+            var application = new Application(configuration, services);
 
             application.Run();
 

@@ -59,7 +59,7 @@ public interface ISyncManager : IDisposable
     /// Gets the maximum number of frames that can be in flight simultaneously.
     /// Typically 2 (double buffering) or 3 (triple buffering).
     /// </summary>
-    int MaxFramesInFlight { get; }
+    uint MaxFramesInFlight { get; }
 
     /// <summary>
     /// Gets synchronization primitives for the specified frame index.
@@ -72,7 +72,7 @@ public interface ISyncManager : IDisposable
     /// The same FrameSync object is returned for the same frame index across calls.
     /// This allows the calling code to cycle through frame indices and reuse sync objects.
     /// </remarks>
-    FrameSync GetFrameSync(int frameIndex);
+    FrameSync GetFrameSync(uint frameIndex);
 
     /// <summary>
     /// Gets semaphores for a specific swapchain image.
@@ -122,13 +122,13 @@ public interface ISyncManager : IDisposable
     /// Fence must not be in pending state (associated with in-flight commands).
     /// Typical usage: Reset fence immediately after waiting for it.
     /// </remarks>
-    void ResetFence(Silk.NET.Vulkan.Fence fence);
+    void ResetFence(Fence fence);
 
     /// <summary>
     /// Resets multiple fences to unsignaled state.
     /// </summary>
     /// <param name="fences">Array of fences to reset</param>
-    void ResetFences(Silk.NET.Vulkan.Fence[] fences);
+    void ResetFences(Fence[] fences);
 
     /// <summary>
     /// Waits for the device to become idle (all GPU work to complete).
@@ -146,7 +146,7 @@ public interface ISyncManager : IDisposable
     /// Lighter than DeviceWaitIdle but still blocks.
     /// </summary>
     /// <param name="queue">Queue to wait for</param>
-    void QueueWaitIdle(Silk.NET.Vulkan.Queue queue);
+    void QueueWaitIdle(Queue queue);
 
     /// <summary>
     /// Gets statistics about synchronization usage and performance.

@@ -1,5 +1,3 @@
-using Microsoft.Extensions.Options;
-using Silk.NET.Vulkan.Extensions.KHR;
 using Semaphore = Silk.NET.Vulkan.Semaphore;
 
 namespace Nexus.Graphics.Vulkan;
@@ -48,10 +46,7 @@ namespace Nexus.Graphics.Vulkan;
 /// </remarks>
 public unsafe class SwapChain : ISwapChain
 {
-    private readonly IGraphicsContext _context;
-    private readonly IWindowService _windowService;
-    private readonly VulkanSettings _settings;
-    private readonly Vk _vk;
+    private readonly Context _context;
 
     private SwapchainKHR _swapchain;
     private Format _swapchainFormat;
@@ -72,21 +67,29 @@ public unsafe class SwapChain : ISwapChain
 
     private KhrSwapchain? _khrSwapchain;
 
+    /// <summary>
+    /// Occurs after the rendered image has been transitioned for presentation and before it is submitted to the present queue.
+    /// </summary>
     public event EventHandler<PresentEventArgs>? BeforePresent;
 
-    public SwapChain(
-        IGraphicsContext context,
-        IWindowService windowService,
-        IOptions<VulkanSettings> settings
-    )
+    /// <summary>
+    /// Initializes a new instance of the <see cref="SwapChain"/> class and creates its presentation resources.
+    /// </summary>
+    /// <param name="context">The Vulkan context used to create and manage resources.</param>
+    /// <param name="settings">The Vulkan settings used to select swapchain options.</param>
+    /// <param name="window">The window whose surface dimensions determine the swapchain extent.</param>
+    public SwapChain(Context context)
     {
         _context = context;
-        _windowService = windowService;
-        _settings = settings.Value;
-        _vk = context.VulkanApi;
 
         // Get the swap chain extension
-        if (!_vk.TryGetDeviceExtension(_context.Instance, _context.Device, out _khrSwapchain))
+        if (
+            !_context.VulkanApi.TryGetDeviceExtension(
+                _context.Instance,
+                _context.Device,
+                out _khrSwapchain
+            )
+        )
         {
             throw new Exception("KHR_swapchain extension not available");
         }
@@ -98,14 +101,49 @@ public unsafe class SwapChain : ISwapChain
         CreateAllFramebuffers();
     }
 
+    /// <summary>
+    /// Gets the Vulkan swapchain handle.
+    /// </summary>
     public SwapchainKHR Swapchain => _swapchain;
+
+    /// <summary>
+    /// Gets the format used by swapchain images.
+    /// </summary>
     public Format SwapchainFormat => _swapchainFormat;
+
+    /// <summary>
+    /// Gets the dimensions of swapchain images in pixels.
+    /// </summary>
     public Extent2D SwapchainExtent => _swapchainExtent;
+
+    /// <summary>
+    /// Gets the images owned by the Vulkan swapchain.
+    /// </summary>
     public Image[] SwapchainImages => _swapchainImages;
+
+    /// <summary>
+    /// Gets the image views created for the swapchain images.
+    /// </summary>
     public ImageView[] SwapchainImageViews => _swapchainImageViews;
+
+    /// <summary>
+    /// Gets the render passes used by the swapchain, indexed by render-pass bit position.
+    /// </summary>
     public RenderPass[] Passes => _renderPasses;
+
+    /// <summary>
+    /// Gets the framebuffers for each render pass, indexed by render-pass bit position and swapchain image index.
+    /// </summary>
     public Framebuffer[][] Framebuffers => _framebuffers;
+
+    /// <summary>
+    /// Gets the depth image used by render passes that have a depth attachment.
+    /// </summary>
     public Image DepthImage => _depthImage;
+
+    /// <summary>
+    /// Gets a value indicating whether any render pass has a depth attachment.
+    /// </summary>
     public bool HasDepthAttachment => _hasDepthAttachment;
 
     /// <summary>
@@ -119,7 +157,7 @@ public unsafe class SwapChain : ISwapChain
         // Choose best settings from available options
         var surfaceFormat = ChooseSurfaceFormat(swapChainSupport.Formats);
         var presentMode = ChoosePresentMode(swapChainSupport.PresentModes);
-        var extent = ChooseExtent(swapChainSupport.Capabilities);
+        var extent = ChooseExtent(swapChainSupport.Capabilities, _context.Window);
 
         // Skip swapchain creation if window is minimized (0x0 extent)
         if (extent.Width == 0 || extent.Height == 0)
@@ -139,14 +177,14 @@ public unsafe class SwapChain : ISwapChain
         }
 
         // Apply minimum from settings
-        if (imageCount < _settings.MinImageCount)
+        if (imageCount < _context.Settings.MinImageCount)
         {
-            imageCount = _settings.MinImageCount;
+            imageCount = _context.Settings.MinImageCount;
         }
 
         // Determine image usage flags
         var imageUsage = ImageUsageFlags.ColorAttachmentBit;
-        if (_settings.EnableSwapchainTransfer)
+        if (_context.Settings.EnableSwapchainTransfer)
         {
             imageUsage |= ImageUsageFlags.TransferSrcBit;
         }
@@ -224,7 +262,7 @@ public unsafe class SwapChain : ISwapChain
         foreach (var format in availableFormats) { }
 
         // Try each preferred format in order
-        foreach (var preferred in _settings.PreferredSurfaceFormats)
+        foreach (var preferred in _context.Settings.PreferredSurfaceFormats)
         {
             var match = availableFormats.FirstOrDefault(f =>
                 f.Format == preferred && f.ColorSpace == ColorSpaceKHR.SpaceSrgbNonlinearKhr
@@ -248,7 +286,7 @@ public unsafe class SwapChain : ISwapChain
         foreach (var mode in availableModes) { }
 
         // Try each preferred mode in order
-        foreach (var preferred in _settings.PreferredPresentModes)
+        foreach (var preferred in _context.Settings.PreferredPresentModes)
         {
             if (availableModes.Contains(preferred))
             {
@@ -264,7 +302,7 @@ public unsafe class SwapChain : ISwapChain
     /// Chooses the swap chain extent (resolution) based on window size and surface capabilities.
     /// Returns 0x0 extent when window is minimized to signal that swapchain should not be created.
     /// </summary>
-    private Extent2D ChooseExtent(SurfaceCapabilitiesKHR capabilities)
+    private static Extent2D ChooseExtent(SurfaceCapabilitiesKHR capabilities, IWindow window)
     {
         // If currentExtent is not uint.MaxValue, it's been set by the surface and we must use it
         if (capabilities.CurrentExtent.Width != uint.MaxValue)
@@ -272,26 +310,19 @@ public unsafe class SwapChain : ISwapChain
             return capabilities.CurrentExtent;
         }
 
-        // Otherwise, pick extent based on window size (clamped to surface limits)
-        var window = _windowService.GetWindow();
-        var actualExtent = new Extent2D
-        {
-            Width = (uint)window.FramebufferSize.X,
-            Height = (uint)window.FramebufferSize.Y,
-        };
-
-        actualExtent.Width = Math.Clamp(
-            actualExtent.Width,
+        var width = Math.Clamp(
+            (uint)window.Size.X,
             capabilities.MinImageExtent.Width,
             capabilities.MaxImageExtent.Width
         );
-        actualExtent.Height = Math.Clamp(
-            actualExtent.Height,
+
+        var height = Math.Clamp(
+            (uint)window.Size.Y,
             capabilities.MinImageExtent.Height,
             capabilities.MaxImageExtent.Height
         );
 
-        return actualExtent;
+        return new Extent2D(width, height);
     }
 
     /// <summary>
@@ -342,7 +373,12 @@ public unsafe class SwapChain : ISwapChain
             };
 
             ImageView imageView;
-            var result = _vk.CreateImageView(_context.Device, &createInfo, null, &imageView);
+            var result = _context.VulkanApi.CreateImageView(
+                _context.Device,
+                &createInfo,
+                null,
+                &imageView
+            );
             if (result != Result.Success)
             {
                 throw new Exception($"Failed to create image view: {result}");
@@ -357,13 +393,18 @@ public unsafe class SwapChain : ISwapChain
     /// </summary>
     private uint? FindPresentQueueFamily()
     {
-        if (!_vk.TryGetInstanceExtension(_context.Instance, out KhrSurface khrSurface))
+        if (
+            !_context.VulkanApi.TryGetInstanceExtension(
+                _context.Instance,
+                out KhrSurface khrSurface
+            )
+        )
         {
             return null;
         }
 
         uint queueFamilyCount = 0;
-        _vk.GetPhysicalDeviceQueueFamilyProperties(
+        _context.VulkanApi.GetPhysicalDeviceQueueFamilyProperties(
             _context.PhysicalDevice,
             &queueFamilyCount,
             null
@@ -388,7 +429,7 @@ public unsafe class SwapChain : ISwapChain
     }
 
     /// <summary>
-    /// Creates all render passes from RenderPasses.Configurations array.
+    /// Creates all render passes from RenderPassConfigurations.Configurations array.
     /// Each render pass survives window resize since format doesn't change.
     /// </summary>
     /// <remarks>
@@ -400,7 +441,7 @@ public unsafe class SwapChain : ISwapChain
     /// </remarks>
     private void CreateRenderPasses()
     {
-        var configs = RenderPasses.Configurations;
+        var configs = RenderPassConfigurations.Configurations;
 
         for (int i = 0; i < configs.Length; i++)
         {
@@ -445,14 +486,23 @@ public unsafe class SwapChain : ISwapChain
             SharingMode = SharingMode.Exclusive,
         };
 
-        var result = _vk.CreateImage(_context.Device, &imageInfo, null, out _depthImage);
+        var result = _context.VulkanApi.CreateImage(
+            _context.Device,
+            &imageInfo,
+            null,
+            out _depthImage
+        );
         if (result != Result.Success)
         {
             throw new Exception($"Failed to create depth image: {result}");
         }
 
         // Allocate memory for depth image
-        _vk.GetImageMemoryRequirements(_context.Device, _depthImage, out var memRequirements);
+        _context.VulkanApi.GetImageMemoryRequirements(
+            _context.Device,
+            _depthImage,
+            out var memRequirements
+        );
 
         var allocInfo = new MemoryAllocateInfo
         {
@@ -464,13 +514,18 @@ public unsafe class SwapChain : ISwapChain
             ),
         };
 
-        result = _vk.AllocateMemory(_context.Device, &allocInfo, null, out _depthImageMemory);
+        result = _context.VulkanApi.AllocateMemory(
+            _context.Device,
+            &allocInfo,
+            null,
+            out _depthImageMemory
+        );
         if (result != Result.Success)
         {
             throw new Exception($"Failed to allocate depth image memory: {result}");
         }
 
-        _vk.BindImageMemory(_context.Device, _depthImage, _depthImageMemory, 0);
+        _context.VulkanApi.BindImageMemory(_context.Device, _depthImage, _depthImageMemory, 0);
 
         // Create depth image view
         var viewInfo = new ImageViewCreateInfo
@@ -489,7 +544,12 @@ public unsafe class SwapChain : ISwapChain
             },
         };
 
-        result = _vk.CreateImageView(_context.Device, &viewInfo, null, out _depthImageView);
+        result = _context.VulkanApi.CreateImageView(
+            _context.Device,
+            &viewInfo,
+            null,
+            out _depthImageView
+        );
         if (result != Result.Success)
         {
             throw new Exception($"Failed to create depth image view: {result}");
@@ -501,7 +561,10 @@ public unsafe class SwapChain : ISwapChain
     /// </summary>
     private uint FindMemoryType(uint typeFilter, MemoryPropertyFlags properties)
     {
-        _vk.GetPhysicalDeviceMemoryProperties(_context.PhysicalDevice, out var memProperties);
+        _context.VulkanApi.GetPhysicalDeviceMemoryProperties(
+            _context.PhysicalDevice,
+            out var memProperties
+        );
 
         for (uint i = 0; i < memProperties.MemoryTypeCount; i++)
         {
@@ -631,7 +694,12 @@ public unsafe class SwapChain : ISwapChain
             };
 
             RenderPass renderPass;
-            var result = _vk.CreateRenderPass(_context.Device, &renderPassInfo, null, &renderPass);
+            var result = _context.VulkanApi.CreateRenderPass(
+                _context.Device,
+                &renderPassInfo,
+                null,
+                &renderPass
+            );
             if (result != Result.Success)
             {
                 throw new Exception($"Failed to create render pass: {result}");
@@ -652,7 +720,7 @@ public unsafe class SwapChain : ISwapChain
     /// </remarks>
     private void CreateAllFramebuffers()
     {
-        var configs = RenderPasses.Configurations;
+        var configs = RenderPassConfigurations.Configurations;
 
         for (int passIndex = 0; passIndex < PassCount; passIndex++)
         {
@@ -713,7 +781,12 @@ public unsafe class SwapChain : ISwapChain
         };
 
         Framebuffer framebuffer;
-        var result = _vk.CreateFramebuffer(_context.Device, &framebufferInfo, null, &framebuffer);
+        var result = _context.VulkanApi.CreateFramebuffer(
+            _context.Device,
+            &framebufferInfo,
+            null,
+            &framebuffer
+        );
         if (result != Result.Success)
         {
             throw new Exception($"Failed to create framebuffer: {result}");
@@ -725,6 +798,9 @@ public unsafe class SwapChain : ISwapChain
     /// <summary>
     /// Acquires the next available image from the swap chain.
     /// </summary>
+    /// <param name="imageAvailableSemaphore">The semaphore signaled when the image is available for rendering.</param>
+    /// <param name="result">Receives the Vulkan result of the acquisition operation.</param>
+    /// <returns>The index of the acquired swapchain image.</returns>
     public uint AcquireNextImage(Semaphore imageAvailableSemaphore, out Result result)
     {
         uint imageIndex;
@@ -746,6 +822,8 @@ public unsafe class SwapChain : ISwapChain
     /// <summary>
     /// Presents the rendered image to the screen.
     /// </summary>
+    /// <param name="imageIndex">The index of the swapchain image to present.</param>
+    /// <param name="renderFinishedSemaphore">The semaphore that must be signaled before presentation.</param>
     public void Present(uint imageIndex, Semaphore renderFinishedSemaphore)
     {
         // Raise BeforePresent event for testing infrastructure (pixel sampling)
@@ -791,6 +869,7 @@ public unsafe class SwapChain : ISwapChain
     /// Recreates the swap chain (e.g., on window resize).
     /// Destroys and recreates swapchain, image views, and framebuffers while preserving render passes.
     /// </summary>
+    /// <param name="window">The window whose current dimensions determine the new swapchain extent.</param>
     /// <remarks>
     /// <para><strong>Destruction Order:</strong></para>
     /// <list type="number">
@@ -811,7 +890,7 @@ public unsafe class SwapChain : ISwapChain
     public void Recreate()
     {
         // Wait for device to finish operations
-        _vk.DeviceWaitIdle(_context.Device);
+        _context.VulkanApi.DeviceWaitIdle(_context.Device);
 
         // Clean up old resources (framebuffers, image views, swapchain)
         CleanupSwapchain();
@@ -820,11 +899,11 @@ public unsafe class SwapChain : ISwapChain
         if (_hasDepthAttachment)
         {
             if (_depthImageView.Handle != 0)
-                _vk.DestroyImageView(_context.Device, _depthImageView, null);
+                _context.VulkanApi.DestroyImageView(_context.Device, _depthImageView, null);
             if (_depthImage.Handle != 0)
-                _vk.DestroyImage(_context.Device, _depthImage, null);
+                _context.VulkanApi.DestroyImage(_context.Device, _depthImage, null);
             if (_depthImageMemory.Handle != 0)
-                _vk.FreeMemory(_context.Device, _depthImageMemory, null);
+                _context.VulkanApi.FreeMemory(_context.Device, _depthImageMemory, null);
         }
 
         // Recreate swap chain and image views
@@ -873,7 +952,7 @@ public unsafe class SwapChain : ISwapChain
                 {
                     if (framebuffer.Handle != 0)
                     {
-                        _vk.DestroyFramebuffer(_context.Device, framebuffer, null);
+                        _context.VulkanApi.DestroyFramebuffer(_context.Device, framebuffer, null);
                     }
                 }
             }
@@ -885,7 +964,7 @@ public unsafe class SwapChain : ISwapChain
         {
             if (imageView.Handle != 0)
             {
-                _vk.DestroyImageView(_context.Device, imageView, null);
+                _context.VulkanApi.DestroyImageView(_context.Device, imageView, null);
             }
         }
         _swapchainImageViews = [];
@@ -919,7 +998,7 @@ public unsafe class SwapChain : ISwapChain
     public void Dispose()
     {
         // Wait for device to finish
-        _vk.DeviceWaitIdle(_context.Device);
+        _context.VulkanApi.DeviceWaitIdle(_context.Device);
 
         // Clean up swapchain resources (framebuffers, image views, swapchain)
         CleanupSwapchain();
@@ -928,11 +1007,11 @@ public unsafe class SwapChain : ISwapChain
         if (_hasDepthAttachment)
         {
             if (_depthImageView.Handle != 0)
-                _vk.DestroyImageView(_context.Device, _depthImageView, null);
+                _context.VulkanApi.DestroyImageView(_context.Device, _depthImageView, null);
             if (_depthImage.Handle != 0)
-                _vk.DestroyImage(_context.Device, _depthImage, null);
+                _context.VulkanApi.DestroyImage(_context.Device, _depthImage, null);
             if (_depthImageMemory.Handle != 0)
-                _vk.FreeMemory(_context.Device, _depthImageMemory, null);
+                _context.VulkanApi.FreeMemory(_context.Device, _depthImageMemory, null);
         }
 
         // Destroy render passes (survive resize but not disposal)
@@ -940,7 +1019,7 @@ public unsafe class SwapChain : ISwapChain
         {
             if (renderPass.Handle != 0)
             {
-                _vk.DestroyRenderPass(_context.Device, renderPass, null);
+                _context.VulkanApi.DestroyRenderPass(_context.Device, renderPass, null);
             }
         }
 
