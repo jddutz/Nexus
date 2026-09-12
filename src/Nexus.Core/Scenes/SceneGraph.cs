@@ -1,11 +1,15 @@
 ﻿namespace Nexus.Core.Scenes;
 
+/// <summary>
+/// Provides the default scene graph implementation.
+/// </summary>
 public class SceneGraph : ISceneGraph
 {
-    public SceneId InitialSceneId => throw new NotImplementedException();
+    /// <summary>
+    /// Gets the default initial scene identifier.
+    /// </summary>
+    public SceneId InitialSceneId => default;
 
-    public void Update(TimeSpan deltaTime)
-    {
-        throw new NotImplementedException();
-    }
+    /// <inheritdoc />
+    public void Update(TimeSpan deltaTime) { }
 }

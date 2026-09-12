@@ -41,6 +41,12 @@ public class RuntimeBuilder : IRuntimeBuilder
     public INexusRuntime Build()
     {
         _services.TryAddSingleton(_configuration ?? new ConfigurationBuilder().Build());
+        _services.TryAddSingleton<ITimingSource, SystemTimingSource>();
+        _services.TryAddSingleton<IInputSystem, InputSystem>();
+        _services.TryAddSingleton<ISceneGraph, SceneGraph>();
+        _services.TryAddSingleton<IPhysicsSystem, PhysicsSystem>();
+        _services.TryAddSingleton<IGraphicsSystem, GraphicsSystem>();
+        _services.TryAddSingleton<IAudioService, AudioService>();
         _services.TryAddSingleton<INexusRuntime, NexusRuntime>();
 
         var serviceProvider = _services.BuildServiceProvider();

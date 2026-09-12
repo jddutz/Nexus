@@ -14,7 +14,14 @@ public sealed class Application : IApplication, IDisposable
         services ??= new ServiceCollection();
 
         services.AddOptions<WindowSettings>();
+        services.TryAddSingleton(new WindowSettings());
 
+        services.TryAddSingleton<ITimingSource, SystemTimingSource>();
+        services.TryAddSingleton<IInputSystem, InputSystem>();
+        services.TryAddSingleton<ISceneGraph, SceneGraph>();
+        services.TryAddSingleton<IPhysicsSystem, PhysicsSystem>();
+        services.TryAddSingleton<IGraphicsSystem, GraphicsSystem>();
+        services.TryAddSingleton<IAudioService, AudioService>();
         services.TryAddSingleton<IRuntimeWindowService, WindowService>();
         services.TryAddSingleton<INexusRuntime, NexusRuntime>();
 
