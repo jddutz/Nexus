@@ -14,6 +14,7 @@ public sealed class NexusRuntime(
 ) : INexusRuntime
 {
     private bool _initialized = false;
+    private TimeSpan _previousElapsed;
     public bool IsInitialized => _initialized;
 
     public bool IsRunning { get; private set; }
@@ -28,6 +29,7 @@ public sealed class NexusRuntime(
 
         // Runtime initialization and subsystem orchestration will live here.
 
+        _previousElapsed = timing.Elapsed;
         _initialized = true;
         IsRunning = true;
     }
@@ -42,19 +44,17 @@ public sealed class NexusRuntime(
                 "The runtime must be initialized before it can be updated."
             );
 
-        // This should be replaced by something else.
-        // Silk.NET already handles frame rates and throttling,
-        // So we shouldn't have to manage it here. We just
-        // need to calculate deltaTime.
+        var elapsed = timing.Elapsed;
+        var deltaTime = elapsed - _previousElapsed;
+        _previousElapsed = elapsed;
 
-        // timing.Update();
-        input.Update();
+        input.Update(deltaTime);
 
-        sceneGraph.Update();
+        sceneGraph.Update(deltaTime);
 
-        physics.Update();
+        physics.Update(deltaTime);
         graphics.Render();
-        audio.Update();
+        audio.Update(deltaTime);
     }
 
     public void Stop()

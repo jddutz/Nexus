@@ -136,17 +136,17 @@ public class BasicRuntimeTests
     {
         public SceneId InitialSceneId => default;
 
-        public void Update() { }
+        public void Update(TimeSpan deltaTime) { }
     }
 
     private sealed class NoOpInputSystem : IInputSystem
     {
-        public void Update() { }
+        public void Update(TimeSpan deltaTime) { }
     }
 
     private sealed class NoOpPhysicsSystem : IPhysicsSystem
     {
-        public void Update() { }
+        public void Update(TimeSpan deltaTime) { }
     }
 
     private sealed class NoOpGraphicsSystem : IGraphicsSystem
@@ -158,6 +158,6 @@ public class BasicRuntimeTests
 
     private sealed class NoOpAudioService : IAudioService
     {
-        public void Update() { }
+        public void Update(TimeSpan deltaTime) { }
     }
 }
