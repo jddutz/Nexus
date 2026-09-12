@@ -127,7 +127,7 @@ public class BasicRuntimeTests
         services.AddSingleton<ISceneGraph, NoOpSceneTree>();
         services.AddSingleton<IPhysicsSystem, NoOpPhysicsSystem>();
         services.AddSingleton<IGraphicsSystem, NoOpGraphicsSystem>();
-        services.AddSingleton<IAudioService, NoOpAudioService>();
+        services.AddSingleton<IAudioSystem, NoOpAudioSystem>();
     }
 
     private sealed class ExplicitService;
@@ -156,7 +156,7 @@ public class BasicRuntimeTests
         public void Render() { }
     }
 
-    private sealed class NoOpAudioService : IAudioService
+    private sealed class NoOpAudioSystem : IAudioSystem
     {
         public void Update(TimeSpan deltaTime) { }
     }

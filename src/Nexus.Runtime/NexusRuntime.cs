@@ -10,7 +10,7 @@ public sealed class NexusRuntime(
     ISceneGraph sceneGraph,
     IPhysicsSystem physics,
     IGraphicsSystem graphics,
-    IAudioService audio
+    IAudioSystem audio
 ) : INexusRuntime
 {
     private bool _initialized = false;

@@ -21,7 +21,7 @@ public sealed class Application : IApplication, IDisposable
         services.TryAddSingleton<ISceneGraph, SceneGraph>();
         services.TryAddSingleton<IPhysicsSystem, PhysicsSystem>();
         services.TryAddSingleton<IGraphicsSystem, GraphicsSystem>();
-        services.TryAddSingleton<IAudioService, AudioService>();
+        services.TryAddSingleton<IAudioSystem, AudioSystem>();
         services.TryAddSingleton<IRuntimeWindowService, WindowService>();
         services.TryAddSingleton<INexusRuntime, NexusRuntime>();
 

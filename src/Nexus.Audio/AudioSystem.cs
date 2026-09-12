@@ -1,9 +1,9 @@
 namespace Nexus.Audio;
 
 /// <summary>
-/// Provides the default audio service implementation.
+/// Provides the default audio system implementation.
 /// </summary>
-public sealed class AudioService : IAudioService
+public sealed class AudioSystem : IAudioSystem
 {
     /// <inheritdoc />
     public void Update(TimeSpan deltaTime) { }
