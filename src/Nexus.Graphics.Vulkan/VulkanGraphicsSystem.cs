@@ -1,6 +1,6 @@
 namespace Nexus.Graphics.Vulkan;
 
-public class GraphicsSystem(IRenderer renderer) : IGraphicsSystem
+public class VulkanGraphicsSystem(IRenderer renderer) : IGraphicsSystem
 {
     private readonly IRenderer _renderer = renderer;
 

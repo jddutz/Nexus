@@ -9,41 +9,28 @@ namespace Nexus.Graphics.Vulkan;
 /// Manages image acquisition, command recording, and presentation.
 /// Uses ContentManager to get active cameras for rendering.
 /// </summary>
-public unsafe class Renderer : IRenderer
+public unsafe class Renderer(
+    Context context,
+    ISwapChain swapChain,
+    ISyncManager syncManager,
+    IPipelineManager pipelineManager
+) : IRenderer
 {
     private const string VK_CONTEXT_NULL = "Vulkan _context has not been initialized yet.";
 
-    private Context _context;
-    private ISwapChain _swapChain;
-    private CommandBufferPool _commandPool;
-    private ISyncManager _syncManager;
-    private PipelineManager _pipelineManager;
+    private Context _context = context;
+    private ISwapChain _swapChain = swapChain;
+    private ISyncManager _syncManager = syncManager;
+    private IPipelineManager _pipelineManager = pipelineManager;
+    private CommandBufferPool _commandPool = CommandBufferPool.ForGraphics(context, 2);
     private FrameSync? _frameSync;
     private ImageSync? _imageSync;
     private uint _imageIndex;
     private CommandBuffer _commandBuffer;
-    private AttachmentDescription _colorAttachment;
-    private ClearValue _clearValue;
-    private IProfiler? _profiler;
     private uint _currentFrameIndex = 0;
 
     public event EventHandler<RenderEventArgs>? BeforeRendering;
     public event EventHandler<RenderEventArgs>? AfterRendering;
-
-    internal Renderer(
-        Context context,
-        ISwapChain swapChain,
-        ISyncManager syncManager,
-        PipelineManager pipelineManager,
-        CommandBufferPool commandPool
-    )
-    {
-        _context = context;
-        _swapChain = swapChain;
-        _syncManager = syncManager;
-        _pipelineManager = pipelineManager;
-        _commandPool = commandPool;
-    }
 
     public RenderDefinition[] Definitions { get; set; } = [new()];
 
@@ -63,6 +50,8 @@ public unsafe class Renderer : IRenderer
 
             if (!PrepareFrame())
                 return false;
+
+            BeforeRendering?.Invoke(this, new RenderEventArgs(_imageIndex));
 
             BeginCommandBuffer();
 
@@ -109,6 +98,7 @@ public unsafe class Renderer : IRenderer
 
             SubmitFrame();
             PresentFrame();
+            AfterRendering?.Invoke(this, new RenderEventArgs(_imageIndex));
 
             _currentFrameIndex = (_currentFrameIndex + 1) % _syncManager.MaxFramesInFlight;
         }

@@ -11,5 +11,5 @@ public class SceneGraph : ISceneGraph
     public SceneId InitialSceneId => default;
 
     /// <inheritdoc />
-    public void Update(TimeSpan deltaTime) { }
+    public void Update(double deltaTime) { }
 }

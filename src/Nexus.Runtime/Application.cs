@@ -13,17 +13,22 @@ public sealed class Application : IApplication, IDisposable
     {
         services ??= new ServiceCollection();
 
-        services.AddOptions<WindowSettings>();
-        services.TryAddSingleton(new WindowSettings());
+        services.AddOptions<ApplicationSettings>().Bind(configuration.GetSection("Application"));
+        services.AddOptions<DiagnosticsSettings>().Bind(configuration.GetSection("Diagnostics"));
+        services.AddOptions<OpenGLSettings>().Bind(configuration.GetSection("OpenGL"));
+        services.AddOptions<VulkanSettings>().Bind(configuration.GetSection("Vulkan"));
+        services.AddOptions<WindowSettings>().Bind(configuration.GetSection("Window"));
 
-        services.TryAddSingleton<ITimingSource, SystemTimingSource>();
         services.TryAddSingleton<IInputSystem, InputSystem>();
         services.TryAddSingleton<ISceneGraph, SceneGraph>();
         services.TryAddSingleton<IPhysicsSystem, PhysicsSystem>();
-        services.TryAddSingleton<IGraphicsSystem, GraphicsSystem>();
         services.TryAddSingleton<IAudioSystem, AudioSystem>();
-        services.TryAddSingleton<IRuntimeWindowService, WindowService>();
         services.TryAddSingleton<INexusRuntime, NexusRuntime>();
+
+        if (!services.Any(x => x.ServiceType == typeof(IGraphicsSystem)))
+        {
+            services.AddVkGraphicsServices();
+        }
 
         _serviceProvider = services.BuildServiceProvider();
     }
@@ -33,12 +38,13 @@ public sealed class Application : IApplication, IDisposable
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        var runtime = Services.GetRequiredService<INexusRuntime>();
-        var windowService = Services.GetRequiredService<IRuntimeWindowService>();
-
-        runtime.Initialize();
+        var windowService = Services.GetRequiredService<IWindowService>();
 
         var window = windowService.GetOrCreateWindow();
+        window.Initialize();
+
+        var runtime = Services.GetRequiredService<INexusRuntime>();
+        runtime.Initialize();
 
         window.Run();
     }

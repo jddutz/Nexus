@@ -113,6 +113,15 @@ public class DefaultBatchStrategy : IBatchStrategy
     /// <returns>-1 if x should render before y, 1 if y should render before x, 0 if equal priority</returns>
     public int Compare(IDrawCommand? x, IDrawCommand? y)
     {
+        if (ReferenceEquals(x, y))
+            return 0;
+
+        if (x is null)
+            return -1;
+
+        if (y is null)
+            return 1;
+
         // Sort by render priority first (lower priority renders first)
         // This ensures correct layering (e.g., background → scene → UI)
         var priorityCompare = x.RenderPriority.CompareTo(y.RenderPriority);

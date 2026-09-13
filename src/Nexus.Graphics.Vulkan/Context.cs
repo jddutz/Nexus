@@ -1,4 +1,5 @@
-﻿using Silk.NET.Core;
+﻿using Microsoft.Extensions.Options;
+using Silk.NET.Core;
 using Silk.NET.Core.Native;
 using Silk.NET.Vulkan.Extensions.EXT;
 
@@ -35,10 +36,14 @@ public unsafe class Context
     public VulkanSettings Settings { get; private set; }
     public IWindow Window { get; private set; }
 
-    public Context(IWindow window, VulkanSettings vkSettings, IValidation? validationLayers = null)
+    public Context(
+        IWindow window,
+        IOptions<VulkanSettings> options,
+        IValidation? validationLayers = null
+    )
     {
         _validationLayers = validationLayers;
-        Settings = vkSettings;
+        Settings = options.Value;
         Window = window;
 
         // Step 2: Load Vulkan API - provides access to all Vulkan functions

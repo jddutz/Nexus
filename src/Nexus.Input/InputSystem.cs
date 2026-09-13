@@ -6,5 +6,5 @@ namespace Nexus.Input;
 public sealed class InputSystem : IInputSystem
 {
     /// <inheritdoc />
-    public void Update(TimeSpan deltaTime) { }
+    public void Update(double deltaTime) { }
 }

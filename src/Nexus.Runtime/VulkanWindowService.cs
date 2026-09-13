@@ -4,11 +4,15 @@ namespace Nexus.Runtime;
 /// Provides a singleton factory for the Silk.NET application window.
 /// Handles window creation, access, and disposal for the application lifecycle.
 /// </summary>
-public class WindowService : IRuntimeWindowService, IGraphicsWindowService, IDisposable
+public class VulkanWindowService : IWindowService, IDisposable
 {
     private const string WINDOW_UNAVAILABLE = "Application Window has not been initialized yet.";
+    private readonly WindowSettings _settings;
 
-    public WindowService(WindowSettings settings) { }
+    public VulkanWindowService(IOptions<WindowSettings> options)
+    {
+        _settings = options.Value;
+    }
 
     private IWindow? _window;
 
@@ -28,7 +32,17 @@ public class WindowService : IRuntimeWindowService, IGraphicsWindowService, IDis
     /// <returns>The Silk.NET <see cref="IWindow"/> instance.</returns>
     public IWindow GetOrCreateWindow()
     {
-        _window ??= Window.Create(WindowOptions.Default);
+        if (_window is null)
+        {
+            var windowOptions = WindowOptions.DefaultVulkan;
+            windowOptions.Title = _settings.Title;
+            windowOptions.Size = new Vector2D<int>(_settings.Width, _settings.Height);
+            windowOptions.VSync = _settings.VSync;
+            windowOptions.UpdatesPerSecond = 60;
+
+            _window = Window.Create(windowOptions);
+        }
+
         return _window!;
     }
 

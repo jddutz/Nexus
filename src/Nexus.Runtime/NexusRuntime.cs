@@ -5,7 +5,7 @@ namespace Nexus.Runtime;
 /// in a running Nexus game environment.
 /// </summary>
 public sealed class NexusRuntime(
-    ITimingSource timing,
+    IWindow window,
     IInputSystem input,
     ISceneGraph sceneGraph,
     IPhysicsSystem physics,
@@ -14,10 +14,7 @@ public sealed class NexusRuntime(
 ) : INexusRuntime
 {
     private bool _initialized = false;
-    private TimeSpan _previousElapsed;
     public bool IsInitialized => _initialized;
-
-    public bool IsRunning { get; private set; }
 
     /// <summary>
     /// Initializes the runtime and its configured services.
@@ -28,37 +25,30 @@ public sealed class NexusRuntime(
             return;
 
         // Runtime initialization and subsystem orchestration will live here.
+        window.Update += OnUpdate;
+        window.Render += OnRender;
 
-        _previousElapsed = timing.Elapsed;
         _initialized = true;
-        IsRunning = true;
     }
 
     /// <summary>
     /// Updates the runtime and all participating runtime systems.
     /// </summary>
-    public void Update()
+    public void OnUpdate(double deltaTime)
     {
         if (!_initialized)
             throw new InvalidOperationException(
                 "The runtime must be initialized before it can be updated."
             );
 
-        var elapsed = timing.Elapsed;
-        var deltaTime = elapsed - _previousElapsed;
-        _previousElapsed = elapsed;
-
         input.Update(deltaTime);
-
         sceneGraph.Update(deltaTime);
-
         physics.Update(deltaTime);
-        graphics.Render();
         audio.Update(deltaTime);
     }
 
-    public void Stop()
+    public void OnRender(double deltaTime)
     {
-        IsRunning = false;
+        graphics.Render();
     }
 }

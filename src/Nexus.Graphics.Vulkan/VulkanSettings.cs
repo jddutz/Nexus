@@ -4,7 +4,7 @@ namespace Nexus.Graphics.Vulkan;
 /// Vulkan-specific configuration for device selection and swap chain creation.
 /// Provides sensible defaults for standard game rendering (99% use case).
 /// </summary>
-public class VulkanSettings
+public sealed record VulkanSettings
 {
     /// <summary>
     /// Preferred surface formats in priority order.

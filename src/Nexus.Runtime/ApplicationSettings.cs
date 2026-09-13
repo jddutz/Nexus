@@ -1,0 +1,17 @@
+namespace Nexus.Runtime;
+
+/// <summary>
+/// Settings that describe the application hosted by the Nexus runtime.
+/// </summary>
+public sealed record ApplicationSettings
+{
+    /// <summary>
+    /// Gets or sets the display name of the application.
+    /// </summary>
+    public string ApplicationName { get; set; } = "Nexus Application";
+
+    /// <summary>
+    /// Gets or sets the application version.
+    /// </summary>
+    public string ApplicationVersion { get; set; } = "1.0.0";
+}

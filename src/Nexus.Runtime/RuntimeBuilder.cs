@@ -41,11 +41,10 @@ public class RuntimeBuilder : IRuntimeBuilder
     public INexusRuntime Build()
     {
         _services.TryAddSingleton(_configuration ?? new ConfigurationBuilder().Build());
-        _services.TryAddSingleton<ITimingSource, SystemTimingSource>();
         _services.TryAddSingleton<IInputSystem, InputSystem>();
         _services.TryAddSingleton<ISceneGraph, SceneGraph>();
         _services.TryAddSingleton<IPhysicsSystem, PhysicsSystem>();
-        _services.TryAddSingleton<IGraphicsSystem, GraphicsSystem>();
+        _services.TryAddSingleton<IGraphicsSystem, VulkanGraphicsSystem>();
         _services.TryAddSingleton<IAudioSystem, AudioSystem>();
         _services.TryAddSingleton<INexusRuntime, NexusRuntime>();
 

@@ -1,12 +1,15 @@
 namespace Nexus.Graphics.Vulkan.Pipelines;
 
-internal readonly record struct PipelineRecord(
+/// <summary>
+/// Contains the Vulkan handles and shader stages associated with a pipeline.
+/// </summary>
+public readonly record struct PipelineRecord(
     Pipeline Pipeline,
     PipelineLayout Layout,
     ShaderStageFlags ShaderStageFlags
 );
 
-internal unsafe class PipelineManager(Context context) : IPipelineManager
+public unsafe class PipelineManager(Context context) : IPipelineManager
 {
     private readonly Context _context = context;
 
@@ -54,7 +57,7 @@ internal unsafe class PipelineManager(Context context) : IPipelineManager
         }
     }
 
-    internal PipelineRecord Get(ulong id)
+    public PipelineRecord Get(ulong id)
     {
         if (!_pipelines.TryGetValue(id, out var record))
             throw new KeyNotFoundException($"Pipeline with ID {id} was not found.");

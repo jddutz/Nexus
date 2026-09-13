@@ -17,8 +17,8 @@ internal static class Program
             Console.WriteLine("Starting Hello Nexus...");
 
             var configuration = new ConfigurationBuilder()
-                .AddJsonFile(Path.Combine(AppContext.BaseDirectory, "appsettings.json"))
-                .Build();
+            //.AddJsonFile(Path.Combine(AppContext.BaseDirectory, "appsettings.json"))
+            .Build();
 
             var services = new ServiceCollection();
 

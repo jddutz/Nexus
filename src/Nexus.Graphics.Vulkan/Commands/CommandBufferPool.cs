@@ -32,13 +32,9 @@ public unsafe class CommandBufferPool : ICommandBufferPool
     }
 
     private Context _context = null!;
-    private uint _queueFamilyIndex;
     private VkCommandPool _vkCommandPool;
 
     // tracking
-    private DateTime _created;
-    private DateTime? _lastReset;
-
     public long FailedAcquisitionCount { get; private set; }
     public long TrimCount { get; private set; }
     public long ResetCount { get; private set; }
@@ -135,10 +131,8 @@ public unsafe class CommandBufferPool : ICommandBufferPool
         return new CommandBufferPool
         {
             _context = context,
-            _queueFamilyIndex = queueFamilyIndex,
             _vkCommandPool = pool,
             _commandBuffers = commandBuffers,
-            _created = DateTime.UtcNow,
         };
     }
 
@@ -199,7 +193,6 @@ public unsafe class CommandBufferPool : ICommandBufferPool
         }
 
         ResetCount++;
-        _lastReset = DateTime.UtcNow;
     }
 
     /// <inheritdoc/>

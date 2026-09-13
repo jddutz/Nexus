@@ -13,23 +13,7 @@ public interface INexusRuntime
     bool IsInitialized { get; }
 
     /// <summary>
-    /// Gets whether the runtime is currently running.
-    /// </summary>
-    bool IsRunning { get; }
-
-    /// <summary>
     /// Initializes the runtime and its configured systems.
     /// </summary>
     void Initialize();
-
-    /// <summary>
-    /// Advances the runtime by one update cycle.
-    /// </summary>
-    void Update();
-
-    /// <summary>
-    /// Stops the runtime and begins orderly shutdown of its
-    /// configured systems.
-    /// </summary>
-    void Stop();
 }
