@@ -6,7 +6,7 @@ namespace Nexus.Runtime;
 /// </summary>
 public sealed class NexusRuntime(
     IInputSystem input,
-    ISceneGraph sceneGraph,
+    IGameSystem gameSystem,
     IPhysicsSystem physics,
     IGraphicsSystem graphics,
     IAudioSystem audio,
@@ -44,10 +44,10 @@ public sealed class NexusRuntime(
                 "The runtime must be initialized before it can be updated."
             );
 
-        input.Update(deltaTime);
-        sceneGraph.Update(deltaTime);
         physics.Update(deltaTime);
+        gameSystem.Update(deltaTime);
         audio.Update(deltaTime);
+        input.Update(deltaTime);
     }
 
     public void OnRender(double deltaTime)

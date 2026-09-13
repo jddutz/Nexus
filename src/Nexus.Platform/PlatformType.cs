@@ -1,4 +1,4 @@
-namespace Nexus.Runtime;
+namespace Nexus.Platform;
 
 /// <summary>
 /// Platform type for application context

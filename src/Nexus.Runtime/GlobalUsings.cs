@@ -1,11 +1,12 @@
 global using System;
+global using System.Reflection;
 global using Microsoft.Extensions.Configuration;
 global using Microsoft.Extensions.DependencyInjection;
 global using Microsoft.Extensions.DependencyInjection.Extensions;
 global using Microsoft.Extensions.Options;
 global using Nexus.Audio;
 global using Nexus.Core;
-global using Nexus.Core.Scenes;
+global using Nexus.GameModel;
 global using Nexus.Graphics;
 global using Nexus.Graphics.OpenGL;
 global using Nexus.Graphics.Vulkan;

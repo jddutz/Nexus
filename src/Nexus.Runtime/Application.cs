@@ -20,9 +20,9 @@ public sealed class Application : IApplication, IDisposable
         services.AddOptions<WindowSettings>().Bind(configuration.GetSection("Window"));
 
         services.TryAddSingleton<IInputSystem, InputSystem>();
-        services.TryAddSingleton<ISceneGraph, SceneGraph>();
         services.TryAddSingleton<IPhysicsSystem, PhysicsSystem>();
         services.TryAddSingleton<IAudioSystem, AudioSystem>();
+        services.TryAddSingleton<IGameSystem, GameSystem>();
         services.TryAddSingleton<INexusRuntime, NexusRuntime>();
 
         if (!services.Any(x => x.ServiceType == typeof(IGraphicsSystem)))

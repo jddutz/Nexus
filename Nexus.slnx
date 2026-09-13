@@ -3,14 +3,15 @@
     <Project Path="src/Nexus.Audio/Nexus.Audio.csproj" />
     <Project Path="src/Nexus.Content/Nexus.Content.csproj" />
     <Project Path="src/Nexus.Core/Nexus.Core.csproj" />
+    <Project Path="src/Nexus.GameModel/Nexus.GameModel.csproj" />
+    <Project Path="src/Nexus.Graphics/Nexus.Graphics.csproj" />
     <Project Path="src/Nexus.Graphics.OpenGL/Nexus.Graphics.OpenGL.csproj" />
     <Project Path="src/Nexus.Graphics.Vulkan/Nexus.Graphics.Vulkan.csproj" />
-    <Project Path="src/Nexus.Graphics/Nexus.Graphics.csproj" />
     <Project Path="src/Nexus.GUI/Nexus.GUI.csproj" />
     <Project Path="src/Nexus.Input/Nexus.Input.csproj" />
-    <Project Path="src/Nexus.IO/Nexus.IO.csproj" />
     <Project Path="src/Nexus.Network/Nexus.Network.csproj" />
     <Project Path="src/Nexus.Physics/Nexus.Physics.csproj" />
+    <Project Path="src/Nexus.Platform/Nexus.Platform.csproj" />
     <Project Path="src/Nexus.Runtime/Nexus.Runtime.csproj" />
     <Project Path="src/Nexus.Testing/Nexus.Testing.csproj" />
   </Folder>
