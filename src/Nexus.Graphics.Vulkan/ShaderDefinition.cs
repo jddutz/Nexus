@@ -1,4 +1,4 @@
-namespace Nexus.Graphics.Resources;
+namespace Nexus.Graphics.Vulkan;
 
 public sealed record ShaderDefinition : IGraphicsResource
 {
@@ -6,6 +6,7 @@ public sealed record ShaderDefinition : IGraphicsResource
     public string Name { get; }
     public ShaderSource Vert { get; }
     public ShaderSource Frag { get; }
+    public ShaderContract ShaderContract { get; }
 
     public ShaderDefinition(string name, ShaderSource vert, ShaderSource frag)
     {
