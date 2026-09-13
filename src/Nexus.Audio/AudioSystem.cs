@@ -5,6 +5,8 @@ namespace Nexus.Audio;
 /// </summary>
 public sealed class AudioSystem : IAudioSystem
 {
+    public void Initialize() { }
+
     /// <inheritdoc />
     public void Update(double deltaTime) { }
 }

@@ -5,6 +5,8 @@ namespace Nexus.Input;
 /// </summary>
 public sealed class InputSystem : IInputSystem
 {
+    public void Initialize() { }
+
     /// <inheritdoc />
     public void Update(double deltaTime) { }
 }

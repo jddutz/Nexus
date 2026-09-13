@@ -5,6 +5,8 @@ namespace Nexus.Physics;
 /// </summary>
 public sealed class PhysicsSystem : IPhysicsSystem
 {
+    public void Initialize() { }
+
     /// <inheritdoc />
     public void Update(double deltaTime) { }
 }

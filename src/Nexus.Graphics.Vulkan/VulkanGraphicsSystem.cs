@@ -6,6 +6,8 @@ public class VulkanGraphicsSystem(IRenderer renderer) : IGraphicsSystem
 
     public void Configure() { }
 
+    public void Initialize() { }
+
     public void Render()
     {
         _renderer.Render();

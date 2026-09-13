@@ -2,7 +2,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Nexus.Audio;
 using Nexus.Core;
-using Nexus.Core.Scenes;
+using Nexus.GameModel;
 using Nexus.Graphics;
 using Nexus.Input;
 using Nexus.Physics;
@@ -110,7 +110,7 @@ public class BasicRuntimeTests
     private static void AddRuntimeServices(IServiceCollection services)
     {
         services.AddSingleton<IInputSystem, NoOpInputSystem>();
-        services.AddSingleton<ISceneGraph, NoOpSceneTree>();
+        services.AddSingleton<IGameSystem, NoOpGameSystem>();
         services.AddSingleton<IPhysicsSystem, NoOpPhysicsSystem>();
         services.AddSingleton<IGraphicsSystem, NoOpGraphicsSystem>();
         services.AddSingleton<IAudioSystem, NoOpAudioSystem>();
@@ -118,25 +118,33 @@ public class BasicRuntimeTests
 
     private sealed class ExplicitService;
 
-    private sealed class NoOpSceneTree : ISceneGraph
+    private sealed class NoOpGameSystem : IGameSystem
     {
         public SceneId InitialSceneId => default;
+
+        public void Initialize() { }
 
         public void Update(double deltaTime) { }
     }
 
     private sealed class NoOpInputSystem : IInputSystem
     {
+        public void Initialize() { }
+
         public void Update(double deltaTime) { }
     }
 
     private sealed class NoOpPhysicsSystem : IPhysicsSystem
     {
+        public void Initialize() { }
+
         public void Update(double deltaTime) { }
     }
 
     private sealed class NoOpGraphicsSystem : IGraphicsSystem
     {
+        public void Initialize() { }
+
         public void Configure() { }
 
         public void Render() { }
@@ -144,6 +152,8 @@ public class BasicRuntimeTests
 
     private sealed class NoOpAudioSystem : IAudioSystem
     {
+        public void Initialize() { }
+
         public void Update(double deltaTime) { }
     }
 }

@@ -8,11 +8,11 @@ namespace Nexus.Runtime;
 /// </summary>
 public sealed class NexusRuntime(
     IEventHub eventHub,
-    IInputSystem input,
     IGameSystem gameSystem,
     IPhysicsSystem physics,
-    IGraphicsSystem graphics,
     IAudioSystem audio,
+    IInputSystem input,
+    IGraphicsSystem graphics,
     IWindow? window = null
 ) : INexusRuntime
 {
@@ -35,6 +35,9 @@ public sealed class NexusRuntime(
         }
 
         gameSystem.Initialize();
+        physics.Initialize();
+        audio.Initialize();
+        input.Initialize();
 
         _initialized = true;
     }
