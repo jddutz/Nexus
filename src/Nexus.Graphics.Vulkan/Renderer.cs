@@ -53,7 +53,8 @@ public unsafe class Renderer(
 
             BeforeRendering?.Invoke(this, new RenderEventArgs(_imageIndex));
 
-            BeginCommandBuffer();
+            if (!BeginCommandBuffer())
+                return false;
 
             foreach (var definition in Definitions)
             {
@@ -65,6 +66,9 @@ public unsafe class Renderer(
 
                 foreach (var pass in definition.RenderPassDefinitions)
                 {
+                    if (!pass.ShouldRender)
+                        continue;
+
                     var clearValues = pass.ClearValues;
 
                     fixed (ClearValue* clearValuesPointer = clearValues)
@@ -246,18 +250,6 @@ public unsafe class Renderer(
         ulong offset = 0;
 
         _context.VulkanApi.CmdBindVertexBuffers(_commandBuffer, 0, 1, &vertexBuffer, &offset);
-
-        _context.VulkanApi.CmdDraw(
-            _commandBuffer,
-            drawCommand.VertexCount,
-            drawCommand.InstanceCount,
-            drawCommand.FirstVertex,
-            0
-        );
-
-        var vertexBuffers = stackalloc Silk.NET.Vulkan.Buffer[] { drawCommand.VertexBuffer };
-        var offsets = stackalloc ulong[] { 0 };
-        _context.VulkanApi.CmdBindVertexBuffers(_commandBuffer, 0, 1, vertexBuffers, offsets);
 
         _context.VulkanApi.CmdDraw(
             _commandBuffer,

@@ -122,7 +122,6 @@ public class BasicRuntimeTests
 
     private static void AddRuntimeServices(IServiceCollection services)
     {
-        services.AddSingleton<ITimingSource, TestTimingSource>();
         services.AddSingleton<IInputSystem, NoOpInputSystem>();
         services.AddSingleton<ISceneGraph, NoOpSceneTree>();
         services.AddSingleton<IPhysicsSystem, NoOpPhysicsSystem>();
