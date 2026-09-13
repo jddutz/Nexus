@@ -2,7 +2,7 @@ namespace Nexus.Graphics;
 
 public interface IGraphicsSystem
 {
-    IGraphicsResource[] ResourceCatalog { get; }
+    IGraphicsResourceManager ResourceManager { get; }
 
     /// <summary>
     /// Initializes the graphics system before the update loop begins.
