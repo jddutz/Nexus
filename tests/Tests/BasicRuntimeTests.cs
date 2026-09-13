@@ -4,6 +4,7 @@ using Nexus.Audio;
 using Nexus.Core;
 using Nexus.GameModel;
 using Nexus.Graphics;
+using Nexus.Graphics.Resources;
 using Nexus.Input;
 using Nexus.Physics;
 using Nexus.Runtime;
@@ -143,6 +144,8 @@ public class BasicRuntimeTests
 
     private sealed class NoOpGraphicsSystem : IGraphicsSystem
     {
+        public IGraphicsResource[] ResourceCatalog { get; set; } = [];
+
         public void Initialize() { }
 
         public void Configure() { }

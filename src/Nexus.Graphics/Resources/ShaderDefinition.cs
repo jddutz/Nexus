@@ -1,8 +1,22 @@
 namespace Nexus.Graphics.Resources;
 
-public sealed class ShaderDefinition : IGraphicsResource
+public sealed record ShaderDefinition : IGraphicsResource
 {
     public ResourceId Id { get; }
-    public ShaderSource VertexShader { get; }
-    public ShaderSource FragmentShader { get; }
+    public string Name { get; }
+    public ShaderSource Vert { get; }
+    public ShaderSource Frag { get; }
+
+    public ShaderDefinition(string name, ShaderSource vert, ShaderSource frag)
+    {
+        Id = new IdentityHashBuilder(nameof(ShaderDefinition))
+            .Add(name)
+            .Add(vert.Id)
+            .Add(frag.Id)
+            .Compute();
+
+        Name = name;
+        Vert = vert;
+        Frag = frag;
+    }
 }

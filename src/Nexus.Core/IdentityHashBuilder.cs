@@ -1,4 +1,4 @@
-namespace Nexus.Core.Hashing;
+namespace Nexus.Core;
 
 /// <summary>
 /// Fast non-cryptographic fingerprint builder used for data synchronization
@@ -32,14 +32,9 @@ public class IdentityHashBuilder : IHashBuilder
 
     private ulong _hash = OffsetBasis;
 
-    public IdentityHashBuilder(string id)
+    public IdentityHashBuilder(string sourceKind)
     {
-        if (id == null)
-        {
-            throw new ArgumentNullException(nameof(id));
-        }
-
-        Add(id);
+        Add(sourceKind);
     }
 
     /// <summary>

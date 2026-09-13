@@ -1,4 +1,4 @@
-namespace Nexus.Core.Hashing;
+namespace Nexus.Core;
 
 public interface IHashBuilder
 {
