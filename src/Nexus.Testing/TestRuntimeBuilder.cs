@@ -26,6 +26,7 @@ public class TestRuntimeBuilder : IRuntimeBuilder
     public virtual INexusRuntime Build()
     {
         Services.TryAddSingleton(Configuration ?? new ConfigurationBuilder().Build());
+        Services.TryAddSingleton<IEventHub, EventHub>();
         Services.TryAddSingleton<INexusRuntime, NexusRuntime>();
 
         var serviceProvider = Services.BuildServiceProvider();

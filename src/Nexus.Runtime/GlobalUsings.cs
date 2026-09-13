@@ -6,6 +6,7 @@ global using Microsoft.Extensions.DependencyInjection.Extensions;
 global using Microsoft.Extensions.Options;
 global using Nexus.Audio;
 global using Nexus.Core;
+global using Nexus.Core.Events;
 global using Nexus.GameModel;
 global using Nexus.Graphics;
 global using Nexus.Graphics.OpenGL;

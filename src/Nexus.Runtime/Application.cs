@@ -23,6 +23,7 @@ public sealed class Application : IApplication, IDisposable
         services.TryAddSingleton<IPhysicsSystem, PhysicsSystem>();
         services.TryAddSingleton<IAudioSystem, AudioSystem>();
         services.TryAddSingleton<IGameSystem, GameSystem>();
+        services.TryAddSingleton<IEventHub, EventHub>();
         services.TryAddSingleton<INexusRuntime, NexusRuntime>();
 
         if (!services.Any(x => x.ServiceType == typeof(IGraphicsSystem)))

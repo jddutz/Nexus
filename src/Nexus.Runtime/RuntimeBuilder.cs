@@ -46,6 +46,7 @@ public class RuntimeBuilder : IRuntimeBuilder
         _services.TryAddSingleton<IPhysicsSystem, PhysicsSystem>();
         _services.TryAddSingleton<IGraphicsSystem, VulkanGraphicsSystem>();
         _services.TryAddSingleton<IAudioSystem, AudioSystem>();
+        _services.TryAddSingleton<IEventHub, EventHub>();
         _services.TryAddSingleton<INexusRuntime, NexusRuntime>();
 
         var serviceProvider = _services.BuildServiceProvider();
