@@ -6,6 +6,6 @@ public class SceneRegistry : ISceneRegistry
 {
     public IScene? Load(SceneId sceneId)
     {
-        return new Scene() { BackgroundColor = Colors.CornflowerBlue };
+        return new Scene() { Id = sceneId, BackgroundColor = Colors.CornflowerBlue };
     }
 }

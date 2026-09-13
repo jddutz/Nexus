@@ -4,7 +4,7 @@ namespace Nexus.GameModel;
 
 public interface IScene
 {
-    SceneId SceneId { get; }
+    SceneId Id { get; }
 
     Vector4D<float> BackgroundColor { get; }
 

@@ -1,2 +1,3 @@
+global using Nexus.Core;
 global using Silk.NET.Maths;
 global using Silk.NET.Windowing;
