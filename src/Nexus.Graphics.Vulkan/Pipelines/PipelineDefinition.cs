@@ -27,7 +27,7 @@ namespace Nexus.Graphics.Vulkan.Pipelines;
 /// };
 /// </code>
 /// </remarks>
-public record PipelineDescription
+public record PipelineDefinition
 {
     /// <summary>
     /// Unique name for this pipeline (used for debugging and caching).

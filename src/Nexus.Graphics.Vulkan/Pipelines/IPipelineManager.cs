@@ -10,7 +10,7 @@ public interface IPipelineManager : IDisposable
     /// </summary>
     /// <param name="description">The pipeline configuration.</param>
     /// <returns>The identifier of the created pipeline.</returns>
-    ulong Create(PipelineDescription description);
+    ulong Create(PipelineDefinition description);
 
     /// <summary>
     /// Gets a pipeline record by identifier.

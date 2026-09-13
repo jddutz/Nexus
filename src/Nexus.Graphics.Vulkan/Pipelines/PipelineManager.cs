@@ -15,7 +15,7 @@ public unsafe class PipelineManager(Context context) : IPipelineManager
 
     private readonly Dictionary<ulong, PipelineRecord> _pipelines = [];
 
-    public ulong Create(PipelineDescription description)
+    public ulong Create(PipelineDefinition description)
     {
         var shaderModules = CreateShaderModules(description.Shaders);
         PipelineShaderStageCreateInfo[]? shaderStages = null;
@@ -161,7 +161,7 @@ public unsafe class PipelineManager(Context context) : IPipelineManager
         return flags;
     }
 
-    private PipelineLayout CreatePipelineLayout(PipelineDescription description)
+    private PipelineLayout CreatePipelineLayout(PipelineDefinition description)
     {
         fixed (DescriptorSetLayout* descriptorSetLayouts = description.DescriptorSetLayouts)
         fixed (PushConstantRange* pushConstantRanges = description.PushConstantRanges)
@@ -190,7 +190,7 @@ public unsafe class PipelineManager(Context context) : IPipelineManager
     }
 
     private Pipeline CreatePipeline(
-        PipelineDescription description,
+        PipelineDefinition description,
         PipelineShaderStageCreateInfo[] shaderStages,
         PipelineLayout pipelineLayout
     )
