@@ -1,10 +1,3 @@
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.Options;
-using Nexus.Graphics.Vulkan.Pipelines;
-using Nexus.Graphics.Vulkan.Synchronization;
-using Nexus.Runtime;
-
 namespace Nexus.Graphics.Vulkan;
 
 public static class ServiceCollectionExtensions
@@ -23,6 +16,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IRenderer, Renderer>();
         services.TryAddSingleton<ISwapChain, SwapChain>();
         services.TryAddSingleton<IGraphicsSystem, VulkanGraphicsSystem>();
+        services.TryAddSingleton<IGraphicsResourceManager, VulkanResourceManager>();
 
         return services;
     }
