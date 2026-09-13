@@ -20,7 +20,7 @@ public class BasicRuntimeTests
             .Build();
 
     [Fact]
-    public void TestRuntimeBuilder_happyPath_runsAndStopsRuntime()
+    public void TestRuntimeBuilder_happyPath_initializesRuntime()
     {
         var services = CreateRuntimeServices();
         var builder = new TestRuntimeBuilder(services);
@@ -28,22 +28,10 @@ public class BasicRuntimeTests
         var runtime = builder.Build();
 
         Assert.False(runtime.IsInitialized);
-        Assert.False(runtime.IsRunning);
 
         runtime.Initialize();
 
         Assert.True(runtime.IsInitialized);
-        Assert.True(runtime.IsRunning);
-
-        for (var frame = 0; frame < 5; frame++)
-        {
-            runtime.Update();
-        }
-
-        runtime.Stop();
-
-        Assert.True(runtime.IsInitialized);
-        Assert.False(runtime.IsRunning);
     }
 
     [Fact]
@@ -55,15 +43,14 @@ public class BasicRuntimeTests
         runtime.Initialize();
 
         Assert.True(runtime.IsInitialized);
-        Assert.True(runtime.IsRunning);
     }
 
     [Fact]
     public void Update_beforeInitialize_throws()
     {
-        var runtime = BuildTestRuntime();
+        var runtime = Assert.IsType<NexusRuntime>(BuildTestRuntime());
 
-        Assert.Throws<InvalidOperationException>(() => runtime.Update());
+        Assert.Throws<InvalidOperationException>(() => runtime.OnUpdate(0d));
     }
 
     [Fact]
@@ -135,17 +122,17 @@ public class BasicRuntimeTests
     {
         public SceneId InitialSceneId => default;
 
-        public void Update(TimeSpan deltaTime) { }
+        public void Update(double deltaTime) { }
     }
 
     private sealed class NoOpInputSystem : IInputSystem
     {
-        public void Update(TimeSpan deltaTime) { }
+        public void Update(double deltaTime) { }
     }
 
     private sealed class NoOpPhysicsSystem : IPhysicsSystem
     {
-        public void Update(TimeSpan deltaTime) { }
+        public void Update(double deltaTime) { }
     }
 
     private sealed class NoOpGraphicsSystem : IGraphicsSystem
@@ -157,6 +144,6 @@ public class BasicRuntimeTests
 
     private sealed class NoOpAudioSystem : IAudioSystem
     {
-        public void Update(TimeSpan deltaTime) { }
+        public void Update(double deltaTime) { }
     }
 }

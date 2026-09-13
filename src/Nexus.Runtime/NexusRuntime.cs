@@ -5,12 +5,12 @@ namespace Nexus.Runtime;
 /// in a running Nexus game environment.
 /// </summary>
 public sealed class NexusRuntime(
-    IWindow window,
     IInputSystem input,
     ISceneGraph sceneGraph,
     IPhysicsSystem physics,
     IGraphicsSystem graphics,
-    IAudioSystem audio
+    IAudioSystem audio,
+    IWindow? window = null
 ) : INexusRuntime
 {
     private bool _initialized = false;
@@ -25,8 +25,11 @@ public sealed class NexusRuntime(
             return;
 
         // Runtime initialization and subsystem orchestration will live here.
-        window.Update += OnUpdate;
-        window.Render += OnRender;
+        if (window is not null)
+        {
+            window.Update += OnUpdate;
+            window.Render += OnRender;
+        }
 
         _initialized = true;
     }
