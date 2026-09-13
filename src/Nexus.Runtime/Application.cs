@@ -19,10 +19,11 @@ public sealed class Application : IApplication, IDisposable
         services.AddOptions<VulkanSettings>().Bind(configuration.GetSection("Vulkan"));
         services.AddOptions<WindowSettings>().Bind(configuration.GetSection("Window"));
 
+        services.AddGameSystemServices();
+
         services.TryAddSingleton<IInputSystem, InputSystem>();
         services.TryAddSingleton<IPhysicsSystem, PhysicsSystem>();
         services.TryAddSingleton<IAudioSystem, AudioSystem>();
-        services.TryAddSingleton<IGameSystem, GameSystem>();
         services.TryAddSingleton<IEventHub, EventHub>();
         services.TryAddSingleton<INexusRuntime, NexusRuntime>();
 
