@@ -5,7 +5,7 @@ namespace Nexus.Graphics.Vulkan.Pipelines;
 /// </summary>
 public sealed class PipelineDefinitionBuilder : IPipelineDefinitionBuilder
 {
-    private readonly List<ShaderDescription> _shaders = [];
+    private readonly List<ShaderDefinition> _shaders = [];
     private readonly List<VertexInputBindingDescription> _vertexBindings = [];
     private readonly List<VertexInputAttributeDescription> _vertexAttributes = [];
     private readonly List<PushConstantRange> _pushConstantRanges = [];
@@ -27,68 +27,50 @@ public sealed class PipelineDefinitionBuilder : IPipelineDefinitionBuilder
     private FrontFace _frontFace = FrontFace.Clockwise;
     private float _lineWidth = 1.0f;
 
-    IPipelineDefinitionBuilder IPipelineDefinitionBuilder.WithName(string name) => WithName(name);
+    public IPipelineDefinitionBuilder WithName(string name) => WithName(name);
 
-    IPipelineDefinitionBuilder IPipelineDefinitionBuilder.WithShader(ShaderDescription shader) =>
-        WithShader(shader);
+    public IPipelineDefinitionBuilder WithShader(ShaderDefinition shader) => WithShader(shader);
 
-    IPipelineDefinitionBuilder IPipelineDefinitionBuilder.WithVertexBinding(
-        VertexInputBindingDescription binding
-    ) => WithVertexBinding(binding);
+    public IPipelineDefinitionBuilder WithVertexBinding(VertexInputBindingDescription binding) =>
+        WithVertexBinding(binding);
 
-    IPipelineDefinitionBuilder IPipelineDefinitionBuilder.WithVertexAttribute(
-        VertexInputAttributeDescription attribute
-    ) => WithVertexAttribute(attribute);
+    IPipelineDefinitionBuilder WithVertexAttribute(VertexInputAttributeDescription attribute) =>
+        WithVertexAttribute(attribute);
 
-    IPipelineDefinitionBuilder IPipelineDefinitionBuilder.WithTopology(
-        PrimitiveTopology topology
-    ) => WithTopology(topology);
+    IPipelineDefinitionBuilder WithTopology(PrimitiveTopology topology) => WithTopology(topology);
 
-    IPipelineDefinitionBuilder IPipelineDefinitionBuilder.WithRenderPass(
-        RenderPass renderPass,
-        uint subpass
-    ) => WithRenderPass(renderPass, subpass);
+    IPipelineDefinitionBuilder WithRenderPass(RenderPass renderPass, uint subpass) =>
+        WithRenderPass(renderPass, subpass);
 
-    IPipelineDefinitionBuilder IPipelineDefinitionBuilder.WithDepthTest(bool enabled) =>
-        WithDepthTest(enabled);
+    IPipelineDefinitionBuilder WithDepthTest(bool enabled) => WithDepthTest(enabled);
 
-    IPipelineDefinitionBuilder IPipelineDefinitionBuilder.WithDepthWrite(bool enabled) =>
-        WithDepthWrite(enabled);
+    IPipelineDefinitionBuilder WithDepthWrite(bool enabled) => WithDepthWrite(enabled);
 
-    IPipelineDefinitionBuilder IPipelineDefinitionBuilder.WithDepthCompare(CompareOp compareOp) =>
-        WithDepthCompare(compareOp);
+    IPipelineDefinitionBuilder WithDepthCompare(CompareOp compareOp) => WithDepthCompare(compareOp);
 
-    IPipelineDefinitionBuilder IPipelineDefinitionBuilder.WithBlending(bool enabled) =>
-        WithBlending(enabled);
+    IPipelineDefinitionBuilder WithBlending(bool enabled) => WithBlending(enabled);
 
-    IPipelineDefinitionBuilder IPipelineDefinitionBuilder.WithBlendFactors(
+    IPipelineDefinitionBuilder WithBlendFactors(
         BlendFactor source,
         BlendFactor destination,
         BlendOp operation
     ) => WithBlendFactors(source, destination, operation);
 
-    IPipelineDefinitionBuilder IPipelineDefinitionBuilder.WithPolygonMode(
-        PolygonMode polygonMode
-    ) => WithPolygonMode(polygonMode);
+    IPipelineDefinitionBuilder WithPolygonMode(PolygonMode polygonMode) =>
+        WithPolygonMode(polygonMode);
 
-    IPipelineDefinitionBuilder IPipelineDefinitionBuilder.WithCullMode(CullModeFlags cullMode) =>
-        WithCullMode(cullMode);
+    IPipelineDefinitionBuilder WithCullMode(CullModeFlags cullMode) => WithCullMode(cullMode);
 
-    IPipelineDefinitionBuilder IPipelineDefinitionBuilder.WithFrontFace(FrontFace frontFace) =>
-        WithFrontFace(frontFace);
+    IPipelineDefinitionBuilder WithFrontFace(FrontFace frontFace) => WithFrontFace(frontFace);
 
-    IPipelineDefinitionBuilder IPipelineDefinitionBuilder.WithLineWidth(float lineWidth) =>
-        WithLineWidth(lineWidth);
+    IPipelineDefinitionBuilder WithLineWidth(float lineWidth) => WithLineWidth(lineWidth);
 
-    IPipelineDefinitionBuilder IPipelineDefinitionBuilder.WithPushConstant(
-        PushConstantRange range
-    ) => WithPushConstant(range);
+    IPipelineDefinitionBuilder WithPushConstant(PushConstantRange range) => WithPushConstant(range);
 
-    IPipelineDefinitionBuilder IPipelineDefinitionBuilder.WithDescriptorSetLayout(
-        DescriptorSetLayout layout
-    ) => WithDescriptorSetLayout(layout);
+    IPipelineDefinitionBuilder WithDescriptorSetLayout(DescriptorSetLayout layout) =>
+        WithDescriptorSetLayout(layout);
 
-    PipelineDefinition IPipelineDefinitionBuilder.Build() => Build();
+    PipelineDefinition Build() => Build();
 
     /// <summary>Sets the pipeline name.</summary>
     /// <param name="name">The non-empty pipeline name.</param>
@@ -103,7 +85,7 @@ public sealed class PipelineDefinitionBuilder : IPipelineDefinitionBuilder
     /// <summary>Adds a shader stage to the pipeline.</summary>
     /// <param name="shader">The shader stage description.</param>
     /// <returns>This builder.</returns>
-    public PipelineDefinitionBuilder WithShader(ShaderDescription shader)
+    public PipelineDefinitionBuilder WithShader(ShaderDefinition shader)
     {
         ArgumentNullException.ThrowIfNull(shader);
         _shaders.Add(shader);

@@ -2,5 +2,5 @@ namespace Nexus.Graphics.Resources;
 
 public interface IResourceCatalog
 {
-    public List<ShaderDefinition> Shaders { get; }
+    public List<ShaderDescription> Shaders { get; }
 }

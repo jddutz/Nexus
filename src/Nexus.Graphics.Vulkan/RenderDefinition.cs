@@ -35,5 +35,5 @@ public class RenderDefinition
     /// <summary>
     /// Gets the draw commands associated with this render definition.
     /// </summary>
-    public List<DrawCommand> DrawCommands { get; } = [];
+    public List<DrawCommand> DrawCommands { get; set; } = [];
 }

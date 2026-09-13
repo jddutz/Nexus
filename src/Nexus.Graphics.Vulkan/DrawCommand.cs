@@ -1,3 +1,5 @@
+using VkBuffer = Silk.NET.Vulkan.Buffer;
+
 namespace Nexus.Graphics.Vulkan;
 
 /// <summary>
@@ -10,11 +12,11 @@ public readonly struct DrawCommand : IDrawCommand
     public required uint RenderMask { get; init; }
     public required ulong PipelineId { get; init; }
     public required ulong VertexBufferId { get; init; }
-    public required Silk.NET.Vulkan.Buffer VertexBuffer { get; init; }
     public required uint VertexCount { get; init; }
 
     // OPTIONAL with sensible defaults
-    public Silk.NET.Vulkan.Buffer IndexBuffer { get; init; }
+    public VkBuffer VertexBuffer { get; init; }
+    public VkBuffer IndexBuffer { get; init; }
     public DescriptorSet DescriptorSet { get; init; }
     public ulong IndexBufferId => IndexBuffer.Handle;
     public ulong DescriptorSetId => DescriptorSet.Handle;

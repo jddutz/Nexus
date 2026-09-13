@@ -7,8 +7,14 @@ public sealed record ShaderDefinition : IGraphicsResource
     public ShaderSource Vert { get; }
     public ShaderSource Frag { get; }
     public ShaderContract ShaderContract { get; }
+    public ShaderStageEnum Stage { get; }
 
-    public ShaderDefinition(string name, ShaderSource vert, ShaderSource frag)
+    public ShaderDefinition(
+        string name,
+        ShaderSource vert,
+        ShaderSource frag,
+        ShaderStageEnum shaderStage
+    )
     {
         Id = new IdentityHashBuilder(nameof(ShaderDefinition))
             .Add(name)
@@ -19,5 +25,6 @@ public sealed record ShaderDefinition : IGraphicsResource
         Name = name;
         Vert = vert;
         Frag = frag;
+        Stage = shaderStage;
     }
 }

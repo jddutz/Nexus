@@ -38,7 +38,7 @@ public record PipelineDefinition
     /// Shader resource containing compiled shader modules.
     /// If provided, takes precedence over shader paths.
     /// </summary>
-    public required ShaderDescription[] Shaders { get; init; }
+    public required ShaderDefinition[] Shaders { get; init; }
 
     /// <summary>
     /// Describes the vertex buffer bindings used by the pipeline.

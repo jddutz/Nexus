@@ -34,7 +34,7 @@ public static class RenderPasses
     public const uint UI = 1u << 7;
 
     /// <summary>All render passes combined.</summary>
-    public const uint All = Shadow | Depth | Main | Lighting | Reflection | Transparent | Post | UI;
+    public const uint All = uint.MaxValue;
 
     /// <summary>All opaque passes: shadow, depth, and main.</summary>
     public const uint Opaque = Shadow | Depth | Main;

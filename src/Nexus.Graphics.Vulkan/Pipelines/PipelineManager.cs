@@ -65,7 +65,7 @@ public unsafe class PipelineManager(Context context) : IPipelineManager
         return record;
     }
 
-    private ShaderModule[] CreateShaderModules(ShaderDescription[] shaders)
+    private ShaderModule[] CreateShaderModules(ShaderDefinition[] shaders)
     {
         var modules = new ShaderModule[shaders.Length];
 
@@ -151,7 +151,7 @@ public unsafe class PipelineManager(Context context) : IPipelineManager
             _ => throw new ArgumentOutOfRangeException(nameof(stage), stage, null),
         };
 
-    private static ShaderStageFlags GetShaderStageFlags(ShaderDescription[] shaders)
+    private static ShaderStageFlags GetShaderStageFlags(ShaderDefinition[] shaders)
     {
         var flags = ShaderStageFlags.None;
 

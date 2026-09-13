@@ -20,6 +20,24 @@ public class VulkanGraphicsSystem(IRenderer renderer, IGraphicsResourceManager r
 
     public void Render()
     {
+        _renderer.Definitions =
+        [
+            new()
+            {
+                DrawCommands =
+                [
+                    new DrawCommand
+                    {
+                        RenderMask = RenderPasses.All,
+                        PipelineId = pipelineId,
+                        VertexBufferId = vertexBuffer.Handle,
+                        VertexBuffer = vertexBuffer,
+                        VertexCount = 3,
+                    },
+                ],
+            },
+        ];
+
         _renderer.Render();
 
         // TODO: handle rendering failure
