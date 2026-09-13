@@ -1,3 +1,5 @@
+using Nexus.Core.Events;
+
 namespace Nexus.Runtime;
 
 /// <summary>
@@ -5,6 +7,7 @@ namespace Nexus.Runtime;
 /// in a running Nexus game environment.
 /// </summary>
 public sealed class NexusRuntime(
+    IEventHub eventHub,
     IInputSystem input,
     IGameSystem gameSystem,
     IPhysicsSystem physics,
@@ -31,6 +34,8 @@ public sealed class NexusRuntime(
             window.Render += OnRender;
         }
 
+        gameSystem.Initialize();
+
         _initialized = true;
     }
 
@@ -44,8 +49,10 @@ public sealed class NexusRuntime(
                 "The runtime must be initialized before it can be updated."
             );
 
-        physics.Update(deltaTime);
+        eventHub.Drain();
+
         gameSystem.Update(deltaTime);
+        physics.Update(deltaTime);
         audio.Update(deltaTime);
         input.Update(deltaTime);
     }

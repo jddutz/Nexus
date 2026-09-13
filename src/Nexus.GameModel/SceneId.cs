@@ -1,4 +1,4 @@
-namespace Nexus.Core.Scenes;
+namespace Nexus.GameModel;
 
 public readonly record struct SceneId(ulong Value) : IEquatable<SceneId>, IUniqueId
 {
