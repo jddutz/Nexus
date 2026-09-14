@@ -21,10 +21,10 @@ public class DefaultBatchStrategy : IBatchStrategy
     /// Analyzes a sorted list of draw commands and returns batching statistics.
     /// Call this after sorting to get diagnostic information about batching effectiveness.
     /// </summary>
-    public BatchingStatistics AnalyzeBatching(IEnumerable<IDrawCommand> sortedCommands)
+    public BatchingStatistics AnalyzeBatching(IEnumerable<IRenderItem> sortedCommands)
     {
         var stats = new BatchingStatistics();
-        IDrawCommand? previous = null;
+        IRenderItem? previous = null;
 
         foreach (var cmd in sortedCommands)
         {
@@ -51,7 +51,7 @@ public class DefaultBatchStrategy : IBatchStrategy
                     stats.DescriptorSetChanges++;
                 }
 
-                if (cmd.VertexBufferId != previous.VertexBufferId)
+                if (cmd.VertexBuffer.Handle != previous.VertexBuffer.Handle)
                 {
                     stats.VertexBufferChanges++;
                 }
@@ -111,7 +111,7 @@ public class DefaultBatchStrategy : IBatchStrategy
     /// <param name="x">First draw command to compare</param>
     /// <param name="y">Second draw command to compare</param>
     /// <returns>-1 if x should render before y, 1 if y should render before x, 0 if equal priority</returns>
-    public int Compare(IDrawCommand? x, IDrawCommand? y)
+    public int Compare(IRenderItem? x, IRenderItem? y)
     {
         if (ReferenceEquals(x, y))
             return 0;
@@ -142,7 +142,7 @@ public class DefaultBatchStrategy : IBatchStrategy
             return descriptorCompare;
 
         // 3. Then by vertex buffer
-        var vertexCompare = x.VertexBufferId.CompareTo(y.VertexBufferId);
+        var vertexCompare = x.VertexBuffer.Handle.CompareTo(y.VertexBuffer.Handle);
         if (vertexCompare != 0)
             return vertexCompare;
 
@@ -178,7 +178,7 @@ public class DefaultBatchStrategy : IBatchStrategy
     /// </summary>
     /// <param name="state">Draw command to hash</param>
     /// <returns>Hash code representing the batchable aspects of the draw command</returns>
-    public int GetHashCode(IDrawCommand state)
+    public int GetHashCode(IRenderItem state)
     {
         var hash = new HashCode();
 
@@ -188,7 +188,7 @@ public class DefaultBatchStrategy : IBatchStrategy
         // Then add in order of state change cost (most expensive first)
         hash.Add(state.Pipeline.Handle);
         hash.Add(state.DescriptorSetId);
-        hash.Add(state.VertexBufferId);
+        hash.Add(state.VertexBuffer.Handle);
         hash.Add(state.IndexBufferId);
 
         // NOTE: DepthSortKey deliberately excluded - it's camera-relative and changes every frame

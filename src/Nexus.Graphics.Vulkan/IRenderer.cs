@@ -8,7 +8,7 @@ public interface IRenderer
     /// <summary>
     /// Gets or sets the current set of RenderDefinitions for rendering.
     /// </summary>
-    RenderDefinition[] Definitions { get; set; }
+    RenderBatch[] Batches { get; set; }
 
     /// <summary>
     /// Determines whether the renderer is configured and able to execute rendering.

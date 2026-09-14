@@ -5,10 +5,16 @@ public static class VulkanResources
     public static readonly ShaderDefinition[] ShaderDefinitions =
     [
         new(
-            "UniformColor",
+            "UniformColorVert",
             new ShaderSource("uniform_color.vert.spv"),
-            new ShaderSource("uniform_color.frag.spv"),
-            ShaderStageEnum.Vertex
+            ShaderStageFlags.VertexBit,
+            new ShaderContract()
+        ),
+        new(
+            "UniformColorFrag",
+            new ShaderSource("uniform_color.vert.spv"),
+            ShaderStageFlags.FragmentBit,
+            new ShaderContract()
         ),
     ];
 }

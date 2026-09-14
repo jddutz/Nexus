@@ -1,134 +1,153 @@
-namespace Nexus.Graphics.Vulkan.Pipelines;
-
-/// <summary>
-/// Describes the configuration used to create a graphics pipeline.
-/// Used as a key for pipeline caching and as input for pipeline creation.
-/// </summary>
-/// <remarks>
-/// <para>This record includes the shader stages, vertex input, render-pass
-/// compatibility, and fixed-function state required by a Vulkan graphics pipeline.</para>
-/// <para><strong>Design notes:</strong></para>
-/// <list type="bullet">
-/// <item>The record provides value-based equality for pipeline caching.</item>
-/// <item>Properties use init-only setters so a description cannot be changed after initialization.</item>
-/// <item>Default values provide a conventional triangle-list pipeline with depth testing enabled.</item>
-/// </list>
-///
-/// <para><strong>Usage:</strong></para>
-/// <code>
-/// var description = new PipelineDescription
-/// {
-///     Name = "MyPipeline",
-///     Shaders = shaders,
-///     VertexInputDescription = MyVertex.GetDescription(),
-///     Topology = PrimitiveTopology.TriangleList,
-///     RenderPass = renderPass,
-///     EnableDepthTest = true
-/// };
-/// </code>
-/// </remarks>
-public record PipelineDefinition
+public sealed record PipelineDefinition
 {
-    /// <summary>
-    /// Unique name for this pipeline (used for debugging and caching).
-    /// </summary>
-    public required string Name { get; init; }
+    public PipelineId Id { get; }
 
-    /// <summary>
-    /// Shader resource containing compiled shader modules.
-    /// If provided, takes precedence over shader paths.
-    /// </summary>
-    public required ShaderDefinition[] Shaders { get; init; }
+    public string Name { get; }
 
-    /// <summary>
-    /// Describes the vertex buffer bindings used by the pipeline.
-    /// </summary>
-    public VertexInputBindingDescription[] VertexBindings { get; init; } = [];
+    public ShaderDefinition? VertexShader { get; }
+    public ShaderDefinition? TessellationControlShader { get; }
+    public ShaderDefinition? TessellationEvalShader { get; }
+    public ShaderDefinition? GeometryShader { get; }
+    public ShaderDefinition? FragmentShader { get; }
 
-    /// <summary>
-    /// Describes how vertex attributes are mapped from vertex buffers to shader inputs.
-    /// </summary>
-    public VertexInputAttributeDescription[] VertexAttributes { get; init; } = [];
+    public ImmutableArray<VertexInputBindingDescription> VertexBindings { get; }
 
-    /// <summary>
-    /// Primitive topology (point list, line list, triangle list, etc.).
-    /// </summary>
-    public PrimitiveTopology Topology { get; init; } = PrimitiveTopology.TriangleList;
+    public ImmutableArray<VertexInputAttributeDescription> VertexAttributes { get; }
 
-    /// <summary>
-    /// Target render pass this pipeline will be used with.
-    /// Pipeline must be compatible with this render pass.
-    /// </summary>
-    public required RenderPass RenderPass { get; init; }
+    public PrimitiveTopology Topology { get; }
 
-    /// <summary>
-    /// Subpass index within the render pass.
-    /// </summary>
-    public uint Subpass { get; init; } = 0;
+    public RenderPass RenderPass { get; }
 
-    /// <summary>
-    /// Enable depth testing (write and compare against depth buffer).
-    /// </summary>
-    public bool EnableDepthTest { get; init; } = true;
+    public uint Subpass { get; }
 
-    /// <summary>
-    /// Enable depth writes (update depth buffer).
-    /// </summary>
-    public bool EnableDepthWrite { get; init; } = true;
+    public bool EnableDepthTest { get; }
 
-    /// <summary>
-    /// Depth comparison operation (Less, LessOrEqual, Greater, etc.).
-    /// </summary>
-    public CompareOp DepthCompareOp { get; init; } = CompareOp.Less;
+    public bool EnableDepthWrite { get; }
 
-    /// <summary>
-    /// Enable alpha blending for color attachments.
-    /// </summary>
-    public bool EnableBlending { get; init; } = false;
+    public CompareOp DepthCompareOp { get; }
 
-    /// <summary>
-    /// Source blend factor (for color blending).
-    /// </summary>
-    public BlendFactor SrcBlendFactor { get; init; } = BlendFactor.SrcAlpha;
+    public bool EnableBlending { get; }
 
-    /// <summary>
-    /// Destination blend factor (for color blending).
-    /// </summary>
-    public BlendFactor DstBlendFactor { get; init; } = BlendFactor.OneMinusSrcAlpha;
+    public BlendFactor SrcBlendFactor { get; }
 
-    /// <summary>
-    /// Blend operation (Add, Subtract, etc.).
-    /// </summary>
-    public BlendOp BlendOp { get; init; } = BlendOp.Add;
+    public BlendFactor DstBlendFactor { get; }
 
-    /// <summary>
-    /// Polygon rasterization mode (Fill, Line, Point).
-    /// </summary>
-    public PolygonMode PolygonMode { get; init; } = PolygonMode.Fill;
+    public BlendOp BlendOp { get; }
 
-    /// <summary>
-    /// Face culling mode (None, Front, Back, FrontAndBack).
-    /// </summary>
-    public CullModeFlags CullMode { get; init; } = CullModeFlags.BackBit;
+    public PolygonMode PolygonMode { get; }
 
-    /// <summary>
-    /// Front face winding order (Clockwise, CounterClockwise).
-    /// </summary>
-    public FrontFace FrontFace { get; init; } = FrontFace.Clockwise;
+    public CullModeFlags CullMode { get; }
 
-    /// <summary>
-    /// Line width (for line rendering).
-    /// Must be 1.0 unless wideLines feature is enabled.
-    /// </summary>
-    public float LineWidth { get; init; } = 1.0f;
+    public FrontFace FrontFace { get; }
 
-    /// <summary>
-    /// Push constant ranges for shader uniforms.
-    /// </summary>
-    public PushConstantRange[]? PushConstantRanges { get; init; }
+    public float LineWidth { get; }
 
-    /// <summary>
-    /// Descriptor set layouts for shader resources (textures, buffers, etc.).
-    /// </summary>
-    public DescriptorSetLayout[]? DescriptorSetLayouts { get; init; }
+    public ImmutableArray<PushConstantRange> PushConstantRanges { get; }
+
+    public ImmutableArray<DescriptorSetLayout> DescriptorSetLayouts { get; }
+
+    public PipelineDefinition(
+        string name,
+        ShaderDefinition? vertexShader,
+        ShaderDefinition? tessellationControlShader,
+        ShaderDefinition? tessellationEvalShader,
+        ShaderDefinition? geometryShader,
+        ShaderDefinition? fragmentShader,
+        RenderPass renderPass,
+        IEnumerable<VertexInputBindingDescription>? vertexBindings = null,
+        IEnumerable<VertexInputAttributeDescription>? vertexAttributes = null,
+        PrimitiveTopology topology = PrimitiveTopology.TriangleList,
+        uint subpass = 0,
+        bool enableDepthTest = true,
+        bool enableDepthWrite = true,
+        CompareOp depthCompareOp = CompareOp.Less,
+        bool enableBlending = false,
+        BlendFactor srcBlendFactor = BlendFactor.SrcAlpha,
+        BlendFactor dstBlendFactor = BlendFactor.OneMinusSrcAlpha,
+        BlendOp blendOp = BlendOp.Add,
+        PolygonMode polygonMode = PolygonMode.Fill,
+        CullModeFlags cullMode = CullModeFlags.BackBit,
+        FrontFace frontFace = FrontFace.Clockwise,
+        float lineWidth = 1.0f,
+        IEnumerable<PushConstantRange>? pushConstantRanges = null,
+        IEnumerable<DescriptorSetLayout>? descriptorSetLayouts = null
+    )
+    {
+        Name = name;
+
+        VertexShader = vertexShader;
+        TessellationControlShader = tessellationControlShader;
+        TessellationEvalShader = tessellationEvalShader;
+        GeometryShader = geometryShader;
+        FragmentShader = fragmentShader;
+
+        RenderPass = renderPass;
+
+        VertexBindings = [.. vertexBindings ?? []];
+        VertexAttributes = [.. vertexAttributes ?? []];
+
+        Topology = topology;
+        Subpass = subpass;
+
+        EnableDepthTest = enableDepthTest;
+        EnableDepthWrite = enableDepthWrite;
+        DepthCompareOp = depthCompareOp;
+
+        EnableBlending = enableBlending;
+        SrcBlendFactor = srcBlendFactor;
+        DstBlendFactor = dstBlendFactor;
+        BlendOp = blendOp;
+
+        PolygonMode = polygonMode;
+        CullMode = cullMode;
+        FrontFace = frontFace;
+        LineWidth = lineWidth;
+
+        PushConstantRanges = [.. pushConstantRanges ?? []];
+        DescriptorSetLayouts = [.. descriptorSetLayouts ?? []];
+
+        var hash = new IdentityHashBuilder(nameof(PipelineDefinition));
+
+        hash.Add(Name);
+
+        hash.Add(VertexShader is not null);
+        if (VertexShader != null)
+            hash.Add(VertexShader.Id);
+
+        hash.Add(TessellationControlShader is not null);
+        if (TessellationControlShader != null)
+            hash.Add(TessellationControlShader.Id);
+
+        hash.Add(TessellationEvalShader is not null);
+        if (TessellationEvalShader != null)
+            hash.Add(TessellationEvalShader.Id);
+
+        hash.Add(GeometryShader is not null);
+        if (GeometryShader != null)
+            hash.Add(GeometryShader.Id);
+
+        hash.Add(FragmentShader is not null);
+        if (FragmentShader != null)
+            hash.Add(FragmentShader.Id);
+
+        hash.Add((uint)Topology)
+            .Add(RenderPass.Handle)
+            .Add(Subpass)
+            .Add(EnableDepthTest)
+            .Add(EnableDepthWrite)
+            .Add((uint)DepthCompareOp)
+            .Add(EnableBlending)
+            .Add((uint)SrcBlendFactor)
+            .Add((uint)DstBlendFactor)
+            .Add((uint)BlendOp)
+            .Add((uint)PolygonMode)
+            .Add((uint)CullMode)
+            .Add((uint)FrontFace)
+            .Add(LineWidth);
+
+        // Same for vertex bindings, attributes,
+        // push constant ranges and descriptor layouts.
+
+        Id = hash.Compute();
+    }
 }

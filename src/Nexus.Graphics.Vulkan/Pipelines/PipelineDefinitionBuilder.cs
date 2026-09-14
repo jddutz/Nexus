@@ -30,11 +30,10 @@ public sealed class PipelineDefinitionBuilder : IPipelineDefinitionBuilder
     /// <summary>Sets the pipeline name.</summary>
     /// <param name="name">The non-empty pipeline name.</param>
     /// <returns>This builder.</returns>
-    public PipelineDefinitionBuilder WithName(string name)
+    public PipelineDefinitionBuilder(string name)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         _name = name;
-        return this;
     }
 
     /// <summary>Adds a shader stage to the pipeline.</summary>
@@ -238,42 +237,73 @@ public sealed class PipelineDefinitionBuilder : IPipelineDefinitionBuilder
             throw new InvalidOperationException("A pipeline name is required.");
         if (_shaders.Count == 0)
             throw new InvalidOperationException("At least one shader is required.");
-        if (_shaders.Any(x => x.Stage == ShaderStageEnum.Compute))
-            throw new InvalidOperationException(
-                "Compute shaders cannot be used in a graphics pipeline."
-            );
-        if (_shaders.GroupBy(x => x.Stage).Any(x => x.Count() > 1))
-            throw new InvalidOperationException(
-                "A graphics pipeline cannot contain duplicate shader stages."
-            );
-        if (!_shaders.Any(x => x.Stage == ShaderStageEnum.Vertex))
-            throw new InvalidOperationException("A graphics pipeline requires a vertex shader.");
         if (_renderPass is null)
             throw new InvalidOperationException("A render pass is required.");
 
-        return new PipelineDefinition
+        ShaderDefinition? vertexShader = null;
+        ShaderDefinition? tessellationControlShader = null;
+        ShaderDefinition? tessellationEvalShader = null;
+        ShaderDefinition? geometryShader = null;
+        ShaderDefinition? fragmentShader = null;
+
+        foreach (var shader in _shaders)
         {
-            Name = _name,
-            Shaders = [.. _shaders],
-            VertexBindings = [.. _vertexBindings],
-            VertexAttributes = [.. _vertexAttributes],
-            Topology = _topology,
-            RenderPass = _renderPass.Value,
-            Subpass = _subpass,
-            EnableDepthTest = _enableDepthTest,
-            EnableDepthWrite = _enableDepthWrite,
-            DepthCompareOp = _depthCompareOp,
-            EnableBlending = _enableBlending,
-            SrcBlendFactor = _srcBlendFactor,
-            DstBlendFactor = _dstBlendFactor,
-            BlendOp = _blendOp,
-            PolygonMode = _polygonMode,
-            CullMode = _cullMode,
-            FrontFace = _frontFace,
-            LineWidth = _lineWidth,
-            PushConstantRanges = _pushConstantRanges.Count == 0 ? null : [.. _pushConstantRanges],
-            DescriptorSetLayouts =
-                _descriptorSetLayouts.Count == 0 ? null : [.. _descriptorSetLayouts],
-        };
+            switch (shader.StageFlags)
+            {
+                case ShaderStageFlags.VertexBit when vertexShader is null:
+                    vertexShader = shader;
+                    break;
+                case ShaderStageFlags.TessellationControlBit when tessellationControlShader is null:
+                    tessellationControlShader = shader;
+                    break;
+                case ShaderStageFlags.TessellationEvaluationBit when tessellationEvalShader is null:
+                    tessellationEvalShader = shader;
+                    break;
+                case ShaderStageFlags.GeometryBit when geometryShader is null:
+                    geometryShader = shader;
+                    break;
+                case ShaderStageFlags.FragmentBit when fragmentShader is null:
+                    fragmentShader = shader;
+                    break;
+                case ShaderStageFlags.ComputeBit:
+                    throw new InvalidOperationException(
+                        "Compute shaders cannot be used in a graphics pipeline."
+                    );
+                default:
+                    throw new InvalidOperationException(
+                        "A graphics pipeline cannot contain duplicate or unsupported shader stages."
+                    );
+            }
+        }
+
+        if (vertexShader is null)
+            throw new InvalidOperationException("A graphics pipeline requires a vertex shader.");
+
+        return new PipelineDefinition(
+            _name,
+            vertexShader,
+            tessellationControlShader,
+            tessellationEvalShader,
+            geometryShader,
+            fragmentShader,
+            _renderPass.Value,
+            _vertexBindings,
+            _vertexAttributes,
+            _topology,
+            _subpass,
+            _enableDepthTest,
+            _enableDepthWrite,
+            _depthCompareOp,
+            _enableBlending,
+            _srcBlendFactor,
+            _dstBlendFactor,
+            _blendOp,
+            _polygonMode,
+            _cullMode,
+            _frontFace,
+            _lineWidth,
+            _pushConstantRanges,
+            _descriptorSetLayouts
+        );
     }
 }

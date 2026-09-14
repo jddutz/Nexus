@@ -4,28 +4,27 @@ public sealed record ShaderDefinition : IGraphicsResource
 {
     public ResourceId Id { get; }
     public string Name { get; }
-    public ShaderSource Vert { get; }
-    public ShaderSource Frag { get; }
-    public ShaderStageEnum Stage { get; }
+    public ShaderSource Source { get; }
+    public ShaderStageFlags StageFlags { get; }
     public ShaderContract Contract { get; }
 
     public ShaderDefinition(
         string name,
-        ShaderSource vert,
-        ShaderSource frag,
-        ShaderStageEnum shaderStage
+        ShaderSource source,
+        ShaderStageFlags stageFlags,
+        ShaderContract contract
     )
     {
         Id = new IdentityHashBuilder(nameof(ShaderDefinition))
             .Add(name)
-            .Add(vert.Id)
-            .Add(frag.Id)
+            .Add(source.Id)
+            .Add((uint)stageFlags)
+            .Add(contract.Id)
             .Compute();
 
         Name = name;
-        Vert = vert;
-        Frag = frag;
-        Stage = shaderStage;
-        Contract = new();
+        Source = source;
+        StageFlags = stageFlags;
+        Contract = contract;
     }
 }

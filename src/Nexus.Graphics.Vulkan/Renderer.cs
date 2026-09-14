@@ -9,7 +9,7 @@ public unsafe class Renderer(
     Context context,
     ISwapChain swapChain,
     ISyncManager syncManager,
-    IPipelineManager pipelineManager
+    IPipelineRegistry pipelineManager
 ) : IRenderer
 {
     private const string VK_CONTEXT_NULL = "Vulkan _context has not been initialized yet.";
@@ -17,7 +17,7 @@ public unsafe class Renderer(
     private Context _context = context;
     private ISwapChain _swapChain = swapChain;
     private ISyncManager _syncManager = syncManager;
-    private IPipelineManager _pipelineManager = pipelineManager;
+    private IPipelineRegistry _pipelineManager = pipelineManager;
     private CommandBufferPool _commandPool = CommandBufferPool.ForGraphics(context, 2);
     private FrameSync? _frameSync;
     private ImageSync? _imageSync;
@@ -28,12 +28,12 @@ public unsafe class Renderer(
     public event EventHandler<RenderEventArgs>? BeforeRendering;
     public event EventHandler<RenderEventArgs>? AfterRendering;
 
-    public RenderDefinition[] Definitions { get; set; } = [new()];
+    public RenderBatch[] Batches { get; set; } = [new()];
 
     public bool CanRender() =>
         _context != null
         && _swapChain != null
-        && Definitions.Length > 0
+        && Batches.Length > 0
         && _swapChain.SwapchainExtent.Width > 0
         && _swapChain.SwapchainExtent.Height > 0;
 
@@ -52,7 +52,7 @@ public unsafe class Renderer(
             if (!BeginCommandBuffer())
                 return false;
 
-            foreach (var definition in Definitions)
+            foreach (var definition in Batches)
             {
                 var viewport = definition.Viewport;
                 _context.VulkanApi.CmdSetViewport(_commandBuffer, 0, 1, &viewport);
@@ -60,7 +60,7 @@ public unsafe class Renderer(
                 var scissor = definition.Scissor;
                 _context.VulkanApi.CmdSetScissor(_commandBuffer, 0, 1, &scissor);
 
-                foreach (var pass in definition.RenderPassDefinitions)
+                foreach (var pass in definition.RenderPasses)
                 {
                     if (!pass.ShouldRender)
                         continue;
@@ -79,7 +79,7 @@ public unsafe class Renderer(
                     ulong lastPipelineId = 0;
                     ulong lastDescriptorSetHandle = 0;
 
-                    foreach (var command in definition.DrawCommands)
+                    foreach (var command in definition.Items)
                     {
                         if ((command.RenderMask & pass.RenderPass) != 0)
                             Draw(command, ref lastPipelineId, ref lastDescriptorSetHandle);
@@ -180,7 +180,7 @@ public unsafe class Renderer(
         );
     }
 
-    private void Draw(DrawCommand cmd, ref ulong lastPipelineId, ref ulong lastDescriptorSetHandle)
+    private void Draw(RenderItem cmd, ref ulong lastPipelineId, ref ulong lastDescriptorSetHandle)
     {
         _context.VulkanApi.CmdBindPipeline(
             _commandBuffer,

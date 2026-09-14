@@ -2,8 +2,6 @@ namespace Nexus.Graphics.Vulkan.Pipelines;
 
 public interface IPipelineDefinitionBuilder
 {
-    PipelineDefinitionBuilder WithName(string name);
-
     PipelineDefinitionBuilder WithShader(ShaderDefinition shader);
 
     PipelineDefinitionBuilder WithVertexBinding(VertexInputBindingDescription binding);

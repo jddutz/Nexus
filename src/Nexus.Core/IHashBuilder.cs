@@ -14,8 +14,11 @@ public interface IHashBuilder
     IHashBuilder AddRange(IEnumerable<float> values);
     IHashBuilder Add(double value);
     IHashBuilder AddRange(IEnumerable<double> values);
+    IHashBuilder Add(bool value);
+    IHashBuilder AddRange(IEnumerable<bool> values);
     IHashBuilder Add(string value);
     IHashBuilder AddRange(IEnumerable<string> values);
+    IHashBuilder Add(byte value);
     IHashBuilder Add(byte[] value);
     IHashBuilder AddRange(IEnumerable<byte> values);
     IHashBuilder AddRange(IEnumerable<byte[]> values);

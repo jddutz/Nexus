@@ -3,7 +3,9 @@ namespace Nexus.Graphics;
 public enum ShaderStageEnum
 {
     Vertex,
-    Fragment,
+    TessellationControl,
+    TessellationEval,
     Geometry,
+    Fragment,
     Compute,
 }

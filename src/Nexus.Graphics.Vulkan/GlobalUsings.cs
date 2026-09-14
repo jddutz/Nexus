@@ -1,11 +1,15 @@
 global using System;
 global using System.Collections.Concurrent;
+global using System.Collections.Immutable;
+global using System.Runtime.CompilerServices;
 global using System.Runtime.InteropServices;
 global using Nexus.Core;
 global using Nexus.Core.Performance;
 global using Nexus.Graphics;
 global using Nexus.Graphics.Compositions;
 global using Nexus.Graphics.Resources;
+global using Nexus.Graphics.Vulkan;
+global using Nexus.Graphics.Vulkan.Buffers;
 global using Nexus.Graphics.Vulkan.Pipelines;
 global using Nexus.Graphics.Vulkan.Synchronization;
 global using Silk.NET.Core.Native;

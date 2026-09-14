@@ -12,7 +12,8 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<Context>();
         services.TryAddSingleton<SwapChain>();
         services.TryAddSingleton<ISyncManager, SyncManager>();
-        services.TryAddSingleton<IPipelineManager, PipelineManager>();
+        services.TryAddSingleton<IPipelineFactory, PipelineFactory>();
+        services.TryAddSingleton<IPipelineRegistry, PipelineRegistry>();
         services.TryAddSingleton<IRenderer, Renderer>();
         services.TryAddSingleton<ISwapChain, SwapChain>();
         services.TryAddSingleton<IGraphicsSystem, VulkanGraphicsSystem>();

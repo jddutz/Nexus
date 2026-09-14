@@ -27,11 +27,19 @@ namespace Nexus.Core;
 /// </summary>
 public class IdentityHashBuilder : IHashBuilder
 {
+    /// <summary>Initial FNV-1a offset basis used to seed each fingerprint.</summary>
     public const ulong OffsetBasis = 14695981039346656037UL;
+
+    /// <summary>FNV-1a 64-bit prime used after each byte is mixed into the fingerprint.</summary>
     public const ulong Prime = 1099511628211UL;
+
+    private const ulong FalseValue = 1000000007UL;
+    private const ulong TrueValue = 1000000009UL;
 
     private ulong _hash = OffsetBasis;
 
+    /// <summary>Initializes a builder and adds the source kind to the fingerprint.</summary>
+    /// <param name="sourceKind">The UTF-8 source identifier used to distinguish hash domains.</param>
     public IdentityHashBuilder(string sourceKind)
     {
         Add(sourceKind);
@@ -170,6 +178,25 @@ public class IdentityHashBuilder : IHashBuilder
         return this;
     }
 
+    /// <summary>Adds a boolean value using a distinct value.</summary>
+    public IHashBuilder Add(bool value) => Add(value ? TrueValue : FalseValue);
+
+    /// <summary>Adds boolean values to the fingerprint in their supplied order.</summary>
+    public IHashBuilder AddRange(IEnumerable<bool> values)
+    {
+        if (values == null)
+        {
+            return this;
+        }
+
+        foreach (var value in values)
+        {
+            Add(value);
+        }
+
+        return this;
+    }
+
     /// <summary>Adds a UTF-8 string to the fingerprint.</summary>
     public IHashBuilder Add(string value)
     {
@@ -193,6 +220,15 @@ public class IdentityHashBuilder : IHashBuilder
         {
             Add(value);
         }
+
+        return this;
+    }
+
+    /// <summary>Adds a byte to the fingerprint.</summary>
+    public IHashBuilder Add(byte value)
+    {
+        _hash ^= value;
+        _hash *= Prime;
 
         return this;
     }
@@ -248,12 +284,7 @@ public class IdentityHashBuilder : IHashBuilder
     /// <summary>Returns the current FNV-1a 64-bit fingerprint.</summary>
     public ulong Compute() => _hash;
 
-    private void Add(byte value)
-    {
-        _hash ^= value;
-        _hash *= Prime;
-    }
-
+    /// <summary>Adds bytes in little-endian order, reversing them on big-endian systems.</summary>
     private IHashBuilder AddLittleEndian(byte[] value)
     {
         if (!BitConverter.IsLittleEndian)

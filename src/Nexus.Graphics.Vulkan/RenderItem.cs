@@ -6,17 +6,17 @@ namespace Nexus.Graphics.Vulkan;
 /// Describes a single Vulkan draw command - what to draw and how.
 /// Contains all information needed for batching, state management, and rendering.
 /// </summary>
-public readonly struct DrawCommand : IDrawCommand
+public readonly struct RenderItem : IRenderItem
 {
     // REQUIRED
     public required uint RenderMask { get; init; }
     public required Pipeline Pipeline { get; init; }
     public required PipelineLayout Layout { get; init; }
-    public required ulong VertexBufferId { get; init; }
+    public required VkBuffer VertexBuffer { get; init; }
     public required uint VertexCount { get; init; }
 
     // OPTIONAL with sensible defaults
-    public VkBuffer VertexBuffer { get; init; }
+
     public VkBuffer IndexBuffer { get; init; }
     public DescriptorSet DescriptorSet { get; init; }
     public ulong IndexBufferId => IndexBuffer.Handle;
@@ -52,7 +52,7 @@ public readonly struct DrawCommand : IDrawCommand
     /// <summary>
     /// Constructor with default values for optional fields.
     /// </summary>
-    public DrawCommand()
+    public RenderItem()
     {
         InstanceCount = 1;
         RenderPriority = 0;

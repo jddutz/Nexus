@@ -47,7 +47,7 @@ public class DepthSortBatchStrategy : IBatchStrategy
     /// <param name="x">First draw command to compare</param>
     /// <param name="y">Second draw command to compare</param>
     /// <returns>-1 if x should render before y, 1 if y should render before x, 0 if equal priority</returns>
-    public int Compare(IDrawCommand? x, IDrawCommand? y)
+    public int Compare(IRenderItem? x, IRenderItem? y)
     {
         if (ReferenceEquals(x, y))
             return 0;
@@ -84,7 +84,7 @@ public class DepthSortBatchStrategy : IBatchStrategy
             return descriptorCompare;
 
         // Then by vertex buffer
-        var vertexCompare = x.VertexBufferId.CompareTo(y.VertexBufferId);
+        var vertexCompare = x.VertexBuffer.Handle.CompareTo(y.VertexBuffer.Handle);
         if (vertexCompare != 0)
             return vertexCompare;
 
@@ -98,7 +98,7 @@ public class DepthSortBatchStrategy : IBatchStrategy
     /// </summary>
     /// <param name="state">Draw command to hash</param>
     /// <returns>Hash code representing the batchable aspects of the draw command</returns>
-    public int GetHashCode(IDrawCommand state)
+    public int GetHashCode(IRenderItem state)
     {
         var hash = new HashCode();
 
@@ -108,7 +108,7 @@ public class DepthSortBatchStrategy : IBatchStrategy
         // Add state change costs
         hash.Add(state.Pipeline.Handle);
         hash.Add(state.DescriptorSetId);
-        hash.Add(state.VertexBufferId);
+        hash.Add(state.VertexBuffer.Handle);
         hash.Add(state.IndexBufferId);
 
         // NOTE: DepthSortKey deliberately excluded - it's camera-relative and changes every frame
