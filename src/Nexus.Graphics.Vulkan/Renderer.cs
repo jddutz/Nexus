@@ -1,7 +1,3 @@
-using System.Formats.Asn1;
-using CommandBufferPool = Nexus.Graphics.Vulkan.Commands.CommandBufferPool;
-using VkViewport = Silk.NET.Vulkan.Viewport;
-
 namespace Nexus.Graphics.Vulkan;
 
 /// <summary>
