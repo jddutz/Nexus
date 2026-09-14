@@ -18,7 +18,7 @@ public class RenderPassConfiguration
     /// <summary>
     /// Depth attachment format. Set to Format.Undefined for no depth.
     /// </summary>
-    public Format DepthFormat { get; set; } = Format.D32Sfloat;
+    public Format DepthFormat { get; set; } = Format.Undefined;
 
     /// <summary>
     /// Color attachment load operation.
@@ -33,7 +33,7 @@ public class RenderPassConfiguration
     /// <summary>
     /// Depth attachment load operation.
     /// </summary>
-    public AttachmentLoadOp DepthLoadOp { get; set; } = AttachmentLoadOp.Clear;
+    public AttachmentLoadOp DepthLoadOp { get; set; } = AttachmentLoadOp.DontCare;
 
     /// <summary>
     /// Depth attachment store operation.

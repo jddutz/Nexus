@@ -35,11 +35,13 @@ public unsafe class VulkanGraphicsSystem(
 
     public void Initialize()
     {
+        var mainPassIndex = RenderPasses.GetIndex(RenderPasses.Main);
+
         var (pipeline, layout) = _pipelineManager.GetOrCreate(
             new PipelineDefinitionBuilder(DEFAULT_PIPELINE_NAME)
                 .WithShader(VulkanResources.UniformColorVertShader)
                 .WithShader(VulkanResources.UniformColorFragShader)
-                .WithRenderPass(_swapChain.Passes[0])
+                .WithRenderPass(_swapChain.Passes[mainPassIndex])
                 .WithVertexBinding(
                     new VertexInputBindingDescription
                     {
@@ -145,14 +147,14 @@ public unsafe class VulkanGraphicsSystem(
                 {
                     RenderPass = RenderPasses.Main,
                     ShouldRender = true,
-                    ClearValues = [Colors.Black.ClearValue()],
+                    ClearValues = [Colors.CornflowerBlue.ClearValue()],
                 },
             ],
             Items =
             [
                 new RenderItem
                 {
-                    RenderMask = 1,
+                    RenderMask = RenderPasses.Main,
                     Pipeline = pipeline,
                     Layout = layout,
                     VertexBuffer = _vertexBuffer,
@@ -210,75 +212,6 @@ public unsafe class VulkanGraphicsSystem(
         throw new InvalidOperationException(
             $"Unable to find suitable Vulkan memory type for {requiredProperties}."
         );
-    }
-
-    private RenderPass CreateRenderPass()
-    {
-        var colorAttachment = new AttachmentDescription
-        {
-            Format = _swapChain.SwapchainFormat,
-            Samples = SampleCountFlags.Count1Bit,
-
-            LoadOp = AttachmentLoadOp.Clear,
-            StoreOp = AttachmentStoreOp.Store,
-
-            StencilLoadOp = AttachmentLoadOp.DontCare,
-            StencilStoreOp = AttachmentStoreOp.DontCare,
-
-            InitialLayout = ImageLayout.Undefined,
-            FinalLayout = ImageLayout.PresentSrcKhr,
-        };
-
-        var colorAttachmentReference = new AttachmentReference
-        {
-            Attachment = 0,
-            Layout = ImageLayout.ColorAttachmentOptimal,
-        };
-
-        var subpass = new SubpassDescription
-        {
-            PipelineBindPoint = PipelineBindPoint.Graphics,
-            ColorAttachmentCount = 1,
-            PColorAttachments = &colorAttachmentReference,
-        };
-
-        var dependency = new SubpassDependency
-        {
-            SrcSubpass = Vk.SubpassExternal,
-            DstSubpass = 0,
-
-            SrcStageMask = PipelineStageFlags.ColorAttachmentOutputBit,
-            SrcAccessMask = 0,
-
-            DstStageMask = PipelineStageFlags.ColorAttachmentOutputBit,
-            DstAccessMask = AccessFlags.ColorAttachmentWriteBit,
-        };
-
-        var renderPassInfo = new RenderPassCreateInfo
-        {
-            SType = StructureType.RenderPassCreateInfo,
-
-            AttachmentCount = 1,
-            PAttachments = &colorAttachment,
-
-            SubpassCount = 1,
-            PSubpasses = &subpass,
-
-            DependencyCount = 1,
-            PDependencies = &dependency,
-        };
-
-        var result = _context.VulkanApi.CreateRenderPass(
-            _context.Device,
-            in renderPassInfo,
-            null,
-            out var renderPass
-        );
-
-        if (result != Result.Success)
-            throw new InvalidOperationException($"Unable to create render pass: {result}");
-
-        return renderPass;
     }
 
     public void Dispose()

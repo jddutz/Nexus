@@ -61,7 +61,7 @@ public unsafe class SwapChain : ISwapChain
     private Format _depthFormat;
     private bool _hasDepthAttachment;
 
-    private const int PassCount = 8; // RenderPasses has 8 passes (0-7)
+    private const int PassCount = RenderPasses.Count;
     private readonly RenderPass[] _renderPasses = new RenderPass[PassCount];
     private readonly Framebuffer[][] _framebuffers = new Framebuffer[PassCount][];
 
@@ -443,12 +443,10 @@ public unsafe class SwapChain : ISwapChain
     {
         var configs = RenderPassConfigurations.Configurations;
 
-        for (int i = 0; i < configs.Length; i++)
+        foreach (var (passIndex, config) in configs)
         {
-            var config = configs[i];
-
             var renderPass = CreateRenderPass(config);
-            _renderPasses[i] = renderPass;
+            _renderPasses[passIndex] = renderPass;
 
             // Track if any render pass needs depth
             if (config.DepthFormat != Format.Undefined)
@@ -722,10 +720,9 @@ public unsafe class SwapChain : ISwapChain
     {
         var configs = RenderPassConfigurations.Configurations;
 
-        for (int passIndex = 0; passIndex < PassCount; passIndex++)
+        foreach (var (passIndex, config) in configs)
         {
             var renderPass = _renderPasses[passIndex];
-            var config = configs[passIndex];
             var framebuffers = new Framebuffer[_swapchainImages.Length];
 
             for (int i = 0; i < _swapchainImages.Length; i++)
