@@ -6,8 +6,8 @@ public sealed record ShaderDefinition : IGraphicsResource
     public string Name { get; }
     public ShaderSource Vert { get; }
     public ShaderSource Frag { get; }
-    public ShaderContract ShaderContract { get; }
     public ShaderStageEnum Stage { get; }
+    public ShaderContract Contract { get; }
 
     public ShaderDefinition(
         string name,
@@ -26,5 +26,6 @@ public sealed record ShaderDefinition : IGraphicsResource
         Vert = vert;
         Frag = frag;
         Stage = shaderStage;
+        Contract = new();
     }
 }
