@@ -1,4 +1,4 @@
-namespace Nexus.Graphics.Compositions;
+namespace Nexus.Graphics;
 
 public class Composition : IGraphicsResource
 {

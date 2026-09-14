@@ -7,7 +7,6 @@ global using Microsoft.Extensions.Logging;
 global using Nexus.Core;
 global using Nexus.Core.Performance;
 global using Nexus.Graphics;
-global using Nexus.Graphics.Compositions;
 global using Nexus.Graphics.Resources;
 global using Nexus.Graphics.Vulkan;
 global using Nexus.Graphics.Vulkan.Buffers;

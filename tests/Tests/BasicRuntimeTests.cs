@@ -164,7 +164,7 @@ public class BasicRuntimeTests
 
         public void Initialize() { }
 
-        public void Configure() { }
+        public void Update(double deltaTime) { }
 
         public void Render() { }
     }

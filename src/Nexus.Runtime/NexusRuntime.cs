@@ -59,6 +59,7 @@ public sealed class NexusRuntime(
         physics.Update(deltaTime);
         audio.Update(deltaTime);
         input.Update(deltaTime);
+        graphics.Update(deltaTime);
     }
 
     public void OnRender(double deltaTime)

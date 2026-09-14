@@ -20,7 +20,6 @@ public unsafe class VulkanGraphicsSystem(
 
     private VkBuffer _vertexBuffer;
     private DeviceMemory _vertexBufferMemory;
-    private RenderBatch? _renderBatch;
     private bool disposedValue;
 
     public IGraphicsResourceManager Resources => _resources;
@@ -138,35 +137,41 @@ public unsafe class VulkanGraphicsSystem(
 
         _context.VulkanApi.UnmapMemory(_context.Device, _vertexBufferMemory);
 
-        _renderBatch = new()
-        {
-            RenderPasses =
-            [
-                new RenderPassDefinition
-                {
-                    RenderPass = RenderPasses.Main,
-                    ShouldRender = true,
-                    ClearValues = [Colors.CornflowerBlue.ClearValue()],
-                },
-            ],
-            Items =
-            [
-                new RenderItem
-                {
-                    RenderMask = RenderPasses.Main,
-                    Pipeline = pipeline,
-                    Layout = layout,
-                    VertexBuffer = _vertexBuffer,
-                    VertexCount = 3,
-                },
-            ],
-        };
+        _renderer.Batches =
+        [
+            new()
+            {
+                RenderPasses =
+                [
+                    new RenderPassDefinition
+                    {
+                        RenderPass = RenderPasses.Main,
+                        ShouldRender = true,
+                        ClearValues = [Colors.CornflowerBlue.ClearValue()],
+                    },
+                ],
+                Items =
+                [
+                    new RenderItem
+                    {
+                        RenderMask = RenderPasses.Main,
+                        Pipeline = pipeline,
+                        Layout = layout,
+                        VertexBuffer = _vertexBuffer,
+                        VertexCount = 3,
+                    },
+                ],
+            },
+        ];
+    }
+
+    public void Update(double deltaTime)
+    {
+        // This will mostly be used for garbage collection from registries
     }
 
     public void Render()
     {
-        _renderer.Batches = [_renderBatch!];
-
         _renderer.Render();
     }
 
