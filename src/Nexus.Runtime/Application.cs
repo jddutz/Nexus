@@ -41,7 +41,7 @@ public sealed class Application : IApplication, IDisposable
                 configuration.GetSection("Vulkan").Get<VulkanSettings>() ?? new VulkanSettings();
             if (vulkanSettings.EnableValidationLayers)
             {
-                builder.AddFilter<Validation>(LogLevel.Debug);
+                builder.AddFilter(typeof(Validation).FullName, LogLevel.Debug);
             }
         });
         _serviceProvider = services.BuildServiceProvider();
