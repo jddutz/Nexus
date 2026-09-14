@@ -1,8 +1,10 @@
-namespace Nexus.Graphics;
+namespace Nexus.Graphics.Vulkan;
 
 public interface IDrawCommand
 {
-    ulong PipelineId { get; }
+    Pipeline Pipeline { get; }
+
+    PipelineLayout Layout { get; }
 
     ulong DescriptorSetId { get; }
 

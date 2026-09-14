@@ -10,7 +10,8 @@ public readonly struct DrawCommand : IDrawCommand
 {
     // REQUIRED
     public required uint RenderMask { get; init; }
-    public required ulong PipelineId { get; init; }
+    public required Pipeline Pipeline { get; init; }
+    public required PipelineLayout Layout { get; init; }
     public required ulong VertexBufferId { get; init; }
     public required uint VertexCount { get; init; }
 
@@ -30,6 +31,7 @@ public readonly struct DrawCommand : IDrawCommand
     /// updated very efficiently between draw calls.
     /// </summary>
     public object? PushConstants { get; init; }
+    public ShaderStageFlags ShaderStageFlags { get; init; } = ShaderStageFlags.All;
 
     // RENDER ORDERING
     /// <summary>

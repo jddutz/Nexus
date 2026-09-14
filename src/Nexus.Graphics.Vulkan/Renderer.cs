@@ -184,37 +184,22 @@ public unsafe class Renderer(
         );
     }
 
-    private void Draw(
-        DrawCommand drawCommand,
-        ref ulong lastPipelineId,
-        ref ulong lastDescriptorSetHandle
-    )
+    private void Draw(DrawCommand cmd, ref ulong lastPipelineId, ref ulong lastDescriptorSetHandle)
     {
-        var pipeline = _pipelineManager.Get(drawCommand.PipelineId);
+        _context.VulkanApi.CmdBindPipeline(
+            _commandBuffer,
+            PipelineBindPoint.Graphics,
+            cmd.Pipeline
+        );
 
-        if (drawCommand.PipelineId != lastPipelineId)
+        if (cmd.DescriptorSet.Handle != 0 && cmd.DescriptorSet.Handle != lastDescriptorSetHandle)
         {
-            _context.VulkanApi.CmdBindPipeline(
-                _commandBuffer,
-                PipelineBindPoint.Graphics,
-                pipeline.Pipeline
-            );
-
-            lastPipelineId = drawCommand.PipelineId;
-            lastDescriptorSetHandle = 0;
-        }
-
-        if (
-            drawCommand.DescriptorSet.Handle != 0
-            && drawCommand.DescriptorSet.Handle != lastDescriptorSetHandle
-        )
-        {
-            var descriptorSet = drawCommand.DescriptorSet;
+            var descriptorSet = cmd.DescriptorSet;
 
             _context.VulkanApi.CmdBindDescriptorSets(
                 _commandBuffer,
                 PipelineBindPoint.Graphics,
-                pipeline.Layout,
+                cmd.Layout,
                 0,
                 1,
                 &descriptorSet,
@@ -225,18 +210,18 @@ public unsafe class Renderer(
             lastDescriptorSetHandle = descriptorSet.Handle;
         }
 
-        if (drawCommand.PushConstants != null && pipeline.Layout.Handle != 0)
+        if (cmd.PushConstants != null && cmd.Layout.Handle != 0)
         {
-            var handle = GCHandle.Alloc(drawCommand.PushConstants, GCHandleType.Pinned);
+            var handle = GCHandle.Alloc(cmd.PushConstants, GCHandleType.Pinned);
 
             try
             {
                 _context.VulkanApi.CmdPushConstants(
                     _commandBuffer,
-                    pipeline.Layout,
-                    pipeline.ShaderStageFlags,
+                    cmd.Layout,
+                    cmd.ShaderStageFlags,
                     0,
-                    (uint)Marshal.SizeOf(drawCommand.PushConstants),
+                    (uint)Marshal.SizeOf(cmd.PushConstants),
                     handle.AddrOfPinnedObject().ToPointer()
                 );
             }
@@ -246,16 +231,16 @@ public unsafe class Renderer(
             }
         }
 
-        var vertexBuffer = drawCommand.VertexBuffer;
+        var vertexBuffer = cmd.VertexBuffer;
         ulong offset = 0;
 
         _context.VulkanApi.CmdBindVertexBuffers(_commandBuffer, 0, 1, &vertexBuffer, &offset);
 
         _context.VulkanApi.CmdDraw(
             _commandBuffer,
-            drawCommand.VertexCount,
-            drawCommand.InstanceCount,
-            drawCommand.FirstVertex,
+            cmd.VertexCount,
+            cmd.InstanceCount,
+            cmd.FirstVertex,
             0
         );
     }
