@@ -56,6 +56,8 @@ public unsafe class Renderer(
 
             foreach (var definition in Batches)
             {
+                ValidateRenderPasses(definition);
+
                 var viewport = definition.Viewport;
                 _context.VulkanApi.CmdSetViewport(_commandBuffer, 0, 1, &viewport);
 
@@ -112,6 +114,28 @@ public unsafe class Renderer(
         }
 
         return true;
+    }
+
+    private void ValidateRenderPasses(RenderBatch definition)
+    {
+        if (definition.RenderPasses.Length == 0)
+            throw new InvalidOperationException("A render batch must define at least one render pass.");
+
+        foreach (var pass in definition.RenderPasses)
+        {
+            if (pass.RenderPass == 0)
+                throw new InvalidOperationException("A render pass definition must specify a render pass.");
+
+            if (RenderPasses.GetIndex(pass.RenderPass) < 0)
+                throw new InvalidOperationException(
+                    $"Render pass mask 0x{pass.RenderPass:X} must specify exactly one render pass."
+                );
+
+            if (pass.ClearValues.Length == 0)
+                throw new InvalidOperationException(
+                    $"Render pass {RenderPasses.GetName(pass.RenderPass)} must define clear values."
+                );
+        }
     }
 
     /// <summary>

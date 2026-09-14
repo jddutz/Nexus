@@ -139,6 +139,15 @@ public unsafe class VulkanGraphicsSystem(
 
         _renderBatch = new()
         {
+            RenderPasses =
+            [
+                new RenderPassDefinition
+                {
+                    RenderPass = RenderPasses.Main,
+                    ShouldRender = true,
+                    ClearValues = [Colors.Black.ClearValue()],
+                },
+            ],
             Items =
             [
                 new RenderItem

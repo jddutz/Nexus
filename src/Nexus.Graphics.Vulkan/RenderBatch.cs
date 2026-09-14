@@ -25,7 +25,7 @@ public class RenderBatch
     /// <summary>
     /// Gets or sets the active render-pass definitions in execution order.
     /// </summary>
-    public RenderPassDefinition[] RenderPasses { get; set; } = [new()];
+    public RenderPassDefinition[] RenderPasses { get; set; } = [];
 
     /// <summary>
     /// Gets or sets the clear values used by the render passes.
