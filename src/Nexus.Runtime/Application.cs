@@ -33,7 +33,17 @@ public sealed class Application : IApplication, IDisposable
             services.AddVkGraphicsServices();
         }
 
-        services.AddLogging(builder => builder.AddConsole());
+        services.AddLogging(builder =>
+        {
+            builder.AddConsole();
+
+            var vulkanSettings =
+                configuration.GetSection("Vulkan").Get<VulkanSettings>() ?? new VulkanSettings();
+            if (vulkanSettings.EnableValidationLayers)
+            {
+                builder.AddFilter<Validation>(LogLevel.Debug);
+            }
+        });
         _serviceProvider = services.BuildServiceProvider();
         _logger = _serviceProvider.GetRequiredService<ILogger<Application>>();
     }

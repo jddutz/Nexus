@@ -18,6 +18,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<ISwapChain, SwapChain>();
         services.TryAddSingleton<IGraphicsSystem, VulkanGraphicsSystem>();
         services.TryAddSingleton<IGraphicsResourceManager, VulkanResourceManager>();
+        services.AddVkValidation();
 
         return services;
     }
