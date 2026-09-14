@@ -8,7 +8,7 @@ public interface IGraphicsSystem
     /// <summary>
     /// Gets the manager used to access graphics resources.
     /// </summary>
-    IGraphicsResourceManager ResourceManager { get; }
+    IGraphicsResourceManager Resources { get; }
 
     /// <summary>
     /// Initializes the graphics system before the update loop begins.

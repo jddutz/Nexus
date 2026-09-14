@@ -6,7 +6,7 @@ public unsafe class VulkanGraphicsSystem(
     Context context,
     ISwapChain swapChain,
     IRenderer renderer,
-    IGraphicsResourceManager resourceManager,
+    IGraphicsResourceManager resources,
     IPipelineRegistry pipelineRegistry
 ) : IGraphicsSystem, IDisposable
 {
@@ -15,7 +15,7 @@ public unsafe class VulkanGraphicsSystem(
     private readonly Context _context = context;
     private readonly ISwapChain _swapChain = swapChain;
     private readonly IRenderer _renderer = renderer;
-    private readonly IGraphicsResourceManager _resources = resourceManager;
+    private readonly IGraphicsResourceManager _resources = resources;
     private readonly IPipelineRegistry _pipelineManager = pipelineRegistry;
 
     private VkBuffer _vertexBuffer;
@@ -23,13 +23,15 @@ public unsafe class VulkanGraphicsSystem(
     private RenderBatch? _renderBatch;
     private bool disposedValue;
 
-    public IGraphicsResourceManager ResourceManager => _resources;
+    public IGraphicsResourceManager Resources => _resources;
 
     public void Initialize()
     {
+        // Validate/prepare backend prerequisites.
+        // No shaders, pipelines, meshes, textures, fonts, etc.
         foreach (var resource in VulkanResources.ShaderDefinitions)
         {
-            _resources.Register(resource);
+            _resources.Load(resource);
         }
 
         var mainPassIndex = RenderPasses.GetIndex(RenderPasses.Main);

@@ -15,4 +15,6 @@ public readonly record struct SceneId(ulong Value) : IEquatable<SceneId>, IUniqu
     public override string ToString() => Value.ToString();
 
     public bool Equals(IUniqueId? other) => other != null && Value == other.Value;
+
+    public const ulong Invalid = 0;
 }

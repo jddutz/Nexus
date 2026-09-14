@@ -1,6 +1,7 @@
 namespace Nexus.Graphics.Compositions;
 
-public class Composition : IComposition
+public class Composition : IGraphicsResource
 {
-    public CompositionId Id { get; init; }
+    public ResourceId Id { get; init; }
+    public IGraphicsResource? Background { get; set; }
 }

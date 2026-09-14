@@ -3,12 +3,12 @@ namespace Nexus.GameModel;
 /// <summary>
 /// Provides the default implementation of the game system lifecycle.
 /// </summary>
-public class GameSystem(ISceneRegistry scenes) : IGameSystem
+public class GameSystem(ISceneRegistry scenes, IGraphicsSystem graphics) : IGameSystem
 {
     /// <summary>
     /// Gets or sets the identifier of the scene activated when the game starts.
     /// </summary>
-    public SceneId InitialSceneId { get; set; } = new SceneId(0);
+    public SceneId InitialSceneId { get; set; } = new SceneId(ulong.MaxValue);
 
     /// <summary>
     /// Gets the currently active scene.
@@ -20,7 +20,15 @@ public class GameSystem(ISceneRegistry scenes) : IGameSystem
     /// </summary>
     public void Initialize()
     {
+        if (InitialSceneId == SceneId.Invalid)
+            throw new InvalidOperationException("Initial Scene is not defined.");
+
         CurrentScene = scenes.Load(InitialSceneId);
+
+        if (CurrentScene is null)
+            throw new InvalidOperationException($"Unable to load , {InitialSceneId}");
+
+        graphics.Resources.Load(CurrentScene.GetComposition());
     }
 
     /// <summary>

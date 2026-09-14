@@ -160,7 +160,7 @@ public class BasicRuntimeTests
 
     private sealed class NoOpGraphicsSystem : IGraphicsSystem
     {
-        public IGraphicsResourceManager ResourceManager { get; } = new VulkanResourceManager();
+        public IGraphicsResourceManager Resources { get; } = new VulkanResourceManager();
 
         public void Initialize() { }
 

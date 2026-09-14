@@ -1,10 +1,10 @@
-using Silk.NET.Maths;
-
 namespace Nexus.GameModel;
 
 public interface IScene
 {
     SceneId Id { get; }
+
+    Composition GetComposition();
 
     Vector4D<float> BackgroundColor { get; }
 
