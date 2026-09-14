@@ -4,32 +4,32 @@ namespace Nexus.Graphics.Vulkan;
 
 public unsafe class VulkanGraphicsSystem(
     Context context,
+    ISwapChain swapChain,
     IRenderer renderer,
     IGraphicsResourceManager resourceManager,
-    IPipelineRegistry pipelineRegistry,
-    IPipelineDefinitionBuilder pipelineDefinitionBuilder
+    IPipelineRegistry pipelineRegistry
 ) : IGraphicsSystem, IDisposable
 {
     private const string DEFAULT_PIPELINE_NAME = "DefaultPipeline";
 
     private readonly Context _context = context;
+    private readonly ISwapChain _swapChain = swapChain;
     private readonly IRenderer _renderer = renderer;
-    private readonly IGraphicsResourceManager _resourceManager = resourceManager;
+    private readonly IGraphicsResourceManager _resources = resourceManager;
     private readonly IPipelineRegistry _pipelineManager = pipelineRegistry;
-    private readonly IPipelineDefinitionBuilder _piplineDefinitionBuilder =
-        pipelineDefinitionBuilder;
 
     private VkBuffer _vertexBuffer;
+    private DeviceMemory _vertexBufferMemory;
     private RenderBatch? _renderBatch;
     private bool disposedValue;
 
-    public IGraphicsResourceManager ResourceManager => _resourceManager;
+    public IGraphicsResourceManager ResourceManager => _resources;
 
     public void Configure()
     {
         foreach (var resource in VulkanResources.ShaderDefinitions)
         {
-            _resourceManager.Register(resource);
+            _resources.Register(resource);
         }
     }
 
@@ -37,8 +37,30 @@ public unsafe class VulkanGraphicsSystem(
     {
         var (pipeline, layout) = _pipelineManager.GetOrCreate(
             new PipelineDefinitionBuilder(DEFAULT_PIPELINE_NAME)
-            // TODO: define the pipeline
-            .Build()
+                .WithShader(VulkanResources.UniformColorVertShader)
+                .WithShader(VulkanResources.UniformColorFragShader)
+                .WithRenderPass(_swapChain.Passes[0])
+                .WithVertexBinding(
+                    new VertexInputBindingDescription
+                    {
+                        Binding = 0,
+                        Stride = (uint)Unsafe.SizeOf<Vertex>(),
+                        InputRate = VertexInputRate.Vertex,
+                    }
+                )
+                .WithVertexAttribute(
+                    new VertexInputAttributeDescription
+                    {
+                        Location = 0,
+                        Binding = 0,
+                        Format = Format.R32G32Sfloat,
+                        Offset = 0,
+                    }
+                )
+                .WithDepthTest(false)
+                .WithDepthWrite(false)
+                .WithCullMode(CullModeFlags.None)
+                .Build()
         );
 
         Vertex[] vertices = [new(-1f, -1f), new(3f, -1f), new(-1f, 3f)];
@@ -84,7 +106,7 @@ public unsafe class VulkanGraphicsSystem(
             _context.Device,
             in memoryAllocation,
             null,
-            out DeviceMemory memory
+            out _vertexBufferMemory
         );
 
         if (result != Result.Success)
@@ -92,16 +114,28 @@ public unsafe class VulkanGraphicsSystem(
                 $"Unable to allocate memory for vertex buffer: {result}"
             );
 
+        result = _context.VulkanApi.BindBufferMemory(
+            _context.Device,
+            _vertexBuffer,
+            _vertexBufferMemory,
+            0
+        );
+
+        if (result != Result.Success)
+            throw new InvalidOperationException(
+                $"Unable to bind memory to vertex buffer: {result}"
+            );
+
         void* mapped;
 
-        _context.VulkanApi.MapMemory(_context.Device, memory, 0, size, 0, &mapped);
+        _context.VulkanApi.MapMemory(_context.Device, _vertexBufferMemory, 0, size, 0, &mapped);
 
         fixed (Vertex* source = vertices)
         {
             System.Buffer.MemoryCopy(source, mapped, size, size);
         }
 
-        _context.VulkanApi.UnmapMemory(_context.Device, memory);
+        _context.VulkanApi.UnmapMemory(_context.Device, _vertexBufferMemory);
 
         _renderBatch = new()
         {
@@ -169,6 +203,75 @@ public unsafe class VulkanGraphicsSystem(
         throw new InvalidOperationException(
             $"Unable to find suitable Vulkan memory type for {requiredProperties}."
         );
+    }
+
+    private RenderPass CreateRenderPass()
+    {
+        var colorAttachment = new AttachmentDescription
+        {
+            Format = _swapChain.SwapchainFormat,
+            Samples = SampleCountFlags.Count1Bit,
+
+            LoadOp = AttachmentLoadOp.Clear,
+            StoreOp = AttachmentStoreOp.Store,
+
+            StencilLoadOp = AttachmentLoadOp.DontCare,
+            StencilStoreOp = AttachmentStoreOp.DontCare,
+
+            InitialLayout = ImageLayout.Undefined,
+            FinalLayout = ImageLayout.PresentSrcKhr,
+        };
+
+        var colorAttachmentReference = new AttachmentReference
+        {
+            Attachment = 0,
+            Layout = ImageLayout.ColorAttachmentOptimal,
+        };
+
+        var subpass = new SubpassDescription
+        {
+            PipelineBindPoint = PipelineBindPoint.Graphics,
+            ColorAttachmentCount = 1,
+            PColorAttachments = &colorAttachmentReference,
+        };
+
+        var dependency = new SubpassDependency
+        {
+            SrcSubpass = Vk.SubpassExternal,
+            DstSubpass = 0,
+
+            SrcStageMask = PipelineStageFlags.ColorAttachmentOutputBit,
+            SrcAccessMask = 0,
+
+            DstStageMask = PipelineStageFlags.ColorAttachmentOutputBit,
+            DstAccessMask = AccessFlags.ColorAttachmentWriteBit,
+        };
+
+        var renderPassInfo = new RenderPassCreateInfo
+        {
+            SType = StructureType.RenderPassCreateInfo,
+
+            AttachmentCount = 1,
+            PAttachments = &colorAttachment,
+
+            SubpassCount = 1,
+            PSubpasses = &subpass,
+
+            DependencyCount = 1,
+            PDependencies = &dependency,
+        };
+
+        var result = _context.VulkanApi.CreateRenderPass(
+            _context.Device,
+            in renderPassInfo,
+            null,
+            out var renderPass
+        );
+
+        if (result != Result.Success)
+            throw new InvalidOperationException($"Unable to create render pass: {result}");
+
+        return renderPass;
     }
 
     public void Dispose()
