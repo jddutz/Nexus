@@ -62,6 +62,47 @@ public unsafe class VulkanGraphicsSystem(
         if (result != Result.Success)
             throw new InvalidOperationException($"Unable to create vertex buffer: {result}");
 
+        _context.VulkanApi.GetBufferMemoryRequirements(
+            _context.Device,
+            _vertexBuffer,
+            out var requirements
+        );
+
+        var memoryTypeIndex = FindMemoryType(
+            requirements.MemoryTypeBits,
+            MemoryPropertyFlags.HostVisibleBit | MemoryPropertyFlags.HostCoherentBit
+        );
+
+        var memoryAllocation = new MemoryAllocateInfo
+        {
+            SType = StructureType.MemoryAllocateInfo,
+            AllocationSize = requirements.Size,
+            MemoryTypeIndex = memoryTypeIndex,
+        };
+
+        result = _context.VulkanApi.AllocateMemory(
+            _context.Device,
+            in memoryAllocation,
+            null,
+            out DeviceMemory memory
+        );
+
+        if (result != Result.Success)
+            throw new InvalidOperationException(
+                $"Unable to allocate memory for vertex buffer: {result}"
+            );
+
+        void* mapped;
+
+        _context.VulkanApi.MapMemory(_context.Device, memory, 0, size, 0, &mapped);
+
+        fixed (Vertex* source = vertices)
+        {
+            System.Buffer.MemoryCopy(source, mapped, size, size);
+        }
+
+        _context.VulkanApi.UnmapMemory(_context.Device, memory);
+
         _renderBatch = new()
         {
             Items =
@@ -104,6 +145,30 @@ public unsafe class VulkanGraphicsSystem(
 
             disposedValue = true;
         }
+    }
+
+    private uint FindMemoryType(uint typeFilter, MemoryPropertyFlags requiredProperties)
+    {
+        _context.VulkanApi.GetPhysicalDeviceMemoryProperties(
+            _context.PhysicalDevice,
+            out var memoryProperties
+        );
+
+        for (uint i = 0; i < memoryProperties.MemoryTypeCount; i++)
+        {
+            var supported = (typeFilter & (1u << (int)i)) != 0;
+
+            var properties = memoryProperties.MemoryTypes[(int)i].PropertyFlags;
+
+            var suitable = (properties & requiredProperties) == requiredProperties;
+
+            if (supported && suitable)
+                return i;
+        }
+
+        throw new InvalidOperationException(
+            $"Unable to find suitable Vulkan memory type for {requiredProperties}."
+        );
     }
 
     public void Dispose()
