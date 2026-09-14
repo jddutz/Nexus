@@ -119,12 +119,16 @@ public unsafe class Renderer(
     private void ValidateRenderPasses(RenderBatch definition)
     {
         if (definition.RenderPasses.Length == 0)
-            throw new InvalidOperationException("A render batch must define at least one render pass.");
+            throw new InvalidOperationException(
+                "A render batch must define at least one render pass."
+            );
 
         foreach (var pass in definition.RenderPasses)
         {
             if (pass.RenderPass == 0)
-                throw new InvalidOperationException("A render pass definition must specify a render pass.");
+                throw new InvalidOperationException(
+                    "A render pass definition must specify a render pass."
+                );
 
             if (RenderPasses.GetIndex(pass.RenderPass) < 0)
                 throw new InvalidOperationException(
