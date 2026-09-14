@@ -6,7 +6,6 @@ global using Nexus.Core.Performance;
 global using Nexus.Graphics;
 global using Nexus.Graphics.Compositions;
 global using Nexus.Graphics.Resources;
-global using Nexus.Graphics.Vulkan.Commands;
 global using Nexus.Graphics.Vulkan.Pipelines;
 global using Nexus.Graphics.Vulkan.Synchronization;
 global using Silk.NET.Core.Native;

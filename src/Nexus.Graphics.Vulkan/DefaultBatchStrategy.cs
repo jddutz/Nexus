@@ -41,7 +41,7 @@ public class DefaultBatchStrategy : IBatchStrategy
             else
             {
                 // Compare with previous to detect state changes
-                if (cmd.PipelineId != previous.PipelineId)
+                if (cmd.Pipeline.Handle != previous.Pipeline.Handle)
                 {
                     stats.PipelineChanges++;
                 }
@@ -132,7 +132,7 @@ public class DefaultBatchStrategy : IBatchStrategy
         // Order by cost: pipeline (most expensive) → descriptor set → vertex buffer → index buffer → push constants (least expensive)
 
         // 1. Sort by pipeline (most expensive to change)
-        var pipelineCompare = x.PipelineId.CompareTo(y.PipelineId);
+        var pipelineCompare = x.Pipeline.Handle.CompareTo(y.Pipeline.Handle);
         if (pipelineCompare != 0)
             return pipelineCompare;
 
@@ -186,7 +186,7 @@ public class DefaultBatchStrategy : IBatchStrategy
         hash.Add(state.RenderPriority);
 
         // Then add in order of state change cost (most expensive first)
-        hash.Add(state.PipelineId);
+        hash.Add(state.Pipeline.Handle);
         hash.Add(state.DescriptorSetId);
         hash.Add(state.VertexBufferId);
         hash.Add(state.IndexBufferId);

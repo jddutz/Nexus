@@ -29,7 +29,7 @@ public class VulkanGraphicsSystem(IRenderer renderer, IGraphicsResourceManager r
                     new DrawCommand
                     {
                         RenderMask = 1,
-                        PipelineId = _pipelineId,
+                        Pipeline = _pipeline,
                         VertexBufferId = _vertexBuffer.Handle,
                         VertexCount = 3,
                     },

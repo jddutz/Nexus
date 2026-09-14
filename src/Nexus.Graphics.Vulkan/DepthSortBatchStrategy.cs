@@ -74,7 +74,7 @@ public class DepthSortBatchStrategy : IBatchStrategy
         // Within same priority and depth, optimize for batching to minimize state changes
 
         // Sort by pipeline (most expensive to change)
-        var pipelineCompare = x.PipelineId.CompareTo(y.PipelineId);
+        var pipelineCompare = x.Pipeline.Handle.CompareTo(y.Pipeline.Handle);
         if (pipelineCompare != 0)
             return pipelineCompare;
 
@@ -106,7 +106,7 @@ public class DepthSortBatchStrategy : IBatchStrategy
         hash.Add(state.RenderPriority);
 
         // Add state change costs
-        hash.Add(state.PipelineId);
+        hash.Add(state.Pipeline.Handle);
         hash.Add(state.DescriptorSetId);
         hash.Add(state.VertexBufferId);
         hash.Add(state.IndexBufferId);
