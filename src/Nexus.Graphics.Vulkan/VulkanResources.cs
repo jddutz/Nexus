@@ -13,7 +13,7 @@ public static class VulkanResources
     public static ShaderDefinition UniformColorFragShader { get; } =
         new(
             "UniformColorFrag",
-            new ShaderSource("uniform_color.vert.spv"),
+            new ShaderSource("uniform_color.frag.spv"),
             ShaderStageFlags.FragmentBit,
             new ShaderContract()
         );

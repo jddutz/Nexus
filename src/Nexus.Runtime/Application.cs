@@ -7,6 +7,7 @@ public sealed class Application : IApplication, IDisposable
 {
     public static ServiceProvider _serviceProvider = null!;
     public static IServiceProvider Services => _serviceProvider;
+    private readonly ILogger<Application> _logger;
     private bool _disposed;
 
     public Application(IConfiguration configuration, IServiceCollection? services = null)
@@ -32,7 +33,9 @@ public sealed class Application : IApplication, IDisposable
             services.AddVkGraphicsServices();
         }
 
+        services.AddLogging(builder => builder.AddConsole());
         _serviceProvider = services.BuildServiceProvider();
+        _logger = _serviceProvider.GetRequiredService<ILogger<Application>>();
     }
 
     /// <inheritdoc />
@@ -40,15 +43,23 @@ public sealed class Application : IApplication, IDisposable
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        var windowService = Services.GetRequiredService<IWindowService>();
+        try
+        {
+            var windowService = Services.GetRequiredService<IWindowService>();
 
-        var window = windowService.GetOrCreateWindow();
-        window.Initialize();
+            var window = windowService.GetOrCreateWindow();
+            window.Initialize();
 
-        var runtime = Services.GetRequiredService<INexusRuntime>();
-        runtime.Initialize();
+            var runtime = Services.GetRequiredService<INexusRuntime>();
+            runtime.Initialize();
 
-        window.Run();
+            window.Run();
+        }
+        catch (Exception exception)
+        {
+            _logger.LogCritical(exception, "Application execution failed.");
+            throw;
+        }
     }
 
     public void Dispose()

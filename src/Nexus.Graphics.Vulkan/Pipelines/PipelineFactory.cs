@@ -81,7 +81,12 @@ public unsafe class PipelineFactory(Context context) : IPipelineFactory
 
         for (var i = 0; i < shaders.Length; i++)
         {
-            var code = File.ReadAllBytes(Path.Combine("Shaders", shaders[i].Source.Path));
+            var shaderPath = Path.Combine(
+                AppContext.BaseDirectory,
+                "Shaders",
+                shaders[i].Source.Path
+            );
+            var code = File.ReadAllBytes(shaderPath);
 
             fixed (byte* codePtr = code)
             {

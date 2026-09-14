@@ -9,7 +9,8 @@ public unsafe class Renderer(
     Context context,
     ISwapChain swapChain,
     ISyncManager syncManager,
-    IPipelineRegistry pipelineManager
+    IPipelineRegistry pipelineManager,
+    ILogger<Renderer> logger
 ) : IRenderer
 {
     private const string VK_CONTEXT_NULL = "Vulkan _context has not been initialized yet.";
@@ -18,6 +19,7 @@ public unsafe class Renderer(
     private ISwapChain _swapChain = swapChain;
     private ISyncManager _syncManager = syncManager;
     private IPipelineRegistry _pipelineManager = pipelineManager;
+    private readonly ILogger<Renderer> _logger = logger;
     private CommandBufferPool _commandPool = CommandBufferPool.ForGraphics(context, 2);
     private FrameSync? _frameSync;
     private ImageSync? _imageSync;
@@ -102,10 +104,11 @@ public unsafe class Renderer(
 
             _currentFrameIndex = (_currentFrameIndex + 1) % _syncManager.MaxFramesInFlight;
         }
-        catch (Exception)
+        catch (Exception exception)
         {
+            _logger.LogError(exception, "Vulkan rendering failed; closing the window.");
             _context.Window.Close();
-            return false;
+            throw;
         }
 
         return true;

@@ -158,8 +158,6 @@ public unsafe class VulkanGraphicsSystem(
         _renderer.Batches = [_renderBatch!];
 
         _renderer.Render();
-
-        // TODO: handle rendering failure
     }
 
     protected virtual void Dispose(bool disposing)
