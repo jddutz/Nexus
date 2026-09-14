@@ -2,43 +2,43 @@ namespace Nexus.Graphics.Vulkan.Pipelines;
 
 public interface IPipelineDefinitionBuilder
 {
-    IPipelineDefinitionBuilder WithName(string name);
+    PipelineDefinitionBuilder WithName(string name);
 
-    IPipelineDefinitionBuilder WithShader(ShaderDescription shader);
+    PipelineDefinitionBuilder WithShader(ShaderDefinition shader);
 
-    IPipelineDefinitionBuilder WithVertexBinding(VertexInputBindingDescription binding);
+    PipelineDefinitionBuilder WithVertexBinding(VertexInputBindingDescription binding);
 
-    IPipelineDefinitionBuilder WithVertexAttribute(VertexInputAttributeDescription attribute);
+    PipelineDefinitionBuilder WithVertexAttribute(VertexInputAttributeDescription attribute);
 
-    IPipelineDefinitionBuilder WithTopology(PrimitiveTopology topology);
+    PipelineDefinitionBuilder WithTopology(PrimitiveTopology topology);
 
-    IPipelineDefinitionBuilder WithRenderPass(RenderPass renderPass, uint subpass = 0);
+    PipelineDefinitionBuilder WithRenderPass(RenderPass renderPass, uint subpass = 0);
 
-    IPipelineDefinitionBuilder WithDepthTest(bool enabled = true);
+    PipelineDefinitionBuilder WithDepthTest(bool enabled = true);
 
-    IPipelineDefinitionBuilder WithDepthWrite(bool enabled = true);
+    PipelineDefinitionBuilder WithDepthWrite(bool enabled = true);
 
-    IPipelineDefinitionBuilder WithDepthCompare(CompareOp compareOp);
+    PipelineDefinitionBuilder WithDepthCompare(CompareOp compareOp);
 
-    IPipelineDefinitionBuilder WithBlending(bool enabled = true);
+    PipelineDefinitionBuilder WithBlending(bool enabled = true);
 
-    IPipelineDefinitionBuilder WithBlendFactors(
+    PipelineDefinitionBuilder WithBlendFactors(
         BlendFactor source,
         BlendFactor destination,
         BlendOp operation = BlendOp.Add
     );
 
-    IPipelineDefinitionBuilder WithPolygonMode(PolygonMode polygonMode);
+    PipelineDefinitionBuilder WithPolygonMode(PolygonMode polygonMode);
 
-    IPipelineDefinitionBuilder WithCullMode(CullModeFlags cullMode);
+    PipelineDefinitionBuilder WithCullMode(CullModeFlags cullMode);
 
-    IPipelineDefinitionBuilder WithFrontFace(FrontFace frontFace);
+    PipelineDefinitionBuilder WithFrontFace(FrontFace frontFace);
 
-    IPipelineDefinitionBuilder WithLineWidth(float lineWidth);
+    PipelineDefinitionBuilder WithLineWidth(float lineWidth);
 
-    IPipelineDefinitionBuilder WithPushConstant(PushConstantRange range);
+    PipelineDefinitionBuilder WithPushConstant(PushConstantRange range);
 
-    IPipelineDefinitionBuilder WithDescriptorSetLayout(DescriptorSetLayout layout);
+    PipelineDefinitionBuilder WithDescriptorSetLayout(DescriptorSetLayout layout);
 
     PipelineDefinition Build();
 }

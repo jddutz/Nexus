@@ -73,7 +73,7 @@ public unsafe class PipelineManager(Context context) : IPipelineManager
         {
             for (var i = 0; i < shaders.Length; i++)
             {
-                var code = shaders[i].Code;
+                var code = File.ReadAllBytes(GetShaderPath(shaders[i]));
 
                 fixed (byte* codePtr = code)
                 {
@@ -113,7 +113,7 @@ public unsafe class PipelineManager(Context context) : IPipelineManager
     }
 
     private static PipelineShaderStageCreateInfo[] CreateShaderStages(
-        ShaderDescription[] shaders,
+        ShaderDefinition[] shaders,
         ShaderModule[] shaderModules
     )
     {
@@ -128,7 +128,7 @@ public unsafe class PipelineManager(Context context) : IPipelineManager
                     SType = StructureType.PipelineShaderStageCreateInfo,
                     Stage = GetShaderStage(shaders[i].Stage),
                     Module = shaderModules[i],
-                    PName = (byte*)SilkMarshal.StringToPtr(shaders[i].EntryPoint),
+                    PName = (byte*)SilkMarshal.StringToPtr("main"),
                 };
             }
 
@@ -140,6 +140,16 @@ public unsafe class PipelineManager(Context context) : IPipelineManager
             throw;
         }
     }
+
+    private static string GetShaderPath(ShaderDefinition shader) =>
+        shader.Stage switch
+        {
+            ShaderStageEnum.Vertex => shader.Vert.Path,
+            ShaderStageEnum.Fragment => shader.Frag.Path,
+            _ => throw new NotSupportedException(
+                $"Shader source selection is not supported for {shader.Stage}."
+            ),
+        };
 
     private static ShaderStageFlags GetShaderStage(ShaderStageEnum stage) =>
         stage switch

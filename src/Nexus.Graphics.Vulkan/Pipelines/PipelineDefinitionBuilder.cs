@@ -27,51 +27,6 @@ public sealed class PipelineDefinitionBuilder : IPipelineDefinitionBuilder
     private FrontFace _frontFace = FrontFace.Clockwise;
     private float _lineWidth = 1.0f;
 
-    public IPipelineDefinitionBuilder WithName(string name) => WithName(name);
-
-    public IPipelineDefinitionBuilder WithShader(ShaderDefinition shader) => WithShader(shader);
-
-    public IPipelineDefinitionBuilder WithVertexBinding(VertexInputBindingDescription binding) =>
-        WithVertexBinding(binding);
-
-    IPipelineDefinitionBuilder WithVertexAttribute(VertexInputAttributeDescription attribute) =>
-        WithVertexAttribute(attribute);
-
-    IPipelineDefinitionBuilder WithTopology(PrimitiveTopology topology) => WithTopology(topology);
-
-    IPipelineDefinitionBuilder WithRenderPass(RenderPass renderPass, uint subpass) =>
-        WithRenderPass(renderPass, subpass);
-
-    IPipelineDefinitionBuilder WithDepthTest(bool enabled) => WithDepthTest(enabled);
-
-    IPipelineDefinitionBuilder WithDepthWrite(bool enabled) => WithDepthWrite(enabled);
-
-    IPipelineDefinitionBuilder WithDepthCompare(CompareOp compareOp) => WithDepthCompare(compareOp);
-
-    IPipelineDefinitionBuilder WithBlending(bool enabled) => WithBlending(enabled);
-
-    IPipelineDefinitionBuilder WithBlendFactors(
-        BlendFactor source,
-        BlendFactor destination,
-        BlendOp operation
-    ) => WithBlendFactors(source, destination, operation);
-
-    IPipelineDefinitionBuilder WithPolygonMode(PolygonMode polygonMode) =>
-        WithPolygonMode(polygonMode);
-
-    IPipelineDefinitionBuilder WithCullMode(CullModeFlags cullMode) => WithCullMode(cullMode);
-
-    IPipelineDefinitionBuilder WithFrontFace(FrontFace frontFace) => WithFrontFace(frontFace);
-
-    IPipelineDefinitionBuilder WithLineWidth(float lineWidth) => WithLineWidth(lineWidth);
-
-    IPipelineDefinitionBuilder WithPushConstant(PushConstantRange range) => WithPushConstant(range);
-
-    IPipelineDefinitionBuilder WithDescriptorSetLayout(DescriptorSetLayout layout) =>
-        WithDescriptorSetLayout(layout);
-
-    PipelineDefinition Build() => Build();
-
     /// <summary>Sets the pipeline name.</summary>
     /// <param name="name">The non-empty pipeline name.</param>
     /// <returns>This builder.</returns>

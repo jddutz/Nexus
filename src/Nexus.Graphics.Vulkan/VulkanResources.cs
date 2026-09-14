@@ -7,7 +7,8 @@ public static class VulkanResources
         new(
             "UniformColor",
             new ShaderSource("uniform_color.vert.spv"),
-            new ShaderSource("uniform_color.frag.spv")
+            new ShaderSource("uniform_color.frag.spv"),
+            ShaderStageEnum.Vertex
         ),
     ];
 }
