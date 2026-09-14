@@ -15,6 +15,21 @@ namespace Tests;
 
 public class BasicRuntimeTests
 {
+    [Fact]
+    public void VulkanGraphicsServices_includeValidation()
+    {
+        var services = new ServiceCollection();
+
+        services.AddVkGraphicsServices();
+
+        Assert.Contains(
+            services,
+            descriptor =>
+                descriptor.ServiceType == typeof(IValidation)
+                && descriptor.ImplementationType == typeof(Validation)
+        );
+    }
+
     private static INexusRuntime CreateRuntimeFixture() =>
         new RuntimeBuilder()
             .AddServices(CreateRuntimeServices())
