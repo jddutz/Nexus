@@ -34,12 +34,11 @@ public sealed class NexusRuntime(
             window.Render += OnRender;
         }
 
-        graphics.Configure();
-        graphics.Initialize();
-        gameSystem.Initialize();
         physics.Initialize();
         audio.Initialize();
         input.Initialize();
+        graphics.Initialize();
+        gameSystem.Initialize();
 
         _initialized = true;
     }

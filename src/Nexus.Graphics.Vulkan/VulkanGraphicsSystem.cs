@@ -25,16 +25,13 @@ public unsafe class VulkanGraphicsSystem(
 
     public IGraphicsResourceManager ResourceManager => _resources;
 
-    public void Configure()
+    public void Initialize()
     {
         foreach (var resource in VulkanResources.ShaderDefinitions)
         {
             _resources.Register(resource);
         }
-    }
 
-    public void Initialize()
-    {
         var mainPassIndex = RenderPasses.GetIndex(RenderPasses.Main);
 
         var (pipeline, layout) = _pipelineManager.GetOrCreate(
