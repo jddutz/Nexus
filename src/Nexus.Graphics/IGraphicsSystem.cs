@@ -6,14 +6,14 @@ namespace Nexus.Graphics;
 public interface IGraphicsSystem
 {
     /// <summary>
-    /// Gets the manager used to access graphics resources.
-    /// </summary>
-    IGraphicsResourceManager Resources { get; }
-
-    /// <summary>
     /// Initializes the graphics system before the update loop begins.
     /// </summary>
     void Initialize();
+
+    /// <summary>
+    /// Resets the current state of the GraphicsSystem and loads the specified resources.
+    /// </summary>
+    ResourceId Load(IResourceDescription resource);
 
     /// <summary>
     /// Updates the graphics system for the elapsed time since the previous frame.

@@ -6,7 +6,7 @@ public unsafe class VulkanGraphicsSystem(
     Context context,
     ISwapChain swapChain,
     IRenderer renderer,
-    IGraphicsResourceManager resources,
+    IEnumerable<IResourceRegistry> registries,
     IPipelineRegistry pipelineRegistry
 ) : IGraphicsSystem, IDisposable
 {
@@ -15,14 +15,12 @@ public unsafe class VulkanGraphicsSystem(
     private readonly Context _context = context;
     private readonly ISwapChain _swapChain = swapChain;
     private readonly IRenderer _renderer = renderer;
-    private readonly IGraphicsResourceManager _resources = resources;
     private readonly IPipelineRegistry _pipelineManager = pipelineRegistry;
+    private IEnumerable<IResourceRegistry> _registries = registries;
 
     private VkBuffer _vertexBuffer;
     private DeviceMemory _vertexBufferMemory;
     private bool disposedValue;
-
-    public IGraphicsResourceManager Resources => _resources;
 
     public void Initialize()
     {
@@ -156,6 +154,19 @@ public unsafe class VulkanGraphicsSystem(
                 ],
             },
         ];
+    }
+
+    public ResourceId Load(IResourceDescription resource)
+    {
+        foreach (var registry in _registries)
+        {
+            if (registry.CanLoad(resource))
+                return registry.Load(resource);
+        }
+
+        throw new NotSupportedException(
+            $"No registry supports resource description: {resource.GetType().Name}"
+        );
     }
 
     public void Update(double deltaTime)

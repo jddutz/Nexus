@@ -17,10 +17,14 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IRenderer, Renderer>();
         services.TryAddSingleton<ISwapChain, SwapChain>();
         services.TryAddSingleton<IGraphicsSystem, VulkanGraphicsSystem>();
-        services.TryAddSingleton<IGraphicsResourceManager, VulkanResourceManager>();
-        services.TryAddSingleton<IResourceRegistry, ShaderRegistry>();
-        services.TryAddSingleton<IResourceRegistry, GeometryRegistry>();
-        services.TryAddSingleton<IResourceRegistry, TextureRegistry>();
+
+        // Don't try to override these, add a new registry / factory combination instead
+        services.AddSingleton<IResourceRegistry, ShaderRegistry>();
+        services.AddSingleton<IShaderFactory, ShaderFactory>();
+        services.AddSingleton<IResourceRegistry, GeometryRegistry>();
+        services.AddSingleton<IGeometryFactory, GeometryFactory>();
+        services.AddSingleton<IResourceRegistry, TextureRegistry>();
+
         services.AddVkValidation();
 
         return services;

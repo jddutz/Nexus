@@ -50,7 +50,8 @@ public unsafe class ShaderFactory(Context context) : IShaderFactory
 
     private ShaderModule CreateModule(ShaderDefinition definition)
     {
-        var code = File.ReadAllBytes(definition.Source);
+        var shaderPath = Path.Combine(AppContext.BaseDirectory, "Shaders", definition.Source);
+        var code = File.ReadAllBytes(shaderPath);
 
         if (code.Length == 0)
             throw new InvalidOperationException(
