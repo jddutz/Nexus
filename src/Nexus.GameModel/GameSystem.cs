@@ -74,7 +74,7 @@ public class GameSystem(
 
         var background = CurrentScene.AddComponent<UniformColorMeshRenderer>();
 
-        background.Color = Colors.CornflowerBlue;
+        background.Color = Colors.Red;
         background.Geometry = new VertexGeometryResourceDescription(
             "Background",
             [new(-1f, -1f, 0f), new(3f, -1f, 0f), new(-1f, 3f, 0f)]
@@ -104,25 +104,18 @@ public class GameSystem(
             component.GetType().Name
         );
 
-        if (graphics.CanActivate(component))
+        switch (component)
         {
-            graphics.Activate(component);
+            case IGraphicsComponent graphicsComponent:
+                graphics.Activate(graphicsComponent);
+                return;
+            case IAudioComponent audioComponent:
+                audio.Activate(audioComponent);
+                return;
+            case IPhysicsComponent physicsComponent:
+                physics.Activate(physicsComponent);
+                return;
         }
-
-        if (physics.CanActivate(component))
-        {
-            physics.Activate(component);
-        }
-
-        if (audio.CanActivate(component))
-        {
-            audio.Activate(component);
-        }
-
-        _logger.LogDebug(
-            "Component activation dispatched. ComponentType={ComponentType}",
-            component.GetType().Name
-        );
     }
 
     /// <summary>
@@ -136,9 +129,18 @@ public class GameSystem(
             component.GetType().Name
         );
 
-        graphics.Deactivate(component);
-        physics.Deactivate(component);
-        audio.Deactivate(component);
+        switch (component)
+        {
+            case IGraphicsComponent graphicsComponent:
+                graphics.Deactivate(graphicsComponent);
+                return;
+            case IAudioComponent audioComponent:
+                audio.Deactivate(audioComponent);
+                return;
+            case IPhysicsComponent physicsComponent:
+                physics.Deactivate(physicsComponent);
+                return;
+        }
     }
 
     /// <summary>

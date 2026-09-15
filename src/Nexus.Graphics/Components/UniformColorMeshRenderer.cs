@@ -1,6 +1,6 @@
 namespace Nexus.Graphics.Components;
 
-public class UniformColorMeshRenderer() : Component
+public class UniformColorMeshRenderer() : Component, IGraphicsComponent
 {
     public HashSet<RenderLayer> RenderLayers { get; set; } = [];
     public Matrix4X4<float> TransformationMatrix { get; set; } = Matrix4X4<float>.Identity;

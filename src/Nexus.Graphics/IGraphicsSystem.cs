@@ -14,7 +14,7 @@ public interface IGraphicsSystem
     /// Updates the graphics system for the elapsed time since the previous frame.
     /// </summary>
     /// <param name="deltaTime">The elapsed time in seconds since the previous frame.</param>
-    void Update(double deltaTime);
+    //void Update(double deltaTime);
 
     /// <summary>
     /// Renders the current frame.
@@ -27,22 +27,13 @@ public interface IGraphicsSystem
     RenderLayers RenderLayers { get; }
 
     /// <summary>
-    /// Determines whether the graphics system supports activating a component.
-    /// </summary>
-    /// <typeparam name="TComponent">The type of component to evaluate.</typeparam>
-    /// <param name="component">The component to evaluate.</param>
-    /// <returns><see langword="true"/> when the component can be activated; otherwise, <see langword="false"/>.</returns>
-    bool CanActivate<TComponent>(TComponent component)
-        where TComponent : class, IComponent;
-
-    /// <summary>
     /// Activates a component in the graphics system.
     /// </summary>
     /// <typeparam name="TComponent">The type of component to activate.</typeparam>
     /// <param name="component">The component to activate.</param>
     /// <returns><see langword="true"/> when the component was activated successfully; otherwise, <see langword="false"/>.</returns>
     bool Activate<TComponent>(TComponent component)
-        where TComponent : class, IComponent;
+        where TComponent : class, IGraphicsComponent;
 
     /// <summary>
     /// Deactivates a component in the graphics system.
@@ -51,5 +42,5 @@ public interface IGraphicsSystem
     /// <param name="component">The component to deactivate.</param>
     /// <returns><see langword="true"/> when the component was deactivated successfully; otherwise, <see langword="false"/>.</returns>
     void Deactivate<TComponent>(TComponent component)
-        where TComponent : class, IComponent;
+        where TComponent : class, IGraphicsComponent;
 }

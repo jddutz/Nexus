@@ -13,12 +13,9 @@ public interface IPhysicsSystem
     /// <param name="deltaTime">The elapsed time in seconds since the previous frame.</param>
     void Update(double deltaTime);
 
-    bool CanActivate<TComponent>(TComponent component)
-        where TComponent : class, IComponent;
-
     bool Activate<TComponent>(TComponent component)
-        where TComponent : class, IComponent;
+        where TComponent : class, IPhysicsComponent;
 
     bool Deactivate<TComponent>(TComponent component)
-        where TComponent : class, IComponent;
+        where TComponent : class, IPhysicsComponent;
 }

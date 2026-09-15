@@ -1,3 +1,3 @@
 namespace Nexus.Graphics.Components;
 
-public interface IGraphicsComponent { }
+public interface IGraphicsComponent : IComponent { }
