@@ -1,10 +1,36 @@
 namespace Nexus.GameModel;
 
-public class Scene : IScene
+public class Scene : GameObject, IScene
 {
-    public GameObjectId Id { get; init; }
+    public event Action<IComponent>? ComponentAdded;
+    public event Action<IComponent>? ComponentRemoved;
 
-    public Vector4D<float> BackgroundColor { get; set; }
+    public event Action<IGameObject>? GameObjectAdded;
+    public event Action<IGameObject>? GameObjectRemoved;
 
-    public void Update(double deltaTime) { }
+    public override void OnComponentAdded(IComponent component)
+    {
+        ComponentAdded?.Invoke(component);
+    }
+
+    public override void OnComponentRemoved(IComponent component)
+    {
+        ComponentRemoved?.Invoke(component);
+    }
+
+    public override void OnGameObjectAdded(IGameObject gameObject)
+    {
+        GameObjectAdded?.Invoke(gameObject);
+    }
+
+    public override void OnGameObjectRemoved(IGameObject gameObject)
+    {
+        GameObjectRemoved?.Invoke(gameObject);
+    }
+
+    public Scene()
+        : base() { }
+
+    public Scene(uint sceneId)
+        : base(sceneId) { }
 }

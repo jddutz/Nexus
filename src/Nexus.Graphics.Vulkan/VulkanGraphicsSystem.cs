@@ -18,9 +18,10 @@ public unsafe class VulkanGraphicsSystem(
     private readonly IPipelineRegistry _pipelineManager = pipelineRegistry;
     private IEnumerable<IResourceRegistry> _registries = registries;
     private VkBuffer _vertexBuffer;
-    private DeviceMemory _vertexBufferMemory;
 
     private bool disposedValue;
+
+    public RenderLayers RenderLayers { get; } = new();
 
     public void Initialize() { }
 
@@ -73,7 +74,7 @@ public unsafe class VulkanGraphicsSystem(
         {
             var extent = _swapChain.SwapchainExtent;
 
-            var layer = new RenderLayer()
+            var layer = new VulkanRenderLayer()
             {
                 LoadOp = AttachmentLoadOp.Load,
                 Viewport = new()
@@ -125,34 +126,25 @@ public unsafe class VulkanGraphicsSystem(
         }
     }
 
-    private uint FindMemoryType(uint typeFilter, MemoryPropertyFlags requiredProperties)
-    {
-        _context.VulkanApi.GetPhysicalDeviceMemoryProperties(
-            _context.PhysicalDevice,
-            out var memoryProperties
-        );
-
-        for (uint i = 0; i < memoryProperties.MemoryTypeCount; i++)
-        {
-            var supported = (typeFilter & (1u << (int)i)) != 0;
-
-            var properties = memoryProperties.MemoryTypes[(int)i].PropertyFlags;
-
-            var suitable = (properties & requiredProperties) == requiredProperties;
-
-            if (supported && suitable)
-                return i;
-        }
-
-        throw new InvalidOperationException(
-            $"Unable to find suitable Vulkan memory type for {requiredProperties}."
-        );
-    }
-
     public void Dispose()
     {
         // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
         Dispose(disposing: true);
         GC.SuppressFinalize(this);
+    }
+
+    bool IGraphicsSystem.CanActivate<TComponent>(TComponent component)
+    {
+        return false;
+    }
+
+    bool IGraphicsSystem.Activate<TComponent>(TComponent component)
+    {
+        return false;
+    }
+
+    bool IGraphicsSystem.Deactivate<TComponent>(TComponent component)
+    {
+        return false;
     }
 }

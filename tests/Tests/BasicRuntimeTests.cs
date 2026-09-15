@@ -157,17 +157,37 @@ public class BasicRuntimeTests
         public void Initialize() { }
 
         public void Update(double deltaTime) { }
+
+        public bool CanActivate<TComponent>(TComponent component)
+            where TComponent : class, IComponent => false;
+
+        public bool Activate<TComponent>(TComponent component)
+            where TComponent : class, IComponent => false;
+
+        public bool Deactivate<TComponent>(TComponent component)
+            where TComponent : class, IComponent => false;
     }
 
     private sealed class NoOpGraphicsSystem : IGraphicsSystem
     {
-        public IGraphicsResourceManager Resources { get; } = new VulkanResourceManager([]);
+        public RenderLayers RenderLayers { get; } = new();
 
         public void Initialize() { }
+
+        public ResourceId Load(IResourceDescription resource) => ResourceId.Invalid;
 
         public void Update(double deltaTime) { }
 
         public void Render() { }
+
+        public bool CanActivate<TComponent>(TComponent component)
+            where TComponent : class, IComponent => false;
+
+        public bool Activate<TComponent>(TComponent component)
+            where TComponent : class, IComponent => false;
+
+        public bool Deactivate<TComponent>(TComponent component)
+            where TComponent : class, IComponent => false;
     }
 
     private sealed class NoOpAudioSystem : IAudioSystem
@@ -175,5 +195,14 @@ public class BasicRuntimeTests
         public void Initialize() { }
 
         public void Update(double deltaTime) { }
+
+        public bool CanActivate<TComponent>(TComponent component)
+            where TComponent : class, IComponent => false;
+
+        public bool Activate<TComponent>(TComponent component)
+            where TComponent : class, IComponent => false;
+
+        public bool Deactivate<TComponent>(TComponent component)
+            where TComponent : class, IComponent => false;
     }
 }

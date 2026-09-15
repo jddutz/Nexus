@@ -5,7 +5,7 @@ namespace Nexus.Graphics.Vulkan;
 /// <summary>
 /// Defines the render state and active passes for a rendering operation.
 /// </summary>
-public class RenderLayer
+public class VulkanRenderLayer
 {
     /// <summary>
     /// Gets or sets the load operation for the render target.

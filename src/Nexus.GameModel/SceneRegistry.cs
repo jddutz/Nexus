@@ -1,11 +1,9 @@
-using Nexus.Graphics;
-
 namespace Nexus.GameModel;
 
 public class SceneRegistry : ISceneRegistry
 {
-    public IScene? Load(GameObjectId sceneId)
+    public IScene? Load(uint sceneId)
     {
-        return new Scene() { Id = sceneId, BackgroundColor = Colors.CornflowerBlue };
+        return new Scene(sceneId);
     }
 }

@@ -13,8 +13,6 @@
     <ProjectReference Include="..\Nexus.Audio\Nexus.Audio.csproj" />
     <ProjectReference Include="..\Nexus.Core\Nexus.Core.csproj" />
     <ProjectReference Include="..\Nexus.Graphics\Nexus.Graphics.csproj" />
-    <ProjectReference Include="..\Nexus.Graphics.OpenGL\Nexus.Graphics.OpenGL.csproj" />
-    <ProjectReference Include="..\Nexus.Graphics.Vulkan\Nexus.Graphics.Vulkan.csproj" />
     <ProjectReference Include="..\Nexus.Input\Nexus.Input.csproj" />
     <ProjectReference Include="..\Nexus.Physics\Nexus.Physics.csproj" />
   </ItemGroup>

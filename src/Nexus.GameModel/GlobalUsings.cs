@@ -1,6 +1,9 @@
 global using Microsoft.Extensions.DependencyInjection;
 global using Microsoft.Extensions.DependencyInjection.Extensions;
+global using Nexus.Audio;
 global using Nexus.Core;
+global using Nexus.Core.Events;
 global using Nexus.Graphics;
+global using Nexus.Graphics.Components;
 global using Nexus.Graphics.Resources;
-global using Silk.NET.Maths;
+global using Nexus.Physics;

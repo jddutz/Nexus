@@ -2,5 +2,9 @@ namespace Nexus.GameModel;
 
 public interface IScene : IGameObject
 {
-    Vector4D<float> BackgroundColor { get; }
+    event Action<IComponent>? ComponentAdded;
+    event Action<IComponent>? ComponentRemoved;
+
+    event Action<IGameObject>? GameObjectAdded;
+    event Action<IGameObject>? GameObjectRemoved;
 }

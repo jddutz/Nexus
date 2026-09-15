@@ -15,4 +15,6 @@ public readonly record struct ResourceId(ulong Value) : IEquatable<ResourceId>, 
     public override string ToString() => Value.ToString();
 
     public bool Equals(IUniqueId? other) => other != null && Value == other.Value;
+
+    public static readonly ResourceId Invalid = new(0ul);
 }

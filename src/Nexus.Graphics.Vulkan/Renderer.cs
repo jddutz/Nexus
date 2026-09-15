@@ -30,7 +30,7 @@ public unsafe class Renderer(
     public event EventHandler<RenderEventArgs>? BeforeRendering;
     public event EventHandler<RenderEventArgs>? AfterRendering;
 
-    public RenderLayer[] Layers { get; set; } = [];
+    public VulkanRenderLayer[] Layers { get; set; } = [];
 
     public bool CanRender() =>
         _context != null
@@ -116,7 +116,7 @@ public unsafe class Renderer(
         return true;
     }
 
-    private void ValidateRenderPasses(RenderLayer definition)
+    private void ValidateRenderPasses(VulkanRenderLayer definition)
     {
         if (definition.RenderPasses.Length == 0)
             throw new InvalidOperationException(

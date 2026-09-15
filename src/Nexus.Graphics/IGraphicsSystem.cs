@@ -25,4 +25,15 @@ public interface IGraphicsSystem
     /// Renders the current frame.
     /// </summary>
     void Render();
+
+    RenderLayers RenderLayers { get; }
+
+    bool CanActivate<TComponent>(TComponent component)
+        where TComponent : class, IComponent;
+
+    bool Activate<TComponent>(TComponent component)
+        where TComponent : class, IComponent;
+
+    bool Deactivate<TComponent>(TComponent component)
+        where TComponent : class, IComponent;
 }

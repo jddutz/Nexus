@@ -2,7 +2,7 @@ using System.Reflection.PortableExecutable;
 
 namespace Nexus.Graphics.Resources;
 
-public class VertexGeometryResourceDescription : IResourceDescription
+public class VertexGeometryResourceDescription : IResourceDescription, IGeometry
 {
     public ResourceId Id { get; }
     public string Name { get; }
