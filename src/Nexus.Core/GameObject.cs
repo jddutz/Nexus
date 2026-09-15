@@ -114,15 +114,9 @@ public class GameObject : IGameObject
             (Parent as GameObject)?.OnGameObjectRemoved(gameObject);
     }
 
-    public void Activate()
-    {
-        throw new NotImplementedException();
-    }
+    public void Activate() { }
 
     public void Update(double deltaTime) { }
 
-    public void Deactivate()
-    {
-        throw new NotImplementedException();
-    }
+    public void Deactivate() { }
 }
