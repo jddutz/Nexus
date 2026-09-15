@@ -5,14 +5,14 @@ public unsafe class ShaderFactory(Context context) : IShaderFactory
     private readonly Context _context = context;
     private readonly Dictionary<ResourceId, ShaderModule> _modules = [];
 
-    public ResourceId Create(ShaderDefinition definition)
+    public ResourceId Create(ShaderDescription description)
     {
-        var id = definition.Id;
+        var id = description.Id;
 
         if (_modules.ContainsKey(id))
             return id;
 
-        var module = CreateModule(definition);
+        var module = CreateModule(description);
 
         _modules.Add(id, module);
 
@@ -27,14 +27,14 @@ public unsafe class ShaderFactory(Context context) : IShaderFactory
         return module;
     }
 
-    public void Update(ResourceId id, ShaderDefinition definition)
+    public void Update(ResourceId id, ShaderDescription description)
     {
         if (!_modules.TryGetValue(id, out var existing))
             throw new KeyNotFoundException($"Shader resource '{id}' does not exist.");
 
         // Create the replacement first so a failed shader load leaves the
         // currently registered module intact.
-        var replacement = CreateModule(definition);
+        var replacement = CreateModule(description);
 
         _modules[id] = replacement;
         _context.VulkanApi.DestroyShaderModule(_context.Device, existing, null);
@@ -48,19 +48,19 @@ public unsafe class ShaderFactory(Context context) : IShaderFactory
         _context.VulkanApi.DestroyShaderModule(_context.Device, module, null);
     }
 
-    private ShaderModule CreateModule(ShaderDefinition definition)
+    private ShaderModule CreateModule(ShaderDescription description)
     {
-        var shaderPath = Path.Combine(AppContext.BaseDirectory, "Shaders", definition.Source);
+        var shaderPath = Path.Combine(AppContext.BaseDirectory, "Shaders", description.Source);
         var code = File.ReadAllBytes(shaderPath);
 
         if (code.Length == 0)
             throw new InvalidOperationException(
-                $"Shader '{definition.Name}' contains no SPIR-V data."
+                $"Shader '{description.Name}' contains no SPIR-V data."
             );
 
         if (code.Length % sizeof(uint) != 0)
             throw new InvalidOperationException(
-                $"Shader '{definition.Name}' contains invalid SPIR-V data."
+                $"Shader '{description.Name}' contains invalid SPIR-V data."
             );
 
         fixed (byte* codePtr = code)
@@ -81,7 +81,7 @@ public unsafe class ShaderFactory(Context context) : IShaderFactory
 
             if (result != Result.Success)
                 throw new InvalidOperationException(
-                    $"Unable to create shader module '{definition.Name}': {result}"
+                    $"Unable to create shader module '{description.Name}': {result}"
                 );
 
             return module;

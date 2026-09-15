@@ -103,8 +103,8 @@ public class ComponentRegistry(
             geometry.Vertices.Length
         );
 
-        var vertexShader = ResourceDefinitions.UniformColorVertexShader;
-        var fragmentShader = ResourceDefinitions.UniformColorFragmentShader;
+        var vertexShader = ShaderDescriptions.UniformColorVertexShader;
+        var fragmentShader = ShaderDescriptions.UniformColorFragmentShader;
 
         _shaderFactory.Create(vertexShader);
         _shaderFactory.Create(fragmentShader);

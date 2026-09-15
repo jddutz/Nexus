@@ -2,10 +2,12 @@ namespace Nexus.Graphics.Shaders;
 
 public interface IShaderContract
 {
-    PrimitiveTopologyEnum Topology { get; }
-    VertexDefinition VertexDefinition { get; }
+    ResourceId Id { get; }
+    string Name { get; }
 
-    IReadOnlyList<VertexInput> VertexInputs { get; }
+    PrimitiveTopologyEnum Topology { get; }
+    VertexDescription VertexDescription { get; }
+
     // Later:
     // InstanceDefinition
     // Uniforms / descriptors

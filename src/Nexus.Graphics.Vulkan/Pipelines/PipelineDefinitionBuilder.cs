@@ -5,7 +5,7 @@ namespace Nexus.Graphics.Vulkan.Pipelines;
 /// </summary>
 public sealed class PipelineDefinitionBuilder : IPipelineDefinitionBuilder
 {
-    private readonly List<ShaderDefinition> _shaders = [];
+    private readonly List<ShaderDescription> _shaders = [];
     private readonly List<VertexInputBindingDescription> _vertexBindings = [];
     private readonly List<VertexInputAttributeDescription> _vertexAttributes = [];
     private readonly List<PushConstantRange> _pushConstantRanges = [];
@@ -39,7 +39,7 @@ public sealed class PipelineDefinitionBuilder : IPipelineDefinitionBuilder
     /// <summary>Adds a shader stage to the pipeline.</summary>
     /// <param name="shader">The shader stage description.</param>
     /// <returns>This builder.</returns>
-    public PipelineDefinitionBuilder WithShader(ShaderDefinition shader)
+    public PipelineDefinitionBuilder WithShader(ShaderDescription shader)
     {
         ArgumentNullException.ThrowIfNull(shader);
         _shaders.Add(shader);
@@ -240,32 +240,32 @@ public sealed class PipelineDefinitionBuilder : IPipelineDefinitionBuilder
         if (_renderPass is null)
             throw new InvalidOperationException("A render pass is required.");
 
-        ShaderDefinition? vertexShader = null;
-        ShaderDefinition? tessellationControlShader = null;
-        ShaderDefinition? tessellationEvalShader = null;
-        ShaderDefinition? geometryShader = null;
-        ShaderDefinition? fragmentShader = null;
+        ShaderDescription? vertexShader = null;
+        ShaderDescription? tessellationControlShader = null;
+        ShaderDescription? tessellationEvalShader = null;
+        ShaderDescription? geometryShader = null;
+        ShaderDescription? fragmentShader = null;
 
         foreach (var shader in _shaders)
         {
-            switch (shader.StageFlags)
+            switch (shader.Stages)
             {
-                case ShaderStageFlags.VertexBit when vertexShader is null:
+                case ShaderStageEnum.Vertex when vertexShader is null:
                     vertexShader = shader;
                     break;
-                case ShaderStageFlags.TessellationControlBit when tessellationControlShader is null:
+                case ShaderStageEnum.TessellationControl when tessellationControlShader is null:
                     tessellationControlShader = shader;
                     break;
-                case ShaderStageFlags.TessellationEvaluationBit when tessellationEvalShader is null:
+                case ShaderStageEnum.TessellationEval when tessellationEvalShader is null:
                     tessellationEvalShader = shader;
                     break;
-                case ShaderStageFlags.GeometryBit when geometryShader is null:
+                case ShaderStageEnum.Geometry when geometryShader is null:
                     geometryShader = shader;
                     break;
-                case ShaderStageFlags.FragmentBit when fragmentShader is null:
+                case ShaderStageEnum.Fragment when fragmentShader is null:
                     fragmentShader = shader;
                     break;
-                case ShaderStageFlags.ComputeBit:
+                case ShaderStageEnum.Compute:
                     throw new InvalidOperationException(
                         "Compute shaders cannot be used in a graphics pipeline."
                     );

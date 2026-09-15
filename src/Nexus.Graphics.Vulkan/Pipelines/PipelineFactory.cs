@@ -52,9 +52,9 @@ public unsafe class PipelineFactory(Context context) : IPipelineFactory
     /// </summary>
     /// <param name="definition">The pipeline definition.</param>
     /// <returns>The shader definitions included in the pipeline.</returns>
-    private static ImmutableArray<ShaderDefinition> GetShaders(PipelineDefinition definition)
+    private static ImmutableArray<ShaderDescription> GetShaders(PipelineDefinition definition)
     {
-        var shaders = new List<ShaderDefinition>();
+        var shaders = new List<ShaderDescription>();
 
         if (definition.VertexShader is not null)
             shaders.Add(definition.VertexShader);
@@ -75,7 +75,7 @@ public unsafe class PipelineFactory(Context context) : IPipelineFactory
     /// </summary>
     /// <param name="shaders">The shader definitions to load.</param>
     /// <returns>The created shader modules.</returns>
-    private ShaderModule[] CreateShaderModules(ImmutableArray<ShaderDefinition> shaders)
+    private ShaderModule[] CreateShaderModules(ImmutableArray<ShaderDescription> shaders)
     {
         var modules = new ShaderModule[shaders.Length];
 
@@ -117,7 +117,7 @@ public unsafe class PipelineFactory(Context context) : IPipelineFactory
     /// <param name="shaderModules">The corresponding shader modules.</param>
     /// <returns>The shader-stage descriptions.</returns>
     private static PipelineShaderStageCreateInfo[] CreateShaderStages(
-        ImmutableArray<ShaderDefinition> shaders,
+        ImmutableArray<ShaderDescription> shaders,
         ShaderModule[] shaderModules
     )
     {
@@ -128,7 +128,16 @@ public unsafe class PipelineFactory(Context context) : IPipelineFactory
             stages[i] = new PipelineShaderStageCreateInfo
             {
                 SType = StructureType.PipelineShaderStageCreateInfo,
-                Stage = shaders[i].StageFlags,
+                Stage = shaders[i].Stages switch
+                {
+                    ShaderStageEnum.Vertex => ShaderStageFlags.VertexBit,
+                    ShaderStageEnum.TessellationControl => ShaderStageFlags.TessellationControlBit,
+                    ShaderStageEnum.TessellationEval => ShaderStageFlags.TessellationEvaluationBit,
+                    ShaderStageEnum.Geometry => ShaderStageFlags.GeometryBit,
+                    ShaderStageEnum.Fragment => ShaderStageFlags.FragmentBit,
+                    ShaderStageEnum.Compute => ShaderStageFlags.ComputeBit,
+                    _ => throw new InvalidOperationException("Unsupported shader stage."),
+                },
                 Module = shaderModules[i],
                 PName = (byte*)SilkMarshal.StringToPtr("main"),
             };
