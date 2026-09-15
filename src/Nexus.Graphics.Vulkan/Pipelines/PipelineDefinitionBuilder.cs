@@ -105,6 +105,37 @@ public sealed class PipelineDefinitionBuilder : IPipelineDefinitionBuilder
         return this;
     }
 
+    public PipelineDefinitionBuilder WithInstanceDescription(VertexDescription description)
+    {
+        ArgumentNullException.ThrowIfNull(description);
+
+        const uint binding = 1;
+
+        WithVertexBinding(
+            new VertexInputBindingDescription
+            {
+                Binding = binding,
+                Stride = description.Stride,
+                InputRate = VertexInputRate.Instance,
+            }
+        );
+
+        foreach (var attribute in description.Attributes)
+        {
+            WithVertexAttribute(
+                new VertexInputAttributeDescription
+                {
+                    Location = attribute.Location,
+                    Binding = binding,
+                    Format = attribute.Format.ToVulkanFormat(),
+                    Offset = attribute.Offset,
+                }
+            );
+        }
+
+        return this;
+    }
+
     /// <summary>Sets the primitive topology.</summary>
     /// <param name="topology">The primitive topology.</param>
     /// <returns>This builder.</returns>

@@ -2,6 +2,9 @@ using System.Dynamic;
 
 namespace Nexus.Graphics.Vulkan.Components;
 
+/// <summary>
+/// Creates and maintains Vulkan render-item registrations for supported graphics components.
+/// </summary>
 public class ComponentRegistry(
     IGeometryFactory geometryFactory,
     IShaderFactory shaderFactory,
@@ -20,6 +23,11 @@ public class ComponentRegistry(
     private readonly ISwapChain _swapChain = swapChain;
     private readonly ILogger<ComponentRegistry> _logger = logger;
 
+    /// <summary>
+    /// Determines whether this registry can create render items for the specified component.
+    /// </summary>
+    /// <param name="component">The graphics component to evaluate.</param>
+    /// <returns><see langword="true"/> when the component type is supported; otherwise, <see langword="false"/>.</returns>
     public bool CanLoad(IGraphicsComponent component) =>
         component switch
         {
@@ -27,6 +35,11 @@ public class ComponentRegistry(
             _ => false,
         };
 
+    /// <summary>
+    /// Creates or retrieves render items for the specified component and adds its packed instance records.
+    /// </summary>
+    /// <param name="component">The graphics component to load.</param>
+    /// <returns>The render items associated with the loaded component.</returns>
     public RenderItem[] Load(IGraphicsComponent component)
     {
         ArgumentNullException.ThrowIfNull(component);
@@ -38,7 +51,7 @@ public class ComponentRegistry(
 
         foreach (var item in renderItems)
         {
-            item.Add(component);
+            item.AddInstance(component.Id, GetInstanceData(component));
         }
 
         _components[component.Id] = renderItems;
@@ -46,6 +59,12 @@ public class ComponentRegistry(
         return renderItems;
     }
 
+    /// <summary>
+    /// Gets the render items to which the specified component contributes instance data.
+    /// </summary>
+    /// <param name="component">The supported graphics component.</param>
+    /// <returns>The render items for the component.</returns>
+    /// <exception cref="NotSupportedException">Thrown when the component type is not supported.</exception>
     private RenderItem[] GetOrCreateRenderItems(IGraphicsComponent component)
     {
         return component switch
@@ -58,6 +77,12 @@ public class ComponentRegistry(
         };
     }
 
+    /// <summary>
+    /// Gets the shared render item for a uniform-color mesh renderer, creating it when needed.
+    /// </summary>
+    /// <param name="component">The mesh renderer whose geometry determines the render item.</param>
+    /// <returns>The matching shared render item.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when the renderer has no geometry.</exception>
     private RenderItem GetOrCreateRenderItem(UniformColorMeshRenderer component)
     {
         var geometry =
@@ -81,6 +106,13 @@ public class ComponentRegistry(
         return renderItem;
     }
 
+    /// <summary>
+    /// Creates a Vulkan render item for the specified uniform-color mesh renderer.
+    /// </summary>
+    /// <param name="component">The mesh renderer that defines the item geometry.</param>
+    /// <param name="id">The identifier of the render item to create.</param>
+    /// <returns>A configured render item.</returns>
+    /// <exception cref="NotSupportedException">Thrown when the renderer geometry is unsupported.</exception>
     private RenderItem Create(UniformColorMeshRenderer component, ResourceId id)
     {
         // TODO: We should be able to use IGeometry.GetData but it hasn't been implemented yet
@@ -128,6 +160,64 @@ public class ComponentRegistry(
         };
     }
 
+    /// <summary>
+    /// Packs a supported graphics component into the fixed-size instance record consumed by its render item.
+    /// </summary>
+    /// <param name="component">The graphics component to pack.</param>
+    /// <returns>The packed instance record.</returns>
+    /// <exception cref="NotSupportedException">Thrown when the component type is not supported.</exception>
+    private static byte[] GetInstanceData(IGraphicsComponent component)
+    {
+        return component switch
+        {
+            UniformColorMeshRenderer renderer => PackInstanceData(renderer),
+            _ => throw new NotSupportedException(
+                $"Unsupported graphics component: {component.GetType().Name}"
+            ),
+        };
+    }
+
+    /// <summary>
+    /// Packs the transform and color of a uniform-color mesh renderer into one instance record.
+    /// </summary>
+    /// <param name="component">The renderer whose instance state is packed.</param>
+    /// <returns>The packed instance record.</returns>
+    private static byte[] PackInstanceData(UniformColorMeshRenderer component)
+    {
+        var instance = new UniformColorMeshInstance(
+            component.TransformationMatrix,
+            component.Color
+        );
+
+        return MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(ref instance, 1)).ToArray();
+    }
+
+    /// <summary>
+    /// Represents the fixed binary layout of a uniform-color mesh instance.
+    /// </summary>
+    /// <param name="transformationMatrix">The transformation matrix applied to the mesh vertices.</param>
+    /// <param name="color">The color supplied to the fragment shader.</param>
+    private readonly struct UniformColorMeshInstance(
+        Matrix4X4<float> transformationMatrix,
+        Color color
+    )
+    {
+        /// <summary>
+        /// Gets the transformation matrix applied to the mesh vertices.
+        /// </summary>
+        public Matrix4X4<float> TransformationMatrix { get; } = transformationMatrix;
+
+        /// <summary>
+        /// Gets the color supplied to the fragment shader.
+        /// </summary>
+        public Color Color { get; } = color;
+    }
+
+    /// <summary>
+    /// Determines whether this registry has loaded the specified component.
+    /// </summary>
+    /// <param name="componentId">The identifier of the component to evaluate.</param>
+    /// <returns><see langword="true"/> when the component is loaded; otherwise, <see langword="false"/>.</returns>
     public bool CanUnload(ComponentId componentId)
     {
         var canUnload = _components.ContainsKey(componentId);
@@ -142,9 +232,13 @@ public class ComponentRegistry(
         return canUnload;
     }
 
+    /// <summary>
+    /// Removes the specified component's instance records from its associated render items.
+    /// </summary>
+    /// <param name="componentId">The identifier of the component to unload.</param>
     public void Unload(ComponentId componentId)
     {
-        if (!_components.Remove(componentId))
+        if (!_components.Remove(componentId, out var renderItems))
         {
             _logger.LogDebug(
                 "Vulkan graphics component unload skipped because the component is not loaded. "
@@ -152,6 +246,11 @@ public class ComponentRegistry(
                 componentId
             );
             return;
+        }
+
+        foreach (var item in renderItems)
+        {
+            item.RemoveInstance(componentId);
         }
 
         _logger.LogDebug(
