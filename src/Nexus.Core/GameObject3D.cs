@@ -54,11 +54,11 @@ public class GameObject3D : GameObject, IGameObject3D
         set => throw new NotImplementedException();
     }
 
-    public GameObject3D()
-        : base() { }
+    public GameObject3D(ILogger<GameObject>? logger = null)
+        : base(logger) { }
 
-    public GameObject3D(uint id)
-        : base(id) { }
+    public GameObject3D(uint id, ILogger<GameObject>? logger = null)
+        : base(id, logger) { }
 
     private void UpdateTransformationMatrix()
     {

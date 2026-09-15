@@ -3,9 +3,16 @@ namespace Nexus.GameModel;
 /// <summary>
 /// Provides the default implementation of the game system lifecycle.
 /// </summary>
-public class GameSystem(IGraphicsSystem graphics, IPhysicsSystem physics, IAudioSystem audio)
-    : IGameSystem
+public class GameSystem(
+    IGraphicsSystem graphics,
+    IPhysicsSystem physics,
+    IAudioSystem audio,
+    ILogger<GameSystem> logger,
+    ILoggerFactory loggerFactory
+) : IGameSystem
 {
+    private readonly ILogger<GameSystem> _logger = logger;
+
     /// <summary>
     /// Gets or sets the identifier of the scene activated when the game starts.
     /// </summary>
@@ -20,6 +27,8 @@ public class GameSystem(IGraphicsSystem graphics, IPhysicsSystem physics, IAudio
         get => _currentScene;
         private set
         {
+            var previousScene = _currentScene;
+
             _currentScene?.ComponentAdded -= ActivateComponent;
             _currentScene?.ComponentRemoved -= DeactivateComponent;
             _currentScene?.GameObjectAdded -= ActivateGameObject;
@@ -34,6 +43,12 @@ public class GameSystem(IGraphicsSystem graphics, IPhysicsSystem physics, IAudio
                 _currentScene.GameObjectAdded += ActivateGameObject;
                 _currentScene.GameObjectRemoved += DeactivateGameObject;
             }
+
+            _logger.LogInformation(
+                "Active scene changed. PreviousSceneType={PreviousSceneType}, CurrentSceneType={CurrentSceneType}",
+                previousScene?.GetType().Name ?? "None",
+                _currentScene?.GetType().Name ?? "None"
+            );
         }
     }
 
@@ -42,10 +57,20 @@ public class GameSystem(IGraphicsSystem graphics, IPhysicsSystem physics, IAudio
     /// </summary>
     public void Initialize()
     {
-        if (InitialSceneId == GameObjectId.Invalid)
-            throw new InvalidOperationException("Initial Scene is not defined.");
+        _logger.LogInformation(
+            "Initializing game system. InitialSceneId={InitialSceneId}",
+            InitialSceneId
+        );
 
-        CurrentScene = new Scene();
+        if (InitialSceneId == GameObjectId.Invalid)
+        {
+            _logger.LogError(
+                "Game system initialization failed because the initial scene is invalid."
+            );
+            throw new InvalidOperationException("Initial Scene is not defined.");
+        }
+
+        CurrentScene = new Scene(loggerFactory.CreateLogger<Scene>());
 
         var background = CurrentScene.AddComponent<UniformColorMeshRenderer>();
 
@@ -56,6 +81,7 @@ public class GameSystem(IGraphicsSystem graphics, IPhysicsSystem physics, IAudio
         );
 
         CurrentScene.Activate();
+        _logger.LogInformation("Game system initialized and initial scene activated.");
     }
 
     /// <summary>
@@ -67,8 +93,17 @@ public class GameSystem(IGraphicsSystem graphics, IPhysicsSystem physics, IAudio
         CurrentScene?.Update(deltaTime);
     }
 
+    /// <summary>
+    /// Activates a component across the graphics, physics, and audio systems.
+    /// </summary>
+    /// <param name="component">The component to activate.</param>
     public void ActivateComponent(IComponent component)
     {
+        _logger.LogDebug(
+            "Activating component. ComponentType={ComponentType}",
+            component.GetType().Name
+        );
+
         if (graphics.CanActivate(component))
         {
             graphics.Activate(component);
@@ -83,25 +118,59 @@ public class GameSystem(IGraphicsSystem graphics, IPhysicsSystem physics, IAudio
         {
             audio.Activate(component);
         }
+
+        _logger.LogDebug(
+            "Component activation dispatched. ComponentType={ComponentType}",
+            component.GetType().Name
+        );
     }
 
+    /// <summary>
+    /// Deactivates a component across the graphics, physics, and audio systems.
+    /// </summary>
+    /// <param name="component">The component to deactivate.</param>
     public void DeactivateComponent(IComponent component)
     {
+        _logger.LogDebug(
+            "Deactivating component. ComponentType={ComponentType}",
+            component.GetType().Name
+        );
+
         graphics.Deactivate(component);
         physics.Deactivate(component);
         audio.Deactivate(component);
     }
 
+    /// <summary>
+    /// Activates every component belonging to a game object.
+    /// </summary>
+    /// <param name="gameObject">The game object to activate.</param>
     public void ActivateGameObject(IGameObject gameObject)
     {
+        _logger.LogDebug(
+            "Activating game object. GameObjectType={GameObjectType}, ComponentCount={ComponentCount}",
+            gameObject.GetType().Name,
+            gameObject.Components.Count()
+        );
+
         foreach (var component in gameObject.Components)
         {
             ActivateComponent(component);
         }
     }
 
+    /// <summary>
+    /// Deactivates every component belonging to a game object.
+    /// </summary>
+    /// <param name="gameObject">The game object to deactivate.</param>
     public void DeactivateGameObject(IGameObject gameObject)
     {
+        _logger.LogDebug(
+            "Deactivating game object. GameObjectType={GameObjectType}, ComponentCount={ComponentCount}",
+            gameObject.GetType().Name,
+            gameObject.Components.Count()
+        );
+
         foreach (var component in gameObject.Components)
         {
             DeactivateComponent(component);

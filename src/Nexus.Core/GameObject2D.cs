@@ -48,11 +48,11 @@ public class GameObject2D : GameObject, IGameObject2D
         }
     }
 
-    public GameObject2D()
-        : base() { }
+    public GameObject2D(ILogger<GameObject>? logger = null)
+        : base(logger) { }
 
-    public GameObject2D(uint id)
-        : base(id) { }
+    public GameObject2D(uint id, ILogger<GameObject>? logger = null)
+        : base(id, logger) { }
 
     private void UpdateTransformationMatrix()
     {

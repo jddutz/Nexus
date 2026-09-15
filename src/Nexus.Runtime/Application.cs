@@ -35,6 +35,7 @@ public sealed class Application : IApplication, IDisposable
 
         services.AddLogging(builder =>
         {
+            builder.AddConfiguration(configuration.GetSection("Logging"));
             builder.AddConsole();
 
             var vulkanSettings =

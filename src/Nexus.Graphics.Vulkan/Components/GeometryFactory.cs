@@ -1,10 +1,11 @@
 using VkBuffer = Silk.NET.Vulkan.Buffer;
 
-namespace Nexus.Graphics.Vulkan.Resources;
+namespace Nexus.Graphics.Vulkan.Components;
 
-public unsafe class GeometryFactory(Context context) : IGeometryFactory
+public unsafe class GeometryFactory(Context context, ILogger<GeometryFactory> logger) : IGeometryFactory
 {
     private readonly Context _context = context;
+    private readonly ILogger<GeometryFactory> _logger = logger;
 
     private readonly Dictionary<ResourceId, VkBuffer> _vertexBuffers = [];
     private readonly Dictionary<ResourceId, DeviceMemory> _vertexMemory = [];
@@ -15,9 +16,27 @@ public unsafe class GeometryFactory(Context context) : IGeometryFactory
         var id = definition.Id;
 
         if (_vertexBuffers.ContainsKey(id))
+        {
+            _logger.LogDebug(
+                "Geometry already exists; returning existing Vulkan geometry resource. "
+                    + "GeometryId={GeometryId}, VertexCount={VertexCount}, BufferHandle={BufferHandle}",
+                id,
+                _vertexCounts[id],
+                _vertexBuffers[id].Handle
+            );
             return id;
+        }
 
         var vertices = definition.Vertices;
+
+        _logger.LogDebug(
+            "Creating Vulkan vertex geometry. GeometryId={GeometryId}, VertexCount={VertexCount}, "
+                + "VertexStride={VertexStride}, AllocationSize={AllocationSize}",
+            id,
+            vertices.Length,
+            Unsafe.SizeOf<Vertex>(),
+            (ulong)vertices.Length * (ulong)Unsafe.SizeOf<Vertex>()
+        );
 
         if (vertices.Length == 0)
             throw new InvalidOperationException($"Geometry '{id}' contains no vertices.");
@@ -115,10 +134,29 @@ public unsafe class GeometryFactory(Context context) : IGeometryFactory
             _vertexMemory.Add(id, vertexMemory);
             _vertexCounts.Add(id, (uint)vertices.Length);
 
+            _logger.LogInformation(
+                "Created Vulkan vertex geometry. GeometryId={GeometryId}, VertexCount={VertexCount}, "
+                    + "BufferHandle={BufferHandle}, MemoryHandle={MemoryHandle}",
+                id,
+                vertices.Length,
+                vertexBuffer.Handle,
+                vertexMemory.Handle
+            );
+
             return id;
         }
-        catch
+        catch (Exception exception)
         {
+            _logger.LogError(
+                exception,
+                "Failed to create Vulkan vertex geometry. GeometryId={GeometryId}, "
+                    + "VertexCount={VertexCount}, BufferHandle={BufferHandle}, MemoryHandle={MemoryHandle}",
+                id,
+                vertices.Length,
+                vertexBuffer.Handle,
+                vertexMemory.Handle
+            );
+
             if (vertexMemory.Handle != 0)
                 _context.VulkanApi.FreeMemory(_context.Device, vertexMemory, null);
 
@@ -134,7 +172,37 @@ public unsafe class GeometryFactory(Context context) : IGeometryFactory
         if (!_vertexBuffers.ContainsKey(id))
             throw new KeyNotFoundException($"Geometry resource '{id}' does not exist.");
 
+        _logger.LogDebug("Read Vulkan geometry resource. GeometryId={GeometryId}", id);
+
         return id;
+    }
+
+    public VkBuffer ReadBuffer(ResourceId id)
+    {
+        if (!_vertexBuffers.TryGetValue(id, out var buffer))
+            throw new KeyNotFoundException($"Geometry resource '{id}' does not exist.");
+
+        _logger.LogDebug(
+            "Read Vulkan geometry buffer. GeometryId={GeometryId}, BufferHandle={BufferHandle}",
+            id,
+            buffer.Handle
+        );
+
+        return buffer;
+    }
+
+    public uint ReadVertexCount(ResourceId id)
+    {
+        if (!_vertexCounts.TryGetValue(id, out var count))
+            throw new KeyNotFoundException($"Geometry resource '{id}' does not exist.");
+
+        _logger.LogDebug(
+            "Read Vulkan geometry vertex count. GeometryId={GeometryId}, VertexCount={VertexCount}",
+            id,
+            count
+        );
+
+        return count;
     }
 
     public ResourceId Update(ResourceId id, UniformColorVertexGeometryDefinition definition)
@@ -142,25 +210,50 @@ public unsafe class GeometryFactory(Context context) : IGeometryFactory
         if (!_vertexBuffers.ContainsKey(id))
             throw new KeyNotFoundException($"Geometry resource '{id}' does not exist.");
 
+        _logger.LogDebug(
+            "Updating Vulkan vertex geometry. GeometryId={GeometryId}, "
+                + "NewVertexCount={VertexCount}",
+            id,
+            definition.Vertices.Length
+        );
+
         Delete(id);
         Create(definition);
+
+        _logger.LogInformation(
+            "Updated Vulkan vertex geometry. GeometryId={GeometryId}, VertexCount={VertexCount}",
+            id,
+            definition.Vertices.Length
+        );
 
         return id;
     }
 
     public ResourceId Delete(ResourceId id)
     {
-        if (_vertexBuffers.Remove(id, out var buffer))
+        var bufferRemoved = _vertexBuffers.Remove(id, out var buffer);
+        var memoryRemoved = _vertexMemory.Remove(id, out var memory);
+
+        if (bufferRemoved)
         {
             _context.VulkanApi.DestroyBuffer(_context.Device, buffer, null);
         }
 
-        if (_vertexMemory.Remove(id, out var memory))
+        if (memoryRemoved)
         {
             _context.VulkanApi.FreeMemory(_context.Device, memory, null);
         }
 
-        _vertexCounts.Remove(id);
+        var vertexCountRemoved = _vertexCounts.Remove(id);
+
+        _logger.LogInformation(
+            "Deleted Vulkan vertex geometry. GeometryId={GeometryId}, BufferRemoved={BufferRemoved}, "
+                + "MemoryRemoved={MemoryRemoved}, VertexCountRemoved={VertexCountRemoved}",
+            id,
+            bufferRemoved,
+            memoryRemoved,
+            vertexCountRemoved
+        );
 
         return id;
     }
@@ -179,6 +272,13 @@ public unsafe class GeometryFactory(Context context) : IGeometryFactory
                 && (memoryProperties.MemoryTypes[(int)i].PropertyFlags & properties) == properties
             )
             {
+                _logger.LogDebug(
+                    "Selected Vulkan memory type for geometry. MemoryTypeIndex={MemoryTypeIndex}, "
+                        + "RequiredProperties={RequiredProperties}",
+                    i,
+                    properties
+                );
+
                 return i;
             }
         }

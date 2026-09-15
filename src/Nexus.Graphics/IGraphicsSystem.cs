@@ -11,11 +11,6 @@ public interface IGraphicsSystem
     void Initialize();
 
     /// <summary>
-    /// Resets the current state of the GraphicsSystem and loads the specified resources.
-    /// </summary>
-    ResourceId Load(IResourceDescription resource);
-
-    /// <summary>
     /// Updates the graphics system for the elapsed time since the previous frame.
     /// </summary>
     /// <param name="deltaTime">The elapsed time in seconds since the previous frame.</param>
@@ -26,14 +21,35 @@ public interface IGraphicsSystem
     /// </summary>
     void Render();
 
+    /// <summary>
+    /// Gets the render layers prepared by the graphics system.
+    /// </summary>
     RenderLayers RenderLayers { get; }
 
+    /// <summary>
+    /// Determines whether the graphics system supports activating a component.
+    /// </summary>
+    /// <typeparam name="TComponent">The type of component to evaluate.</typeparam>
+    /// <param name="component">The component to evaluate.</param>
+    /// <returns><see langword="true"/> when the component can be activated; otherwise, <see langword="false"/>.</returns>
     bool CanActivate<TComponent>(TComponent component)
         where TComponent : class, IComponent;
 
+    /// <summary>
+    /// Activates a component in the graphics system.
+    /// </summary>
+    /// <typeparam name="TComponent">The type of component to activate.</typeparam>
+    /// <param name="component">The component to activate.</param>
+    /// <returns><see langword="true"/> when the component was activated successfully; otherwise, <see langword="false"/>.</returns>
     bool Activate<TComponent>(TComponent component)
         where TComponent : class, IComponent;
 
-    bool Deactivate<TComponent>(TComponent component)
+    /// <summary>
+    /// Deactivates a component in the graphics system.
+    /// </summary>
+    /// <typeparam name="TComponent">The type of component to deactivate.</typeparam>
+    /// <param name="component">The component to deactivate.</param>
+    /// <returns><see langword="true"/> when the component was deactivated successfully; otherwise, <see langword="false"/>.</returns>
+    void Deactivate<TComponent>(TComponent component)
         where TComponent : class, IComponent;
 }

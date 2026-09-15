@@ -1,4 +1,4 @@
-namespace Nexus.Graphics.Vulkan.Resources;
+namespace Nexus.Graphics.Vulkan.Components;
 
 public unsafe class ShaderFactory(Context context) : IShaderFactory
 {

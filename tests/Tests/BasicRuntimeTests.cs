@@ -6,7 +6,7 @@ using Nexus.GameModel;
 using Nexus.Graphics;
 using Nexus.Graphics.Resources;
 using Nexus.Graphics.Vulkan;
-using Nexus.Graphics.Vulkan.Resources;
+using Nexus.Graphics.Vulkan.Components;
 using Nexus.Input;
 using Nexus.Physics;
 using Nexus.Runtime;

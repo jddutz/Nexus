@@ -1,4 +1,4 @@
-namespace Nexus.Graphics.Vulkan.Resources;
+namespace Nexus.Graphics.Vulkan.Components;
 
 public sealed record ShaderContract : IGraphicsContract
 {

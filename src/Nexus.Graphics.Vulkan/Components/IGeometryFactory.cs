@@ -1,4 +1,6 @@
-namespace Nexus.Graphics.Vulkan.Resources;
+using VkBuffer = Silk.NET.Vulkan.Buffer;
+
+namespace Nexus.Graphics.Vulkan.Components;
 
 public interface IGeometryFactory
 {
@@ -9,4 +11,8 @@ public interface IGeometryFactory
     ResourceId Update(ResourceId id, UniformColorVertexGeometryDefinition definition);
 
     ResourceId Delete(ResourceId id);
+
+    VkBuffer ReadBuffer(ResourceId id);
+
+    uint ReadVertexCount(ResourceId id);
 }
