@@ -28,9 +28,9 @@ public class Scene : GameObject, IScene
         GameObjectRemoved?.Invoke(gameObject);
     }
 
-    public Scene(ILogger<GameObject>? logger = null)
-        : base(logger) { }
+    public Scene()
+        : base() { }
 
-    public Scene(uint sceneId, ILogger<GameObject>? logger = null)
-        : base(sceneId, logger) { }
+    public Scene(uint sceneId)
+        : base(sceneId) { }
 }

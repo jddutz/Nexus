@@ -6,8 +6,11 @@ namespace Nexus.Graphics.Vulkan;
 /// Describes a single Vulkan draw command - what to draw and how.
 /// Contains all information needed for batching, state management, and rendering.
 /// </summary>
-public readonly struct RenderItem : IRenderItem
+public class RenderItem : IRenderItem
 {
+    private Dictionary<ComponentId, IGraphicsComponent> _instances { get; } = [];
+    public ResourceId Id { get; init; }
+
     // REQUIRED
     public required uint RenderMask { get; init; }
     public required Pipeline Pipeline { get; init; }
@@ -22,7 +25,18 @@ public readonly struct RenderItem : IRenderItem
     public ulong IndexBufferId => IndexBuffer.Handle;
     public ulong DescriptorSetId => DescriptorSet.Handle;
     public uint FirstVertex { get; init; }
-    public uint InstanceCount { get; init; }
+    public uint InstanceCount => (uint)_instances.Count;
+    public IEnumerable<IGraphicsComponent> Instances => _instances.Values;
+
+    public void Add(IGraphicsComponent component)
+    {
+        _instances[component.Id] = component;
+    }
+
+    public void Remove(ComponentId componentId)
+    {
+        _instances.Remove(componentId);
+    }
 
     // PUSH CONSTANTS
     /// <summary>
@@ -54,7 +68,6 @@ public readonly struct RenderItem : IRenderItem
     /// </summary>
     public RenderItem()
     {
-        InstanceCount = 1;
         RenderPriority = 0;
         DepthSortKey = 0f;
     }

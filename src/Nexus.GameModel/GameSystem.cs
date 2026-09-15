@@ -1,3 +1,5 @@
+using Nexus.Graphics.Geometry;
+
 namespace Nexus.GameModel;
 
 /// <summary>
@@ -8,8 +10,7 @@ public class GameSystem(
     IPhysicsSystem physics,
     IAudioSystem audio,
     IInputSystem input,
-    ILogger<GameSystem> logger,
-    ILoggerFactory loggerFactory
+    ILogger<GameSystem> logger
 ) : IGameSystem
 {
     private readonly ILogger<GameSystem> _logger = logger;
@@ -71,15 +72,45 @@ public class GameSystem(
             throw new InvalidOperationException("Initial Scene is not defined.");
         }
 
-        CurrentScene = new Scene(loggerFactory.CreateLogger<Scene>());
+        CurrentScene = new Scene();
 
-        var background = CurrentScene.AddComponent<UniformColorMeshRenderer>();
+        var columns = 16;
+        var rows = 12;
 
-        background.Color = Colors.Red;
-        background.Geometry = new VertexGeometryResourceDescription(
-            "Background",
-            [new(-1f, -1f, 0f), new(3f, -1f, 0f), new(-1f, 3f, 0f)]
+        var cellWidth = 2.0f / columns;
+        var cellHeight = 2.0f / rows;
+
+        var rng = new Random();
+
+        var geometry = new UniformColorVertexGeometry(
+            "Rect",
+            [new(-0.5f, -0.5f, 0f), new(0.5f, -0.5f, 0f), new(-0.5f, 0.5f, 0f), new(0.5f, 0.5f, 0f)]
         );
+
+        for (int x = 0; x < 16; x++)
+        {
+            for (int y = 0; y < 12; y++)
+            {
+                var instance = CurrentScene.AddComponent<UniformColorMeshRenderer>();
+
+                var c = 0.012f + (float)rng.NextDouble() * 0.04f;
+                instance.Color = new Color(c, c, c, 1.0f);
+
+                var scale = 1.0f + (float)rng.NextDouble() * 0.2f;
+
+                var width = cellWidth * scale;
+                var height = cellHeight * scale;
+
+                var centerX = -1.0f + (x + 0.5f) * cellWidth;
+                var centerY = -1.0f + (y + 0.5f) * cellHeight;
+
+                instance.TransformationMatrix =
+                    Matrix4X4.CreateScale(width, height, 1.0f)
+                    * Matrix4X4.CreateTranslation(centerX, centerY, 0.0f);
+
+                instance.Geometry = geometry;
+            }
+        }
 
         CurrentScene.Activate();
         _logger.LogInformation("Game system initialized and initial scene activated.");

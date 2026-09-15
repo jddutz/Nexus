@@ -12,3 +12,4 @@ global using Nexus.Input;
 global using Nexus.Input.Components;
 global using Nexus.Physics;
 global using Nexus.Physics.Components;
+global using Silk.NET.Maths;

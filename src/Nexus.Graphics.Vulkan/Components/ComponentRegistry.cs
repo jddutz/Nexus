@@ -1,3 +1,5 @@
+using System.Dynamic;
+
 namespace Nexus.Graphics.Vulkan.Components;
 
 public class ComponentRegistry(
@@ -10,6 +12,7 @@ public class ComponentRegistry(
 {
     private const string UNIFORM_COLOR_PIPELINE_NAME = "UniformColorMesh";
     private readonly Dictionary<ComponentId, RenderItem[]> _components = [];
+    private readonly Dictionary<ResourceId, RenderItem> _renderItems = [];
 
     private readonly IGeometryFactory _geometryFactory = geometryFactory;
     private readonly IShaderFactory _shaderFactory = shaderFactory;
@@ -17,76 +20,74 @@ public class ComponentRegistry(
     private readonly ISwapChain _swapChain = swapChain;
     private readonly ILogger<ComponentRegistry> _logger = logger;
 
-    public bool CanLoad(IComponent component)
-    {
-        var canLoad = component is UniformColorMeshRenderer;
+    public bool CanLoad(IGraphicsComponent component) =>
+        component switch
+        {
+            UniformColorMeshRenderer => true,
+            _ => false,
+        };
 
-        _logger.LogDebug(
-            "Checked whether Vulkan component registry can load a component. "
-                + "ComponentId={ComponentId}, ComponentType={ComponentType}, CanLoad={CanLoad}",
-            component.Id,
-            component.GetType().Name,
-            canLoad
-        );
-
-        return canLoad;
-    }
-
-    public RenderItem[] Load(IComponent component)
+    public RenderItem[] Load(IGraphicsComponent component)
     {
         ArgumentNullException.ThrowIfNull(component);
 
-        if (_components.TryGetValue(component.Id, out var existing))
-        {
-            _logger.LogDebug(
-                "Vulkan graphics component is already loaded. "
-                    + "ComponentId={ComponentId}, ComponentType={ComponentType}, RenderItemCount={RenderItemCount}",
-                component.Id,
-                component.GetType().Name,
-                existing.Length
-            );
+        if (_components.TryGetValue(component.Id, out var cached))
+            return cached;
 
-            return existing;
+        var renderItems = GetOrCreateRenderItems(component);
+
+        foreach (var item in renderItems)
+        {
+            item.Add(component);
         }
 
-        _logger.LogDebug(
-            "Loading Vulkan graphics component. "
-                + "ComponentId={ComponentId}, ComponentType={ComponentType}",
-            component.Id,
-            component.GetType().Name
-        );
+        _components[component.Id] = renderItems;
 
-        RenderItem[] items = component switch
+        return renderItems;
+    }
+
+    private RenderItem[] GetOrCreateRenderItems(IGraphicsComponent component)
+    {
+        return component switch
         {
-            UniformColorMeshRenderer renderer => Load(renderer),
+            UniformColorMeshRenderer renderer => [GetOrCreateRenderItem(renderer)],
 
             _ => throw new NotSupportedException(
                 $"Unsupported graphics component: {component.GetType().Name}"
             ),
         };
-
-        _components.Add(component.Id, items);
-
-        _logger.LogInformation(
-            "Loaded Vulkan graphics component. "
-                + "ComponentId={ComponentId}, ComponentType={ComponentType}, "
-                + "RenderItemCount={RenderItemCount}, LoadedComponentCount={LoadedComponentCount}",
-            component.Id,
-            component.GetType().Name,
-            items.Length,
-            _components.Count
-        );
-
-        return items;
     }
 
-    private RenderItem[] Load(UniformColorMeshRenderer component)
+    private RenderItem GetOrCreateRenderItem(UniformColorMeshRenderer component)
     {
-        if (component.Geometry is not VertexGeometryResourceDescription geometry)
+        var geometry =
+            component.Geometry
+            ?? throw new InvalidOperationException(
+                $"{nameof(UniformColorMeshRenderer)} requires geometry."
+            );
+
+        var renderItemId = new IdentityHashBuilder(nameof(UniformColorMeshRenderer))
+            .Add(geometry.Id)
+            .Add(RenderPasses.Main)
+            .Compute();
+
+        if (_renderItems.TryGetValue(renderItemId, out var existing))
+            return existing;
+
+        var renderItem = Create(component, renderItemId);
+
+        _renderItems[renderItemId] = renderItem;
+
+        return renderItem;
+    }
+
+    private RenderItem Create(UniformColorMeshRenderer component, ResourceId id)
+    {
+        if (component.Geometry is not UniformColorVertexGeometry geometry)
         {
             throw new NotSupportedException(
                 $"{nameof(UniformColorMeshRenderer)} currently requires "
-                    + $"{nameof(VertexGeometryResourceDescription)} geometry."
+                    + $"{nameof(UniformColorVertexGeometry)} geometry."
             );
         }
 
@@ -140,6 +141,14 @@ public class ComponentRegistry(
                         Offset = 0,
                     }
                 )
+                .WithPushConstant(
+                    new PushConstantRange
+                    {
+                        StageFlags = ShaderStageFlags.VertexBit,
+                        Offset = 0,
+                        Size = (uint)Unsafe.SizeOf<Color>(),
+                    }
+                )
                 .WithDepthTest(false)
                 .WithDepthWrite(false)
                 .WithCullMode(CullModeFlags.None)
@@ -159,6 +168,7 @@ public class ComponentRegistry(
 
         var renderItem = new RenderItem
         {
+            Id = id,
             RenderMask = RenderPasses.Main,
             Pipeline = pipeline,
             Layout = layout,
@@ -176,7 +186,7 @@ public class ComponentRegistry(
             renderItem.VertexCount
         );
 
-        return [renderItem];
+        return renderItem;
     }
 
     public bool CanUnload(ComponentId componentId)

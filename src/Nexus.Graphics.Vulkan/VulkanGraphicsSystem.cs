@@ -81,7 +81,20 @@ public unsafe class VulkanGraphicsSystem(
             }
 
             EnsureDefaultRenderLayer();
-            AddRenderItems(component, renderItems);
+
+            if (renderItems.Length == 0)
+            {
+                _logger.LogDebug(
+                    "No RenderItems were added to Vulkan render layer. "
+                        + "ComponentId={ComponentId}",
+                    component.Id
+                );
+                return false;
+            }
+
+            var layer = _renderer.Layers[0];
+
+            layer.Items = [.. layer.Items, .. renderItems];
 
             _logger.LogDebug(
                 "Graphics component activated. "
@@ -139,7 +152,7 @@ public unsafe class VulkanGraphicsSystem(
                 new RenderPassDefinition
                 {
                     RenderPass = RenderPasses.Main,
-                    ClearValues = [new Vector4D<float>(0.02f, 0.02f, 0.02f, 1.0f).ClearValue()],
+                    ClearValues = [new Color(0.02f, 0.02f, 0.02f, 1.0f).ClearValue()],
                     ShouldRender = true,
                 },
             ],
@@ -153,25 +166,6 @@ public unsafe class VulkanGraphicsSystem(
                 + $"LayerCount={_renderer.Layers.Count()}, "
                 + $"RenderPassCount={layer.RenderPasses.Length}, "
                 + $"RenderItemCount={layer.Items.Count}"
-        );
-    }
-
-    private void AddRenderItems(IComponent component, RenderItem[] renderItems)
-    {
-        if (renderItems.Length == 0)
-            return;
-
-        var layer = _renderer.Layers[0];
-
-        layer.Items = [.. layer.Items, .. renderItems];
-
-        _logger.LogDebug(
-            "Added component render items to Vulkan render layer. "
-                + "ComponentId={ComponentId}, AddedItemCount={AddedItemCount}, "
-                + "RenderItemCount={RenderItemCount}",
-            component.Id,
-            renderItems.Length,
-            layer.Items.Count
         );
     }
 

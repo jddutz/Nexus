@@ -8,6 +8,7 @@ global using Nexus.Core;
 global using Nexus.Core.Performance;
 global using Nexus.Graphics;
 global using Nexus.Graphics.Components;
+global using Nexus.Graphics.Geometry;
 global using Nexus.Graphics.Resources;
 global using Nexus.Graphics.Vulkan;
 global using Nexus.Graphics.Vulkan.Buffers;

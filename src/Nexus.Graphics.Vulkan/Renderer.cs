@@ -54,17 +54,17 @@ public unsafe class Renderer(
             if (!BeginCommandBuffer())
                 return false;
 
-            foreach (var definition in Layers)
+            foreach (var layer in Layers)
             {
-                ValidateRenderPasses(definition);
+                ValidateRenderPasses(layer);
 
-                var viewport = definition.Viewport;
+                var viewport = layer.Viewport;
                 _context.VulkanApi.CmdSetViewport(_commandBuffer, 0, 1, &viewport);
 
-                var scissor = definition.Scissor;
+                var scissor = layer.Scissor;
                 _context.VulkanApi.CmdSetScissor(_commandBuffer, 0, 1, &scissor);
 
-                foreach (var pass in definition.RenderPasses)
+                foreach (var pass in layer.RenderPasses)
                 {
                     if (!pass.ShouldRender)
                         continue;
@@ -83,7 +83,7 @@ public unsafe class Renderer(
                     ulong lastPipelineId = 0;
                     ulong lastDescriptorSetHandle = 0;
 
-                    foreach (var command in definition.Items)
+                    foreach (var command in layer.Items)
                     {
                         if ((command.RenderMask & pass.RenderPass) != 0)
                             Draw(command, ref lastPipelineId, ref lastDescriptorSetHandle);

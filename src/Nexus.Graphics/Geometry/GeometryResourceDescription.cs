@@ -1,7 +1,8 @@
-namespace Nexus.Graphics.Resources;
+namespace Nexus.Graphics.Geometry;
 
 public class GeometryResourceDescription : IResourceDescription
 {
+    public ResourceId Id { get; }
     public string Name { get; }
     public string SourceFilePath { get; }
 
@@ -9,5 +10,10 @@ public class GeometryResourceDescription : IResourceDescription
     {
         Name = name;
         SourceFilePath = new(sourceFilePath);
+
+        Id = new IdentityHashBuilder(nameof(GeometryResourceDescription))
+            .Add(Name)
+            .Add(SourceFilePath)
+            .Compute();
     }
 }
