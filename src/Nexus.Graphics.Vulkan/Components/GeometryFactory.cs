@@ -2,7 +2,8 @@ using VkBuffer = Silk.NET.Vulkan.Buffer;
 
 namespace Nexus.Graphics.Vulkan.Components;
 
-public unsafe class GeometryFactory(Context context, ILogger<GeometryFactory> logger) : IGeometryFactory
+public unsafe class GeometryFactory(Context context, ILogger<GeometryFactory> logger)
+    : IGeometryFactory
 {
     private readonly Context _context = context;
     private readonly ILogger<GeometryFactory> _logger = logger;
