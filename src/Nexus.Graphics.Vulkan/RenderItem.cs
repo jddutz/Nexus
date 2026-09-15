@@ -90,54 +90,46 @@ public class RenderItem : IRenderItem
     /// <summary>
     /// Adds an instance record for the specified component.
     /// </summary>
-    /// <param name="componentId">The identifier of the component that owns the record.</param>
-    /// <param name="data">The packed instance record.</param>
-    /// <exception cref="ArgumentException">Thrown when the component already has a record or the record has an invalid size.</exception>
-    public void AddInstance(ComponentId componentId, ReadOnlySpan<byte> data)
+    /// <param name="component">The component that writes its packed instance record.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="component"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentException">Thrown when the component already has a record or writes an invalid record size.</exception>
+    public void AddInstance(IGraphicsComponent component)
     {
-        if (_instanceSlots.ContainsKey(componentId))
+        ArgumentNullException.ThrowIfNull(component);
+
+        if (_instanceSlots.ContainsKey(component.Id))
             throw new ArgumentException(
                 "An instance record already exists for this component.",
-                nameof(componentId)
+                nameof(component)
             );
 
-        InitializeOrValidateStride(data);
+        InitializeOrValidateStride(component.GetInstanceData(Span<byte>.Empty));
         EnsureCapacity(_instanceSlots.Count + 1);
 
-        data.CopyTo(_instanceData.AsSpan(_instanceSlots.Count * _instanceStride, _instanceStride));
-        _instanceSlots.Add(componentId, _instanceSlots.Count);
-        _slotComponents.Add(componentId);
+        var slot = _instanceSlots.Count;
+        var destination = _instanceData.AsSpan(slot * _instanceStride, _instanceStride);
+        ValidateStride(component.GetInstanceData(destination));
+
+        _instanceSlots.Add(component.Id, slot);
+        _slotComponents.Add(component.Id);
     }
 
     /// <summary>
     /// Updates the existing instance record for the specified component.
     /// </summary>
-    /// <param name="componentId">The identifier of the component that owns the record.</param>
-    /// <param name="data">The packed replacement instance record.</param>
+    /// <param name="component">The component that writes its replacement instance record.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="component"/> is <see langword="null"/>.</exception>
     /// <exception cref="KeyNotFoundException">Thrown when the component has no record.</exception>
-    /// <exception cref="ArgumentException">Thrown when the record size differs from <see cref="InstanceStride"/>.</exception>
-    public void UpdateInstance(ComponentId componentId, ReadOnlySpan<byte> data)
+    /// <exception cref="ArgumentException">Thrown when the component writes a record whose size differs from <see cref="InstanceStride"/>.</exception>
+    public void UpdateInstance(IGraphicsComponent component)
     {
-        if (!_instanceSlots.TryGetValue(componentId, out var slot))
+        ArgumentNullException.ThrowIfNull(component);
+
+        if (!_instanceSlots.TryGetValue(component.Id, out var slot))
             throw new KeyNotFoundException("The component has no instance record.");
 
-        ValidateStride(data);
-        data.CopyTo(_instanceData.AsSpan(slot * _instanceStride, _instanceStride));
-    }
-
-    /// <summary>
-    /// Adds or updates an instance record for the specified component.
-    /// </summary>
-    /// <param name="componentId">The identifier of the component that owns the record.</param>
-    /// <param name="data">The packed instance record.</param>
-    public void AddInstanceData(ComponentId componentId, byte[] data)
-    {
-        ArgumentNullException.ThrowIfNull(data);
-
-        if (_instanceSlots.ContainsKey(componentId))
-            UpdateInstance(componentId, data);
-        else
-            AddInstance(componentId, data);
+        var destination = _instanceData.AsSpan(slot * _instanceStride, _instanceStride);
+        ValidateStride(component.GetInstanceData(destination));
     }
 
     /// <summary>
@@ -170,33 +162,33 @@ public class RenderItem : IRenderItem
     /// <summary>
     /// Initializes the instance stride from the first record or validates a subsequent record.
     /// </summary>
-    /// <param name="data">The packed instance record.</param>
+    /// <param name="stride">The byte size of the packed instance record.</param>
     /// <exception cref="ArgumentException">Thrown when the record is empty or has an unexpected size.</exception>
-    private void InitializeOrValidateStride(ReadOnlySpan<byte> data)
+    private void InitializeOrValidateStride(int stride)
     {
         if (_instanceStride == 0)
         {
-            if (data.IsEmpty)
-                throw new ArgumentException("An instance record cannot be empty.", nameof(data));
+            if (stride <= 0)
+                throw new ArgumentException("An instance record cannot be empty.", nameof(stride));
 
-            _instanceStride = data.Length;
+            _instanceStride = stride;
             return;
         }
 
-        ValidateStride(data);
+        ValidateStride(stride);
     }
 
     /// <summary>
     /// Validates that a record has the configured instance stride.
     /// </summary>
-    /// <param name="data">The packed instance record.</param>
+    /// <param name="stride">The byte size written by a component.</param>
     /// <exception cref="ArgumentException">Thrown when the record has an unexpected size.</exception>
-    private void ValidateStride(ReadOnlySpan<byte> data)
+    private void ValidateStride(int stride)
     {
-        if (data.Length != _instanceStride)
+        if (stride != _instanceStride)
             throw new ArgumentException(
                 $"Instance data must be exactly {_instanceStride} bytes.",
-                nameof(data)
+                nameof(stride)
             );
     }
 

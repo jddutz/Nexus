@@ -51,7 +51,7 @@ public class ComponentRegistry(
 
         foreach (var item in renderItems)
         {
-            item.AddInstance(component.Id, GetInstanceData(component));
+            item.AddInstance(component);
         }
 
         _components[component.Id] = renderItems;
@@ -158,59 +158,6 @@ public class ComponentRegistry(
             VertexBuffer = _geometryFactory.ReadBuffer(geometryId),
             VertexCount = _geometryFactory.ReadVertexCount(geometryId),
         };
-    }
-
-    /// <summary>
-    /// Packs a supported graphics component into the fixed-size instance record consumed by its render item.
-    /// </summary>
-    /// <param name="component">The graphics component to pack.</param>
-    /// <returns>The packed instance record.</returns>
-    /// <exception cref="NotSupportedException">Thrown when the component type is not supported.</exception>
-    private static byte[] GetInstanceData(IGraphicsComponent component)
-    {
-        return component switch
-        {
-            UniformColorMeshRenderer renderer => PackInstanceData(renderer),
-            _ => throw new NotSupportedException(
-                $"Unsupported graphics component: {component.GetType().Name}"
-            ),
-        };
-    }
-
-    /// <summary>
-    /// Packs the transform and color of a uniform-color mesh renderer into one instance record.
-    /// </summary>
-    /// <param name="component">The renderer whose instance state is packed.</param>
-    /// <returns>The packed instance record.</returns>
-    private static byte[] PackInstanceData(UniformColorMeshRenderer component)
-    {
-        var instance = new UniformColorMeshInstance(
-            component.TransformationMatrix,
-            component.Color
-        );
-
-        return MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(ref instance, 1)).ToArray();
-    }
-
-    /// <summary>
-    /// Represents the fixed binary layout of a uniform-color mesh instance.
-    /// </summary>
-    /// <param name="transformationMatrix">The transformation matrix applied to the mesh vertices.</param>
-    /// <param name="color">The color supplied to the fragment shader.</param>
-    private readonly struct UniformColorMeshInstance(
-        Matrix4X4<float> transformationMatrix,
-        Color color
-    )
-    {
-        /// <summary>
-        /// Gets the transformation matrix applied to the mesh vertices.
-        /// </summary>
-        public Matrix4X4<float> TransformationMatrix { get; } = transformationMatrix;
-
-        /// <summary>
-        /// Gets the color supplied to the fragment shader.
-        /// </summary>
-        public Color Color { get; } = color;
     }
 
     /// <summary>
