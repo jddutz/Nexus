@@ -7,6 +7,7 @@ public class GameSystem(
     IGraphicsSystem graphics,
     IPhysicsSystem physics,
     IAudioSystem audio,
+    IInputSystem input,
     ILogger<GameSystem> logger,
     ILoggerFactory loggerFactory
 ) : IGameSystem
@@ -139,6 +140,9 @@ public class GameSystem(
                 return;
             case IPhysicsComponent physicsComponent:
                 physics.Deactivate(physicsComponent);
+                return;
+            case IInputComponent inputComponent:
+                input.Deactivate(inputComponent);
                 return;
         }
     }
