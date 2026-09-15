@@ -4,7 +4,7 @@ public static class VertexDescriptions
 {
     public static VertexDescription UniformColorVertex { get; } =
         new(
-            stride: 16,
+            stride: 12,
             attributes:
             [
                 new VertexAttributeDescription(

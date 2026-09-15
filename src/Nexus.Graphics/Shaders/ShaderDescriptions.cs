@@ -7,7 +7,7 @@ public static class ShaderDescriptions
             BuiltInResource.UniformColorVertexShader.Name,
             "uniform_color.vert.spv",
             ShaderStageEnum.Vertex,
-            PrimitiveTopologyEnum.TriangleList,
+            PrimitiveTopologyEnum.TriangleStrip,
             VertexDescriptions.UniformColorVertex
         );
 
@@ -16,7 +16,7 @@ public static class ShaderDescriptions
             BuiltInResource.UniformColorFragmentShader.Name,
             "uniform_color.frag.spv",
             ShaderStageEnum.Fragment,
-            PrimitiveTopologyEnum.TriangleList,
+            PrimitiveTopologyEnum.TriangleStrip,
             VertexDescriptions.UniformColorVertex
         );
 
