@@ -17,144 +17,12 @@ public unsafe class VulkanGraphicsSystem(
     private readonly IRenderer _renderer = renderer;
     private readonly IPipelineRegistry _pipelineManager = pipelineRegistry;
     private IEnumerable<IResourceRegistry> _registries = registries;
-
     private VkBuffer _vertexBuffer;
     private DeviceMemory _vertexBufferMemory;
+
     private bool disposedValue;
 
-    public void Initialize()
-    {
-        var mainPassIndex = RenderPasses.GetIndex(RenderPasses.Main);
-
-        var (pipeline, layout) = _pipelineManager.GetOrCreate(
-            new PipelineDefinitionBuilder(DEFAULT_PIPELINE_NAME)
-                .WithShader(ResourceDefinitions.UniformColorVertexShader)
-                .WithShader(ResourceDefinitions.UniformColorFragmentShader)
-                .WithRenderPass(_swapChain.Passes[mainPassIndex])
-                .WithVertexBinding(
-                    new VertexInputBindingDescription
-                    {
-                        Binding = 0,
-                        Stride = (uint)Unsafe.SizeOf<Vertex>(),
-                        InputRate = VertexInputRate.Vertex,
-                    }
-                )
-                .WithVertexAttribute(
-                    new VertexInputAttributeDescription
-                    {
-                        Location = 0,
-                        Binding = 0,
-                        Format = Format.R32G32Sfloat,
-                        Offset = 0,
-                    }
-                )
-                .WithDepthTest(false)
-                .WithDepthWrite(false)
-                .WithCullMode(CullModeFlags.None)
-                .Build()
-        );
-
-        Vertex[] vertices = [new(-1f, -1f, 0f), new(3f, -1f, 0f), new(-1f, 3f, 0f)];
-        ulong size = (ulong)(vertices.Length * Unsafe.SizeOf<Vertex>());
-
-        var bufferInfo = new BufferCreateInfo
-        {
-            SType = StructureType.BufferCreateInfo,
-            Size = size,
-            Usage = BufferUsageFlags.VertexBufferBit,
-            SharingMode = SharingMode.Exclusive,
-        };
-
-        var result = _context.VulkanApi.CreateBuffer(
-            _context.Device,
-            in bufferInfo,
-            null,
-            out _vertexBuffer
-        );
-
-        if (result != Result.Success)
-            throw new InvalidOperationException($"Unable to create vertex buffer: {result}");
-
-        _context.VulkanApi.GetBufferMemoryRequirements(
-            _context.Device,
-            _vertexBuffer,
-            out var requirements
-        );
-
-        var memoryTypeIndex = FindMemoryType(
-            requirements.MemoryTypeBits,
-            MemoryPropertyFlags.HostVisibleBit | MemoryPropertyFlags.HostCoherentBit
-        );
-
-        var memoryAllocation = new MemoryAllocateInfo
-        {
-            SType = StructureType.MemoryAllocateInfo,
-            AllocationSize = requirements.Size,
-            MemoryTypeIndex = memoryTypeIndex,
-        };
-
-        result = _context.VulkanApi.AllocateMemory(
-            _context.Device,
-            in memoryAllocation,
-            null,
-            out _vertexBufferMemory
-        );
-
-        if (result != Result.Success)
-            throw new InvalidOperationException(
-                $"Unable to allocate memory for vertex buffer: {result}"
-            );
-
-        result = _context.VulkanApi.BindBufferMemory(
-            _context.Device,
-            _vertexBuffer,
-            _vertexBufferMemory,
-            0
-        );
-
-        if (result != Result.Success)
-            throw new InvalidOperationException(
-                $"Unable to bind memory to vertex buffer: {result}"
-            );
-
-        void* mapped;
-
-        _context.VulkanApi.MapMemory(_context.Device, _vertexBufferMemory, 0, size, 0, &mapped);
-
-        fixed (Vertex* source = vertices)
-        {
-            System.Buffer.MemoryCopy(source, mapped, size, size);
-        }
-
-        _context.VulkanApi.UnmapMemory(_context.Device, _vertexBufferMemory);
-
-        _renderer.Batches =
-        [
-            new()
-            {
-                RenderPasses =
-                [
-                    new RenderPassDefinition
-                    {
-                        RenderPass = RenderPasses.Main,
-                        ShouldRender = true,
-                        ClearValues = [Colors.CornflowerBlue.ClearValue()],
-                    },
-                ],
-                Items =
-                [
-                    new RenderItem
-                    {
-                        RenderMask = RenderPasses.Main,
-                        Pipeline = pipeline,
-                        Layout = layout,
-                        VertexBuffer = _vertexBuffer,
-                        VertexCount = 3,
-                    },
-                ],
-            },
-        ];
-    }
+    public void Initialize() { }
 
     public ResourceId Load(IResourceDescription resource)
     {
@@ -169,37 +37,68 @@ public unsafe class VulkanGraphicsSystem(
         );
     }
 
+    // TODO: Reconcile requested graphics state with the current GPU/render state.
+    //
+    // GameSystem may create, modify, or remove graphics instances during its update.
+    // Those requests should not immediately mutate Vulkan resources or RenderBatches.
+    // Instead, affected instances are marked dirty and processed here after the
+    // GameSystem has finished submitting changes for the frame.
+    //
+    // For each dirty instance:
+    // - Retrieve its current graphics-instance state.
+    // - Resolve the ResourceIds referenced by the instance through their registries.
+    // - Ensure the required resources have been created and are available to the GPU.
+    // - Allocate, upload, reallocate, or otherwise update GPU resources as required.
+    // - Resolve the Vulkan handles and other concrete state required for rendering.
+    // - Create, replace, update, or remove the corresponding RenderBatch data.
+    // - Clear the instance's dirty state once reconciliation succeeds.
+    //
+    // GPU memory management also belongs here. Resource registration does not imply
+    // that a resource must remain resident indefinitely. As memory management evolves,
+    // this update may determine residency, perform uploads/re-buffering, relocate
+    // resources, and evict resources that are no longer required.
+    //
+    // Finally, perform deferred resource cleanup and garbage collection. Vulkan
+    // resources must not be destroyed while they may still be referenced by in-flight
+    // GPU work, so destruction may need to be deferred until the relevant frame/fence
+    // guarantees that the resource is no longer in use.
+    //
+    // Invariant: when Update completes, RenderBatches contain fully resolved, valid
+    // Vulkan state and Renderer.Render() can execute them without performing resource
+    // lookup, state reconciliation, residency management, or garbage collection.
     public void Update(double deltaTime)
     {
-        // TODO: Reconcile requested graphics state with the current GPU/render state.
-        //
-        // GameSystem may create, modify, or remove graphics instances during its update.
-        // Those requests should not immediately mutate Vulkan resources or RenderBatches.
-        // Instead, affected instances are marked dirty and processed here after the
-        // GameSystem has finished submitting changes for the frame.
-        //
-        // For each dirty instance:
-        // - Retrieve its current graphics-instance state.
-        // - Resolve the ResourceIds referenced by the instance through their registries.
-        // - Ensure the required resources have been created and are available to the GPU.
-        // - Allocate, upload, reallocate, or otherwise update GPU resources as required.
-        // - Resolve the Vulkan handles and other concrete state required for rendering.
-        // - Create, replace, update, or remove the corresponding RenderBatch data.
-        // - Clear the instance's dirty state once reconciliation succeeds.
-        //
-        // GPU memory management also belongs here. Resource registration does not imply
-        // that a resource must remain resident indefinitely. As memory management evolves,
-        // this update may determine residency, perform uploads/re-buffering, relocate
-        // resources, and evict resources that are no longer required.
-        //
-        // Finally, perform deferred resource cleanup and garbage collection. Vulkan
-        // resources must not be destroyed while they may still be referenced by in-flight
-        // GPU work, so destruction may need to be deferred until the relevant frame/fence
-        // guarantees that the resource is no longer in use.
-        //
-        // Invariant: when Update completes, RenderBatches contain fully resolved, valid
-        // Vulkan state and Renderer.Render() can execute them without performing resource
-        // lookup, state reconciliation, residency management, or garbage collection.
+        if (_renderer.Batches.Any()) { }
+        else
+        {
+            var extent = _swapChain.SwapchainExtent;
+
+            var batch = new RenderBatch()
+            {
+                LoadOp = AttachmentLoadOp.Load,
+                Viewport = new()
+                {
+                    X = 0,
+                    Y = 0,
+                    Width = extent.Width,
+                    Height = extent.Height,
+                    MinDepth = 0f,
+                    MaxDepth = 1f,
+                },
+                RenderPasses =
+                [
+                    new RenderPassDefinition
+                    {
+                        RenderPass = RenderPasses.Main,
+                        ClearValues = [new Vector4D<float>(0.02f, 0.02f, 0.02f, 1.0f).ClearValue()],
+                        ShouldRender = true,
+                    },
+                ],
+                Items = [],
+            };
+
+            _renderer.Batches = [batch];
+        }
     }
 
     public void Render()

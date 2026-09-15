@@ -30,7 +30,7 @@ public unsafe class Renderer(
     public event EventHandler<RenderEventArgs>? BeforeRendering;
     public event EventHandler<RenderEventArgs>? AfterRendering;
 
-    public RenderBatch[] Batches { get; set; } = [new()];
+    public RenderBatch[] Batches { get; set; } = [];
 
     public bool CanRender() =>
         _context != null

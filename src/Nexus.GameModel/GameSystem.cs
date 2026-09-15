@@ -23,9 +23,9 @@ public class GameSystem(IGraphicsSystem graphics) : IGameSystem
         if (InitialSceneId == GameObjectId.Invalid)
             throw new InvalidOperationException("Initial Scene is not defined.");
 
-        graphics.Resources.Load(BuiltInResource.UniformColorVertexShader);
-        graphics.Resources.Load(BuiltInResource.UniformColorFragmentShader);
-        graphics.Resources.Load(BuiltInResource.FullScreenTriangleMesh);
+        graphics.Load(BuiltInResource.UniformColorVertexShader);
+        graphics.Load(BuiltInResource.UniformColorFragmentShader);
+        graphics.Load(BuiltInResource.FullScreenTriangleMesh);
 
         CurrentScene =
             new Scene()

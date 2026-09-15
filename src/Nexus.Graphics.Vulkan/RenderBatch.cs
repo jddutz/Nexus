@@ -28,11 +28,6 @@ public class RenderBatch
     public RenderPassDefinition[] RenderPasses { get; set; } = [];
 
     /// <summary>
-    /// Gets or sets the clear values used by the render passes.
-    /// </summary>
-    public ClearValue[] ClearValues { get; set; } = [];
-
-    /// <summary>
     /// Gets the draw commands associated with this render definition.
     /// </summary>
     public List<RenderItem> Items { get; set; } = [];
