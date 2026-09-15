@@ -8,7 +8,7 @@ public interface IPipelineDefinitionBuilder
 
     PipelineDefinitionBuilder WithVertexAttribute(VertexInputAttributeDescription attribute);
 
-    PipelineDefinitionBuilder WithTopology(PrimitiveTopology topology);
+    PipelineDefinitionBuilder WithTopology(PrimitiveTopologyEnum topology);
 
     PipelineDefinitionBuilder WithRenderPass(RenderPass renderPass, uint subpass = 0);
 

@@ -83,6 +83,7 @@ public class ComponentRegistry(
 
     private RenderItem Create(UniformColorMeshRenderer component, ResourceId id)
     {
+        // TODO: We should be able to use IGeometry.GetData but it hasn't been implemented yet
         if (component.Geometry is not UniformColorVertexGeometry geometry)
         {
             throw new NotSupportedException(
@@ -95,27 +96,11 @@ public class ComponentRegistry(
 
         var geometryId = _geometryFactory.Create(geometryDefinition);
 
-        _logger.LogDebug(
-            "Created or reused Vulkan component geometry. "
-                + "ComponentId={ComponentId}, GeometryId={GeometryId}, VertexCount={VertexCount}",
-            component.Id,
-            geometryId,
-            geometry.Vertices.Length
-        );
-
         var vertexShader = ShaderDescriptions.UniformColorVertexShader;
         var fragmentShader = ShaderDescriptions.UniformColorFragmentShader;
 
         _shaderFactory.Create(vertexShader);
         _shaderFactory.Create(fragmentShader);
-
-        _logger.LogDebug(
-            "Created or reused Vulkan component shaders. "
-                + "ComponentId={ComponentId}, VertexShader={VertexShader}, FragmentShader={FragmentShader}",
-            component.Id,
-            vertexShader,
-            fragmentShader
-        );
 
         var mainPassIndex = RenderPasses.GetIndex(RenderPasses.Main);
 
@@ -124,49 +109,15 @@ public class ComponentRegistry(
                 .WithShader(vertexShader)
                 .WithShader(fragmentShader)
                 .WithRenderPass(_swapChain.Passes[mainPassIndex])
-                .WithVertexBinding(
-                    new VertexInputBindingDescription
-                    {
-                        Binding = 0,
-                        Stride = (uint)Unsafe.SizeOf<Vertex>(),
-                        InputRate = VertexInputRate.Vertex,
-                    }
-                )
-                .WithVertexAttribute(
-                    new VertexInputAttributeDescription
-                    {
-                        Location = 0,
-                        Binding = 0,
-                        Format = Format.R32G32B32Sfloat,
-                        Offset = 0,
-                    }
-                )
-                .WithPushConstant(
-                    new PushConstantRange
-                    {
-                        StageFlags = ShaderStageFlags.VertexBit,
-                        Offset = 0,
-                        Size = (uint)Unsafe.SizeOf<Color>(),
-                    }
-                )
+                .WithVertexDescription(vertexShader.VertexDescription)
+                .WithTopology(vertexShader.Topology)
                 .WithDepthTest(false)
                 .WithDepthWrite(false)
                 .WithCullMode(CullModeFlags.None)
                 .Build()
         );
 
-        _logger.LogDebug(
-            "Created or reused Vulkan component pipeline. ComponentId={ComponentId}, "
-                + "PipelineName={PipelineName}, PipelineHandle={PipelineHandle}, "
-                + "PipelineLayoutHandle={PipelineLayoutHandle}, RenderPassName={RenderPassName}",
-            component.Id,
-            UNIFORM_COLOR_PIPELINE_NAME,
-            pipeline.Handle,
-            layout.Handle,
-            RenderPasses.GetName(RenderPasses.Main)
-        );
-
-        var renderItem = new RenderItem
+        return new RenderItem
         {
             Id = id,
             RenderMask = RenderPasses.Main,
@@ -175,18 +126,6 @@ public class ComponentRegistry(
             VertexBuffer = _geometryFactory.ReadBuffer(geometryId),
             VertexCount = _geometryFactory.ReadVertexCount(geometryId),
         };
-
-        _logger.LogDebug(
-            "Built Vulkan render item for component. "
-                + "ComponentId={ComponentId}, GeometryId={GeometryId}, "
-                + "PipelineName={PipelineName}, VertexCount={VertexCount}",
-            component.Id,
-            geometryId,
-            UNIFORM_COLOR_PIPELINE_NAME,
-            renderItem.VertexCount
-        );
-
-        return renderItem;
     }
 
     public bool CanUnload(ComponentId componentId)

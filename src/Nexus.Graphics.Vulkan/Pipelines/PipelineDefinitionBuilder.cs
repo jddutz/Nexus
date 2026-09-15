@@ -76,12 +76,41 @@ public sealed class PipelineDefinitionBuilder : IPipelineDefinitionBuilder
         return this;
     }
 
+    public PipelineDefinitionBuilder WithVertexDescription(VertexDescription description)
+    {
+        ArgumentNullException.ThrowIfNull(description);
+
+        WithVertexBinding(
+            new VertexInputBindingDescription
+            {
+                Binding = 0,
+                Stride = description.Stride,
+                InputRate = VertexInputRate.Vertex,
+            }
+        );
+
+        foreach (var attribute in description.Attributes)
+        {
+            WithVertexAttribute(
+                new VertexInputAttributeDescription
+                {
+                    Location = attribute.Location,
+                    Binding = 0,
+                    Format = attribute.Format.ToVulkanFormat(),
+                    Offset = attribute.Offset,
+                }
+            );
+        }
+
+        return this;
+    }
+
     /// <summary>Sets the primitive topology.</summary>
     /// <param name="topology">The primitive topology.</param>
     /// <returns>This builder.</returns>
-    public PipelineDefinitionBuilder WithTopology(PrimitiveTopology topology)
+    public PipelineDefinitionBuilder WithTopology(PrimitiveTopologyEnum topology)
     {
-        _topology = topology;
+        _topology = topology.ToVulkanTopology();
         return this;
     }
 

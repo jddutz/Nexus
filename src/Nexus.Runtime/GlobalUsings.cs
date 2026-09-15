@@ -13,7 +13,6 @@ global using Nexus.Graphics;
 global using Nexus.Graphics.OpenGL;
 global using Nexus.Graphics.Vulkan;
 global using Nexus.Graphics.Vulkan.Components;
-global using Nexus.Graphics.Vulkan.Components;
 global using Nexus.Graphics.Vulkan.Pipelines;
 global using Nexus.Graphics.Vulkan.Synchronization;
 global using Nexus.Input;
