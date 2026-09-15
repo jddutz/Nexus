@@ -30,12 +30,12 @@ public unsafe class Renderer(
     public event EventHandler<RenderEventArgs>? BeforeRendering;
     public event EventHandler<RenderEventArgs>? AfterRendering;
 
-    public RenderBatch[] Batches { get; set; } = [];
+    public RenderLayer[] Layers { get; set; } = [];
 
     public bool CanRender() =>
         _context != null
         && _swapChain != null
-        && Batches.Length > 0
+        && Layers.Length > 0
         && _swapChain.SwapchainExtent.Width > 0
         && _swapChain.SwapchainExtent.Height > 0;
 
@@ -54,7 +54,7 @@ public unsafe class Renderer(
             if (!BeginCommandBuffer())
                 return false;
 
-            foreach (var definition in Batches)
+            foreach (var definition in Layers)
             {
                 ValidateRenderPasses(definition);
 
@@ -116,11 +116,11 @@ public unsafe class Renderer(
         return true;
     }
 
-    private void ValidateRenderPasses(RenderBatch definition)
+    private void ValidateRenderPasses(RenderLayer definition)
     {
         if (definition.RenderPasses.Length == 0)
             throw new InvalidOperationException(
-                "A render batch must define at least one render pass."
+                "A render layer must define at least one render pass."
             );
 
         foreach (var pass in definition.RenderPasses)

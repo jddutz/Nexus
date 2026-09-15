@@ -40,7 +40,7 @@ public unsafe class VulkanGraphicsSystem(
     // TODO: Reconcile requested graphics state with the current GPU/render state.
     //
     // GameSystem may create, modify, or remove graphics instances during its update.
-    // Those requests should not immediately mutate Vulkan resources or RenderBatches.
+    // Those requests should not immediately mutate Vulkan resources or RenderLayers.
     // Instead, affected instances are marked dirty and processed here after the
     // GameSystem has finished submitting changes for the frame.
     //
@@ -50,7 +50,7 @@ public unsafe class VulkanGraphicsSystem(
     // - Ensure the required resources have been created and are available to the GPU.
     // - Allocate, upload, reallocate, or otherwise update GPU resources as required.
     // - Resolve the Vulkan handles and other concrete state required for rendering.
-    // - Create, replace, update, or remove the corresponding RenderBatch data.
+    // - Create, replace, update, or remove the corresponding RenderLayer data.
     // - Clear the instance's dirty state once reconciliation succeeds.
     //
     // GPU memory management also belongs here. Resource registration does not imply
@@ -63,17 +63,17 @@ public unsafe class VulkanGraphicsSystem(
     // GPU work, so destruction may need to be deferred until the relevant frame/fence
     // guarantees that the resource is no longer in use.
     //
-    // Invariant: when Update completes, RenderBatches contain fully resolved, valid
+    // Invariant: when Update completes, RenderLayers contain fully resolved, valid
     // Vulkan state and Renderer.Render() can execute them without performing resource
     // lookup, state reconciliation, residency management, or garbage collection.
     public void Update(double deltaTime)
     {
-        if (_renderer.Batches.Any()) { }
+        if (_renderer.Layers.Any()) { }
         else
         {
             var extent = _swapChain.SwapchainExtent;
 
-            var batch = new RenderBatch()
+            var layer = new RenderLayer()
             {
                 LoadOp = AttachmentLoadOp.Load,
                 Viewport = new()
@@ -97,7 +97,7 @@ public unsafe class VulkanGraphicsSystem(
                 Items = [],
             };
 
-            _renderer.Batches = [batch];
+            _renderer.Layers = [layer];
         }
     }
 
