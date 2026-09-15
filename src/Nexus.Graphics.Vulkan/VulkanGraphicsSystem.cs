@@ -26,19 +26,12 @@ public unsafe class VulkanGraphicsSystem(
 
     public void Initialize()
     {
-        // Validate/prepare backend prerequisites.
-        // No shaders, pipelines, meshes, textures, fonts, etc.
-        foreach (var resource in VulkanResources.ShaderDefinitions)
-        {
-            _resources.Load(resource);
-        }
-
         var mainPassIndex = RenderPasses.GetIndex(RenderPasses.Main);
 
         var (pipeline, layout) = _pipelineManager.GetOrCreate(
             new PipelineDefinitionBuilder(DEFAULT_PIPELINE_NAME)
-                .WithShader(VulkanResources.UniformColorVertShader)
-                .WithShader(VulkanResources.UniformColorFragShader)
+                .WithShader(ResourceDefinitions.UniformColorVertexShader)
+                .WithShader(ResourceDefinitions.UniformColorFragmentShader)
                 .WithRenderPass(_swapChain.Passes[mainPassIndex])
                 .WithVertexBinding(
                     new VertexInputBindingDescription
@@ -63,7 +56,7 @@ public unsafe class VulkanGraphicsSystem(
                 .Build()
         );
 
-        Vertex[] vertices = [new(-1f, -1f), new(3f, -1f), new(-1f, 3f)];
+        Vertex[] vertices = [new(-1f, -1f, 0f), new(3f, -1f, 0f), new(-1f, 3f, 0f)];
         ulong size = (ulong)(vertices.Length * Unsafe.SizeOf<Vertex>());
 
         var bufferInfo = new BufferCreateInfo
@@ -167,7 +160,35 @@ public unsafe class VulkanGraphicsSystem(
 
     public void Update(double deltaTime)
     {
-        // This will mostly be used for garbage collection from registries
+        // TODO: Reconcile requested graphics state with the current GPU/render state.
+        //
+        // GameSystem may create, modify, or remove graphics instances during its update.
+        // Those requests should not immediately mutate Vulkan resources or RenderBatches.
+        // Instead, affected instances are marked dirty and processed here after the
+        // GameSystem has finished submitting changes for the frame.
+        //
+        // For each dirty instance:
+        // - Retrieve its current graphics-instance state.
+        // - Resolve the ResourceIds referenced by the instance through their registries.
+        // - Ensure the required resources have been created and are available to the GPU.
+        // - Allocate, upload, reallocate, or otherwise update GPU resources as required.
+        // - Resolve the Vulkan handles and other concrete state required for rendering.
+        // - Create, replace, update, or remove the corresponding RenderBatch data.
+        // - Clear the instance's dirty state once reconciliation succeeds.
+        //
+        // GPU memory management also belongs here. Resource registration does not imply
+        // that a resource must remain resident indefinitely. As memory management evolves,
+        // this update may determine residency, perform uploads/re-buffering, relocate
+        // resources, and evict resources that are no longer required.
+        //
+        // Finally, perform deferred resource cleanup and garbage collection. Vulkan
+        // resources must not be destroyed while they may still be referenced by in-flight
+        // GPU work, so destruction may need to be deferred until the relevant frame/fence
+        // guarantees that the resource is no longer in use.
+        //
+        // Invariant: when Update completes, RenderBatches contain fully resolved, valid
+        // Vulkan state and Renderer.Render() can execute them without performing resource
+        // lookup, state reconciliation, residency management, or garbage collection.
     }
 
     public void Render()

@@ -3,12 +3,12 @@ namespace Nexus.GameModel;
 /// <summary>
 /// Provides the default implementation of the game system lifecycle.
 /// </summary>
-public class GameSystem(ISceneRegistry scenes, IGraphicsSystem graphics) : IGameSystem
+public class GameSystem(IGraphicsSystem graphics) : IGameSystem
 {
     /// <summary>
     /// Gets or sets the identifier of the scene activated when the game starts.
     /// </summary>
-    public SceneId InitialSceneId { get; set; } = new SceneId(ulong.MaxValue);
+    public GameObjectId InitialSceneId { get; set; } = new GameObjectId(1);
 
     /// <summary>
     /// Gets the currently active scene.
@@ -20,15 +20,16 @@ public class GameSystem(ISceneRegistry scenes, IGraphicsSystem graphics) : IGame
     /// </summary>
     public void Initialize()
     {
-        if (InitialSceneId == SceneId.Invalid)
+        if (InitialSceneId == GameObjectId.Invalid)
             throw new InvalidOperationException("Initial Scene is not defined.");
 
-        CurrentScene = scenes.Load(InitialSceneId);
+        graphics.Resources.Load(BuiltInResource.UniformColorVertexShader);
+        graphics.Resources.Load(BuiltInResource.UniformColorFragmentShader);
+        graphics.Resources.Load(BuiltInResource.FullScreenTriangleMesh);
 
-        if (CurrentScene is null)
-            throw new InvalidOperationException($"Unable to load , {InitialSceneId}");
-
-        graphics.Resources.Load(CurrentScene.GetComposition());
+        CurrentScene =
+            new Scene()
+            ?? throw new InvalidOperationException($"Unable to load , {InitialSceneId}");
     }
 
     /// <summary>

@@ -1,23 +1,23 @@
-namespace Nexus.Graphics.Vulkan;
+namespace Nexus.Graphics.Vulkan.Resources;
 
-public sealed record ShaderDefinition : IGraphicsResource
+public sealed record ShaderDefinition : IResourceDefinition
 {
     public ResourceId Id { get; }
     public string Name { get; }
-    public ShaderSource Source { get; }
+    public string Source { get; }
     public ShaderStageFlags StageFlags { get; }
     public ShaderContract Contract { get; }
 
     public ShaderDefinition(
         string name,
-        ShaderSource source,
+        string source,
         ShaderStageFlags stageFlags,
         ShaderContract contract
     )
     {
         Id = new IdentityHashBuilder(nameof(ShaderDefinition))
             .Add(name)
-            .Add(source.Id)
+            .Add(source)
             .Add((uint)stageFlags)
             .Add(contract.Id)
             .Compute();

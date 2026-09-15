@@ -18,6 +18,9 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<ISwapChain, SwapChain>();
         services.TryAddSingleton<IGraphicsSystem, VulkanGraphicsSystem>();
         services.TryAddSingleton<IGraphicsResourceManager, VulkanResourceManager>();
+        services.TryAddSingleton<IResourceRegistry, ShaderRegistry>();
+        services.TryAddSingleton<IResourceRegistry, GeometryRegistry>();
+        services.TryAddSingleton<IResourceRegistry, TextureRegistry>();
         services.AddVkValidation();
 
         return services;

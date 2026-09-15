@@ -6,6 +6,7 @@ using Nexus.GameModel;
 using Nexus.Graphics;
 using Nexus.Graphics.Resources;
 using Nexus.Graphics.Vulkan;
+using Nexus.Graphics.Vulkan.Resources;
 using Nexus.Input;
 using Nexus.Physics;
 using Nexus.Runtime;
@@ -137,7 +138,7 @@ public class BasicRuntimeTests
 
     private sealed class NoOpGameSystem : IGameSystem
     {
-        public SceneId InitialSceneId => default;
+        public GameObjectId InitialSceneId => default;
 
         public void Initialize() { }
 
@@ -160,7 +161,7 @@ public class BasicRuntimeTests
 
     private sealed class NoOpGraphicsSystem : IGraphicsSystem
     {
-        public IGraphicsResourceManager Resources { get; } = new VulkanResourceManager();
+        public IGraphicsResourceManager Resources { get; } = new VulkanResourceManager([]);
 
         public void Initialize() { }
 

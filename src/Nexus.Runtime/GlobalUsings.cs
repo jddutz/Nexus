@@ -14,6 +14,7 @@ global using Nexus.Graphics.OpenGL;
 global using Nexus.Graphics.Resources;
 global using Nexus.Graphics.Vulkan;
 global using Nexus.Graphics.Vulkan.Pipelines;
+global using Nexus.Graphics.Vulkan.Resources;
 global using Nexus.Graphics.Vulkan.Synchronization;
 global using Nexus.Input;
 global using Nexus.Physics;

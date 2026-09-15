@@ -8,7 +8,7 @@ public interface IGameSystem
     /// <summary>
     /// Gets the identifier of the scene activated when the game starts.
     /// </summary>
-    SceneId InitialSceneId { get; }
+    GameObjectId InitialSceneId { get; }
 
     /// <summary>
     /// Initializes the game system before the update loop begins.
