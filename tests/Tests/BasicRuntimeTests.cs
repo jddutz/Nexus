@@ -150,6 +150,12 @@ public class BasicRuntimeTests
         public void Initialize() { }
 
         public void Update(double deltaTime) { }
+
+        public bool Activate<TComponent>(TComponent component)
+            where TComponent : class, IInputComponent => false;
+
+        public bool Deactivate<TComponent>(TComponent component)
+            where TComponent : class, IInputComponent => false;
     }
 
     private sealed class NoOpPhysicsSystem : IPhysicsSystem
@@ -162,10 +168,10 @@ public class BasicRuntimeTests
             where TComponent : class, IComponent => false;
 
         public bool Activate<TComponent>(TComponent component)
-            where TComponent : class, IComponent => false;
+            where TComponent : class, IPhysicsComponent => false;
 
         public bool Deactivate<TComponent>(TComponent component)
-            where TComponent : class, IComponent => false;
+            where TComponent : class, IPhysicsComponent => false;
     }
 
     private sealed class NoOpGraphicsSystem : IGraphicsSystem
@@ -184,10 +190,10 @@ public class BasicRuntimeTests
             where TComponent : class, IComponent => false;
 
         public bool Activate<TComponent>(TComponent component)
-            where TComponent : class, IComponent => false;
+            where TComponent : class, IGraphicsComponent => false;
 
-        public bool Deactivate<TComponent>(TComponent component)
-            where TComponent : class, IComponent => false;
+        public void Deactivate<TComponent>(TComponent component)
+            where TComponent : class, IGraphicsComponent { }
     }
 
     private sealed class NoOpAudioSystem : IAudioSystem
@@ -200,9 +206,9 @@ public class BasicRuntimeTests
             where TComponent : class, IComponent => false;
 
         public bool Activate<TComponent>(TComponent component)
-            where TComponent : class, IComponent => false;
+            where TComponent : class, IAudioComponent => false;
 
         public bool Deactivate<TComponent>(TComponent component)
-            where TComponent : class, IComponent => false;
+            where TComponent : class, IAudioComponent => false;
     }
 }

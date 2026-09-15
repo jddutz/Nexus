@@ -21,5 +21,9 @@
 
   <ItemGroup>
     <Using Include="Xunit" />
+    <Using Include="Nexus.Audio.Components" />
+    <Using Include="Nexus.Graphics.Components" />
+    <Using Include="Nexus.Input.Components" />
+    <Using Include="Nexus.Physics.Components" />
   </ItemGroup>
 </Project>
