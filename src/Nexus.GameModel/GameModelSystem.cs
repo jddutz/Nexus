@@ -5,15 +5,16 @@ namespace Nexus.GameModel;
 /// <summary>
 /// Provides the default implementation of the game system lifecycle.
 /// </summary>
-public class GameSystem(
+public class GameModelSystem(
     IGraphicsSystem graphics,
     IPhysicsSystem physics,
     IAudioSystem audio,
     IInputSystem input,
-    ILogger<GameSystem> logger
-) : IGameSystem
+    ILogger<GameModelSystem> logger
+) : IGameSystem, IGameModel
 {
-    private readonly ILogger<GameSystem> _logger = logger;
+    private readonly ILogger<GameModelSystem> _logger = logger;
+    private readonly Dictionary<GameObjectId, IGameObject> _gameObjects = [];
 
     /// <summary>
     /// Gets or sets the identifier of the scene activated when the game starts.
@@ -54,6 +55,26 @@ public class GameSystem(
         }
     }
 
+    /// <inheritdoc/>
+    public IGameObject? GetGameObject(GameObjectId gameObjectId)
+    {
+        return _gameObjects.GetValueOrDefault(gameObjectId);
+    }
+
+    /// <inheritdoc/>
+    public void RegisterGameObject(IGameObject gameObject)
+    {
+        ArgumentNullException.ThrowIfNull(gameObject);
+        _gameObjects[gameObject.Id] = gameObject;
+    }
+
+    /// <inheritdoc/>
+    public void UnregisterGameObject(IGameObject gameObject)
+    {
+        ArgumentNullException.ThrowIfNull(gameObject);
+        _gameObjects.Remove(gameObject.Id);
+    }
+
     /// <summary>
     /// Initializes the game system before the update loop begins.
     /// </summary>
@@ -73,9 +94,10 @@ public class GameSystem(
         }
 
         CurrentScene = new Scene();
+        CurrentScene.SetGameModel(this);
 
-        var columns = 16;
-        var rows = 12;
+        var columns = 12;
+        var rows = 8;
 
         var cellWidth = 2.0f / columns;
         var cellHeight = 2.0f / rows;

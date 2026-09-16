@@ -9,13 +9,37 @@ public interface IGameObject
     IReadOnlyList<IGameObject> Children { get; }
     IReadOnlyList<IComponent> Components { get; }
 
+    /// <summary>
+    /// Gets the game model that owns this game object.
+    /// </summary>
+    IGameModel? GameModel { get; }
+
+    /// <summary>
+    /// Associates this game object with a game model.
+    /// </summary>
+    /// <param name="gameModel">The game model that owns this game object.</param>
+    void SetGameModel(IGameModel gameModel);
+
     bool IsActive { get; }
 
     TComponent AddComponent<TComponent>()
         where TComponent : class, IComponent;
 
+    /// <summary>
+    /// Attaches an existing component to this game object.
+    /// </summary>
+    /// <param name="component">The component to attach.</param>
+    void AddComponent(IComponent component);
+
     TComponent? GetComponent<TComponent>()
         where TComponent : class, IComponent;
+
+    /// <summary>
+    /// Removes the specified component from this game object.
+    /// </summary>
+    /// <param name="component">The component to remove.</param>
+    /// <returns><see langword="true"/> when a component was removed; otherwise, <see langword="false"/>.</returns>
+    bool RemoveComponent(IComponent component);
 
     bool RemoveComponent<TComponent>()
         where TComponent : class, IComponent;

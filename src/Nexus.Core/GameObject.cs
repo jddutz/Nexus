@@ -26,6 +26,11 @@ public class GameObject : IGameObject
     public IReadOnlyList<IComponent> Components => _components.AsReadOnly();
 
     /// <summary>
+    /// Gets the game model that owns this game object.
+    /// </summary>
+    public IGameModel? GameModel { get; private set; }
+
+    /// <summary>
     /// Gets or sets a value indicating whether this game object is active.
     /// </summary>
     public bool IsActive { get; internal set; }
@@ -77,12 +82,30 @@ public class GameObject : IGameObject
     {
         var component = Activator.CreateInstance<TComponent>();
 
+        AddComponent(component);
+
+        return component;
+    }
+
+    /// <inheritdoc/>
+    public void AddComponent(IComponent component)
+    {
+        ArgumentNullException.ThrowIfNull(component);
+
+        if (_components.Contains(component))
+            return;
+
+        if (component.GameObjectId != GameObjectId.Invalid)
+        {
+            var previousOwner = component.GameModel?.GetGameObject(component.GameObjectId);
+            previousOwner?.RemoveComponent(component);
+        }
+
         _components.Add(component);
+        component.SetGameObject(Id, GameModel);
 
         if (IsActive)
             ComponentAdded?.Invoke(component);
-
-        return component;
     }
 
     /// <summary>
@@ -106,15 +129,46 @@ public class GameObject : IGameObject
     {
         var component = GetComponent<TComponent>();
 
-        if (component is null)
+        return component is not null && RemoveComponent(component);
+    }
+
+    /// <summary>
+    /// Removes the specified component from this game object.
+    /// </summary>
+    /// <param name="component">The component to remove.</param>
+    /// <returns><see langword="true"/> when the component was removed; otherwise, <see langword="false"/>.</returns>
+    public bool RemoveComponent(IComponent component)
+    {
+        if (!_components.Remove(component))
             return false;
 
         if (IsActive)
             ComponentRemoved?.Invoke(component);
 
-        var removed = _components.Remove(component);
+        component.SetGameObject(GameObjectId.Invalid, null);
+        return true;
+    }
 
-        return removed;
+    /// <summary>
+    /// Associates this game object with a game model and registers it for identifier-based lookup.
+    /// </summary>
+    /// <param name="gameModel">The game model that owns this game object.</param>
+    public void SetGameModel(IGameModel gameModel)
+    {
+        ArgumentNullException.ThrowIfNull(gameModel);
+
+        if (GameModel == gameModel)
+            return;
+
+        GameModel?.UnregisterGameObject(this);
+        GameModel = gameModel;
+        GameModel.RegisterGameObject(this);
+
+        foreach (var component in _components)
+            component.SetGameObject(Id, gameModel);
+
+        foreach (var child in _children.OfType<GameObject>())
+            child.SetGameModel(gameModel);
     }
 
     /// <summary>
@@ -133,7 +187,11 @@ public class GameObject : IGameObject
         ListenToChild(child);
 
         if (child is GameObject gameObject)
+        {
             gameObject.Parent = this;
+            if (GameModel is not null)
+                gameObject.SetGameModel(GameModel);
+        }
 
         if (IsActive)
             ChildAdded?.Invoke(child);

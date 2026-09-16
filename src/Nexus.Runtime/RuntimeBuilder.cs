@@ -42,7 +42,10 @@ public class RuntimeBuilder : IRuntimeBuilder
     {
         _services.TryAddSingleton(_configuration ?? new ConfigurationBuilder().Build());
         _services.TryAddSingleton<IInputSystem, InputSystem>();
-        _services.TryAddSingleton<IGameSystem, GameSystem>();
+        _services.TryAddSingleton<IGameSystem, GameModelSystem>();
+        _services.TryAddSingleton<IGameModel>(serviceProvider =>
+            (GameModelSystem)serviceProvider.GetRequiredService<IGameSystem>()
+        );
         _services.TryAddSingleton<IPhysicsSystem, PhysicsSystem>();
         _services.TryAddSingleton<IGraphicsSystem, VulkanGraphicsSystem>();
         _services.TryAddSingleton<IAudioSystem, AudioSystem>();
