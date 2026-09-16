@@ -46,6 +46,23 @@ public unsafe class VulkanGraphicsSystem(
         );
     }
 
+    /// <inheritdoc />
+    public bool CanActivate<TComponent>(TComponent component)
+        where TComponent : class, IGraphicsComponent
+    {
+        ArgumentNullException.ThrowIfNull(component);
+
+        return _registries.Any(registry => registry.CanLoad(component));
+    }
+
+    /// <summary>
+    /// Activates a component by routing it to the first registry that can load it. Cameras
+    /// activate successfully with no render items; all other components must contribute at
+    /// least one.
+    /// </summary>
+    /// <typeparam name="TComponent">The type of component to activate.</typeparam>
+    /// <param name="component">The component to activate.</param>
+    /// <returns><see langword="true"/> when the component was activated successfully; otherwise, <see langword="false"/>.</returns>
     public bool Activate<TComponent>(TComponent component)
         where TComponent : class, IGraphicsComponent
     {
@@ -84,6 +101,17 @@ public unsafe class VulkanGraphicsSystem(
 
             if (renderItems.Length == 0)
             {
+                // Cameras activate successfully with no render items; they supply shared
+                // rendering state (e.g. a view-projection UBO) rather than drawable geometry.
+                if (component is ICameraComponent)
+                {
+                    _logger.LogDebug(
+                        "Camera component activated with no render items. ComponentId={ComponentId}",
+                        component.Id
+                    );
+                    return true;
+                }
+
                 _logger.LogDebug(
                     "No RenderItems were added to Vulkan render layer. "
                         + "ComponentId={ComponentId}",
@@ -119,6 +147,9 @@ public unsafe class VulkanGraphicsSystem(
         return false;
     }
 
+    /// <summary>
+    /// Creates the default Vulkan render layer covering the full swapchain extent, if one does not already exist.
+    /// </summary>
     private void EnsureDefaultRenderLayer()
     {
         if (_renderer.Layers.Any())

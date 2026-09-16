@@ -12,6 +12,7 @@ public unsafe class Renderer(
     ISwapChain swapChain,
     ISyncManager syncManager,
     IPipelineRegistry pipelineManager,
+    ICameraRegistry cameraRegistry,
     ILogger<Renderer> logger
 ) : IRenderer, IDisposable
 {
@@ -21,6 +22,7 @@ public unsafe class Renderer(
     private ISwapChain _swapChain = swapChain;
     private ISyncManager _syncManager = syncManager;
     private IPipelineRegistry _pipelineManager = pipelineManager;
+    private readonly ICameraRegistry _cameraRegistry = cameraRegistry;
     private readonly ILogger<Renderer> _logger = logger;
     private CommandBufferPool _commandPool = CommandBufferPool.ForGraphics(context, 2);
     private FrameSync? _frameSync;
@@ -88,12 +90,18 @@ public unsafe class Renderer(
                     }
 
                     ulong lastPipelineId = 0;
-                    ulong lastDescriptorSetHandle = 0;
+                    ulong lastCameraDescriptorSetHandle = 0;
+                    ulong lastMaterialDescriptorSetHandle = 0;
 
                     foreach (var command in layer.Items)
                     {
                         if ((command.RenderMask & pass.RenderPass) != 0)
-                            Draw(command, ref lastPipelineId, ref lastDescriptorSetHandle);
+                            Draw(
+                                command,
+                                ref lastPipelineId,
+                                ref lastCameraDescriptorSetHandle,
+                                ref lastMaterialDescriptorSetHandle
+                            );
                     }
 
                     _context.VulkanApi.CmdEndRenderPass(_commandBuffer);
@@ -237,7 +245,12 @@ public unsafe class Renderer(
         );
     }
 
-    private void Draw(RenderItem cmd, ref ulong lastPipelineId, ref ulong lastDescriptorSetHandle)
+    private void Draw(
+        RenderItem cmd,
+        ref ulong lastPipelineId,
+        ref ulong lastCameraDescriptorSetHandle,
+        ref ulong lastMaterialDescriptorSetHandle
+    )
     {
         if (cmd.InstanceCount == 0)
             return;
@@ -248,7 +261,26 @@ public unsafe class Renderer(
             cmd.Pipeline
         );
 
-        if (cmd.DescriptorSet.Handle != 0 && cmd.DescriptorSet.Handle != lastDescriptorSetHandle)
+        if (
+            _cameraRegistry.ActiveCameraDescriptorSet is { } cameraDescriptorSet
+            && cameraDescriptorSet.Handle != lastCameraDescriptorSetHandle
+        )
+        {
+            _context.VulkanApi.CmdBindDescriptorSets(
+                _commandBuffer,
+                PipelineBindPoint.Graphics,
+                cmd.Layout,
+                0,
+                1,
+                &cameraDescriptorSet,
+                0,
+                null
+            );
+
+            lastCameraDescriptorSetHandle = cameraDescriptorSet.Handle;
+        }
+
+        if (cmd.DescriptorSet.Handle != 0 && cmd.DescriptorSet.Handle != lastMaterialDescriptorSetHandle)
         {
             var descriptorSet = cmd.DescriptorSet;
 
@@ -256,14 +288,14 @@ public unsafe class Renderer(
                 _commandBuffer,
                 PipelineBindPoint.Graphics,
                 cmd.Layout,
-                0,
+                1,
                 1,
                 &descriptorSet,
                 0,
                 null
             );
 
-            lastDescriptorSetHandle = descriptorSet.Handle;
+            lastMaterialDescriptorSetHandle = descriptorSet.Handle;
         }
 
         if (cmd.PushConstants != null && cmd.Layout.Handle != 0)

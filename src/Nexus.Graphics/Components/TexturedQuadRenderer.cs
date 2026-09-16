@@ -7,7 +7,7 @@ namespace Nexus.Graphics.Components;
 /// </summary>
 public class TexturedQuadRenderer(bool centered = false)
     : Component,
-        IGraphicsComponent,
+        IRenderableComponent,
         IGeometryInstance
 {
     private static readonly int InstanceDataSize =

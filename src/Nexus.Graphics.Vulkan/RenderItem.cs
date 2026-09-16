@@ -93,7 +93,7 @@ public class RenderItem : IRenderItem
     /// <param name="component">The component that writes its packed instance record.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="component"/> is <see langword="null"/>.</exception>
     /// <exception cref="ArgumentException">Thrown when the component already has a record or writes an invalid record size.</exception>
-    public void AddInstance(IGraphicsComponent component)
+    public void AddInstance(IRenderableComponent component)
     {
         ArgumentNullException.ThrowIfNull(component);
 
@@ -121,7 +121,7 @@ public class RenderItem : IRenderItem
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="component"/> is <see langword="null"/>.</exception>
     /// <exception cref="KeyNotFoundException">Thrown when the component has no record.</exception>
     /// <exception cref="ArgumentException">Thrown when the component writes a record whose size differs from <see cref="InstanceStride"/>.</exception>
-    public void UpdateInstance(IGraphicsComponent component)
+    public void UpdateInstance(IRenderableComponent component)
     {
         ArgumentNullException.ThrowIfNull(component);
 

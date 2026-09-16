@@ -181,6 +181,9 @@ public class BasicRuntimeTests
 
         public void Render() { }
 
+        public bool CanActivate<TComponent>(TComponent component)
+            where TComponent : class, IGraphicsComponent => false;
+
         public bool Activate<TComponent>(TComponent component)
             where TComponent : class, IGraphicsComponent => false;
 

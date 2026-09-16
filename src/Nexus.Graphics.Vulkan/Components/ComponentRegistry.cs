@@ -1,5 +1,3 @@
-using VkBuffer = Silk.NET.Vulkan.Buffer;
-
 namespace Nexus.Graphics.Vulkan.Components;
 
 /// <summary>
@@ -9,8 +7,8 @@ public class ComponentRegistry(
     IGeometryFactory geometryFactory,
     IShaderFactory shaderFactory,
     IPipelineRegistry pipelineRegistry,
-    IBufferManager bufferManager,
     IDescriptorSetPool descriptorSetPool,
+    ICameraRegistry cameraRegistry,
     TextureRegistry textureRegistry,
     ISwapChain swapChain,
     ILogger<ComponentRegistry> logger
@@ -24,14 +22,11 @@ public class ComponentRegistry(
     private readonly IGeometryFactory _geometryFactory = geometryFactory;
     private readonly IShaderFactory _shaderFactory = shaderFactory;
     private readonly IPipelineRegistry _pipelineRegistry = pipelineRegistry;
-    private readonly IBufferManager _bufferManager = bufferManager;
     private readonly IDescriptorSetPool _descriptorSetPool = descriptorSetPool;
+    private readonly ICameraRegistry _cameraRegistry = cameraRegistry;
     private readonly TextureRegistry _textureRegistry = textureRegistry;
     private readonly ISwapChain _swapChain = swapChain;
     private readonly ILogger<ComponentRegistry> _logger = logger;
-
-    // Shared by every textured-pipeline descriptor set until real camera wiring exists.
-    private VkBuffer _cameraUniformBuffer;
 
     /// <summary>
     /// Determines whether this registry can create render items for the specified component.
@@ -41,6 +36,7 @@ public class ComponentRegistry(
     public bool CanLoad(IGraphicsComponent component) =>
         component switch
         {
+            ICameraComponent => true,
             UniformColorMeshRenderer => true,
             TexturedQuadRenderer => true,
             _ => false,
@@ -60,9 +56,12 @@ public class ComponentRegistry(
 
         var renderItems = GetOrCreateRenderItems(component);
 
-        foreach (var item in renderItems)
+        if (component is IRenderableComponent renderable)
         {
-            item.AddInstance(component);
+            foreach (var item in renderItems)
+            {
+                item.AddInstance(renderable);
+            }
         }
 
         _components[component.Id] = renderItems;
@@ -80,6 +79,7 @@ public class ComponentRegistry(
     {
         return component switch
         {
+            ICameraComponent camera => ActivateCamera(camera),
             UniformColorMeshRenderer renderer => [GetOrCreateRenderItem(renderer)],
             TexturedQuadRenderer renderer => [GetOrCreateRenderItem(renderer)],
 
@@ -87,6 +87,23 @@ public class ComponentRegistry(
                 $"Unsupported graphics component: {component.GetType().Name}"
             ),
         };
+    }
+
+    /// <summary>
+    /// Registers a camera's realized Vulkan state with <see cref="ICameraRegistry"/>. Cameras
+    /// supply shared rendering state rather than drawable geometry, so activation always yields
+    /// an empty render-item array.
+    /// </summary>
+    /// <param name="camera">The camera component to activate.</param>
+    /// <returns>An empty render-item array.</returns>
+    private RenderItem[] ActivateCamera(ICameraComponent camera)
+    {
+        var (_, _, pipelineId) = GetOrCreateTexturedQuadPipeline();
+        var cameraDescriptorSetLayout = _pipelineRegistry.GetDescriptorSetLayout(pipelineId, 0);
+
+        _cameraRegistry.Register(camera, cameraDescriptorSetLayout);
+
+        return [];
     }
 
     /// <summary>
@@ -251,6 +268,35 @@ public class ComponentRegistry(
 
         var geometryId = _geometryFactory.Create(geometryDefinition);
 
+        var (pipeline, layout, pipelineId) = GetOrCreateTexturedQuadPipeline();
+
+        var materialDescriptorSetLayout = _pipelineRegistry.GetDescriptorSetLayout(pipelineId, 1);
+        var descriptorSet = _descriptorSetPool.Allocate(materialDescriptorSetLayout);
+
+        _textureRegistry.TryGetImageView(texture.Id, out var imageView);
+        _textureRegistry.TryGetSampler(texture.Id, out var sampler);
+        _descriptorSetPool.WriteCombinedImageSampler(descriptorSet, binding: 0, imageView, sampler);
+
+        return new RenderItem
+        {
+            Id = id,
+            RenderMask = RenderPasses.Main,
+            Pipeline = pipeline,
+            Layout = layout,
+            VertexBuffer = _geometryFactory.ReadBuffer(geometryId),
+            VertexCount = _geometryFactory.ReadVertexCount(geometryId),
+            DescriptorSet = descriptorSet,
+        };
+    }
+
+    /// <summary>
+    /// Gets or creates the textured-quad pipeline. Set 0 of its descriptor schema is the camera
+    /// view-projection uniform buffer shared with <see cref="ICameraRegistry"/>; set 1 is the
+    /// per-render-item material (texture) descriptor set.
+    /// </summary>
+    /// <returns>The pipeline, its layout, and its identifier.</returns>
+    private (Pipeline Pipeline, PipelineLayout Layout, PipelineId Id) GetOrCreateTexturedQuadPipeline()
+    {
         var vertexShader = ShaderDescriptions.TexturedQuadVertexShader;
         var fragmentShader = ShaderDescriptions.TexturedQuadFragmentShader;
 
@@ -274,61 +320,7 @@ public class ComponentRegistry(
 
         var (pipeline, layout) = _pipelineRegistry.GetOrCreate(pipelineDefinition);
 
-        var descriptorSetLayout = _pipelineRegistry.GetDescriptorSetLayout(
-            pipelineDefinition.Id,
-            0
-        );
-        var descriptorSet = _descriptorSetPool.Allocate(descriptorSetLayout);
-
-        _descriptorSetPool.WriteUniformBuffer(
-            descriptorSet,
-            binding: 0,
-            GetOrCreateCameraUniformBuffer(),
-            offset: 0,
-            range: (ulong)Unsafe.SizeOf<Matrix4X4<float>>()
-        );
-
-        _textureRegistry.TryGetImageView(texture.Id, out var imageView);
-        _textureRegistry.TryGetSampler(texture.Id, out var sampler);
-        _descriptorSetPool.WriteCombinedImageSampler(descriptorSet, binding: 1, imageView, sampler);
-
-        return new RenderItem
-        {
-            Id = id,
-            RenderMask = RenderPasses.Main,
-            Pipeline = pipeline,
-            Layout = layout,
-            VertexBuffer = _geometryFactory.ReadBuffer(geometryId),
-            VertexCount = _geometryFactory.ReadVertexCount(geometryId),
-            DescriptorSet = descriptorSet,
-        };
-    }
-
-    /// <summary>
-    /// Gets the shared camera view-projection uniform buffer, creating and initializing it with
-    /// an identity matrix on first use so every textured-pipeline descriptor set has a valid,
-    /// writable binding to point at.
-    /// </summary>
-    /// <returns>The shared camera uniform buffer.</returns>
-    /// <remarks>
-    /// TODO: Replace the identity matrix with the active camera's view-projection matrix, updated
-    /// each frame, once camera wiring exists.
-    /// </remarks>
-    private VkBuffer GetOrCreateCameraUniformBuffer()
-    {
-        if (_cameraUniformBuffer.Handle != 0)
-            return _cameraUniformBuffer;
-
-        var size = Unsafe.SizeOf<Matrix4X4<float>>();
-
-        _cameraUniformBuffer = _bufferManager.CreateUniformBuffer((ulong)size);
-
-        var identity = Matrix4X4<float>.Identity;
-        Span<byte> data = stackalloc byte[size];
-        MemoryMarshal.Write(data, in identity);
-        _bufferManager.UpdateBuffer(_cameraUniformBuffer, data);
-
-        return _cameraUniformBuffer;
+        return (pipeline, layout, pipelineDefinition.Id);
     }
 
     /// <summary>
@@ -370,6 +362,9 @@ public class ComponentRegistry(
         {
             item.RemoveInstance(componentId);
         }
+
+        // Safe no-op when componentId does not identify a registered camera.
+        _cameraRegistry.Remove(componentId);
 
         _logger.LogDebug(
             "Unloaded Vulkan graphics component. ComponentId={ComponentId}, "
