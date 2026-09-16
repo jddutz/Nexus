@@ -98,10 +98,7 @@ public class ComponentRegistry(
     /// <returns>An empty render-item array.</returns>
     private RenderItem[] ActivateCamera(ICameraComponent camera)
     {
-        var (_, _, pipelineId) = GetOrCreateTexturedQuadPipeline();
-        var cameraDescriptorSetLayout = _pipelineRegistry.GetDescriptorSetLayout(pipelineId, 0);
-
-        _cameraRegistry.Register(camera, cameraDescriptorSetLayout);
+        _cameraRegistry.Register(camera);
 
         return [];
     }
@@ -295,9 +292,10 @@ public class ComponentRegistry(
     }
 
     /// <summary>
-    /// Gets or creates the textured-quad pipeline. Set 0 of its descriptor schema is the camera
-    /// view-projection uniform buffer shared with <see cref="ICameraRegistry"/>; set 1 is the
-    /// per-render-item material (texture) descriptor set.
+    /// Gets or creates the textured-quad pipeline. Set 0 of its descriptor schema is a camera
+    /// view-projection uniform buffer (structurally compatible with, but independent of, the
+    /// layout <see cref="ICameraRegistry"/> owns); set 1 is the per-render-item material (texture)
+    /// descriptor set.
     /// </summary>
     /// <returns>The pipeline, its layout, and its identifier.</returns>
     private (

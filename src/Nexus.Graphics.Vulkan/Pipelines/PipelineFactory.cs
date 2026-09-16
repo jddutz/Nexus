@@ -3,9 +3,14 @@ namespace Nexus.Graphics.Vulkan.Pipelines;
 /// <summary>
 /// Creates Vulkan graphics pipelines and their associated pipeline layouts.
 /// </summary>
-public unsafe class PipelineFactory(Context context) : IPipelineFactory
+public unsafe class PipelineFactory(
+    Context context,
+    IDescriptorSetLayoutFactory descriptorSetLayoutFactory
+) : IPipelineFactory
 {
     private readonly Context _context = context;
+    private readonly IDescriptorSetLayoutFactory _descriptorSetLayoutFactory =
+        descriptorSetLayoutFactory;
 
     /// <inheritdoc />
     public (
@@ -38,7 +43,7 @@ public unsafe class PipelineFactory(Context context) : IPipelineFactory
             if (pipelineLayout.Handle != 0)
                 _context.VulkanApi.DestroyPipelineLayout(_context.Device, pipelineLayout, null);
 
-            DestroyDescriptorSetLayouts(descriptorSetLayouts);
+            _descriptorSetLayoutFactory.Destroy(descriptorSetLayouts);
 
             throw;
         }
@@ -159,86 +164,10 @@ public unsafe class PipelineFactory(Context context) : IPipelineFactory
     /// </summary>
     /// <param name="definition">The pipeline definition.</param>
     /// <returns>The created descriptor-set layouts, ordered by set index.</returns>
-    private DescriptorSetLayout[] CreateDescriptorSetLayouts(PipelineDefinition definition)
-    {
-        if (definition.DescriptorSchema is not { } schema)
-            return [];
-
-        var layouts = new DescriptorSetLayout[schema.Sets.Length];
-
-        try
-        {
-            for (var i = 0; i < schema.Sets.Length; i++)
-                layouts[i] = CreateDescriptorSetLayout(schema.Sets[i]);
-
-            return layouts;
-        }
-        catch
-        {
-            DestroyDescriptorSetLayouts(layouts);
-            throw;
-        }
-    }
-
-    /// <summary>
-    /// Creates a single Vulkan descriptor-set layout from a descriptor set schema.
-    /// </summary>
-    /// <param name="setSchema">The descriptor set schema.</param>
-    /// <returns>The created descriptor-set layout.</returns>
-    private DescriptorSetLayout CreateDescriptorSetLayout(DescriptorSetSchema setSchema)
-    {
-        var bindings = new DescriptorSetLayoutBinding[setSchema.Bindings.Length];
-
-        for (var i = 0; i < setSchema.Bindings.Length; i++)
-        {
-            var binding = setSchema.Bindings[i];
-
-            bindings[i] = new DescriptorSetLayoutBinding
-            {
-                Binding = binding.Binding,
-                DescriptorType = binding.DescriptorType,
-                DescriptorCount = binding.DescriptorCount,
-                StageFlags = binding.StageFlags,
-            };
-        }
-
-        fixed (DescriptorSetLayoutBinding* pBindings = bindings)
-        {
-            var createInfo = new DescriptorSetLayoutCreateInfo
-            {
-                SType = StructureType.DescriptorSetLayoutCreateInfo,
-                BindingCount = (uint)bindings.Length,
-                PBindings = pBindings,
-            };
-
-            var result = _context.VulkanApi.CreateDescriptorSetLayout(
-                _context.Device,
-                &createInfo,
-                null,
-                out DescriptorSetLayout layout
-            );
-
-            if (result != Result.Success)
-                throw new InvalidOperationException(
-                    $"Failed to create descriptor set layout: {result}"
-                );
-
-            return layout;
-        }
-    }
-
-    /// <summary>
-    /// Destroys previously created descriptor-set layouts.
-    /// </summary>
-    /// <param name="descriptorSetLayouts">The descriptor-set layouts to destroy.</param>
-    private void DestroyDescriptorSetLayouts(DescriptorSetLayout[] descriptorSetLayouts)
-    {
-        foreach (var layout in descriptorSetLayouts)
-        {
-            if (layout.Handle != 0)
-                _context.VulkanApi.DestroyDescriptorSetLayout(_context.Device, layout, null);
-        }
-    }
+    private DescriptorSetLayout[] CreateDescriptorSetLayouts(PipelineDefinition definition) =>
+        definition.DescriptorSchema is not { } schema
+            ? []
+            : _descriptorSetLayoutFactory.Create(schema);
 
     /// <summary>
     /// Creates a Vulkan pipeline layout from a pipeline definition.

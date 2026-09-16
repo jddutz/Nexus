@@ -16,6 +16,7 @@ internal readonly record struct CameraRegistration(
 public class CameraRegistry(
     IBufferManager bufferManager,
     IDescriptorSetPool descriptorSetPool,
+    IDescriptorSetLayoutFactory descriptorSetLayoutFactory,
     ILogger<CameraRegistry> logger
 ) : ICameraRegistry
 {
@@ -23,9 +24,12 @@ public class CameraRegistry(
 
     private readonly IBufferManager _bufferManager = bufferManager;
     private readonly IDescriptorSetPool _descriptorSetPool = descriptorSetPool;
+    private readonly IDescriptorSetLayoutFactory _descriptorSetLayoutFactory =
+        descriptorSetLayoutFactory;
     private readonly ILogger<CameraRegistry> _logger = logger;
     private readonly Dictionary<ComponentId, CameraRegistration> _cameras = [];
     private ComponentId? _activeCameraId;
+    private DescriptorSetLayout? _descriptorSetLayout;
 
     /// <inheritdoc />
     public DescriptorSet? ActiveCameraDescriptorSet =>
@@ -34,7 +38,7 @@ public class CameraRegistry(
             : null;
 
     /// <inheritdoc />
-    public void Register(ICameraComponent camera, DescriptorSetLayout descriptorSetLayout)
+    public void Register(ICameraComponent camera)
     {
         ArgumentNullException.ThrowIfNull(camera);
 
@@ -46,7 +50,7 @@ public class CameraRegistry(
         }
 
         var buffer = _bufferManager.CreateUniformBuffer(ViewProjectionSize);
-        var descriptorSet = _descriptorSetPool.Allocate(descriptorSetLayout);
+        var descriptorSet = _descriptorSetPool.Allocate(GetOrCreateDescriptorSetLayout());
 
         _descriptorSetPool.WriteUniformBuffer(
             descriptorSet,
@@ -116,5 +120,33 @@ public class CameraRegistry(
         Span<byte> data = stackalloc byte[(int)ViewProjectionSize];
         MemoryMarshal.Write(data, in viewProjection);
         _bufferManager.UpdateBuffer(buffer, data);
+    }
+
+    /// <summary>
+    /// Gets the set-0 descriptor-set layout shared by every registered camera, realizing it from
+    /// <see cref="DescriptorSchemas.Camera"/> on first use.
+    /// </summary>
+    /// <returns>The camera descriptor-set layout.</returns>
+    private DescriptorSetLayout GetOrCreateDescriptorSetLayout()
+    {
+        if (_descriptorSetLayout is { } existing)
+            return existing;
+
+        var layout = _descriptorSetLayoutFactory.Create(DescriptorSchemas.Camera)[0];
+        _descriptorSetLayout = layout;
+
+        return layout;
+    }
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        if (_descriptorSetLayout is { } layout)
+        {
+            _descriptorSetLayoutFactory.Destroy([layout]);
+            _descriptorSetLayout = null;
+        }
+
+        GC.SuppressFinalize(this);
     }
 }
