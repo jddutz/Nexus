@@ -179,6 +179,7 @@ public class ComponentRegistry(
             .WithDepthTest(false)
             .WithDepthWrite(false)
             .WithCullMode(CullModeFlags.None)
+            .WithDescriptorSchema(DescriptorSchemas.Camera)
             .Build();
 
         var (pipeline, layout) = _pipelineRegistry.GetOrCreate(pipelineDefinition);
