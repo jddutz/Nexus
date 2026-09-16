@@ -145,8 +145,18 @@ public sealed record PipelineDefinition
             .Add((uint)FrontFace)
             .Add(LineWidth);
 
-        // Same for vertex bindings, attributes,
-        // push constant ranges and descriptor layouts.
+        foreach (var binding in VertexBindings)
+        {
+            hash.Add(binding.Binding).Add(binding.Stride).Add((uint)binding.InputRate);
+        }
+
+        foreach (var attribute in VertexAttributes)
+        {
+            hash.Add(attribute.Location)
+                .Add(attribute.Binding)
+                .Add((uint)attribute.Format)
+                .Add(attribute.Offset);
+        }
 
         Id = hash.Compute();
     }

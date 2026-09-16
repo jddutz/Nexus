@@ -20,9 +20,14 @@ public interface IGameObject
     bool RemoveComponent<TComponent>()
         where TComponent : class, IComponent;
 
+    event Action<IComponent>? ComponentAdded;
+    event Action<IComponent>? ComponentRemoved;
+
     void AddChild(IGameObject child);
     bool RemoveChild(IGameObject child);
 
+    event Action<IGameObject>? ChildAdded;
+    event Action<IGameObject>? ChildRemoved;
     void Activate();
 
     void Update(double deltaTime);

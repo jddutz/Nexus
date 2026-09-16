@@ -6,7 +6,7 @@ namespace Nexus.Graphics.Components;
 public class UniformColorMeshRenderer() : Component, IGraphicsComponent, IGeometryInstance
 {
     private static readonly int InstanceDataSize =
-        Marshal.SizeOf<Matrix4X4<float>>() + Marshal.SizeOf<Color>();
+        System.Runtime.CompilerServices.Unsafe.SizeOf<Matrix4X4<float>>() + Marshal.SizeOf<Color>();
 
     private HashSet<RenderLayer> _renderLayers = [];
 
@@ -37,7 +37,9 @@ public class UniformColorMeshRenderer() : Component, IGraphicsComponent, IGeomet
     /// <returns>The required or written byte count.</returns>
     public int GetInstanceData(Span<byte> destination)
     {
-        var transformationMatrixSize = Marshal.SizeOf<Matrix4X4<float>>();
+        var transformationMatrixSize = System.Runtime.CompilerServices.Unsafe.SizeOf<
+            Matrix4X4<float>
+        >();
 
         if (destination.Length < InstanceDataSize)
             return InstanceDataSize;

@@ -142,6 +142,7 @@ public class ComponentRegistry(
                 .WithShader(fragmentShader)
                 .WithRenderPass(_swapChain.Passes[mainPassIndex])
                 .WithVertexDescription(vertexShader.VertexDescription)
+                .WithInstanceDescription(VertexDescriptions.UniformColorInstance)
                 .WithTopology(vertexShader.Topology)
                 .WithDepthTest(false)
                 .WithDepthWrite(false)

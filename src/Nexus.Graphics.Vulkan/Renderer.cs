@@ -1,3 +1,5 @@
+using VkBuffer = Silk.NET.Vulkan.Buffer;
+
 namespace Nexus.Graphics.Vulkan;
 
 /// <summary>
@@ -11,7 +13,7 @@ public unsafe class Renderer(
     ISyncManager syncManager,
     IPipelineRegistry pipelineManager,
     ILogger<Renderer> logger
-) : IRenderer
+) : IRenderer, IDisposable
 {
     private const string VK_CONTEXT_NULL = "Vulkan _context has not been initialized yet.";
 
@@ -26,6 +28,11 @@ public unsafe class Renderer(
     private uint _imageIndex;
     private CommandBuffer _commandBuffer;
     private uint _currentFrameIndex = 0;
+    private bool _disposed;
+    private readonly InstanceBuffer[] _instanceBuffers = Enumerable
+        .Range(0, checked((int)syncManager.MaxFramesInFlight))
+        .Select(_ => new InstanceBuffer(context))
+        .ToArray();
 
     public event EventHandler<RenderEventArgs>? BeforeRendering;
     public event EventHandler<RenderEventArgs>? AfterRendering;
@@ -116,6 +123,24 @@ public unsafe class Renderer(
         return true;
     }
 
+    /// <summary>
+    /// Releases the persistently mapped instance upload buffers owned by this renderer.
+    /// </summary>
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+
+        _context.VulkanApi.DeviceWaitIdle(_context.Device);
+
+        foreach (var instanceBuffer in _instanceBuffers)
+        {
+            instanceBuffer.Dispose();
+        }
+
+        _disposed = true;
+    }
+
     private void ValidateRenderPasses(VulkanRenderLayer definition)
     {
         if (definition.RenderPasses.Length == 0)
@@ -152,6 +177,7 @@ public unsafe class Renderer(
 
         // This frame slot is no longer being used by the GPU.
         _syncManager.WaitForFence(_frameSync.InFlightFence);
+        _instanceBuffers[_currentFrameIndex].Reset();
 
         if (!_commandPool.TryGetCommandBuffer(_frameSync.InFlightFence, out _commandBuffer))
             return false;
@@ -213,6 +239,9 @@ public unsafe class Renderer(
 
     private void Draw(RenderItem cmd, ref ulong lastPipelineId, ref ulong lastDescriptorSetHandle)
     {
+        if (cmd.InstanceCount == 0)
+            return;
+
         _context.VulkanApi.CmdBindPipeline(
             _commandBuffer,
             PipelineBindPoint.Graphics,
@@ -258,10 +287,13 @@ public unsafe class Renderer(
             }
         }
 
-        var vertexBuffer = cmd.VertexBuffer;
-        ulong offset = 0;
+        var instanceBuffer = _instanceBuffers[_currentFrameIndex];
+        var instanceOffset = instanceBuffer.Write(cmd.InstanceData);
 
-        _context.VulkanApi.CmdBindVertexBuffers(_commandBuffer, 0, 1, &vertexBuffer, &offset);
+        VkBuffer* buffers = stackalloc VkBuffer[2] { cmd.VertexBuffer, instanceBuffer.Buffer };
+        ulong* offsets = stackalloc ulong[2] { 0, instanceOffset };
+
+        _context.VulkanApi.CmdBindVertexBuffers(_commandBuffer, 0, 2, buffers, offsets);
 
         _context.VulkanApi.CmdDraw(
             _commandBuffer,
