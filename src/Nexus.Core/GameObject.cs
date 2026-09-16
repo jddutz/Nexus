@@ -222,6 +222,21 @@ public class GameObject : IGameObject
     }
 
     /// <summary>
+    /// Creates a new child game object of the specified type and adds it to this game object.
+    /// </summary>
+    /// <typeparam name="TChild">The type of game object to create.</typeparam>
+    /// <returns>The created child game object.</returns>
+    public TChild CreateChild<TChild>()
+        where TChild : GameObject, new()
+    {
+        var child = new TChild();
+
+        AddChild(child);
+
+        return child;
+    }
+
+    /// <summary>
     /// Updates this game object for the elapsed time since the previous frame.
     /// </summary>
     /// <param name="deltaTime">The elapsed time in seconds since the previous frame.</param>

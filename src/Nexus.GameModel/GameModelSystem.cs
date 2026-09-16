@@ -96,8 +96,8 @@ public class GameModelSystem(
         CurrentScene = new Scene();
         CurrentScene.SetGameModel(this);
 
-        var columns = 12;
-        var rows = 8;
+        var columns = 16;
+        var rows = 9;
 
         var cellWidth = 2.0f / columns;
         var cellHeight = 2.0f / rows;
@@ -109,16 +109,18 @@ public class GameModelSystem(
             [new(-0.5f, -0.5f, 0f), new(0.5f, -0.5f, 0f), new(-0.5f, 0.5f, 0f), new(0.5f, 0.5f, 0f)]
         );
 
-        for (int x = 0; x < 16; x++)
+        for (int x = 0; x < columns; x++)
         {
-            for (int y = 0; y < 12; y++)
+            for (int y = 0; y < rows; y++)
             {
-                var instance = CurrentScene.AddComponent<UniformColorMeshRenderer>();
+                var component = CurrentScene
+                    .CreateChild<GameObject>()
+                    .AddComponent<UniformColorMeshRenderer>();
 
-                var c = 0.012f + (float)rng.NextDouble() * 0.04f;
-                instance.Color = new Color(c, c, c, 1.0f);
+                var c = 0.01f + (float)rng.NextDouble() * 0.02f;
+                component.Color = new Color(c, c, c, 1.0f);
 
-                var scale = 1.0f + (float)rng.NextDouble() * 0.2f;
+                var scale = 1.0f + (float)rng.NextDouble() * 0.4f;
 
                 var width = cellWidth * scale;
                 var height = cellHeight * scale;
@@ -126,11 +128,11 @@ public class GameModelSystem(
                 var centerX = -1.0f + (x + 0.5f) * cellWidth;
                 var centerY = -1.0f + (y + 0.5f) * cellHeight;
 
-                instance.TransformationMatrix =
+                component.TransformationMatrix =
                     Matrix4X4.CreateScale(width, height, 1.0f)
-                    * Matrix4X4.CreateTranslation(centerX, centerY, 0.0f);
+                    * Matrix4X4.CreateTranslation(centerX, centerY, rng.Next(4));
 
-                instance.Geometry = geometry;
+                component.Geometry = geometry;
             }
         }
 
