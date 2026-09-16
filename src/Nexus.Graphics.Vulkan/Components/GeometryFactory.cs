@@ -12,10 +12,15 @@ public unsafe class GeometryFactory(Context context, ILogger<GeometryFactory> lo
     private readonly Dictionary<ResourceId, DeviceMemory> _vertexMemory = [];
     private readonly Dictionary<ResourceId, uint> _vertexCounts = [];
 
-    public ResourceId Create(UniformColorVertexGeometryDefinition definition)
-    {
-        var id = definition.Id;
+    public ResourceId Create(UniformColorVertexGeometryDefinition definition) =>
+        CreateVertexBuffer(definition.Id, definition.Vertices);
 
+    public ResourceId Create(TexturedVertex2dGeometryDefinition definition) =>
+        CreateVertexBuffer(definition.Id, definition.Vertices);
+
+    private ResourceId CreateVertexBuffer<TVertex>(ResourceId id, ImmutableArray<TVertex> vertices)
+        where TVertex : unmanaged
+    {
         if (_vertexBuffers.ContainsKey(id))
         {
             _logger.LogDebug(
@@ -28,21 +33,19 @@ public unsafe class GeometryFactory(Context context, ILogger<GeometryFactory> lo
             return id;
         }
 
-        var vertices = definition.Vertices;
-
         _logger.LogDebug(
             "Creating Vulkan vertex geometry. GeometryId={GeometryId}, VertexCount={VertexCount}, "
                 + "VertexStride={VertexStride}, AllocationSize={AllocationSize}",
             id,
             vertices.Length,
-            Unsafe.SizeOf<Vertex>(),
-            (ulong)vertices.Length * (ulong)Unsafe.SizeOf<Vertex>()
+            Unsafe.SizeOf<TVertex>(),
+            (ulong)vertices.Length * (ulong)Unsafe.SizeOf<TVertex>()
         );
 
         if (vertices.Length == 0)
             throw new InvalidOperationException($"Geometry '{id}' contains no vertices.");
 
-        ulong size = (ulong)vertices.Length * (ulong)Unsafe.SizeOf<Vertex>();
+        ulong size = (ulong)vertices.Length * (ulong)Unsafe.SizeOf<TVertex>();
 
         VkBuffer vertexBuffer = default;
         DeviceMemory vertexMemory = default;
@@ -121,7 +124,7 @@ public unsafe class GeometryFactory(Context context, ILogger<GeometryFactory> lo
 
             try
             {
-                fixed (Vertex* source = vertices.AsSpan())
+                fixed (TVertex* source = vertices.AsSpan())
                 {
                     System.Buffer.MemoryCopy(source, mapped, size, size);
                 }

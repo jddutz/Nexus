@@ -7,8 +7,8 @@ layout(location = 2) in vec4 inWorld0;
 layout(location = 3) in vec4 inWorld1;
 layout(location = 4) in vec4 inWorld2;
 layout(location = 5) in vec4 inWorld3;
-layout(location = 7) in vec4 inUvRect;
-layout(location = 6) in vec4 inTintColor;
+layout(location = 6) in vec4 inUvRect;
+layout(location = 7) in vec4 inTintColor;
 
 layout(location = 0) out vec2 fragTexCoord;
 layout(location = 1) out vec4 fragTintColor;
