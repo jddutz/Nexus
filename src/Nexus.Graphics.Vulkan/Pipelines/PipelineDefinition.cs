@@ -158,6 +158,11 @@ public sealed record PipelineDefinition
                 .Add(attribute.Offset);
         }
 
+        foreach (var range in PushConstantRanges)
+        {
+            hash.Add((uint)range.StageFlags).Add(range.Offset).Add(range.Size);
+        }
+
         hash.Add(DescriptorSchema is not null);
         if (DescriptorSchema is not null)
         {

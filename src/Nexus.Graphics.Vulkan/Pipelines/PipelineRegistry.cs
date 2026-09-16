@@ -91,4 +91,3 @@ public unsafe class PipelineRegistry(Context context, IPipelineFactory pipelineF
         GC.SuppressFinalize(this);
     }
 }
-

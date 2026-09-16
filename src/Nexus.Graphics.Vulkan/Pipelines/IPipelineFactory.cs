@@ -10,9 +10,7 @@ public interface IPipelineFactory
     /// </summary>
     /// <param name="definition">The definition of the graphics pipeline.</param>
     /// <returns>The created pipeline, its layout, and the descriptor-set layouts realized from the pipeline's descriptor schema.</returns>
-    (
-        Pipeline Pipeline,
-        PipelineLayout Layout,
-        DescriptorSetLayout[] DescriptorSetLayouts
-    ) Create(PipelineDefinition definition);
+    (Pipeline Pipeline, PipelineLayout Layout, DescriptorSetLayout[] DescriptorSetLayouts) Create(
+        PipelineDefinition definition
+    );
 }
