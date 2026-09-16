@@ -115,7 +115,20 @@ public class SchemaBuilder() : ISchemaBuilder
 
     public DescriptorSchema Build()
     {
-        return new DescriptorSchema(_sets.OrderBy(x => x.Set).ToArray());
+        var sets = _sets.OrderBy(x => x.Set).ToArray();
+
+        // Set indices become array positions in PipelineLayoutCreateInfo.PSetLayouts, so
+        // gaps or a non-zero start would silently shift every subsequent set's binding point.
+        for (var i = 0; i < sets.Length; i++)
+        {
+            if (sets[i].Set != i)
+                throw new InvalidOperationException(
+                    $"Descriptor sets must be contiguous and zero-based. "
+                        + $"Expected set {i} but found set {sets[i].Set}."
+                );
+        }
+
+        return new DescriptorSchema(sets);
     }
 
     private uint GetNextSetIndex()
