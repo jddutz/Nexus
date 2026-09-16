@@ -27,6 +27,16 @@ public interface IGraphicsSystem
     RenderLayers RenderLayers { get; }
 
     /// <summary>
+    /// Determines whether the graphics system recognizes the specified component, including
+    /// components (such as cameras) that activate without contributing render items.
+    /// </summary>
+    /// <typeparam name="TComponent">The type of component to evaluate.</typeparam>
+    /// <param name="component">The component to evaluate.</param>
+    /// <returns><see langword="true"/> when the component can be activated; otherwise, <see langword="false"/>.</returns>
+    bool CanActivate<TComponent>(TComponent component)
+        where TComponent : class, IGraphicsComponent;
+
+    /// <summary>
     /// Activates a component in the graphics system.
     /// </summary>
     /// <typeparam name="TComponent">The type of component to activate.</typeparam>
