@@ -14,11 +14,8 @@ public class GameObject2D : GameObject, IGameObject2D
         get => _position;
         set
         {
-            if (_position == value)
-                return;
-
-            _position = value;
-            UpdateTransformationMatrix();
+            if (SetProperty(ref _position, value))
+                UpdateTransformationMatrix();
         }
     }
 
@@ -27,11 +24,8 @@ public class GameObject2D : GameObject, IGameObject2D
         get => _rotation;
         set
         {
-            if (_rotation == value)
-                return;
-
-            _rotation = value;
-            UpdateTransformationMatrix();
+            if (SetProperty(ref _rotation, value))
+                UpdateTransformationMatrix();
         }
     }
 
@@ -40,11 +34,8 @@ public class GameObject2D : GameObject, IGameObject2D
         get => _scale;
         set
         {
-            if (_scale == value)
-                return;
-
-            _scale = value;
-            UpdateTransformationMatrix();
+            if (SetProperty(ref _scale, value))
+                UpdateTransformationMatrix();
         }
     }
 
@@ -61,5 +52,7 @@ public class GameObject2D : GameObject, IGameObject2D
         var translation = Matrix4X4.CreateTranslation(_position.X, _position.Y, 0.0f);
 
         _transformationMatrix = scale * rotation * translation;
+
+        OnPropertyChanged(nameof(TransformationMatrix));
     }
 }

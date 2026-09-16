@@ -1,9 +1,10 @@
 namespace Nexus.Core;
 
-public class GameObject : IGameObject
+public class GameObject : ObservableObject, IGameObject
 {
     private readonly List<IGameObject> _children = [];
     private readonly List<IComponent> _components = [];
+    private bool _isActive;
 
     /// <summary>
     /// Gets the unique identifier for this game object.
@@ -33,7 +34,11 @@ public class GameObject : IGameObject
     /// <summary>
     /// Gets or sets a value indicating whether this game object is active.
     /// </summary>
-    public bool IsActive { get; internal set; }
+    public bool IsActive
+    {
+        get => _isActive;
+        internal set => SetProperty(ref _isActive, value);
+    }
 
     /// <summary>
     /// Occurs when a component is added to this game object or one of its descendants.
@@ -102,7 +107,7 @@ public class GameObject : IGameObject
         }
 
         _components.Add(component);
-        component.SetGameObject(Id, GameModel);
+        component.SetGameObject(this);
 
         if (IsActive)
             ComponentAdded?.Invoke(component);
@@ -145,7 +150,7 @@ public class GameObject : IGameObject
         if (IsActive)
             ComponentRemoved?.Invoke(component);
 
-        component.SetGameObject(GameObjectId.Invalid, null);
+        component.SetGameObject(null);
         return true;
     }
 
@@ -163,9 +168,6 @@ public class GameObject : IGameObject
         GameModel?.UnregisterGameObject(this);
         GameModel = gameModel;
         GameModel.RegisterGameObject(this);
-
-        foreach (var component in _components)
-            component.SetGameObject(Id, gameModel);
 
         foreach (var child in _children.OfType<GameObject>())
             child.SetGameModel(gameModel);

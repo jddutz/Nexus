@@ -1,6 +1,6 @@
 namespace Nexus.Core;
 
-public interface IComponent
+public interface IComponent : INotifyPropertyChanged
 {
     /// <summary>
     /// Gets the identifier of the game object that owns this component.
@@ -13,11 +13,10 @@ public interface IComponent
     IGameModel? GameModel { get; }
 
     /// <summary>
-    /// Associates this component with a game object and its game model.
+    /// Associates this component with its owning game object.
     /// </summary>
-    /// <param name="gameObjectId">The identifier of the owning game object.</param>
-    /// <param name="gameModel">The game model that owns the game object.</param>
-    void SetGameObject(GameObjectId gameObjectId, IGameModel? gameModel);
+    /// <param name="gameObject">The owning game object, or <see langword="null"/> when detaching.</param>
+    void SetGameObject(IGameObject? gameObject);
 
     /// <summary>
     /// Gets the unique identifier for this component.
@@ -28,4 +27,11 @@ public interface IComponent
     /// Gets or sets a value indicating whether this component is activated.
     /// </summary>
     bool IsActivated { get; set; }
+
+    /// <summary>
+    /// Occurs when this component's effective state has changed, whether from one of its own
+    /// properties or from a change on its owning game object. Systems should subscribe to this
+    /// instead of observing the owning game object directly.
+    /// </summary>
+    event EventHandler? Changed;
 }

@@ -1,6 +1,6 @@
 namespace Nexus.Core;
 
-public interface IGameObject
+public interface IGameObject : INotifyPropertyChanged
 {
     GameObjectId Id { get; }
 
