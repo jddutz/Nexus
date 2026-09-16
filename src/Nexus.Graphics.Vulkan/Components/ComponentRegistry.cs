@@ -7,7 +7,10 @@ namespace Nexus.Graphics.Vulkan.Components;
 /// </summary>
 /// <param name="Component">The loaded component.</param>
 /// <param name="RenderItems">The render items to which the component contributes instance data.</param>
-internal sealed record ComponentRegistration(IGraphicsComponent Component, RenderItem[] RenderItems);
+internal sealed record ComponentRegistration(
+    IGraphicsComponent Component,
+    RenderItem[] RenderItems
+);
 
 /// <summary>
 /// Creates and maintains Vulkan render-item registrations for supported graphics components.
