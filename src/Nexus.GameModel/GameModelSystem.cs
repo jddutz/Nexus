@@ -96,6 +96,9 @@ public class GameModelSystem(
         CurrentScene = new Scene();
         CurrentScene.SetGameModel(this);
 
+        // Every renderable pipeline expects a bound set-0 camera descriptor.
+        CurrentScene.CreateChild<GameObject>().AddComponent<StaticCamera>();
+
         var columns = 16;
         var rows = 9;
 
