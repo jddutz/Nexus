@@ -91,6 +91,10 @@ public class ComponentRegistry(
                 $"{nameof(UniformColorMeshRenderer)} requires geometry."
             );
 
+        // Depth stencil allows us to combine opaque objects into one RenderItem
+        // but when we enable alpha / transparency we may need to reconsider the
+        // computation algorithm so depth sort can be enabled
+
         var renderItemId = new IdentityHashBuilder(nameof(UniformColorMeshRenderer))
             .Add(geometry.Id)
             .Add(RenderPasses.Main)
