@@ -1,6 +1,15 @@
 namespace Nexus.Graphics.Vulkan.Components;
 
 /// <summary>
+/// Tracks a loaded component's owning render items alongside the component reference itself, so
+/// <see cref="ComponentRegistry.Unload"/> can unsubscribe from <see cref="INotifyPropertyChanged.PropertyChanged"/>
+/// without requiring the caller to supply the component again.
+/// </summary>
+/// <param name="Component">The loaded component.</param>
+/// <param name="RenderItems">The render items to which the component contributes instance data.</param>
+internal sealed record ComponentRegistration(IGraphicsComponent Component, RenderItem[] RenderItems);
+
+/// <summary>
 /// Creates and maintains Vulkan render-item registrations for supported graphics components.
 /// </summary>
 public class ComponentRegistry(
@@ -11,12 +20,13 @@ public class ComponentRegistry(
     ICameraRegistry cameraRegistry,
     TextureRegistry textureRegistry,
     ISwapChain swapChain,
+    IRenderer renderer,
     ILogger<ComponentRegistry> logger
 ) : IComponentRegistry
 {
     private const string UNIFORM_COLOR_PIPELINE_NAME = "UniformColorMesh";
     private const string TEXTURED_QUAD_PIPELINE_NAME = "TexturedQuad";
-    private readonly Dictionary<ComponentId, RenderItem[]> _components = [];
+    private readonly Dictionary<ComponentId, ComponentRegistration> _components = [];
     private readonly Dictionary<ResourceId, RenderItem> _renderItems = [];
 
     private readonly IGeometryFactory _geometryFactory = geometryFactory;
@@ -26,6 +36,7 @@ public class ComponentRegistry(
     private readonly ICameraRegistry _cameraRegistry = cameraRegistry;
     private readonly TextureRegistry _textureRegistry = textureRegistry;
     private readonly ISwapChain _swapChain = swapChain;
+    private readonly IRenderer _renderer = renderer;
     private readonly ILogger<ComponentRegistry> _logger = logger;
 
     /// <summary>
@@ -43,7 +54,9 @@ public class ComponentRegistry(
         };
 
     /// <summary>
-    /// Creates or retrieves render items for the specified component and adds its packed instance records.
+    /// Creates or retrieves render items for the specified component, adds its packed instance
+    /// records, and subscribes to its <see cref="INotifyPropertyChanged.PropertyChanged"/> event
+    /// so later property changes keep its Vulkan realization synchronized.
     /// </summary>
     /// <param name="component">The graphics component to load.</param>
     /// <returns>The render items associated with the loaded component.</returns>
@@ -52,7 +65,7 @@ public class ComponentRegistry(
         ArgumentNullException.ThrowIfNull(component);
 
         if (_components.TryGetValue(component.Id, out var cached))
-            return cached;
+            return cached.RenderItems;
 
         var renderItems = GetOrCreateRenderItems(component);
 
@@ -64,7 +77,8 @@ public class ComponentRegistry(
             }
         }
 
-        _components[component.Id] = renderItems;
+        _components[component.Id] = new ComponentRegistration(component, renderItems);
+        component.PropertyChanged += OnComponentPropertyChanged;
 
         return renderItems;
     }
@@ -350,12 +364,13 @@ public class ComponentRegistry(
     }
 
     /// <summary>
-    /// Removes the specified component's instance records from its associated render items.
+    /// Unsubscribes from the component's <see cref="INotifyPropertyChanged.PropertyChanged"/> event
+    /// and removes its instance records from its associated render items.
     /// </summary>
     /// <param name="componentId">The identifier of the component to unload.</param>
     public void Unload(ComponentId componentId)
     {
-        if (!_components.Remove(componentId, out var renderItems))
+        if (!_components.Remove(componentId, out var registration))
         {
             _logger.LogDebug(
                 "Vulkan graphics component unload skipped because the component is not loaded. "
@@ -365,7 +380,9 @@ public class ComponentRegistry(
             return;
         }
 
-        foreach (var item in renderItems)
+        registration.Component.PropertyChanged -= OnComponentPropertyChanged;
+
+        foreach (var item in registration.RenderItems)
         {
             item.RemoveInstance(componentId);
         }
@@ -383,5 +400,145 @@ public class ComponentRegistry(
         // Do not delete geometry/shaders/pipelines here yet.
         // They may be shared by other component realizations.
         // Resource lifetime/ref-counting can be handled separately.
+    }
+
+    /// <summary>
+    /// Routes a loaded component's property-change notification to its Vulkan update handling.
+    /// </summary>
+    /// <param name="sender">The component that raised the notification.</param>
+    /// <param name="e">The event data describing which property changed.</param>
+    private void OnComponentPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (sender is IGraphicsComponent component)
+            Update(component, e.PropertyName);
+    }
+
+    /// <summary>
+    /// Dispatches a component's property change to the update handling appropriate for its type.
+    /// </summary>
+    /// <param name="component">The component that changed.</param>
+    /// <param name="propertyName">The name of the property that changed, or <see langword="null"/> when unknown.</param>
+    private void Update(IGraphicsComponent component, string? propertyName)
+    {
+        switch (component)
+        {
+            case ICameraComponent camera:
+                _cameraRegistry.Update(camera);
+                break;
+
+            case UniformColorMeshRenderer renderer:
+                Update(renderer, propertyName);
+                break;
+
+            case TexturedQuadRenderer renderer:
+                Update(renderer, propertyName);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Updates a uniform-color mesh renderer's instance data, or recreates its render-item
+    /// registration when the changed property affects the item's identity.
+    /// </summary>
+    /// <param name="component">The renderer that changed.</param>
+    /// <param name="propertyName">The name of the property that changed, or <see langword="null"/> when unknown.</param>
+    private void Update(UniformColorMeshRenderer component, string? propertyName)
+    {
+        switch (propertyName)
+        {
+            case nameof(UniformColorMeshRenderer.TransformationMatrix):
+            case nameof(UniformColorMeshRenderer.Color):
+                UpdateInstance(component);
+                break;
+
+            // Geometry affects render-item identity; an unknown/null property name is handled
+            // conservatively the same way, since it may represent any property.
+            default:
+                Recreate(component);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Updates a textured quad renderer's instance data, or recreates its render-item
+    /// registration when the changed property affects the item's identity.
+    /// </summary>
+    /// <param name="component">The renderer that changed.</param>
+    /// <param name="propertyName">The name of the property that changed, or <see langword="null"/> when unknown.</param>
+    private void Update(TexturedQuadRenderer component, string? propertyName)
+    {
+        switch (propertyName)
+        {
+            case nameof(TexturedQuadRenderer.TransformationMatrix):
+            case nameof(TexturedQuadRenderer.TextureRegion):
+            case nameof(TexturedQuadRenderer.Color):
+                UpdateInstance(component);
+                break;
+
+            // Texture affects render-item identity; an unknown/null property name is handled
+            // conservatively the same way, since it may represent any property.
+            default:
+                Recreate(component);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Repacks a component's existing instance record in place. Cheap: no buffer upload,
+    /// descriptor update, or command recording happens until the next frame is rendered.
+    /// </summary>
+    /// <param name="component">The renderable component whose instance record should be repacked.</param>
+    private void UpdateInstance(IRenderableComponent component)
+    {
+        if (!_components.TryGetValue(component.Id, out var registration))
+            return;
+
+        foreach (var item in registration.RenderItems)
+        {
+            item.UpdateInstance(component);
+        }
+    }
+
+    /// <summary>
+    /// Moves a component's instance record from its previous render items to the render items
+    /// matching its current state, creating new render items when no existing one matches.
+    /// </summary>
+    /// <param name="component">The renderable component whose render-item registration should be recreated.</param>
+    private void Recreate(IRenderableComponent component)
+    {
+        if (!_components.TryGetValue(component.Id, out var registration))
+            return;
+
+        foreach (var item in registration.RenderItems)
+        {
+            item.RemoveInstance(component.Id);
+        }
+
+        var renderItems = GetOrCreateRenderItems(component);
+
+        foreach (var item in renderItems)
+        {
+            item.AddInstance(component);
+        }
+
+        _components[component.Id] = registration with { RenderItems = renderItems };
+
+        AddNewRenderItemsToActiveLayer(renderItems);
+    }
+
+    /// <summary>
+    /// Adds any of the specified render items that are not already present to the active
+    /// render layer. A no-op for render items that were already shared by another component.
+    /// </summary>
+    /// <param name="renderItems">The render items to ensure are present in the active layer.</param>
+    private void AddNewRenderItemsToActiveLayer(RenderItem[] renderItems)
+    {
+        var layer = _renderer.Layers[0];
+        var newRenderItems = renderItems.Where(item => !layer.Items.Contains(item)).ToArray();
+
+        if (newRenderItems.Length == 0)
+            return;
+
+        layer.Items = [.. layer.Items, .. newRenderItems];
     }
 }

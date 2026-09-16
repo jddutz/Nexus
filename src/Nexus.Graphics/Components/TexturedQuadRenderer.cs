@@ -16,6 +16,10 @@ public class TexturedQuadRenderer(bool centered = false)
         + Marshal.SizeOf<Color>();
 
     private HashSet<RenderLayer> _renderLayers = [];
+    private TextureDescription? _texture;
+    private Matrix4X4<float> _transformationMatrix = Matrix4X4<float>.Identity;
+    private Vector4D<float> _textureRegion = new(0f, 0f, 1f, 1f);
+    private Color _color = Colors.White;
 
     /// <summary>
     /// Gets the render layers in which this component participates.
@@ -32,22 +36,38 @@ public class TexturedQuadRenderer(bool centered = false)
     /// <summary>
     /// Gets or sets the texture sampled by this component.
     /// </summary>
-    public TextureDescription? Texture { get; set; } = null;
+    public TextureDescription? Texture
+    {
+        get => _texture;
+        set => SetProperty(ref _texture, value);
+    }
 
     /// <summary>
     /// Gets or sets the transformation matrix applied to the quad.
     /// </summary>
-    public Matrix4X4<float> TransformationMatrix { get; set; } = Matrix4X4<float>.Identity;
+    public Matrix4X4<float> TransformationMatrix
+    {
+        get => _transformationMatrix;
+        set => SetProperty(ref _transformationMatrix, value);
+    }
 
     /// <summary>
     /// Gets or sets the atlas UV transform (U offset, V offset, U scale, V scale) used to sample <see cref="Texture"/>.
     /// </summary>
-    public Vector4D<float> TextureRegion { get; set; } = new(0f, 0f, 1f, 1f);
+    public Vector4D<float> TextureRegion
+    {
+        get => _textureRegion;
+        set => SetProperty(ref _textureRegion, value);
+    }
 
     /// <summary>
     /// Gets or sets the tint color multiplied against the sampled texture color.
     /// </summary>
-    public Color Color { get; set; } = Colors.White;
+    public Color Color
+    {
+        get => _color;
+        set => SetProperty(ref _color, value);
+    }
 
     /// <summary>
     /// Gets the required instance-record size or writes the transform, texture region, and color to a destination span.

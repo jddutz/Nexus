@@ -41,10 +41,9 @@ public class OrthoCamera : Component, ICameraComponent
         get => _position;
         set
         {
-            if (_position == value)
+            if (!SetProperty(ref _position, value))
                 return;
 
-            _position = value;
             InvalidateMatrices();
         }
     }
@@ -55,10 +54,9 @@ public class OrthoCamera : Component, ICameraComponent
         get => _width;
         set
         {
-            if (_width == value)
+            if (!SetProperty(ref _width, value))
                 return;
 
-            _width = value;
             InvalidateMatrices();
         }
     }
@@ -69,10 +67,9 @@ public class OrthoCamera : Component, ICameraComponent
         get => _height;
         set
         {
-            if (_height == value)
+            if (!SetProperty(ref _height, value))
                 return;
 
-            _height = value;
             InvalidateMatrices();
         }
     }
@@ -83,10 +80,9 @@ public class OrthoCamera : Component, ICameraComponent
         get => _nearPlane;
         set
         {
-            if (_nearPlane == value)
+            if (!SetProperty(ref _nearPlane, value))
                 return;
 
-            _nearPlane = value;
             InvalidateMatrices();
         }
     }
@@ -97,10 +93,9 @@ public class OrthoCamera : Component, ICameraComponent
         get => _farPlane;
         set
         {
-            if (_farPlane == value)
+            if (!SetProperty(ref _farPlane, value))
                 return;
 
-            _farPlane = value;
             InvalidateMatrices();
         }
     }

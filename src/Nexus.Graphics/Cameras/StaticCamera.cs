@@ -45,10 +45,9 @@ public class StaticCamera : Component, ICameraComponent
         get => _nearPlane;
         set
         {
-            if (_nearPlane == value)
+            if (!SetProperty(ref _nearPlane, value))
                 return;
 
-            _nearPlane = value;
             InvalidateProjection();
         }
     }
@@ -59,10 +58,9 @@ public class StaticCamera : Component, ICameraComponent
         get => _farPlane;
         set
         {
-            if (_farPlane == value)
+            if (!SetProperty(ref _farPlane, value))
                 return;
 
-            _farPlane = value;
             InvalidateProjection();
         }
     }

@@ -9,6 +9,9 @@ public class UniformColorMeshRenderer() : Component, IRenderableComponent, IGeom
         System.Runtime.CompilerServices.Unsafe.SizeOf<Matrix4X4<float>>() + Marshal.SizeOf<Color>();
 
     private HashSet<RenderLayer> _renderLayers = [];
+    private IGeometry? _geometry;
+    private Matrix4X4<float> _transformationMatrix = Matrix4X4<float>.Identity;
+    private Color _color = Colors.Black;
 
     /// <summary>
     /// Gets the render layers in which this component participates.
@@ -18,17 +21,29 @@ public class UniformColorMeshRenderer() : Component, IRenderableComponent, IGeom
     /// <summary>
     /// Gets or sets the geometry rendered by this component.
     /// </summary>
-    public IGeometry? Geometry { get; set; } = null;
+    public IGeometry? Geometry
+    {
+        get => _geometry;
+        set => SetProperty(ref _geometry, value);
+    }
 
     /// <summary>
     /// Gets or sets the transformation matrix applied to the geometry.
     /// </summary>
-    public Matrix4X4<float> TransformationMatrix { get; set; } = Matrix4X4<float>.Identity;
+    public Matrix4X4<float> TransformationMatrix
+    {
+        get => _transformationMatrix;
+        set => SetProperty(ref _transformationMatrix, value);
+    }
 
     /// <summary>
     /// Gets or sets the color applied to the rendered geometry.
     /// </summary>
-    public Color Color { get; set; } = Colors.Black;
+    public Color Color
+    {
+        get => _color;
+        set => SetProperty(ref _color, value);
+    }
 
     /// <summary>
     /// Gets the required instance-record size or writes the transform and color to a destination span.

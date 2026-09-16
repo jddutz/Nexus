@@ -1,6 +1,7 @@
 global using System;
 global using System.Collections.Concurrent;
 global using System.Collections.Immutable;
+global using System.ComponentModel;
 global using System.Runtime.CompilerServices;
 global using System.Runtime.InteropServices;
 global using Microsoft.Extensions.Logging;

@@ -39,10 +39,9 @@ public class PerspectiveCamera : Component, ICameraComponent
         get => _position;
         set
         {
-            if (_position == value)
+            if (!SetProperty(ref _position, value))
                 return;
 
-            _position = value;
             InvalidateMatrices();
         }
     }
@@ -53,10 +52,9 @@ public class PerspectiveCamera : Component, ICameraComponent
         get => _forward;
         set
         {
-            if (_forward == value)
+            if (!SetProperty(ref _forward, Vector3D.Normalize(value)))
                 return;
 
-            _forward = Vector3D.Normalize(value);
             UpdateDirectionVectors();
             InvalidateMatrices();
         }
@@ -68,10 +66,9 @@ public class PerspectiveCamera : Component, ICameraComponent
         get => _up;
         set
         {
-            if (_up == value)
+            if (!SetProperty(ref _up, Vector3D.Normalize(value)))
                 return;
 
-            _up = Vector3D.Normalize(value);
             UpdateDirectionVectors();
             InvalidateMatrices();
         }
@@ -83,10 +80,9 @@ public class PerspectiveCamera : Component, ICameraComponent
         get => _fieldOfView;
         set
         {
-            if (_fieldOfView == value)
+            if (!SetProperty(ref _fieldOfView, value))
                 return;
 
-            _fieldOfView = value;
             InvalidateMatrices();
         }
     }
@@ -97,10 +93,9 @@ public class PerspectiveCamera : Component, ICameraComponent
         get => _nearPlane;
         set
         {
-            if (_nearPlane == value)
+            if (!SetProperty(ref _nearPlane, value))
                 return;
 
-            _nearPlane = value;
             InvalidateMatrices();
         }
     }
@@ -111,10 +106,9 @@ public class PerspectiveCamera : Component, ICameraComponent
         get => _farPlane;
         set
         {
-            if (_farPlane == value)
+            if (!SetProperty(ref _farPlane, value))
                 return;
 
-            _farPlane = value;
             InvalidateMatrices();
         }
     }
