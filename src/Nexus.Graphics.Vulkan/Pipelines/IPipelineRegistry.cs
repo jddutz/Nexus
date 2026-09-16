@@ -34,6 +34,18 @@ public interface IPipelineRegistry : IDisposable
     PipelineLayout GetLayout(PipelineId id);
 
     /// <summary>
+    /// Gets a realized descriptor-set layout owned by a registered pipeline.
+    /// </summary>
+    /// <param name="pipelineId">The pipeline identifier.</param>
+    /// <param name="set">The descriptor-set index within the pipeline's descriptor schema.</param>
+    /// <returns>The descriptor-set layout. Ownership remains with the registry.</returns>
+    /// <exception cref="KeyNotFoundException">The pipeline identifier is not registered.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// The pipeline has no descriptor-set layout at <paramref name="set"/>.
+    /// </exception>
+    DescriptorSetLayout GetDescriptorSetLayout(PipelineId pipelineId, uint set);
+
+    /// <summary>
     /// Deletes a pipeline and layout and releases Vulkan resources.
     /// </summary>
     /// <param name="id">The pipeline identifier.</param>

@@ -55,6 +55,21 @@ public unsafe class PipelineRegistry(Context context, IPipelineFactory pipelineF
     }
 
     /// <inheritdoc />
+    public DescriptorSetLayout GetDescriptorSetLayout(PipelineId pipelineId, uint set)
+    {
+        if (!_pipelines.TryGetValue(pipelineId, out var record))
+            throw new KeyNotFoundException($"Pipeline with ID {pipelineId} was not found.");
+
+        if (set >= record.DescriptorSetLayouts.Length)
+            throw new ArgumentOutOfRangeException(
+                nameof(set),
+                $"Pipeline with ID {pipelineId} has no descriptor set at index {set}."
+            );
+
+        return record.DescriptorSetLayouts[set];
+    }
+
+    /// <inheritdoc />
     public void Release(PipelineId id)
     {
         if (_pipelines.Remove(id, out var entry))
