@@ -4,7 +4,6 @@ using Nexus.Audio;
 using Nexus.Core;
 using Nexus.GameModel;
 using Nexus.Graphics;
-using Nexus.Graphics.Resources;
 using Nexus.Graphics.Vulkan;
 using Nexus.Graphics.Vulkan.Components;
 using Nexus.Input;
@@ -180,14 +179,7 @@ public class BasicRuntimeTests
 
         public void Initialize() { }
 
-        public ResourceId Load(IResourceDescription resource) => ResourceId.Invalid;
-
-        public void Update(double deltaTime) { }
-
         public void Render() { }
-
-        public bool CanActivate<TComponent>(TComponent component)
-            where TComponent : class, IComponent => false;
 
         public bool Activate<TComponent>(TComponent component)
             where TComponent : class, IGraphicsComponent => false;

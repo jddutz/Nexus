@@ -5,7 +5,6 @@ global using Nexus.Core;
 global using Nexus.Graphics;
 global using Nexus.Graphics.Components;
 global using Nexus.Graphics.Geometry;
-global using Nexus.Graphics.Resources;
 global using Nexus.Graphics.Shaders;
 global using Silk.NET.Maths;
 global using Silk.NET.Windowing;

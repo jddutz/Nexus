@@ -1,4 +1,4 @@
-namespace Nexus.Graphics.Fonts;
+namespace Nexus.Content.Fonts;
 
 /// <summary>
 /// Font-level metrics for text layout and measurement.

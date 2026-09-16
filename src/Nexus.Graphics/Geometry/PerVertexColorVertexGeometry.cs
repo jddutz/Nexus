@@ -1,6 +1,6 @@
 namespace Nexus.Graphics.Geometry;
 
-public class PerVertexColorVertexGeometry : IResourceDescription, IGeometry
+public class PerVertexColorVertexGeometry : IGeometry
 {
     public ResourceId Id { get; }
     public string Name { get; }

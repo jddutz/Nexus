@@ -1,4 +1,4 @@
-namespace Nexus.Graphics.Fonts;
+namespace Nexus.Content.Fonts;
 
 /// <summary>
 /// Raw font data returned by font sources.

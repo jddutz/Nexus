@@ -1,4 +1,4 @@
-namespace Nexus.Graphics.Fonts;
+namespace Nexus.Content.Fonts;
 
 /// <summary>
 /// Defines the range of characters to include in a font atlas.
