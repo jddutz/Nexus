@@ -1,4 +1,4 @@
-namespace Nexus.Graphics.Vulkan.Textures;
+namespace Nexus.Graphics.Vulkan.Components;
 
 /// <summary>
 /// Creates and owns the native Vulkan resources backing sampled textures, keyed by
