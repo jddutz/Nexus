@@ -255,14 +255,27 @@ public unsafe class Renderer(
         if (cmd.InstanceCount == 0)
             return;
 
-        _context.VulkanApi.CmdBindPipeline(
-            _commandBuffer,
-            PipelineBindPoint.Graphics,
-            cmd.Pipeline
-        );
+        if (cmd.Pipeline.Handle != lastPipelineId)
+        {
+            _context.VulkanApi.CmdBindPipeline(
+                _commandBuffer,
+                PipelineBindPoint.Graphics,
+                cmd.Pipeline
+            );
 
+            lastPipelineId = cmd.Pipeline.Handle;
+
+            // Descriptor sets bound against a previous pipeline's layout are not guaranteed to
+            // remain valid for this one, so force both to be rebound below.
+            lastCameraDescriptorSetHandle = 0;
+            lastMaterialDescriptorSetHandle = 0;
+        }
+
+        // The pipeline's own descriptor schema is authoritative for which sets exist - a camera
+        // or material resource existing does not mean this pipeline's layout declared that set.
         if (
-            _cameraRegistry.ActiveCameraDescriptorSet is { } cameraDescriptorSet
+            cmd.DescriptorSetCount > 0
+            && _cameraRegistry.ActiveCameraDescriptorSet is { } cameraDescriptorSet
             && cameraDescriptorSet.Handle != lastCameraDescriptorSetHandle
         )
         {
@@ -281,7 +294,8 @@ public unsafe class Renderer(
         }
 
         if (
-            cmd.DescriptorSet.Handle != 0
+            cmd.DescriptorSetCount > 1
+            && cmd.DescriptorSet.Handle != 0
             && cmd.DescriptorSet.Handle != lastMaterialDescriptorSetHandle
         )
         {

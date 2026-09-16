@@ -57,6 +57,15 @@ public class RenderItem : IRenderItem
     public DescriptorSet DescriptorSet { get; init; }
 
     /// <summary>
+    /// Gets the number of descriptor sets defined by <see cref="Pipeline"/>'s descriptor schema,
+    /// as reported by <see cref="Pipelines.IPipelineRegistry.GetDescriptorSetLayoutCount"/> at
+    /// creation time. Authoritative for whether the camera (set 0) or material (set 1) descriptor
+    /// set should be bound - a resource existing (e.g. an active camera) does not imply the
+    /// pipeline's layout expects it.
+    /// </summary>
+    public required int DescriptorSetCount { get; init; }
+
+    /// <summary>
     /// Gets the native index buffer handle.
     /// </summary>
     public ulong IndexBufferId => IndexBuffer.Handle;

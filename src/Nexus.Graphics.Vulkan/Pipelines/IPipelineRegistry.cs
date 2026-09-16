@@ -46,6 +46,16 @@ public interface IPipelineRegistry : IDisposable
     DescriptorSetLayout GetDescriptorSetLayout(PipelineId pipelineId, uint set);
 
     /// <summary>
+    /// Gets the number of descriptor sets defined by a registered pipeline's descriptor schema.
+    /// This is the authoritative source for which sets a pipeline expects - callers must not
+    /// assume a set exists just because a corresponding resource (camera, material) happens to.
+    /// </summary>
+    /// <param name="pipelineId">The pipeline identifier.</param>
+    /// <returns>The descriptor-set count. Zero when the pipeline defines no descriptor schema.</returns>
+    /// <exception cref="KeyNotFoundException">The pipeline identifier is not registered.</exception>
+    int GetDescriptorSetLayoutCount(PipelineId pipelineId);
+
+    /// <summary>
     /// Deletes a pipeline and layout and releases Vulkan resources.
     /// </summary>
     /// <param name="id">The pipeline identifier.</param>

@@ -169,19 +169,19 @@ public class ComponentRegistry(
 
         var mainPassIndex = RenderPasses.GetIndex(RenderPasses.Main);
 
-        var (pipeline, layout) = _pipelineRegistry.GetOrCreate(
-            new PipelineDefinitionBuilder(UNIFORM_COLOR_PIPELINE_NAME)
-                .WithShader(vertexShader)
-                .WithShader(fragmentShader)
-                .WithRenderPass(_swapChain.Passes[mainPassIndex])
-                .WithVertexDescription(vertexShader.VertexDescription)
-                .WithInstanceDescription(VertexDescriptions.UniformColorInstance)
-                .WithTopology(vertexShader.Topology)
-                .WithDepthTest(false)
-                .WithDepthWrite(false)
-                .WithCullMode(CullModeFlags.None)
-                .Build()
-        );
+        var pipelineDefinition = new PipelineDefinitionBuilder(UNIFORM_COLOR_PIPELINE_NAME)
+            .WithShader(vertexShader)
+            .WithShader(fragmentShader)
+            .WithRenderPass(_swapChain.Passes[mainPassIndex])
+            .WithVertexDescription(vertexShader.VertexDescription)
+            .WithInstanceDescription(VertexDescriptions.UniformColorInstance)
+            .WithTopology(vertexShader.Topology)
+            .WithDepthTest(false)
+            .WithDepthWrite(false)
+            .WithCullMode(CullModeFlags.None)
+            .Build();
+
+        var (pipeline, layout) = _pipelineRegistry.GetOrCreate(pipelineDefinition);
 
         return new RenderItem
         {
@@ -191,6 +191,9 @@ public class ComponentRegistry(
             Layout = layout,
             VertexBuffer = _geometryFactory.ReadBuffer(geometryId),
             VertexCount = _geometryFactory.ReadVertexCount(geometryId),
+            DescriptorSetCount = _pipelineRegistry.GetDescriptorSetLayoutCount(
+                pipelineDefinition.Id
+            ),
         };
     }
 
@@ -286,6 +289,7 @@ public class ComponentRegistry(
             VertexBuffer = _geometryFactory.ReadBuffer(geometryId),
             VertexCount = _geometryFactory.ReadVertexCount(geometryId),
             DescriptorSet = descriptorSet,
+            DescriptorSetCount = _pipelineRegistry.GetDescriptorSetLayoutCount(pipelineId),
         };
     }
 

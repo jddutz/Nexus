@@ -70,6 +70,15 @@ public unsafe class PipelineRegistry(Context context, IPipelineFactory pipelineF
     }
 
     /// <inheritdoc />
+    public int GetDescriptorSetLayoutCount(PipelineId pipelineId)
+    {
+        if (!_pipelines.TryGetValue(pipelineId, out var record))
+            throw new KeyNotFoundException($"Pipeline with ID {pipelineId} was not found.");
+
+        return record.DescriptorSetLayouts.Length;
+    }
+
+    /// <inheritdoc />
     public void Release(PipelineId id)
     {
         if (_pipelines.Remove(id, out var entry))
