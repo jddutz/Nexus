@@ -9,7 +9,7 @@ public sealed class PipelineDefinitionBuilder : IPipelineDefinitionBuilder
     private readonly List<VertexInputBindingDescription> _vertexBindings = [];
     private readonly List<VertexInputAttributeDescription> _vertexAttributes = [];
     private readonly List<PushConstantRange> _pushConstantRanges = [];
-    private readonly List<DescriptorSetLayout> _descriptorSetLayouts = [];
+    private DescriptorSchema? _descriptorSchema;
 
     private string? _name;
     private RenderPass? _renderPass;
@@ -274,18 +274,12 @@ public sealed class PipelineDefinitionBuilder : IPipelineDefinitionBuilder
         return this;
     }
 
-    /// <summary>Adds a descriptor-set layout.</summary>
-    /// <param name="layout">The descriptor-set layout.</param>
+    /// <summary>Sets the descriptor schema describing all descriptor sets used by the pipeline.</summary>
+    /// <param name="schema">The descriptor schema.</param>
     /// <returns>This builder.</returns>
-    public PipelineDefinitionBuilder WithDescriptorSetLayout(DescriptorSetLayout layout)
+    public PipelineDefinitionBuilder WithDescriptorSchema(DescriptorSchema schema)
     {
-        if (layout.Handle == 0)
-            throw new ArgumentException(
-                "The descriptor set layout handle must be valid.",
-                nameof(layout)
-            );
-
-        _descriptorSetLayouts.Add(layout);
+        _descriptorSchema = schema;
         return this;
     }
 
@@ -363,7 +357,7 @@ public sealed class PipelineDefinitionBuilder : IPipelineDefinitionBuilder
             _frontFace,
             _lineWidth,
             _pushConstantRanges,
-            _descriptorSetLayouts
+            _descriptorSchema
         );
     }
 }

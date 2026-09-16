@@ -44,7 +44,7 @@ public sealed record PipelineDefinition
 
     public ImmutableArray<PushConstantRange> PushConstantRanges { get; }
 
-    public ImmutableArray<DescriptorSetLayout> DescriptorSetLayouts { get; }
+    public DescriptorSchema? DescriptorSchema { get; }
 
     public PipelineDefinition(
         string name,
@@ -70,7 +70,7 @@ public sealed record PipelineDefinition
         FrontFace frontFace = FrontFace.Clockwise,
         float lineWidth = 1.0f,
         IEnumerable<PushConstantRange>? pushConstantRanges = null,
-        IEnumerable<DescriptorSetLayout>? descriptorSetLayouts = null
+        DescriptorSchema? descriptorSchema = null
     )
     {
         Name = name;
@@ -104,7 +104,7 @@ public sealed record PipelineDefinition
         LineWidth = lineWidth;
 
         PushConstantRanges = [.. pushConstantRanges ?? []];
-        DescriptorSetLayouts = [.. descriptorSetLayouts ?? []];
+        DescriptorSchema = descriptorSchema;
 
         var hash = new IdentityHashBuilder(nameof(PipelineDefinition));
 
@@ -156,6 +156,23 @@ public sealed record PipelineDefinition
                 .Add(attribute.Binding)
                 .Add((uint)attribute.Format)
                 .Add(attribute.Offset);
+        }
+
+        hash.Add(DescriptorSchema is not null);
+        if (DescriptorSchema is not null)
+        {
+            foreach (var set in DescriptorSchema.Value.Sets)
+            {
+                hash.Add(set.Set);
+
+                foreach (var binding in set.Bindings)
+                {
+                    hash.Add(binding.Binding)
+                        .Add((uint)binding.DescriptorType)
+                        .Add(binding.DescriptorCount)
+                        .Add((uint)binding.StageFlags);
+                }
+            }
         }
 
         Id = hash.Compute();

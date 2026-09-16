@@ -23,6 +23,6 @@ public interface IPipelineDefinitionBuilder
     PipelineDefinitionBuilder WithFrontFace(FrontFace frontFace);
     PipelineDefinitionBuilder WithLineWidth(float lineWidth);
     PipelineDefinitionBuilder WithPushConstant(PushConstantRange range);
-    PipelineDefinitionBuilder WithDescriptorSetLayout(DescriptorSetLayout layout);
+    PipelineDefinitionBuilder WithDescriptorSchema(DescriptorSchema schema);
     PipelineDefinition Build();
 }
