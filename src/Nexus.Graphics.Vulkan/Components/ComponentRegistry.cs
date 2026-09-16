@@ -295,7 +295,11 @@ public class ComponentRegistry(
     /// per-render-item material (texture) descriptor set.
     /// </summary>
     /// <returns>The pipeline, its layout, and its identifier.</returns>
-    private (Pipeline Pipeline, PipelineLayout Layout, PipelineId Id) GetOrCreateTexturedQuadPipeline()
+    private (
+        Pipeline Pipeline,
+        PipelineLayout Layout,
+        PipelineId Id
+    ) GetOrCreateTexturedQuadPipeline()
     {
         var vertexShader = ShaderDescriptions.TexturedQuadVertexShader;
         var fragmentShader = ShaderDescriptions.TexturedQuadFragmentShader;

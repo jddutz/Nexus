@@ -280,7 +280,10 @@ public unsafe class Renderer(
             lastCameraDescriptorSetHandle = cameraDescriptorSet.Handle;
         }
 
-        if (cmd.DescriptorSet.Handle != 0 && cmd.DescriptorSet.Handle != lastMaterialDescriptorSetHandle)
+        if (
+            cmd.DescriptorSet.Handle != 0
+            && cmd.DescriptorSet.Handle != lastMaterialDescriptorSetHandle
+        )
         {
             var descriptorSet = cmd.DescriptorSet;
 
