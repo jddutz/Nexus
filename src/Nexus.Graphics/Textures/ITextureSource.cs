@@ -6,5 +6,8 @@ namespace Nexus.Graphics.Textures;
 /// </summary>
 public interface ITextureSource
 {
-    ReadOnlyMemory<byte> GetPixelData(PixelFormatEnum format);
+    ResourceId Id { get; }
+    ulong Count { get; }
+
+    ReadOnlyMemory<byte> GetPixelData(ColorFormatEnum format);
 }

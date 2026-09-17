@@ -3,7 +3,7 @@ namespace Nexus.Graphics.Components;
 /// <summary>
 /// Renders geometry with a per-instance transformation matrix and uniform color.
 /// </summary>
-public class UniformColorMeshRenderer() : Component, IRenderableComponent, IGeometryInstance
+public class UniformColorMeshRenderer() : Component, IRenderableComponent, IMeshInstance
 {
     private static readonly int InstanceDataSize =
         System.Runtime.CompilerServices.Unsafe.SizeOf<Matrix4X4<float>>() + Marshal.SizeOf<Color>();

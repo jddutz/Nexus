@@ -2,7 +2,7 @@ namespace Nexus.Graphics.Vulkan.Components;
 
 /// <summary>
 /// Creates and owns the native Vulkan resources backing sampled textures, keyed by
-/// <see cref="TextureDescription.Id"/>. Translates packed pixel data obtained from an
+/// <see cref="Texture.Id"/>. Translates packed pixel data obtained from an
 /// <see cref="ITextureSource"/> into a Vulkan image, image view, and sampler.
 /// </summary>
 /// <remarks>
@@ -49,9 +49,9 @@ public sealed unsafe class TextureRegistry(Context context) : IDisposable
     /// <exception cref="NotSupportedException">Thrown when <paramref name="format"/> has no corresponding Vulkan format.</exception>
     /// <exception cref="InvalidOperationException">Thrown when the returned pixel data does not match the expected size.</exception>
     public void Register(
-        TextureDescription description,
+        Texture description,
         ITextureSource source,
-        PixelFormatEnum format = PixelFormatEnum.RGBA8UNorm
+        ColorFormatEnum format = ColorFormatEnum.RGBA8UNorm
     )
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -199,26 +199,26 @@ public sealed unsafe class TextureRegistry(Context context) : IDisposable
     }
 
     /// <summary>
-    /// Translates a <see cref="PixelFormatEnum"/> into the corresponding Vulkan format and its
+    /// Translates a <see cref="ColorFormatEnum"/> into the corresponding Vulkan format and its
     /// packed byte size per pixel. Formats with no direct Vulkan byte-order equivalent are rejected
     /// rather than silently substituted.
     /// </summary>
     /// <param name="format">The pixel format to translate.</param>
     /// <returns>The matching Vulkan format and its byte size per pixel.</returns>
     /// <exception cref="NotSupportedException">Thrown when <paramref name="format"/> has no corresponding Vulkan format.</exception>
-    private static (Format Format, int BytesPerPixel) ToVulkanFormat(PixelFormatEnum format) =>
+    private static (Format Format, int BytesPerPixel) ToVulkanFormat(ColorFormatEnum format) =>
         format switch
         {
-            PixelFormatEnum.RGB8UNorm => (Format.R8G8B8Unorm, 3),
-            PixelFormatEnum.RGBA8UNorm => (Format.R8G8B8A8Unorm, 4),
-            PixelFormatEnum.RGB16UNorm => (Format.R16G16B16Unorm, 6),
-            PixelFormatEnum.RGBA16UNorm => (Format.R16G16B16A16Unorm, 8),
-            PixelFormatEnum.RGB16Float => (Format.R16G16B16Sfloat, 6),
-            PixelFormatEnum.RGBA16Float => (Format.R16G16B16A16Sfloat, 8),
-            PixelFormatEnum.RGB32UInt => (Format.R32G32B32Uint, 12),
-            PixelFormatEnum.RGBA32UInt => (Format.R32G32B32A32Uint, 16),
-            PixelFormatEnum.RGB32Float => (Format.R32G32B32Sfloat, 12),
-            PixelFormatEnum.RGBA32Float => (Format.R32G32B32A32Sfloat, 16),
+            ColorFormatEnum.RGB8UNorm => (Format.R8G8B8Unorm, 3),
+            ColorFormatEnum.RGBA8UNorm => (Format.R8G8B8A8Unorm, 4),
+            ColorFormatEnum.RGB16UNorm => (Format.R16G16B16Unorm, 6),
+            ColorFormatEnum.RGBA16UNorm => (Format.R16G16B16A16Unorm, 8),
+            ColorFormatEnum.RGB16Float => (Format.R16G16B16Sfloat, 6),
+            ColorFormatEnum.RGBA16Float => (Format.R16G16B16A16Sfloat, 8),
+            ColorFormatEnum.RGB32UInt => (Format.R32G32B32Uint, 12),
+            ColorFormatEnum.RGBA32UInt => (Format.R32G32B32A32Uint, 16),
+            ColorFormatEnum.RGB32Float => (Format.R32G32B32Sfloat, 12),
+            ColorFormatEnum.RGBA32Float => (Format.R32G32B32A32Sfloat, 16),
             _ => throw new NotSupportedException(
                 $"Pixel format '{format}' has no corresponding Vulkan format for texture upload."
             ),

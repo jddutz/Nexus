@@ -8,7 +8,7 @@ namespace Nexus.Graphics.Components;
 public class TexturedQuadRenderer(bool centered = false)
     : Component,
         IRenderableComponent,
-        IGeometryInstance
+        IMeshInstance
 {
     private static readonly int InstanceDataSize =
         System.Runtime.CompilerServices.Unsafe.SizeOf<Matrix4X4<float>>()
@@ -16,7 +16,7 @@ public class TexturedQuadRenderer(bool centered = false)
         + Marshal.SizeOf<Color>();
 
     private HashSet<RenderLayer> _renderLayers = [];
-    private TextureDescription? _texture;
+    private Texture? _texture;
     private Matrix4X4<float> _transformationMatrix = Matrix4X4<float>.Identity;
     private Vector4D<float> _textureRegion = new(0f, 0f, 1f, 1f);
     private Color _color = Colors.White;
@@ -31,12 +31,12 @@ public class TexturedQuadRenderer(bool centered = false)
     /// <paramref name="centered"/> is <see langword="true"/>, otherwise pivoted at its corner.
     /// </summary>
     public IGeometry? Geometry { get; } =
-        centered ? BuiltInGeometry.TexturedQuadCentered : BuiltInGeometry.TexturedQuadOffset;
+        centered ? BuiltInMesh.TexturedQuadCentered : BuiltInMesh.TexturedQuadOffset;
 
     /// <summary>
     /// Gets or sets the texture sampled by this component.
     /// </summary>
-    public TextureDescription? Texture
+    public Texture? Texture
     {
         get => _texture;
         set => SetProperty(ref _texture, value);

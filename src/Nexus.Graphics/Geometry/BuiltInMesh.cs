@@ -1,14 +1,14 @@
 namespace Nexus.Graphics.Geometry;
 
-public static class BuiltInGeometry
+public static class BuiltInMesh
 {
-    public static IGeometry FullScreenTriangle =>
+    public static Mesh FullScreenTriangle =>
         new UniformColorVertexGeometry(
             nameof(FullScreenTriangle),
             [new(-1f, -1f, 0f), new(3f, -1f, 0f), new(-1f, 3f, 0f)]
         );
 
-    public static IGeometry UniformColorRectCentered =>
+    public static Mesh UniformColorRectCentered =>
         new UniformColorVertexGeometry(
             nameof(UniformColorRectCentered),
             [
@@ -20,14 +20,14 @@ public static class BuiltInGeometry
             PrimitiveTopologyEnum.TriangleStrip
         );
 
-    public static IGeometry UniformColorRectOffset =>
+    public static Mesh UniformColorRectOffset =>
         new UniformColorVertexGeometry(
             nameof(UniformColorRectOffset),
             [new(0.0f, 0.0f, 0f), new(1.0f, 0.0f, 0f), new(0.0f, 1.0f, 0f), new(1.0f, 1.0f, 0f)],
             PrimitiveTopologyEnum.TriangleStrip
         );
 
-    public static IGeometry TexturedQuadCentered =>
+    public static Mesh TexturedQuadCentered =>
         new TexturedVertex2dGeometry(
             nameof(TexturedQuadCentered),
             [
@@ -39,7 +39,7 @@ public static class BuiltInGeometry
             PrimitiveTopologyEnum.TriangleStrip
         );
 
-    public static IGeometry TexturedQuadOffset =>
+    public static Mesh TexturedQuadOffset =>
         new TexturedVertex2dGeometry(
             nameof(TexturedQuadOffset),
             [

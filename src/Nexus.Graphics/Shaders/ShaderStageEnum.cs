@@ -1,4 +1,4 @@
-namespace Nexus.Graphics;
+namespace Nexus.Graphics.Shaders;
 
 public enum ShaderStageEnum
 {

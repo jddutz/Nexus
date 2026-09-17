@@ -115,9 +115,6 @@ public class GameSystem(
             [new(-0.5f, -0.5f, 0f), new(0.5f, -0.5f, 0f), new(-0.5f, 0.5f, 0f), new(0.5f, 0.5f, 0f)]
         );
 
-        // temporary test atlas
-        var atlas = new TextureDescription("TestAtlas", 2, 2);
-
         for (int x = 0; x < columns; x++)
         {
             for (int y = 0; y < rows; y++)
@@ -126,7 +123,7 @@ public class GameSystem(
                     .CreateChild<GameObject>()
                     .AddComponent<TexturedQuadRenderer>();
 
-                component.Texture = atlas;
+                component.Texture = BuiltInTextures.FourColorAtlas;
 
                 var idx = (x + y) % 4;
                 component.TextureRegion = idx switch
