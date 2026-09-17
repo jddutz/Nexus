@@ -9,7 +9,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
-    <ProjectReference Include="..\..\src\Nexus.Runtime\Nexus.Runtime.csproj" />
+    <ProjectReference Include="..\..\src\Runtime\Nexus.Runtime.csproj" />
 
     <None Update="appsettings.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
