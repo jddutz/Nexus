@@ -14,35 +14,23 @@ public readonly struct Vertex(
 
     /// <summary>Writes this vertex's selected attributes into the destination buffer.</summary>
     /// <param name="destination">The destination buffer to receive the packed vertex data.</param>
-    /// <param name="inputs">The vertex attributes to write, in buffer order.</param>
-    /// <param name="positionFormat">The position format, defaulting to <see cref="VectorFormatEnum.Float3D"/>.</param>
-    /// <param name="colorFormat">The color format, defaulting to <see cref="ColorFormatEnum.RGBA8UNorm"/>.</param>
+    /// <param name="format">The vertex buffer layout.</param>
     /// <returns>The number of bytes written.</returns>
     /// <exception cref="ArgumentException">Thrown if <paramref name="destination"/> is too small.</exception>
-    public int WriteVertexData(
-        Span<byte> destination,
-        VertexSemanticEnum[] inputs,
-        VectorFormatEnum? positionFormat = null,
-        ColorFormatEnum? colorFormat = null
-    )
+    public int WriteVertexData(Span<byte> destination, VertexFormat format)
     {
-        var resolvedPositionFormat = positionFormat ?? VectorFormatEnum.Float3D;
-
-        var resolvedColorFormat = colorFormat ?? ColorFormatEnum.RGBA8UNorm;
-
-        var size = GetVertexDataSize(inputs, resolvedPositionFormat, resolvedColorFormat);
-        if (destination.Length < size)
+        if (destination.Length < format.Stride)
         {
             throw new ArgumentException("The destination span is too small.", nameof(destination));
         }
 
         var offset = 0;
 
-        foreach (var input in inputs)
+        foreach (var input in format.Inputs)
         {
             offset += input switch
             {
-                VertexSemanticEnum.Position => resolvedPositionFormat == VectorFormatEnum.Float2D
+                VertexSemanticEnum.Position => format.PositionFormat == VectorFormatEnum.Float2D
                     ? PackVector2D(Position, destination[offset..])
                     : PackVector3D(Position, destination[offset..]),
 
@@ -50,7 +38,7 @@ public readonly struct Vertex(
 
                 VertexSemanticEnum.Color => PackColor(
                     Color,
-                    resolvedColorFormat,
+                    format.ColorFormat,
                     destination[offset..]
                 ),
 
@@ -64,48 +52,13 @@ public readonly struct Vertex(
     }
 
     /// <summary>Creates packed vertex data for this vertex's selected attributes.</summary>
-    /// <param name="inputs">The vertex attributes to write, in buffer order.</param>
-    /// <param name="positionFormat">The position format, defaulting to <see cref="VectorFormatEnum.Float3D"/>.</param>
-    /// <param name="colorFormat">The color format, defaulting to <see cref="ColorFormatEnum.RGBA8UNorm"/>.</param>
+    /// <param name="format">The vertex buffer layout.</param>
     /// <returns>The packed vertex data.</returns>
-    public ReadOnlyMemory<byte> ToVertexData(
-        VertexSemanticEnum[] inputs,
-        VectorFormatEnum? positionFormat = null,
-        ColorFormatEnum? colorFormat = null
-    )
+    public ReadOnlyMemory<byte> ToVertexData(VertexFormat format)
     {
-        var data = new byte[GetVertexDataSize(inputs, positionFormat, colorFormat)];
-        WriteVertexData(data, inputs, positionFormat, colorFormat);
+        var data = new byte[(int)format.Stride];
+        WriteVertexData(data, format);
         return data;
-    }
-
-    /// <summary>Computes the number of bytes a vertex occupies when packed with the given attributes and formats.</summary>
-    /// <param name="inputs">The vertex attributes to include, in buffer order.</param>
-    /// <param name="positionFormat">The position format, defaulting to <see cref="VectorFormatEnum.Float3D"/>.</param>
-    /// <param name="colorFormat">The color format, defaulting to <see cref="ColorFormatEnum.RGBA8UNorm"/>.</param>
-    /// <returns>The stride, in bytes, of one packed vertex.</returns>
-    public static int GetVertexDataSize(
-        VertexSemanticEnum[] inputs,
-        VectorFormatEnum? positionFormat = null,
-        ColorFormatEnum? colorFormat = null
-    )
-    {
-        var resolvedPositionFormat = positionFormat ?? VectorFormatEnum.Float3D;
-
-        var resolvedColorFormat = colorFormat ?? ColorFormatEnum.RGBA8UNorm;
-
-        return inputs.Sum(input =>
-            input switch
-            {
-                VertexSemanticEnum.Position => resolvedPositionFormat == VectorFormatEnum.Float2D
-                    ? sizeof(float) * 2
-                    : sizeof(float) * 3,
-                VertexSemanticEnum.Normal => sizeof(float) * 3,
-                VertexSemanticEnum.Color => resolvedColorFormat.GetBytesPerPixel(),
-                VertexSemanticEnum.TexCoord => sizeof(float) * 2,
-                _ => throw new ArgumentOutOfRangeException(nameof(inputs), input, null),
-            }
-        );
     }
 
     private static int PackColor(Color value, ColorFormatEnum format, Span<byte> destination) =>

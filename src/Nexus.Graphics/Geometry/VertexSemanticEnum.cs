@@ -1,4 +1,4 @@
-namespace Nexus.Graphics.Shaders;
+namespace Nexus.Graphics.Geometry;
 
 public enum VertexSemanticEnum
 {

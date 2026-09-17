@@ -32,30 +32,20 @@ public sealed class MeshSource : IMeshSource
         Id = hash.Compute();
     }
 
-    public ReadOnlyMemory<byte> GetVertexData(
-        VertexSemanticEnum[] inputs,
-        VectorFormatEnum? positionFormat = null,
-        ColorFormatEnum? colorFormat = null
-    )
+    public ReadOnlyMemory<byte> GetVertexData(VertexFormat format)
     {
         if (_vertices.Length == 0)
         {
             return ReadOnlyMemory<byte>.Empty;
         }
 
-        var stride = Vertex.GetVertexDataSize(inputs, positionFormat, colorFormat);
+        var stride = (int)format.Stride;
 
         var data = new byte[stride * _vertices.Length];
 
         for (var index = 0; index < _vertices.Length; index++)
         {
-            _vertices[index]
-                .WriteVertexData(
-                    data.AsSpan(index * stride, stride),
-                    inputs,
-                    positionFormat,
-                    colorFormat
-                );
+            _vertices[index].WriteVertexData(data.AsSpan(index * stride, stride), format);
         }
 
         return data;
