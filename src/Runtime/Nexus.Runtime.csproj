@@ -18,13 +18,13 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Nexus.Audio\Nexus.Audio.csproj" />
-    <ProjectReference Include="..\Nexus.Core\Nexus.Core.csproj" />
-    <ProjectReference Include="..\Nexus.GameModel\Nexus.GameModel.csproj" />
-    <ProjectReference Include="..\Nexus.Graphics\Nexus.Graphics.csproj" />
-    <ProjectReference Include="..\Nexus.Graphics.OpenGL\Nexus.Graphics.OpenGL.csproj" />
-    <ProjectReference Include="..\Nexus.Graphics.Vulkan\Nexus.Graphics.Vulkan.csproj" />
-    <ProjectReference Include="..\Nexus.Input\Nexus.Input.csproj" />
-    <ProjectReference Include="..\Nexus.Physics\Nexus.Physics.csproj" />
+    <ProjectReference Include="..\Audio\Nexus.Audio.csproj" />
+    <ProjectReference Include="..\Core\Nexus.Core.csproj" />
+    <ProjectReference Include="..\GameModel\Nexus.GameModel.csproj" />
+    <ProjectReference Include="..\Graphics\Nexus.Graphics.csproj" />
+    <ProjectReference Include="..\OpenGL\Nexus.Graphics.OpenGL.csproj" />
+    <ProjectReference Include="..\Vulkan\Nexus.Graphics.Vulkan.csproj" />
+    <ProjectReference Include="..\Input\Nexus.Input.csproj" />
+    <ProjectReference Include="..\Physics\Nexus.Physics.csproj" />
   </ItemGroup>
 </Project>

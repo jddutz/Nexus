@@ -17,8 +17,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Nexus.Core\Nexus.Core.csproj" />
-    <ProjectReference Include="..\Nexus.Graphics\Nexus.Graphics.csproj" />
+    <ProjectReference Include="..\Core\Nexus.Core.csproj" />
+    <ProjectReference Include="..\Graphics\Nexus.Graphics.csproj" />
   </ItemGroup>
 
   <ItemGroup>

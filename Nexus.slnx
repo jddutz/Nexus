@@ -3,8 +3,8 @@
     <Project Path="src/AssetPipeline/Nexus.AssetPipeline.csproj" />
     <Project Path="src/Core/Nexus.Core.csproj" />
     <Project Path="src/Graphics/Nexus.Graphics.csproj" />
-    <Project Path="src/Graphics.OpenGL/Nexus.Graphics.OpenGL.csproj" />
-    <Project Path="src/Graphics.Vulkan/Nexus.Graphics.Vulkan.csproj" />
+    <Project Path="src/OpenGL/Nexus.Graphics.OpenGL.csproj" />
+    <Project Path="src/Vulkan/Nexus.Graphics.Vulkan.csproj" />
     <Project Path="src/Audio/Nexus.Audio.csproj" />
     <Project Path="src/Content/Nexus.Content.csproj" />
     <Project Path="src/Input/Nexus.Input.csproj" />

@@ -7,7 +7,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
-    <ProjectReference Include="..\Nexus.Core\Nexus.Core.csproj" />
-    <ProjectReference Include="..\Nexus.Runtime\Nexus.Runtime.csproj" />
+    <ProjectReference Include="..\Core\Nexus.Core.csproj" />
+    <ProjectReference Include="..\Runtime\Nexus.Runtime.csproj" />
   </ItemGroup>
 </Project>

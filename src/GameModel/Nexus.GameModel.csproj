@@ -11,8 +11,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Nexus.Audio\Nexus.Audio.csproj" />
-    <ProjectReference Include="..\Nexus.Core\Nexus.Core.csproj" />
+    <ProjectReference Include="..\Audio\Nexus.Audio.csproj" />
+    <ProjectReference Include="..\Core\Nexus.Core.csproj" />
     <ProjectReference Include="..\Graphics\Nexus.Graphics.csproj" />
     <ProjectReference Include="..\Input\Nexus.Input.csproj" />
     <ProjectReference Include="..\Physics\Nexus.Physics.csproj" />

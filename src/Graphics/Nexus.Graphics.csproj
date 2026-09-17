@@ -9,6 +9,6 @@
   <ItemGroup>
     <PackageReference Include="Silk.NET.Maths" />
     <PackageReference Include="Silk.NET.Windowing" />
-    <ProjectReference Include="..\Nexus.Core\Nexus.Core.csproj" />
+    <ProjectReference Include="..\Core\Nexus.Core.csproj" />
   </ItemGroup>
 </Project>
