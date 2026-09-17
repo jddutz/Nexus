@@ -5,7 +5,7 @@ public unsafe class ShaderFactory(Context context) : IShaderFactory
     private readonly Context _context = context;
     private readonly Dictionary<ResourceId, ShaderModule> _modules = [];
 
-    public ResourceId Create(ShaderDescription description)
+    public ResourceId Create(Shader description)
     {
         var id = description.Id;
 
@@ -27,7 +27,7 @@ public unsafe class ShaderFactory(Context context) : IShaderFactory
         return module;
     }
 
-    public void Update(ResourceId id, ShaderDescription description)
+    public void Update(ResourceId id, Shader description)
     {
         if (!_modules.TryGetValue(id, out var existing))
             throw new KeyNotFoundException($"Shader resource '{id}' does not exist.");
@@ -48,19 +48,21 @@ public unsafe class ShaderFactory(Context context) : IShaderFactory
         _context.VulkanApi.DestroyShaderModule(_context.Device, module, null);
     }
 
-    private ShaderModule CreateModule(ShaderDescription description)
+    private ShaderModule CreateModule(Shader shader)
     {
-        var shaderPath = Path.Combine(AppContext.BaseDirectory, "Shaders", description.Source);
+        var shaderPath = Path.Combine(
+            AppContext.BaseDirectory,
+            "Shaders",
+            shader.SourceFileName + ".spv"
+        );
         var code = File.ReadAllBytes(shaderPath);
 
         if (code.Length == 0)
-            throw new InvalidOperationException(
-                $"Shader '{description.Name}' contains no SPIR-V data."
-            );
+            throw new InvalidOperationException($"Shader '{shader.Name}' contains no SPIR-V data.");
 
         if (code.Length % sizeof(uint) != 0)
             throw new InvalidOperationException(
-                $"Shader '{description.Name}' contains invalid SPIR-V data."
+                $"Shader '{shader.Name}' contains invalid SPIR-V data."
             );
 
         fixed (byte* codePtr = code)
@@ -81,7 +83,7 @@ public unsafe class ShaderFactory(Context context) : IShaderFactory
 
             if (result != Result.Success)
                 throw new InvalidOperationException(
-                    $"Unable to create shader module '{description.Name}': {result}"
+                    $"Unable to create shader module '{shader.Name}': {result}"
                 );
 
             return module;

@@ -5,7 +5,7 @@ namespace Nexus.Graphics.Vulkan.Pipelines;
 /// </summary>
 public sealed class PipelineDefinitionBuilder : IPipelineDefinitionBuilder
 {
-    private readonly List<ShaderDescription> _shaders = [];
+    private readonly List<Shader> _shaders = [];
     private readonly List<VertexInputBindingDescription> _vertexBindings = [];
     private readonly List<VertexInputAttributeDescription> _vertexAttributes = [];
     private readonly List<PushConstantRange> _pushConstantRanges = [];
@@ -39,7 +39,7 @@ public sealed class PipelineDefinitionBuilder : IPipelineDefinitionBuilder
     /// <summary>Adds a shader stage to the pipeline.</summary>
     /// <param name="shader">The shader stage description.</param>
     /// <returns>This builder.</returns>
-    public PipelineDefinitionBuilder WithShader(ShaderDescription shader)
+    public PipelineDefinitionBuilder WithShader(Shader shader)
     {
         ArgumentNullException.ThrowIfNull(shader);
         _shaders.Add(shader);
@@ -76,38 +76,47 @@ public sealed class PipelineDefinitionBuilder : IPipelineDefinitionBuilder
         return this;
     }
 
-    public PipelineDefinitionBuilder WithVertexDescription(VertexDescription description)
+    /// <summary>Adds the vertex-buffer layout described by <paramref name="format"/>.</summary>
+    /// <param name="format">The vertex buffer layout.</param>
+    /// <returns>This builder.</returns>
+    public PipelineDefinitionBuilder WithVertexFormat(VertexFormat format)
     {
-        ArgumentNullException.ThrowIfNull(description);
+        ArgumentNullException.ThrowIfNull(format);
 
         WithVertexBinding(
             new VertexInputBindingDescription
             {
                 Binding = 0,
-                Stride = description.Stride,
+                Stride = format.Stride,
                 InputRate = VertexInputRate.Vertex,
             }
         );
 
-        foreach (var attribute in description.Attributes)
+        var offset = 0u;
+        for (var location = 0u; location < format.Inputs.Length; location++)
         {
+            var semantic = format.Inputs[(int)location];
             WithVertexAttribute(
                 new VertexInputAttributeDescription
                 {
-                    Location = attribute.Location,
+                    Location = location,
                     Binding = 0,
-                    Format = attribute.Format.ToVulkanFormat(),
-                    Offset = attribute.Offset,
+                    Format = format.ToVulkanFormat(semantic),
+                    Offset = offset,
                 }
             );
+            offset += GetAttributeSize(format, semantic);
         }
 
         return this;
     }
 
-    public PipelineDefinitionBuilder WithInstanceDescription(VertexDescription description)
+    /// <summary>Adds the instance-buffer layout described by <paramref name="layout"/>.</summary>
+    /// <param name="layout">The instance buffer layout.</param>
+    /// <returns>This builder.</returns>
+    public PipelineDefinitionBuilder WithInstanceLayout(InstanceLayout layout)
     {
-        ArgumentNullException.ThrowIfNull(description);
+        ArgumentNullException.ThrowIfNull(layout);
 
         const uint binding = 1;
 
@@ -115,26 +124,48 @@ public sealed class PipelineDefinitionBuilder : IPipelineDefinitionBuilder
             new VertexInputBindingDescription
             {
                 Binding = binding,
-                Stride = description.Stride,
+                Stride = layout.Stride,
                 InputRate = VertexInputRate.Instance,
             }
         );
 
-        foreach (var attribute in description.Attributes)
+        foreach (var input in layout.Inputs)
         {
             WithVertexAttribute(
                 new VertexInputAttributeDescription
                 {
-                    Location = attribute.Location,
+                    Location = input.Location,
                     Binding = binding,
-                    Format = attribute.Format.ToVulkanFormat(),
-                    Offset = attribute.Offset,
+                    Format = ToVulkanFormat(input.Format),
+                    Offset = input.Offset,
                 }
             );
         }
 
         return this;
     }
+
+    private static uint GetAttributeSize(VertexFormat format, VertexSemanticEnum semantic) =>
+        semantic switch
+        {
+            VertexSemanticEnum.Position => format.PositionFormat == VectorFormatEnum.Float2D
+                ? sizeof(float) * 2u
+                : sizeof(float) * 3u,
+            VertexSemanticEnum.Normal => sizeof(float) * 3u,
+            VertexSemanticEnum.Color => (uint)format.ColorFormat.GetBytesPerPixel(),
+            VertexSemanticEnum.TexCoord => sizeof(float) * 2u,
+            _ => throw new ArgumentOutOfRangeException(nameof(semantic), semantic, null),
+        };
+
+    /// <summary>Converts an instance input format to its Vulkan equivalent.</summary>
+    /// <param name="format">The instance input format.</param>
+    /// <returns>The corresponding Vulkan format.</returns>
+    private static Format ToVulkanFormat(InstanceInputFormatEnum format) =>
+        format switch
+        {
+            InstanceInputFormatEnum.Float4 => Format.R32G32B32A32Sfloat,
+            _ => throw new ArgumentOutOfRangeException(nameof(format), format, null),
+        };
 
     /// <summary>Sets the primitive topology.</summary>
     /// <param name="topology">The primitive topology.</param>
@@ -294,15 +325,15 @@ public sealed class PipelineDefinitionBuilder : IPipelineDefinitionBuilder
         if (_renderPass is null)
             throw new InvalidOperationException("A render pass is required.");
 
-        ShaderDescription? vertexShader = null;
-        ShaderDescription? tessellationControlShader = null;
-        ShaderDescription? tessellationEvalShader = null;
-        ShaderDescription? geometryShader = null;
-        ShaderDescription? fragmentShader = null;
+        Shader? vertexShader = null;
+        Shader? tessellationControlShader = null;
+        Shader? tessellationEvalShader = null;
+        Shader? geometryShader = null;
+        Shader? fragmentShader = null;
 
         foreach (var shader in _shaders)
         {
-            switch (shader.Stages)
+            switch (shader.Stage)
             {
                 case ShaderStageEnum.Vertex when vertexShader is null:
                     vertexShader = shader;

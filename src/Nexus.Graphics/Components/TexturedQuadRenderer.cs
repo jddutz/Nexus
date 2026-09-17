@@ -5,10 +5,7 @@ namespace Nexus.Graphics.Components;
 /// <summary>
 /// Renders a texture-mapped quad with a per-instance transformation matrix, source rectangle, and tint color.
 /// </summary>
-public class TexturedQuadRenderer(bool centered = false)
-    : Component,
-        IRenderableComponent,
-        IMeshInstance
+public class TexturedQuadRenderer : Component, IRenderableComponent, IMeshInstance
 {
     private static readonly int InstanceDataSize =
         System.Runtime.CompilerServices.Unsafe.SizeOf<Matrix4X4<float>>()
@@ -22,6 +19,23 @@ public class TexturedQuadRenderer(bool centered = false)
     private Color _color = Colors.White;
 
     /// <summary>
+    /// Initializes a textured quad renderer with a corner-pivoted quad mesh.
+    /// </summary>
+    public TexturedQuadRenderer()
+        : this(centered: false) { }
+
+    /// <summary>
+    /// Initializes a textured quad renderer with the requested mesh pivot.
+    /// </summary>
+    /// <param name="centered">
+    /// <see langword="true"/> to use a center-pivoted mesh; otherwise, a corner-pivoted mesh.
+    /// </param>
+    public TexturedQuadRenderer(bool centered)
+    {
+        Mesh = centered ? BuiltInMesh.TexturedQuadCentered : BuiltInMesh.TexturedQuadOffset;
+    }
+
+    /// <summary>
     /// Gets the render layers in which this component participates.
     /// </summary>
     public IEnumerable<RenderLayer> RenderLayers => _renderLayers;
@@ -30,8 +44,7 @@ public class TexturedQuadRenderer(bool centered = false)
     /// Gets the constant quad geometry rendered by this component, pivoted at its center when
     /// <paramref name="centered"/> is <see langword="true"/>, otherwise pivoted at its corner.
     /// </summary>
-    public IGeometry? Geometry { get; } =
-        centered ? BuiltInMesh.TexturedQuadCentered : BuiltInMesh.TexturedQuadOffset;
+    public Mesh Mesh { get; }
 
     /// <summary>
     /// Gets or sets the texture sampled by this component.

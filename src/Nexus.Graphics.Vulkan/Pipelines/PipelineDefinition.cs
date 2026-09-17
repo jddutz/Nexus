@@ -4,11 +4,11 @@ public sealed record PipelineDefinition
 
     public string Name { get; }
 
-    public ShaderDescription? VertexShader { get; }
-    public ShaderDescription? TessellationControlShader { get; }
-    public ShaderDescription? TessellationEvalShader { get; }
-    public ShaderDescription? GeometryShader { get; }
-    public ShaderDescription? FragmentShader { get; }
+    public Shader? VertexShader { get; }
+    public Shader? TessellationControlShader { get; }
+    public Shader? TessellationEvalShader { get; }
+    public Shader? GeometryShader { get; }
+    public Shader? FragmentShader { get; }
 
     public ImmutableArray<VertexInputBindingDescription> VertexBindings { get; }
 
@@ -48,11 +48,11 @@ public sealed record PipelineDefinition
 
     public PipelineDefinition(
         string name,
-        ShaderDescription? vertexShader,
-        ShaderDescription? tessellationControlShader,
-        ShaderDescription? tessellationEvalShader,
-        ShaderDescription? geometryShader,
-        ShaderDescription? fragmentShader,
+        Shader? vertexShader,
+        Shader? tessellationControlShader,
+        Shader? tessellationEvalShader,
+        Shader? geometryShader,
+        Shader? fragmentShader,
         RenderPass renderPass,
         IEnumerable<VertexInputBindingDescription>? vertexBindings = null,
         IEnumerable<VertexInputAttributeDescription>? vertexAttributes = null,

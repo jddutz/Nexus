@@ -5,7 +5,7 @@ layout(location = 1) in vec4 fragTintColor;
 
 layout(location = 0) out vec4 outColor;
 
-layout(set = 0, binding = 1) uniform sampler2D texSampler;
+layout(set = 1, binding = 0) uniform sampler2D texSampler;
 
 void main() {
     // For R8 font atlases: component swizzle maps R→(1,1,1,R), so texture() returns (1,1,1,coverage)

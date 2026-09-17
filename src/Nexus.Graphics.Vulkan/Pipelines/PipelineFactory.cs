@@ -65,9 +65,9 @@ public unsafe class PipelineFactory(
     /// </summary>
     /// <param name="definition">The pipeline definition.</param>
     /// <returns>The shader definitions included in the pipeline.</returns>
-    private static ImmutableArray<ShaderDescription> GetShaders(PipelineDefinition definition)
+    private static ImmutableArray<Shader> GetShaders(PipelineDefinition definition)
     {
-        var shaders = new List<ShaderDescription>();
+        var shaders = new List<Shader>();
 
         if (definition.VertexShader is not null)
             shaders.Add(definition.VertexShader);
@@ -88,13 +88,17 @@ public unsafe class PipelineFactory(
     /// </summary>
     /// <param name="shaders">The shader definitions to load.</param>
     /// <returns>The created shader modules.</returns>
-    private ShaderModule[] CreateShaderModules(ImmutableArray<ShaderDescription> shaders)
+    private ShaderModule[] CreateShaderModules(ImmutableArray<Shader> shaders)
     {
         var modules = new ShaderModule[shaders.Length];
 
         for (var i = 0; i < shaders.Length; i++)
         {
-            var shaderPath = Path.Combine(AppContext.BaseDirectory, "Shaders", shaders[i].Source);
+            var shaderPath = Path.Combine(
+                AppContext.BaseDirectory,
+                "Shaders",
+                shaders[i].SourceFileName + ".spv"
+            );
             var code = File.ReadAllBytes(shaderPath);
 
             fixed (byte* codePtr = code)
@@ -130,7 +134,7 @@ public unsafe class PipelineFactory(
     /// <param name="shaderModules">The corresponding shader modules.</param>
     /// <returns>The shader-stage descriptions.</returns>
     private static PipelineShaderStageCreateInfo[] CreateShaderStages(
-        ImmutableArray<ShaderDescription> shaders,
+        ImmutableArray<Shader> shaders,
         ShaderModule[] shaderModules
     )
     {
@@ -141,7 +145,7 @@ public unsafe class PipelineFactory(
             stages[i] = new PipelineShaderStageCreateInfo
             {
                 SType = StructureType.PipelineShaderStageCreateInfo,
-                Stage = shaders[i].Stages switch
+                Stage = shaders[i].Stage switch
                 {
                     ShaderStageEnum.Vertex => ShaderStageFlags.VertexBit,
                     ShaderStageEnum.TessellationControl => ShaderStageFlags.TessellationControlBit,

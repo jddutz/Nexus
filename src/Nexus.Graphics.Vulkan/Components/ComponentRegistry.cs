@@ -16,7 +16,7 @@ internal sealed record ComponentRegistration(
 /// Creates and maintains Vulkan render-item registrations for supported graphics components.
 /// </summary>
 public class ComponentRegistry(
-    IGeometryFactory geometryFactory,
+    IMeshFactory meshFactory,
     IShaderFactory shaderFactory,
     IPipelineRegistry pipelineRegistry,
     IDescriptorSetPool descriptorSetPool,
@@ -32,7 +32,7 @@ public class ComponentRegistry(
     private readonly Dictionary<ComponentId, ComponentRegistration> _components = [];
     private readonly Dictionary<ResourceId, RenderItem> _renderItems = [];
 
-    private readonly IGeometryFactory _geometryFactory = geometryFactory;
+    private readonly IMeshFactory _meshFactory = meshFactory;
     private readonly IShaderFactory _shaderFactory = shaderFactory;
     private readonly IPipelineRegistry _pipelineRegistry = pipelineRegistry;
     private readonly IDescriptorSetPool _descriptorSetPool = descriptorSetPool;
@@ -129,7 +129,7 @@ public class ComponentRegistry(
     private RenderItem GetOrCreateRenderItem(UniformColorMeshRenderer component)
     {
         var geometry =
-            component.Geometry
+            component.Mesh
             ?? throw new InvalidOperationException(
                 $"{nameof(UniformColorMeshRenderer)} requires geometry."
             );
@@ -159,24 +159,18 @@ public class ComponentRegistry(
     /// <param name="component">The mesh renderer that defines the item geometry.</param>
     /// <param name="id">The identifier of the render item to create.</param>
     /// <returns>A configured render item.</returns>
-    /// <exception cref="NotSupportedException">Thrown when the renderer geometry is unsupported.</exception>
     private RenderItem Create(UniformColorMeshRenderer component, ResourceId id)
     {
-        // TODO: We should be able to use IGeometry.GetData but it hasn't been implemented yet
-        if (component.Geometry is not UniformColorVertexGeometry geometry)
-        {
-            throw new NotSupportedException(
-                $"{nameof(UniformColorMeshRenderer)} currently requires "
-                    + $"{nameof(UniformColorVertexGeometry)} geometry."
-            );
-        }
-
-        var geometryDefinition = new UniformColorVertexGeometryDefinition([.. geometry.Vertices]);
-
-        var geometryId = _geometryFactory.Create(geometryDefinition);
-
-        var vertexShader = ShaderDescriptions.UniformColorVertexShader;
-        var fragmentShader = ShaderDescriptions.UniformColorFragmentShader;
+        var mesh = component.Mesh;
+        var vertexShader = BuiltInShaders.UniformColorVertexShader;
+        var fragmentShader = BuiltInShaders.UniformColorFragmentShader;
+        var meshDefinition = new MeshDefinition(
+            mesh.Source.Id,
+            vertexShader.VertexFormat,
+            mesh.Source.GetVertexData(vertexShader.VertexFormat),
+            mesh.Source.Count
+        );
+        var meshId = _meshFactory.Create(meshDefinition);
 
         _shaderFactory.Create(vertexShader);
         _shaderFactory.Create(fragmentShader);
@@ -187,8 +181,8 @@ public class ComponentRegistry(
             .WithShader(vertexShader)
             .WithShader(fragmentShader)
             .WithRenderPass(_swapChain.Passes[mainPassIndex])
-            .WithVertexDescription(vertexShader.VertexDescription)
-            .WithInstanceDescription(VertexDescriptions.UniformColorInstance)
+            .WithVertexFormat(vertexShader.VertexFormat)
+            .WithInstanceLayout(BuiltInInstanceLayouts.UniformColor)
             .WithTopology(vertexShader.Topology)
             .WithDepthTest(false)
             .WithDepthWrite(false)
@@ -204,8 +198,8 @@ public class ComponentRegistry(
             RenderMask = RenderPasses.Main,
             Pipeline = pipeline,
             Layout = layout,
-            VertexBuffer = _geometryFactory.ReadBuffer(geometryId),
-            VertexCount = _geometryFactory.ReadVertexCount(geometryId),
+            VertexBuffer = _meshFactory.ReadBuffer(meshId),
+            VertexCount = _meshFactory.ReadVertexCount(meshId),
             DescriptorSetCount = _pipelineRegistry.GetDescriptorSetLayoutCount(
                 pipelineDefinition.Id
             ),
@@ -221,7 +215,7 @@ public class ComponentRegistry(
     private RenderItem GetOrCreateRenderItem(TexturedQuadRenderer component)
     {
         var geometry =
-            component.Geometry
+            component.Mesh
             ?? throw new InvalidOperationException(
                 $"{nameof(TexturedQuadRenderer)} requires geometry."
             );
@@ -256,18 +250,8 @@ public class ComponentRegistry(
     /// <param name="component">The textured quad renderer that defines the item geometry and texture.</param>
     /// <param name="id">The identifier of the render item to create.</param>
     /// <returns>A configured render item.</returns>
-    /// <exception cref="NotSupportedException">Thrown when the renderer geometry is unsupported.</exception>
-    /// <exception cref="InvalidOperationException">Thrown when the renderer's texture is not registered.</exception>
     private RenderItem Create(TexturedQuadRenderer component, ResourceId id)
     {
-        if (component.Geometry is not TexturedVertex2dGeometry geometry)
-        {
-            throw new NotSupportedException(
-                $"{nameof(TexturedQuadRenderer)} currently requires "
-                    + $"{nameof(TexturedVertex2dGeometry)} geometry."
-            );
-        }
-
         var texture =
             component.Texture
             ?? throw new InvalidOperationException(
@@ -275,16 +259,17 @@ public class ComponentRegistry(
             );
 
         if (!_textureRegistry.IsRegistered(texture.Id))
-        {
-            throw new InvalidOperationException(
-                $"Texture '{texture.Name}' must be registered with the {nameof(TextureRegistry)} "
-                    + "before it can be used by a render item."
-            );
-        }
+            _textureRegistry.Register(texture, texture.Source);
 
-        var geometryDefinition = new TexturedVertex2dGeometryDefinition([.. geometry.Vertices]);
-
-        var geometryId = _geometryFactory.Create(geometryDefinition);
+        var mesh = component.Mesh;
+        var vertexShader = BuiltInShaders.TexturedQuadVertexShader;
+        var meshDefinition = new MeshDefinition(
+            mesh.Source.Id,
+            vertexShader.VertexFormat,
+            mesh.Source.GetVertexData(vertexShader.VertexFormat),
+            mesh.Source.Count
+        );
+        var meshId = _meshFactory.Create(meshDefinition);
 
         var (pipeline, layout, pipelineId) = GetOrCreateTexturedQuadPipeline();
 
@@ -301,8 +286,8 @@ public class ComponentRegistry(
             RenderMask = RenderPasses.Main,
             Pipeline = pipeline,
             Layout = layout,
-            VertexBuffer = _geometryFactory.ReadBuffer(geometryId),
-            VertexCount = _geometryFactory.ReadVertexCount(geometryId),
+            VertexBuffer = _meshFactory.ReadBuffer(meshId),
+            VertexCount = _meshFactory.ReadVertexCount(meshId),
             DescriptorSet = descriptorSet,
             DescriptorSetCount = _pipelineRegistry.GetDescriptorSetLayoutCount(pipelineId),
         };
@@ -321,8 +306,8 @@ public class ComponentRegistry(
         PipelineId Id
     ) GetOrCreateTexturedQuadPipeline()
     {
-        var vertexShader = ShaderDescriptions.TexturedQuadVertexShader;
-        var fragmentShader = ShaderDescriptions.TexturedQuadFragmentShader;
+        var vertexShader = BuiltInShaders.TexturedQuadVertexShader;
+        var fragmentShader = BuiltInShaders.TexturedQuadFragmentShader;
 
         _shaderFactory.Create(vertexShader);
         _shaderFactory.Create(fragmentShader);
@@ -333,8 +318,8 @@ public class ComponentRegistry(
             .WithShader(vertexShader)
             .WithShader(fragmentShader)
             .WithRenderPass(_swapChain.Passes[mainPassIndex])
-            .WithVertexDescription(vertexShader.VertexDescription)
-            .WithInstanceDescription(VertexDescriptions.TexturedQuadInstance)
+            .WithVertexFormat(vertexShader.VertexFormat)
+            .WithInstanceLayout(BuiltInInstanceLayouts.TexturedQuad)
             .WithTopology(vertexShader.Topology)
             .WithDepthTest(false)
             .WithDepthWrite(false)

@@ -25,7 +25,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IComponentRegistry, ComponentRegistry>();
         services.TryAddSingleton<ICameraRegistry, CameraRegistry>();
         services.AddSingleton<IShaderFactory, ShaderFactory>();
-        services.AddSingleton<IGeometryFactory, GeometryFactory>();
+        services.AddSingleton<IMeshFactory, MeshFactory>();
         services.TryAddSingleton<TextureRegistry>();
 
         services.AddVkValidation();

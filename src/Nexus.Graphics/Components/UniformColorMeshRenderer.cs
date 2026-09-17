@@ -9,7 +9,7 @@ public class UniformColorMeshRenderer() : Component, IRenderableComponent, IMesh
         System.Runtime.CompilerServices.Unsafe.SizeOf<Matrix4X4<float>>() + Marshal.SizeOf<Color>();
 
     private HashSet<RenderLayer> _renderLayers = [];
-    private IGeometry? _geometry;
+    private Mesh _mesh = BuiltInMesh.Empty;
     private Matrix4X4<float> _transformationMatrix = Matrix4X4<float>.Identity;
     private Color _color = Colors.Black;
 
@@ -19,12 +19,12 @@ public class UniformColorMeshRenderer() : Component, IRenderableComponent, IMesh
     public IEnumerable<RenderLayer> RenderLayers => _renderLayers;
 
     /// <summary>
-    /// Gets or sets the geometry rendered by this component.
+    /// Gets or sets the mesh rendered by this component.
     /// </summary>
-    public IGeometry? Geometry
+    public Mesh Mesh
     {
-        get => _geometry;
-        set => SetProperty(ref _geometry, value);
+        get => _mesh;
+        set => SetProperty(ref _mesh, value);
     }
 
     /// <summary>

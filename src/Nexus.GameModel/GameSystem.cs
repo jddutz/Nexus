@@ -110,18 +110,12 @@ public class GameSystem(
 
         var rng = new Random();
 
-        var geometry = new UniformColorVertexGeometry(
-            "Rect",
-            [new(-0.5f, -0.5f, 0f), new(0.5f, -0.5f, 0f), new(-0.5f, 0.5f, 0f), new(0.5f, 0.5f, 0f)]
-        );
-
         for (int x = 0; x < columns; x++)
         {
             for (int y = 0; y < rows; y++)
             {
-                var component = CurrentScene
-                    .CreateChild<GameObject>()
-                    .AddComponent<TexturedQuadRenderer>();
+                var component = new TexturedQuadRenderer(centered: true);
+                CurrentScene.CreateChild<GameObject>().AddComponent(component);
 
                 component.Texture = BuiltInTextures.FourColorAtlas;
 
