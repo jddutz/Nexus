@@ -8,6 +8,8 @@ global using Nexus.Core.Events;
 global using Nexus.Graphics;
 global using Nexus.Graphics.Cameras;
 global using Nexus.Graphics.Components;
+global using Nexus.Graphics.Geometry;
+global using Nexus.Graphics.Textures;
 global using Nexus.Input;
 global using Nexus.Input.Components;
 global using Nexus.Physics;

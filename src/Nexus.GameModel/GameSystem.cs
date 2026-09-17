@@ -1,19 +1,17 @@
-using Nexus.Graphics.Geometry;
-
 namespace Nexus.GameModel;
 
 /// <summary>
 /// Provides the default implementation of the game system lifecycle.
 /// </summary>
-public class GameModelSystem(
+public class GameSystem(
     IGraphicsSystem graphics,
     IPhysicsSystem physics,
     IAudioSystem audio,
     IInputSystem input,
-    ILogger<GameModelSystem> logger
+    ILogger<GameSystem> logger
 ) : IGameSystem, IGameModel
 {
-    private readonly ILogger<GameModelSystem> _logger = logger;
+    private readonly ILogger<GameSystem> _logger = logger;
     private readonly Dictionary<GameObjectId, IGameObject> _gameObjects = [];
 
     /// <summary>
@@ -117,16 +115,29 @@ public class GameModelSystem(
             [new(-0.5f, -0.5f, 0f), new(0.5f, -0.5f, 0f), new(-0.5f, 0.5f, 0f), new(0.5f, 0.5f, 0f)]
         );
 
+        // temporary test atlas
+        var atlas = new TextureDescription("TestAtlas", 2, 2);
+
         for (int x = 0; x < columns; x++)
         {
             for (int y = 0; y < rows; y++)
             {
                 var component = CurrentScene
                     .CreateChild<GameObject>()
-                    .AddComponent<UniformColorMeshRenderer>();
+                    .AddComponent<TexturedQuadRenderer>();
 
-                var c = 0.01f + (float)rng.NextDouble() * 0.02f;
-                component.Color = new Color(c, c, c, 1.0f);
+                component.Texture = atlas;
+
+                var idx = (x + y) % 4;
+                component.TextureRegion = idx switch
+                {
+                    0 => new(0.0f, 0.0f, 0.5f, 0.5f),
+                    1 => new(0.5f, 0.0f, 0.5f, 0.5f),
+                    2 => new(0.0f, 0.5f, 0.5f, 0.5f),
+                    _ => new(0.5f, 0.5f, 0.5f, 0.5f),
+                };
+
+                // component.Color = Colors.RandomGray(rng, 0.01f, 0.02f);
 
                 var scale = 1.0f + (float)rng.NextDouble() * 0.4f;
 
@@ -139,8 +150,6 @@ public class GameModelSystem(
                 component.TransformationMatrix =
                     Matrix4X4.CreateScale(width, height, 1.0f)
                     * Matrix4X4.CreateTranslation(centerX, centerY, rng.Next(4));
-
-                component.Geometry = geometry;
             }
         }
 

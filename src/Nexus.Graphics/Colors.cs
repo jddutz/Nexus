@@ -185,4 +185,23 @@ public static class Colors
     // Commonly used color aliases for convenience
     public static Color Clear => Transparent;
     public static Color Opaque => White;
+
+    public static Color RandomGray(Random rng, float min, float range)
+    {
+        var c = min + (float)rng.NextDouble() * range;
+        return new Color(c, c, c, 1.0f);
+    }
+
+    public static Color GaussianGray(Random rng, float median, float scale)
+    {
+        var uniformSum = 0.0;
+        for (var index = 0; index < 6; index++)
+        {
+            uniformSum += rng.NextDouble();
+        }
+
+        var standardNormal = (uniformSum - 3.0) * 1.4142135623730951;
+        var value = Math.Clamp(median + scale * (float)standardNormal, 0.0f, 1.0f);
+        return new Color(value, value, value, 1.0f);
+    }
 }
