@@ -15,6 +15,11 @@ public static class BuiltInTextures
             name: nameof(FourColorAtlas),
             width: 2,
             height: 2,
-            source: new TextureSource([Colors.Red, Colors.Green, Colors.Blue, Colors.White])
+            source: new TextureSource([
+                new Color(0.04f, 0.04f, 0.04f, 1.0f),
+                new Color(0.025f, 0.025f, 0.025f, 1.0f),
+                new Color(0.025f, 0.025f, 0.025f, 1.0f),
+                new Color(0.01f, 0.01f, 0.01f, 1.0f),
+            ])
         );
 }

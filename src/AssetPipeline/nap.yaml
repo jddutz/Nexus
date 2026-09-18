@@ -1,0 +1,16 @@
+root: ./Assets
+
+assets:
+  - assetType: texture
+    path: Art/Characters/Portraits
+    groupName: portraits    
+    files:
+      - Hero/Warrior.png
+      - Enemy/Mage.png
+
+  - assetType: texture
+    path: UI/Elements/Textures
+    groupName: ui
+    files:
+      - Button.png
+      - Panel.png
