@@ -1,6 +1,7 @@
 namespace Nexus.Graphics.Textures;
 
-public class TextureProvider(IOptions<ContentSettings> options) : IContentProvider<ITextureSource>
+public sealed class TextureProvider(IOptions<ContentSettings> options)
+    : IContentProvider<ITextureSource>
 {
     private readonly string _path = Path.Combine(options.Value.RootPath, "Textures");
 
@@ -10,7 +11,7 @@ public class TextureProvider(IOptions<ContentSettings> options) : IContentProvid
 
         if (!File.Exists(path))
         {
-            throw new FileNotFoundException($"Texture '{id}' was not found.", path);
+            return CreateMissingTexture();
         }
 
         using var stream = File.OpenRead(path);
@@ -32,5 +33,15 @@ public class TextureProvider(IOptions<ContentSettings> options) : IContentProvid
         }
 
         return new TextureSource(colors);
+    }
+
+    private static ITextureSource CreateMissingTexture()
+    {
+        return new TextureSource([
+            new Color(255, 0, 255),
+            new Color(0, 0, 0),
+            new Color(0, 0, 0),
+            new Color(255, 0, 255),
+        ]);
     }
 }

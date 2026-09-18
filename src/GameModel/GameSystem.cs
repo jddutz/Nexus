@@ -8,6 +8,7 @@ public class GameSystem(
     IPhysicsSystem physics,
     IAudioSystem audio,
     IInputSystem input,
+    IContentProvider<ITextureSource> textureProvider,
     ILogger<GameSystem> logger
 ) : IGameSystem, IGameModel
 {
@@ -110,6 +111,12 @@ public class GameSystem(
 
         var rng = new Random();
 
+        var atlasColumns = 14;
+        var atlasRows = 13;
+
+        var regionWidth = 1.0f / atlasColumns;
+        var regionHeight = 1.0f / atlasRows;
+
         for (int x = 0; x < columns; x++)
         {
             for (int y = 0; y < rows; y++)
@@ -117,8 +124,24 @@ public class GameSystem(
                 var component = new TexturedQuadRenderer(centered: true);
                 CurrentScene.CreateChild<GameObject>().AddComponent(component);
 
-                component.Texture = BuiltInTextures.FourColorAtlas;
+                component.Texture = new Texture(
+                    name: "button_atlas",
+                    width: 1792,
+                    height: 1664,
+                    source: textureProvider.Get("button_atlas")
+                );
 
+                var atlasIndex = (x * rows + y) % (atlasColumns * atlasRows);
+                var atlasX = atlasIndex % atlasColumns;
+                var atlasY = atlasIndex / atlasColumns;
+
+                component.TextureRegion = new(
+                    atlasX * regionWidth,
+                    atlasY * regionHeight,
+                    regionWidth,
+                    regionHeight
+                );
+                /*
                 var idx = (x + y) % 4;
                 component.TextureRegion = idx switch
                 {
@@ -134,6 +157,13 @@ public class GameSystem(
 
                 var width = cellWidth * scale;
                 var height = cellHeight * scale;
+
+                var centerX = -1.0f + (x + 0.5f) * cellWidth;
+                var centerY = -1.0f + (y + 0.5f) * cellHeight;
+                */
+
+                var width = cellWidth * 0.9f;
+                var height = cellHeight * 0.9f;
 
                 var centerX = -1.0f + (x + 0.5f) * cellWidth;
                 var centerY = -1.0f + (y + 0.5f) * cellHeight;

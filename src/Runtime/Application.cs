@@ -26,6 +26,7 @@ public sealed class Application : IApplication, IDisposable
         services.TryAddSingleton<IAudioSystem, AudioSystem>();
         services.TryAddSingleton<IInputSystem, InputSystem>();
         services.TryAddSingleton<IPhysicsSystem, PhysicsSystem>();
+        services.TryAddSingleton<IContentProvider<ITextureSource>, TextureProvider>();
         services.TryAddSingleton<INexusRuntime, NexusRuntime>();
 
         if (!services.Any(x => x.ServiceType == typeof(IGraphicsSystem)))
