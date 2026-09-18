@@ -16,9 +16,9 @@ public sealed class Application : IApplication, IDisposable
 
         services.AddOptions<ApplicationSettings>().Bind(configuration.GetSection("Application"));
         services.AddOptions<DiagnosticsSettings>().Bind(configuration.GetSection("Diagnostics"));
-        services.AddOptions<OpenGLSettings>().Bind(configuration.GetSection("OpenGL"));
-        services.AddOptions<VulkanSettings>().Bind(configuration.GetSection("Vulkan"));
+        services.AddOptions<VulkanSettings>().Bind(configuration.GetSection("Graphics"));
         services.AddOptions<WindowSettings>().Bind(configuration.GetSection("Window"));
+        services.AddOptions<ContentSettings>().Bind(configuration.GetSection("Content"));
 
         services.AddGameSystemServices();
 

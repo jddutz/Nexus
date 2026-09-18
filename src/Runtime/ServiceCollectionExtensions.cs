@@ -23,10 +23,10 @@ public static class ServiceCollectionExtensions
 
         // Don't try to override these, add a new registry / factory combination instead
         services.AddSingleton<IComponentRegistry, ComponentRegistry>();
-        services.TryAddSingleton<ICameraRegistry, CameraRegistry>();
+        services.AddSingleton<ICameraRegistry, CameraRegistry>();
         services.AddSingleton<IShaderFactory, ShaderFactory>();
         services.AddSingleton<IMeshFactory, MeshFactory>();
-        services.TryAddSingleton<TextureRegistry>();
+        services.AddSingleton<ITextureRegistry, TextureRegistry>();
 
         services.AddVkValidation();
 
