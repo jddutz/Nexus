@@ -11,6 +11,9 @@ public readonly struct Color(float red, float green, float blue, float alpha = 1
     public readonly float B = blue;
     public readonly float A = alpha;
 
+    public Color(byte red, byte green, byte blue, byte alpha = byte.MaxValue)
+        : this(red / 255f, green / 255f, blue / 255f, alpha / 255f) { }
+
     public Color WithTransparency(float a) => new(R, G, B, a);
 
     public static Color RandomGray(Random rng, float min, float range)

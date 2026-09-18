@@ -9,3 +9,4 @@ global using Nexus.Graphics.Geometry;
 global using Nexus.Graphics.Shaders;
 global using Silk.NET.Maths;
 global using Silk.NET.Windowing;
+global using StbImageSharp;
