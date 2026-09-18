@@ -11,7 +11,7 @@ namespace Nexus.Graphics.Vulkan.Components;
 /// and for disposing the registry to release all remaining textures.
 /// </remarks>
 /// <param name="context">The Vulkan context used to create and destroy texture resources.</param>
-public sealed unsafe class TextureRegistry(Context context) : IDisposable
+public sealed unsafe class TextureRegistry(Context context) : ITextureRegistry, IDisposable
 {
     /// <summary>
     /// Native Vulkan handles backing a single registered texture.

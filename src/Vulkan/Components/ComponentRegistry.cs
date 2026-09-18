@@ -21,7 +21,7 @@ public class ComponentRegistry(
     IPipelineRegistry pipelineRegistry,
     IDescriptorSetPool descriptorSetPool,
     ICameraRegistry cameraRegistry,
-    TextureRegistry textureRegistry,
+    ITextureRegistry textureRegistry,
     ISwapChain swapChain,
     IRenderer renderer,
     ILogger<ComponentRegistry> logger
@@ -37,7 +37,7 @@ public class ComponentRegistry(
     private readonly IPipelineRegistry _pipelineRegistry = pipelineRegistry;
     private readonly IDescriptorSetPool _descriptorSetPool = descriptorSetPool;
     private readonly ICameraRegistry _cameraRegistry = cameraRegistry;
-    private readonly TextureRegistry _textureRegistry = textureRegistry;
+    private readonly ITextureRegistry _textureRegistry = textureRegistry;
     private readonly ISwapChain _swapChain = swapChain;
     private readonly IRenderer _renderer = renderer;
     private readonly ILogger<ComponentRegistry> _logger = logger;
