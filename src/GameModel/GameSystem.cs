@@ -117,6 +117,13 @@ public class GameSystem(
         var regionWidth = 1.0f / atlasColumns;
         var regionHeight = 1.0f / atlasRows;
 
+        var atlasTexture = new Texture(
+            name: "button_atlas",
+            width: 1792,
+            height: 1664,
+            source: textureProvider.Get("button_atlas")
+        );
+
         for (int x = 0; x < columns; x++)
         {
             for (int y = 0; y < rows; y++)
@@ -124,12 +131,7 @@ public class GameSystem(
                 var component = new TexturedQuadRenderer(centered: true);
                 CurrentScene.CreateChild<GameObject>().AddComponent(component);
 
-                component.Texture = new Texture(
-                    name: "button_atlas",
-                    width: 1792,
-                    height: 1664,
-                    source: textureProvider.Get("button_atlas")
-                );
+                component.Texture = atlasTexture;
 
                 var atlasIndex = (x * rows + y) % (atlasColumns * atlasRows);
                 var atlasX = atlasIndex % atlasColumns;

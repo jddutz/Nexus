@@ -48,8 +48,8 @@ public sealed unsafe class TextureRegistry(Context context) : ITextureRegistry, 
     /// <exception cref="ArgumentException">Thrown when <paramref name="description"/> has invalid dimensions.</exception>
     /// <exception cref="NotSupportedException">Thrown when <paramref name="format"/> has no corresponding Vulkan format.</exception>
     /// <exception cref="InvalidOperationException">
-    /// Thrown when <paramref name="source"/> has more pixels than the texture, contains no pixel
-    /// data, or its pixel data is not a whole multiple of the format's bytes per pixel.
+    /// Thrown when the returned pixel data is empty, or its size matches neither a single pixel
+    /// nor the texture's dimensions.
     /// </exception>
     public void Register(
         Texture description,
@@ -73,16 +73,6 @@ public sealed unsafe class TextureRegistry(Context context) : ITextureRegistry, 
         }
 
         var (vulkanFormat, bytesPerPixel) = ToVulkanFormat(format);
-
-        var expectedPixelCount = (ulong)description.Width * description.Height;
-        if (source.Count > expectedPixelCount)
-        {
-            throw new InvalidOperationException(
-                $"Texture '{description.Name}' source has {source.Count} pixels, which exceeds "
-                    + $"the texture's {expectedPixelCount} pixels."
-            );
-        }
-
         var pixelData = source.GetPixelData(format);
 
         if (pixelData.Length == 0)
@@ -92,24 +82,28 @@ public sealed unsafe class TextureRegistry(Context context) : ITextureRegistry, 
             );
         }
 
-        if (pixelData.Length % bytesPerPixel != 0)
+        var expectedSize = checked(
+            (int)((ulong)description.Width * description.Height * (ulong)bytesPerPixel)
+        );
+
+        // A single-pixel source is a solid color: allocate a 1x1 image and let sampling stretch it across the mesh.
+        var isSolidColor = pixelData.Length == bytesPerPixel;
+
+        if (!isSolidColor && pixelData.Length != expectedSize)
         {
             throw new InvalidOperationException(
-                $"Texture '{description.Name}' source pixel data length {pixelData.Length} is not "
-                    + $"a whole multiple of {bytesPerPixel} bytes per pixel for format {format}."
+                $"Texture '{description.Name}' pixel data length {pixelData.Length} does not match "
+                    + $"the expected size {expectedSize} for format {format}."
             );
         }
 
-        var expectedSize = checked((int)(expectedPixelCount * (ulong)bytesPerPixel));
+        var imageWidth = isSolidColor ? 1u : description.Width;
+        var imageHeight = isSolidColor ? 1u : description.Height;
 
-        // A smaller source is repeated pixel-by-pixel to fill the texture's allocation.
-        var uploadData =
-            pixelData.Length == expectedSize ? pixelData : RepeatToFill(pixelData, expectedSize);
-
-        var image = CreateImage(description.Width, description.Height, vulkanFormat);
+        var image = CreateImage(imageWidth, imageHeight, vulkanFormat);
         var memory = AllocateAndBindImageMemory(image);
 
-        UploadPixels(image, uploadData.Span, description.Width, description.Height, bytesPerPixel);
+        UploadPixels(image, pixelData.Span, imageWidth, imageHeight, bytesPerPixel);
         TransitionImageLayout(
             image,
             ImageLayout.TransferDstOptimal,
@@ -248,29 +242,6 @@ public sealed unsafe class TextureRegistry(Context context) : ITextureRegistry, 
                 $"Pixel format '{format}' has no corresponding Vulkan format for texture upload."
             ),
         };
-
-    /// <summary>
-    /// Repeats <paramref name="source"/> end-to-end into a new buffer of <paramref name="length"/>
-    /// bytes, allowing a source smaller than the texture's allocation to fill it as a
-    /// repeating pattern.
-    /// </summary>
-    /// <param name="source">The packed pixel data to repeat. Its length must divide evenly into whole pixels.</param>
-    /// <param name="length">The required length of the returned buffer, in bytes.</param>
-    /// <returns>A new buffer of <paramref name="length"/> bytes containing <paramref name="source"/> repeated to fill it.</returns>
-    private static ReadOnlyMemory<byte> RepeatToFill(ReadOnlyMemory<byte> source, int length)
-    {
-        var expanded = new byte[length];
-        var sourceSpan = source.Span;
-        var destinationSpan = expanded.AsSpan();
-
-        for (var offset = 0; offset < destinationSpan.Length; offset += sourceSpan.Length)
-        {
-            var copyLength = Math.Min(sourceSpan.Length, destinationSpan.Length - offset);
-            sourceSpan[..copyLength].CopyTo(destinationSpan.Slice(offset, copyLength));
-        }
-
-        return expanded;
-    }
 
     /// <summary>
     /// Creates a 2D, single-mip, single-layer sampled Vulkan image sized for the given dimensions.

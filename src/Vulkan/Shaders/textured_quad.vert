@@ -32,6 +32,6 @@ void main()
         world *
         vec4(inPos, 0.0, 1.0);
 
-    fragTexCoord = mix(inUvRect.xy, inUvRect.zw, inTexCoord);
+    fragTexCoord = inUvRect.xy + inTexCoord * inUvRect.zw;
     fragTintColor = inTintColor;
 }

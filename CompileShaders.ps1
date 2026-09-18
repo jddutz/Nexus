@@ -10,7 +10,7 @@ if (-not $workspaceRoot) {
 
 $workspaceRoot = $workspaceRoot.Trim()
 
-$shaderDirectory = Join-Path $workspaceRoot "src/Nexus.Graphics.Vulkan/Shaders"
+$shaderDirectory = Join-Path $workspaceRoot "src/Vulkan/Shaders"
 $outputDirectory = Join-Path $shaderDirectory "Compiled"
 $glslc = Join-Path $env:VULKAN_SDK "Bin/glslc.exe"
 

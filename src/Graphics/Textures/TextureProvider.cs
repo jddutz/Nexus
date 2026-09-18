@@ -1,18 +1,39 @@
 namespace Nexus.Graphics.Textures;
 
-public sealed class TextureProvider(IOptions<ContentSettings> options)
-    : IContentProvider<ITextureSource>
+/// <summary>
+/// Loads texture sources from PNG files under the configured content root, falling back to a
+/// single magenta pixel when the requested file does not exist.
+/// </summary>
+/// <param name="options">Provides the configured content root path.</param>
+public sealed class TextureProvider(
+    IOptions<ContentSettings> options,
+    ILogger<TextureProvider> logger
+) : IContentProvider<ITextureSource>
 {
     private readonly string _path = Path.Combine(options.Value.RootPath, "Textures");
 
+    private readonly Dictionary<ContentId, ITextureSource> _cache = [];
+
     public ITextureSource Get(ContentId id)
+    {
+        if (_cache.TryGetValue(id, out var cached))
+            return cached;
+
+        var source = Load(id);
+
+        _cache[id] = source;
+
+        return source;
+    }
+
+    private ITextureSource Load(ContentId id)
     {
         var path = Path.Combine(_path, $"{id}.png");
 
+        logger.LogDebug("Loading texture. Id={Id}, Path={Path}", id, path);
+
         if (!File.Exists(path))
-        {
-            return CreateMissingTexture();
-        }
+            return new TextureSource([new Color(255, 0, 255)]);
 
         using var stream = File.OpenRead(path);
 
@@ -32,16 +53,13 @@ public sealed class TextureProvider(IOptions<ContentSettings> options)
             );
         }
 
-        return new TextureSource(colors);
-    }
+        logger.LogInformation(
+            "Loaded texture. Id={Id}, Width={Width}, Height={Height}",
+            id,
+            image.Width,
+            image.Height
+        );
 
-    private static ITextureSource CreateMissingTexture()
-    {
-        return new TextureSource([
-            new Color(255, 0, 255),
-            new Color(0, 0, 0),
-            new Color(0, 0, 0),
-            new Color(255, 0, 255),
-        ]);
+        return new TextureSource(colors);
     }
 }
