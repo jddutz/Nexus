@@ -43,4 +43,7 @@ public sealed class TextureSource : ITextureSource
 
         return pixelData;
     }
+
+    public static readonly ITextureSource Invalid = new TextureSource([Colors.Magenta]);
+    public static readonly ITextureSource Uniform = new TextureSource([Colors.White]);
 }

@@ -15,4 +15,9 @@ public readonly record struct ContentId(string Value)
     public override string ToString() => Value;
 
     public static readonly ContentId Invalid = new(string.Empty);
+
+    public static ContentId FromFilePath(string filepath)
+    {
+        return new ContentId(Path.GetFullPath(filepath));
+    }
 }

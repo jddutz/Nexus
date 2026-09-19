@@ -12,4 +12,11 @@ public interface IContentProvider<TSource>
     /// <param name="id">The identifier of the content to retrieve.</param>
     /// <returns>The resolved content instance.</returns>
     TSource Get(ContentId id);
+
+    /// <summary>
+    /// Loads a content instance directly from a file.
+    /// </summary>
+    /// <param name="filepath">The path to the content file.</param>
+    /// <returns>The loaded content instance.</returns>
+    TSource Load(string filepath);
 }
