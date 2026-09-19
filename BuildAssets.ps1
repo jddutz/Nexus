@@ -1,1 +1,1 @@
-src\AssetPipeline\bin\Debug\net10.0\nap.exe build
+src\AssetPipeline\bin\Debug\net10.0\nap.exe build -i .\.assets\nap.yaml -o .\tests\HelloNexus\.content
