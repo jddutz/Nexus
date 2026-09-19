@@ -8,7 +8,7 @@ public class GameSystem(
     IPhysicsSystem physics,
     IAudioSystem audio,
     IInputSystem input,
-    IContentProvider<ITextureSource> textureProvider,
+    IContentProvider<Texture> textureProvider,
     ILogger<GameSystem> logger
 ) : IGameSystem, IGameModel
 {
@@ -118,10 +118,10 @@ public class GameSystem(
         var regionHeight = 1.0f / atlasRows;
 
         var atlasTexture = new Texture(
-            name: "button_atlas",
+            contentId: "button_atlas",
             width: 1792,
             height: 1664,
-            source: textureProvider.Get("button_atlas")
+            source: textureProvider.Get("button_atlas").Source
         );
 
         for (int x = 0; x < columns; x++)

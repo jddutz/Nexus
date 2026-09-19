@@ -14,6 +14,10 @@ public sealed class Application : IApplication, IDisposable
     {
         services ??= new ServiceCollection();
 
+        services.AddSingleton<IContentManifest, ContentManifest>(sp =>
+            BuildContentManifest(configuration)
+        );
+
         services.AddOptions<ApplicationSettings>().Bind(configuration.GetSection("Application"));
         services.AddOptions<DiagnosticsSettings>().Bind(configuration.GetSection("Diagnostics"));
         services.AddOptions<VulkanSettings>().Bind(configuration.GetSection("Graphics"));
@@ -26,7 +30,7 @@ public sealed class Application : IApplication, IDisposable
         services.TryAddSingleton<IAudioSystem, AudioSystem>();
         services.TryAddSingleton<IInputSystem, InputSystem>();
         services.TryAddSingleton<IPhysicsSystem, PhysicsSystem>();
-        services.TryAddSingleton<IContentProvider<ITextureSource>, TextureProvider>();
+        services.TryAddSingleton<IContentProvider<Texture>, TextureProvider>();
         services.TryAddSingleton<INexusRuntime, NexusRuntime>();
 
         if (!services.Any(x => x.ServiceType == typeof(IGraphicsSystem)))
@@ -48,6 +52,16 @@ public sealed class Application : IApplication, IDisposable
         });
         _serviceProvider = services.BuildServiceProvider();
         _logger = _serviceProvider.GetRequiredService<ILogger<Application>>();
+    }
+
+    private static ContentManifest BuildContentManifest(IConfiguration appConfig)
+    {
+        var contentLibraryPath = appConfig.GetValue<string>("Path") ?? "Content/";
+
+        return new ContentManifest(
+            Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, contentLibraryPath)),
+            appConfig
+        );
     }
 
     /// <inheritdoc />

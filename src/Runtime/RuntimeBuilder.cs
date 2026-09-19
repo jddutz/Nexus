@@ -41,12 +41,14 @@ public class RuntimeBuilder : IRuntimeBuilder
     public INexusRuntime Build()
     {
         _services.TryAddSingleton(_configuration ?? new ConfigurationBuilder().Build());
+        _services.TryAddSingleton<IContentManifest, ContentManifest>();
         _services.TryAddSingleton<IInputSystem, InputSystem>();
         _services.TryAddSingleton<IGameSystem, GameSystem>();
         _services.TryAddSingleton<IGameModel>(serviceProvider =>
             (GameSystem)serviceProvider.GetRequiredService<IGameSystem>()
         );
         _services.TryAddSingleton<IPhysicsSystem, PhysicsSystem>();
+        _services.TryAddSingleton<IContentProvider<Texture>, TextureProvider>();
         _services.TryAddSingleton<IGraphicsSystem, VulkanGraphicsSystem>();
         _services.TryAddSingleton<IAudioSystem, AudioSystem>();
         _services.TryAddSingleton<IEventHub, EventHub>();

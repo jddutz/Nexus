@@ -25,7 +25,7 @@ public sealed unsafe class TextureRegistry(Context context) : ITextureRegistry, 
     );
 
     private readonly Context _context = context;
-    private readonly Dictionary<ResourceId, TextureEntry> _textures = new();
+    private readonly Dictionary<ContentId, TextureEntry> _textures = new();
     private readonly CommandPool _transientCommandPool = CreateTransientCommandPool(context);
     private bool _disposed;
 
@@ -34,7 +34,7 @@ public sealed unsafe class TextureRegistry(Context context) : ITextureRegistry, 
     /// </summary>
     /// <param name="id">The resource id to look up.</param>
     /// <returns><see langword="true"/> if a texture is registered; otherwise, <see langword="false"/>.</returns>
-    public bool IsRegistered(ResourceId id) => _textures.ContainsKey(id);
+    public bool IsRegistered(ContentId id) => _textures.ContainsKey(id);
 
     /// <summary>
     /// Registers a texture, creating its native Vulkan resources if it is not already registered.
@@ -67,7 +67,7 @@ public sealed unsafe class TextureRegistry(Context context) : ITextureRegistry, 
         if (description.Width == 0 || description.Height == 0)
         {
             throw new ArgumentException(
-                $"Texture '{description.Name}' has invalid dimensions: {description.Width}x{description.Height}",
+                $"Texture '{description.Id}' has invalid dimensions: {description.Width}x{description.Height}",
                 nameof(description)
             );
         }
@@ -78,7 +78,7 @@ public sealed unsafe class TextureRegistry(Context context) : ITextureRegistry, 
         if (pixelData.Length == 0)
         {
             throw new InvalidOperationException(
-                $"Texture '{description.Name}' source contains no pixel data."
+                $"Texture '{description.Id}' source contains no pixel data."
             );
         }
 
@@ -92,7 +92,7 @@ public sealed unsafe class TextureRegistry(Context context) : ITextureRegistry, 
         if (!isSolidColor && pixelData.Length != expectedSize)
         {
             throw new InvalidOperationException(
-                $"Texture '{description.Name}' pixel data length {pixelData.Length} does not match "
+                $"Texture '{description.Id}' pixel data length {pixelData.Length} does not match "
                     + $"the expected size {expectedSize} for format {format}."
             );
         }
@@ -128,7 +128,7 @@ public sealed unsafe class TextureRegistry(Context context) : ITextureRegistry, 
     /// <param name="id">The resource id of the texture.</param>
     /// <param name="imageView">The image view, if the texture is registered.</param>
     /// <returns><see langword="true"/> if the texture is registered; otherwise, <see langword="false"/>.</returns>
-    public bool TryGetImageView(ResourceId id, out ImageView imageView)
+    public bool TryGetImageView(ContentId id, out ImageView imageView)
     {
         if (_textures.TryGetValue(id, out var entry))
         {
@@ -146,7 +146,7 @@ public sealed unsafe class TextureRegistry(Context context) : ITextureRegistry, 
     /// <param name="id">The resource id of the texture.</param>
     /// <param name="sampler">The sampler, if the texture is registered.</param>
     /// <returns><see langword="true"/> if the texture is registered; otherwise, <see langword="false"/>.</returns>
-    public bool TryGetSampler(ResourceId id, out Sampler sampler)
+    public bool TryGetSampler(ContentId id, out Sampler sampler)
     {
         if (_textures.TryGetValue(id, out var entry))
         {
@@ -163,7 +163,7 @@ public sealed unsafe class TextureRegistry(Context context) : ITextureRegistry, 
     /// registered, in which case no action is taken.
     /// </summary>
     /// <param name="id">The resource id of the texture to remove.</param>
-    public void Remove(ResourceId id)
+    public void Remove(ContentId id)
     {
         if (_textures.Remove(id, out var entry))
         {

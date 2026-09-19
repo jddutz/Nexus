@@ -14,4 +14,9 @@ public sealed record ApplicationSettings
     /// Gets or sets the application version.
     /// </summary>
     public string ApplicationVersion { get; set; } = "1.0.0";
+
+    /// <summary>
+    /// Gets or sets the location of the content manifest.
+    /// </summary>
+    public string ContentManifestLocation { get; set; } = ".content/content-manifest.json";
 }

@@ -2,13 +2,13 @@ namespace Nexus.Graphics.Vulkan.Components;
 
 public interface ITextureRegistry
 {
-    bool IsRegistered(ResourceId id);
+    bool IsRegistered(ContentId id);
     void Register(
         Texture description,
         ITextureSource source,
         ColorFormatEnum format = ColorFormatEnum.RGBA8UNorm
     );
-    bool TryGetImageView(ResourceId id, out ImageView imageView);
-    bool TryGetSampler(ResourceId id, out Sampler sampler);
-    void Remove(ResourceId id);
+    bool TryGetImageView(ContentId id, out ImageView imageView);
+    bool TryGetSampler(ContentId id, out Sampler sampler);
+    void Remove(ContentId id);
 }

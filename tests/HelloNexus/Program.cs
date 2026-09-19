@@ -1,7 +1,4 @@
-﻿using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-
-namespace HelloNexus;
+﻿namespace HelloNexus;
 
 /// <summary>
 /// Entry point for the Hello Nexus application.
@@ -19,6 +16,9 @@ internal static class Program
             var configuration = new ConfigurationBuilder()
                 .SetBasePath(AppContext.BaseDirectory)
                 .AddJsonFile(Path.Combine(AppContext.BaseDirectory, "appsettings.json"))
+                .AddJsonFile(
+                    Path.Combine(AppContext.BaseDirectory, ".content", "content-manifest.json")
+                )
                 .Build();
 
             var services = new ServiceCollection();

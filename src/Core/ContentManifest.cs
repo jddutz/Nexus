@@ -1,21 +1,13 @@
 namespace Nexus.Core;
 
-public sealed class ContentManifest : IContentManifest
+public sealed class ContentManifest(string contentLibraryPath, IConfiguration configuration)
+    : IContentManifest
 {
-    public string ContentLibraryPath { get; }
-    public IConfiguration Textures { get; }
-    public IConfiguration Geometry { get; }
-    public IConfiguration Audio { get; }
-    public IConfiguration Fonts { get; }
-
-    public ContentManifest(IConfiguration configuration)
-    {
-        ContentLibraryPath = configuration.GetSection("Path").Value ?? "Content/";
-        Textures = configuration.GetSection("Textures");
-        Geometry = configuration.GetSection("Geometry");
-        Audio = configuration.GetSection("Audio");
-        Fonts = configuration.GetSection("Fonts");
-    }
+    public string ContentLibraryPath { get; } = contentLibraryPath;
+    public IConfiguration Textures { get; } = configuration.GetSection("Textures");
+    public IConfiguration Geometry { get; } = configuration.GetSection("Geometry");
+    public IConfiguration Audio { get; } = configuration.GetSection("Audio");
+    public IConfiguration Fonts { get; } = configuration.GetSection("Fonts");
 }
 
 public static class ContentManagementExtensions

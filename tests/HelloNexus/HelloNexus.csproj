@@ -17,5 +17,9 @@
     <None Include=".\.content\**">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Include="..\..\.assets\Textures\button_atlas.png">
+      <Link>.content\Textures\button_atlas.png</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 </Project>
