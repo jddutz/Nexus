@@ -5,7 +5,12 @@ namespace Nexus.Graphics.Components;
 /// <summary>
 /// Renders a texture-mapped quad with a per-instance transformation matrix, source rectangle, and tint color.
 /// </summary>
-public class TexturedQuadRenderer : Component, IGraphicsComponent, IRenderable, IMeshInstance
+public class TexturedQuadRenderer
+    : Component,
+        IGraphicsComponent,
+        IRenderable,
+        IInstanceDataSource,
+        IMeshInstance
 {
     private static readonly int InstanceDataSize =
         System.Runtime.CompilerServices.Unsafe.SizeOf<Matrix4X4<float>>()
@@ -44,6 +49,21 @@ public class TexturedQuadRenderer : Component, IGraphicsComponent, IRenderable, 
     /// Gets the single renderable contribution produced by this component.
     /// </summary>
     public IReadOnlyList<IRenderable> Renderables => [this];
+
+    IVertexDataSource IRenderable.Vertices => Mesh.Source;
+
+    ITexture IRenderable.Texture => _texture ?? global::Nexus.Graphics.Textures.Texture.Invalid;
+
+    IInstanceDataSource IRenderable.Instances => this;
+
+    ResourceId IInstanceDataSource.Id =>
+        new IdentityHashBuilder(nameof(TexturedQuadRenderer)).Add(Id).Compute();
+
+    ulong IInstanceDataSource.Count => 1;
+
+    VertexShader IRenderable.VertexShader => BuiltInShaders.TexturedQuadVertexShader;
+
+    FragmentShader IRenderable.FragmentShader => BuiltInShaders.TexturedQuadFragmentShader;
 
     /// <summary>Gets the number of packed instance records contributed by this component.</summary>
     public int InstanceCount => 1;
@@ -130,5 +150,20 @@ public class TexturedQuadRenderer : Component, IGraphicsComponent, IRenderable, 
             throw new ArgumentOutOfRangeException(nameof(instanceIndex));
 
         return GetInstanceData(destination);
+    }
+
+    ReadOnlyMemory<byte> IInstanceDataSource.GetInstanceData(InstanceLayout layout)
+    {
+        ArgumentNullException.ThrowIfNull(layout);
+
+        if (layout.Stride != InstanceDataSize)
+            throw new ArgumentException(
+                "The instance layout stride does not match the renderer data.",
+                nameof(layout)
+            );
+
+        var data = new byte[InstanceDataSize];
+        GetInstanceData(data);
+        return data;
     }
 }

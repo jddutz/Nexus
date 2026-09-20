@@ -25,3 +25,4 @@ global using Silk.NET.Vulkan.Extensions.KHR;
 global using Silk.NET.Windowing;
 global using VkBuffer = Silk.NET.Vulkan.Buffer;
 global using VkDescriptorPool = Silk.NET.Vulkan.DescriptorPool;
+global using VkImage = Silk.NET.Vulkan.Image;

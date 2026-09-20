@@ -167,7 +167,7 @@ public class ComponentRegistry(
         var meshDefinition = new MeshDefinition(
             mesh.Source.Id,
             vertexShader.VertexFormat,
-            mesh.Source.GetVertexData(vertexShader.VertexFormat),
+            mesh.Source.GetVertexData(vertexShader.VertexFormat, mesh.Topology),
             mesh.Source.Count
         );
         var meshId = _meshFactory.Create(meshDefinition);
@@ -196,14 +196,14 @@ public class ComponentRegistry(
         return new RenderItem
         {
             Id = id,
-            RenderMask = RenderPasses.Main,
-            Pipeline = pipeline,
-            Layout = layout,
-            VertexBuffer = _meshFactory.ReadBuffer(meshId),
+            RenderPassMask = RenderPasses.Main,
+            Pipelines = CreatePassArray(pipeline, RenderPasses.Main),
+            Layouts = CreatePassArray(layout, RenderPasses.Main),
+            VertexBuffers = CreatePassArray(_meshFactory.ReadBuffer(meshId), RenderPasses.Main),
+            InstanceBuffers = new VkBuffer[RenderPasses.Count],
+            IndexBuffers = new VkBuffer[RenderPasses.Count],
+            DescriptorSets = new DescriptorSet[RenderPasses.Count],
             VertexCount = _meshFactory.ReadVertexCount(meshId),
-            DescriptorSetCount = _pipelineRegistry.GetDescriptorSetLayoutCount(
-                pipelineDefinition.Id
-            ),
         };
     }
 
@@ -260,14 +260,14 @@ public class ComponentRegistry(
             );
 
         if (!_textureRegistry.IsRegistered(texture.Id))
-            _textureRegistry.Register(texture, texture.Source);
+            _textureRegistry.Register(texture, texture);
 
         var mesh = component.Mesh;
         var vertexShader = BuiltInShaders.TexturedQuadVertexShader;
         var meshDefinition = new MeshDefinition(
             mesh.Source.Id,
             vertexShader.VertexFormat,
-            mesh.Source.GetVertexData(vertexShader.VertexFormat),
+            mesh.Source.GetVertexData(vertexShader.VertexFormat, mesh.Topology),
             mesh.Source.Count
         );
         var meshId = _meshFactory.Create(meshDefinition);
@@ -284,14 +284,22 @@ public class ComponentRegistry(
         return new RenderItem
         {
             Id = id,
-            RenderMask = RenderPasses.Main,
-            Pipeline = pipeline,
-            Layout = layout,
-            VertexBuffer = _meshFactory.ReadBuffer(meshId),
+            RenderPassMask = RenderPasses.Main,
+            Pipelines = CreatePassArray(pipeline, RenderPasses.Main),
+            Layouts = CreatePassArray(layout, RenderPasses.Main),
+            VertexBuffers = CreatePassArray(_meshFactory.ReadBuffer(meshId), RenderPasses.Main),
+            InstanceBuffers = new VkBuffer[RenderPasses.Count],
+            IndexBuffers = new VkBuffer[RenderPasses.Count],
             VertexCount = _meshFactory.ReadVertexCount(meshId),
-            DescriptorSet = descriptorSet,
-            DescriptorSetCount = _pipelineRegistry.GetDescriptorSetLayoutCount(pipelineId),
+            DescriptorSets = CreatePassArray(descriptorSet, RenderPasses.Main),
         };
+    }
+
+    private static T[] CreatePassArray<T>(T value, uint passMask)
+    {
+        var values = new T[RenderPasses.Count];
+        values[RenderPasses.GetIndex(passMask)] = value;
+        return values;
     }
 
     /// <summary>

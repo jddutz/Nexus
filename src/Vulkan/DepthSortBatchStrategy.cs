@@ -74,22 +74,26 @@ public class DepthSortBatchStrategy : IBatchStrategy
         // Within same priority and depth, optimize for batching to minimize state changes
 
         // Sort by pipeline (most expensive to change)
-        var pipelineCompare = x.Pipeline.Handle.CompareTo(y.Pipeline.Handle);
+        var pipelineCompare = CompareHandles(x.Pipelines, y.Pipelines, value => value.Handle);
         if (pipelineCompare != 0)
             return pipelineCompare;
 
         // Then by descriptor set (textures/uniforms)
-        var descriptorCompare = x.DescriptorSetId.CompareTo(y.DescriptorSetId);
+        var descriptorCompare = CompareHandles(
+            x.DescriptorSets,
+            y.DescriptorSets,
+            value => value.Handle
+        );
         if (descriptorCompare != 0)
             return descriptorCompare;
 
         // Then by vertex buffer
-        var vertexCompare = x.VertexBuffer.Handle.CompareTo(y.VertexBuffer.Handle);
+        var vertexCompare = CompareHandles(x.VertexBuffers, y.VertexBuffers, value => value.Handle);
         if (vertexCompare != 0)
             return vertexCompare;
 
         // Finally by index buffer
-        return x.IndexBufferId.CompareTo(y.IndexBufferId);
+        return CompareHandles(x.IndexBuffers, y.IndexBuffers, value => value.Handle);
     }
 
     /// <summary>
@@ -106,14 +110,33 @@ public class DepthSortBatchStrategy : IBatchStrategy
         hash.Add(state.RenderPriority);
 
         // Add state change costs
-        hash.Add(state.Pipeline.Handle);
-        hash.Add(state.DescriptorSetId);
-        hash.Add(state.VertexBuffer.Handle);
-        hash.Add(state.IndexBufferId);
+        AddHandles(hash, state.Pipelines, value => value.Handle);
+        AddHandles(hash, state.DescriptorSets, value => value.Handle);
+        AddHandles(hash, state.VertexBuffers, value => value.Handle);
+        AddHandles(hash, state.IndexBuffers, value => value.Handle);
 
         // NOTE: DepthSortKey deliberately excluded - it's camera-relative and changes every frame
         // Including it would prevent any hash-based caching or grouping optimizations
 
         return hash.ToHashCode();
+    }
+
+    private static int CompareHandles<T>(T[] left, T[] right, Func<T, ulong> getHandle)
+    {
+        var count = Math.Min(left.Length, right.Length);
+        for (var index = 0; index < count; index++)
+        {
+            var comparison = getHandle(left[index]).CompareTo(getHandle(right[index]));
+            if (comparison != 0)
+                return comparison;
+        }
+
+        return left.Length.CompareTo(right.Length);
+    }
+
+    private static void AddHandles<T>(HashCode hash, T[] values, Func<T, ulong> getHandle)
+    {
+        foreach (var value in values)
+            hash.Add(getHandle(value));
     }
 }

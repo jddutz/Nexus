@@ -2,9 +2,9 @@ public interface IRenderable
 {
     IVertexDataSource Vertices { get; }
 
-    IInstanceDataSource Instances { get; }
+    ITexture Texture { get; }
 
-    ITextureDataSource Texture { get; }
+    IInstanceDataSource Instances { get; }
 
     VertexShader VertexShader { get; }
 

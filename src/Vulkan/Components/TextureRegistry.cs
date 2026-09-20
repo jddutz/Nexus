@@ -3,7 +3,7 @@ namespace Nexus.Graphics.Vulkan.Components;
 /// <summary>
 /// Creates and owns the native Vulkan resources backing sampled textures, keyed by
 /// <see cref="Texture.Id"/>. Translates packed pixel data obtained from an
-/// <see cref="ITextureDataSource"/> into a Vulkan image, image view, and sampler.
+/// <see cref="ITexture"/> into a Vulkan image, image view, and sampler.
 /// </summary>
 /// <remarks>
 /// This registry does not perform reference counting, usage tracking, or automatic eviction.
@@ -53,7 +53,7 @@ public sealed unsafe class TextureRegistry(Context context) : ITextureRegistry, 
     /// </exception>
     public void Register(
         Texture description,
-        ITextureDataSource source,
+        ITexture source,
         ColorFormatEnum format = ColorFormatEnum.RGBA8UNorm
     )
     {

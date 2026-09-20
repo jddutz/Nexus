@@ -41,22 +41,34 @@ public class DefaultBatchStrategy : IBatchStrategy
             else
             {
                 // Compare with previous to detect state changes
-                if (cmd.Pipeline.Handle != previous.Pipeline.Handle)
+                if (CompareHandles(cmd.Pipelines, previous.Pipelines, value => value.Handle) != 0)
                 {
                     stats.PipelineChanges++;
                 }
 
-                if (cmd.DescriptorSetId != previous.DescriptorSetId)
+                if (
+                    CompareHandles(
+                        cmd.DescriptorSets,
+                        previous.DescriptorSets,
+                        value => value.Handle
+                    ) != 0
+                )
                 {
                     stats.DescriptorSetChanges++;
                 }
 
-                if (cmd.VertexBuffer.Handle != previous.VertexBuffer.Handle)
+                if (
+                    CompareHandles(cmd.VertexBuffers, previous.VertexBuffers, value => value.Handle)
+                    != 0
+                )
                 {
                     stats.VertexBufferChanges++;
                 }
 
-                if (cmd.IndexBufferId != previous.IndexBufferId)
+                if (
+                    CompareHandles(cmd.IndexBuffers, previous.IndexBuffers, value => value.Handle)
+                    != 0
+                )
                 {
                     stats.IndexBufferChanges++;
                 }
@@ -132,22 +144,26 @@ public class DefaultBatchStrategy : IBatchStrategy
         // Order by cost: pipeline (most expensive) → descriptor set → vertex buffer → index buffer → push constants (least expensive)
 
         // 1. Sort by pipeline (most expensive to change)
-        var pipelineCompare = x.Pipeline.Handle.CompareTo(y.Pipeline.Handle);
+        var pipelineCompare = CompareHandles(x.Pipelines, y.Pipelines, value => value.Handle);
         if (pipelineCompare != 0)
             return pipelineCompare;
 
         // 2. Then by descriptor set (textures/uniforms)
-        var descriptorCompare = x.DescriptorSetId.CompareTo(y.DescriptorSetId);
+        var descriptorCompare = CompareHandles(
+            x.DescriptorSets,
+            y.DescriptorSets,
+            value => value.Handle
+        );
         if (descriptorCompare != 0)
             return descriptorCompare;
 
         // 3. Then by vertex buffer
-        var vertexCompare = x.VertexBuffer.Handle.CompareTo(y.VertexBuffer.Handle);
+        var vertexCompare = CompareHandles(x.VertexBuffers, y.VertexBuffers, value => value.Handle);
         if (vertexCompare != 0)
             return vertexCompare;
 
         // 4. Then by index buffer
-        var indexCompare = x.IndexBufferId.CompareTo(y.IndexBufferId);
+        var indexCompare = CompareHandles(x.IndexBuffers, y.IndexBuffers, value => value.Handle);
         if (indexCompare != 0)
             return indexCompare;
 
@@ -186,14 +202,33 @@ public class DefaultBatchStrategy : IBatchStrategy
         hash.Add(state.RenderPriority);
 
         // Then add in order of state change cost (most expensive first)
-        hash.Add(state.Pipeline.Handle);
-        hash.Add(state.DescriptorSetId);
-        hash.Add(state.VertexBuffer.Handle);
-        hash.Add(state.IndexBufferId);
+        AddHandles(hash, state.Pipelines, value => value.Handle);
+        AddHandles(hash, state.DescriptorSets, value => value.Handle);
+        AddHandles(hash, state.VertexBuffers, value => value.Handle);
+        AddHandles(hash, state.IndexBuffers, value => value.Handle);
 
         // NOTE: DepthSortKey deliberately excluded - it's camera-relative and changes every frame
 
         return hash.ToHashCode();
+    }
+
+    private static int CompareHandles<T>(T[] left, T[] right, Func<T, ulong> getHandle)
+    {
+        var count = Math.Min(left.Length, right.Length);
+        for (var index = 0; index < count; index++)
+        {
+            var comparison = getHandle(left[index]).CompareTo(getHandle(right[index]));
+            if (comparison != 0)
+                return comparison;
+        }
+
+        return left.Length.CompareTo(right.Length);
+    }
+
+    private static void AddHandles<T>(HashCode hash, T[] values, Func<T, ulong> getHandle)
+    {
+        foreach (var value in values)
+            hash.Add(getHandle(value));
     }
 
     /// <summary>

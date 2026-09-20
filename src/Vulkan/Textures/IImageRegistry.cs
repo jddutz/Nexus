@@ -2,9 +2,9 @@ namespace Nexus.Graphics.Vulkan.Textures;
 
 public interface IImageRegistry : IDisposable
 {
-    Image GetOrCreate(ResourceId id, ITextureDataSource source, ColorFormatEnum format);
+    VkImage GetOrCreate(ITexture texture, ColorFormatEnum format);
 
-    Image Get(ResourceId id);
+    VkImage Get(ResourceId id);
 
     void Release(ResourceId id);
 }

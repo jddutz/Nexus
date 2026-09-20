@@ -1,7 +1,13 @@
 using System.Buffers.Binary;
 using Nexus.Core;
 using Nexus.Graphics;
+using Nexus.Graphics.Components;
+using Nexus.Graphics.Geometry;
+using Nexus.Graphics.Shaders;
+using Nexus.Graphics.Textures;
 using Nexus.Graphics.Vulkan;
+using Silk.NET.Vulkan;
+using VkBuffer = Silk.NET.Vulkan.Buffer;
 
 namespace Tests;
 
@@ -130,33 +136,49 @@ public class RenderItemInstanceTests
     private static RenderItem CreateRenderItem() =>
         new()
         {
-            RenderMask = 1,
-            Pipeline = default,
-            Layout = default,
-            VertexBuffer = default,
+            RenderPassMask = 1,
+            Pipelines = new Pipeline[RenderPasses.Count],
+            Layouts = new PipelineLayout[RenderPasses.Count],
+            VertexBuffers = new VkBuffer[RenderPasses.Count],
+            InstanceBuffers = new VkBuffer[RenderPasses.Count],
+            IndexBuffers = new VkBuffer[RenderPasses.Count],
+            DescriptorSets = new DescriptorSet[RenderPasses.Count],
             VertexCount = 4,
-            DescriptorSetCount = 0,
         };
 
-    private sealed class TestRenderable(params int[] values) : Component, IRenderable
+    private sealed class TestRenderable(params int[] values)
+        : Component,
+            IRenderable,
+            IInstanceDataSource
     {
         public int[] Values { get; set; } = values;
 
-        public IEnumerable<RenderLayer> RenderLayers => [];
+        IVertexDataSource IRenderable.Vertices => BuiltInMesh.Empty.Source;
 
-        public int InstanceCount => Values.Length;
+        ITexture IRenderable.Texture => Texture.Uniform;
 
-        public int GetInstanceData(Span<byte> destination) => GetInstanceData(0, destination);
+        IInstanceDataSource IRenderable.Instances => this;
 
-        public int GetInstanceData(int instanceIndex, Span<byte> destination)
+        VertexShader IRenderable.VertexShader => BuiltInShaders.UniformColorVertexShader;
+
+        FragmentShader IRenderable.FragmentShader => BuiltInShaders.UniformColorFragmentShader;
+
+        ResourceId IInstanceDataSource.Id =>
+            new IdentityHashBuilder(nameof(TestRenderable)).Add(Id).Compute();
+
+        ulong IInstanceDataSource.Count => (ulong)Values.Length;
+
+        ReadOnlyMemory<byte> IInstanceDataSource.GetInstanceData(InstanceLayout layout)
         {
-            if ((uint)instanceIndex >= (uint)Values.Length)
-                throw new ArgumentOutOfRangeException(nameof(instanceIndex));
+            var data = new byte[Values.Length * sizeof(int)];
 
-            if (destination.Length >= sizeof(int))
-                BinaryPrimitives.WriteInt32LittleEndian(destination, Values[instanceIndex]);
+            for (var index = 0; index < Values.Length; index++)
+                BinaryPrimitives.WriteInt32LittleEndian(
+                    data.AsSpan(index * sizeof(int)),
+                    Values[index]
+                );
 
-            return sizeof(int);
+            return data;
         }
     }
 }

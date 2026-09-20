@@ -93,9 +93,10 @@ public unsafe class Renderer(
 
                     foreach (var command in layer.Items)
                     {
-                        if ((command.RenderMask & pass.RenderPass) != 0)
+                        if ((command.RenderPassMask & pass.RenderPass) != 0)
                             Draw(
                                 command,
+                                RenderPasses.GetIndex(pass.RenderPass),
                                 ref lastPipelineId,
                                 ref lastCameraDescriptorSetHandle,
                                 ref lastMaterialDescriptorSetHandle
@@ -245,6 +246,7 @@ public unsafe class Renderer(
 
     private void Draw(
         RenderItem cmd,
+        int passIndex,
         ref ulong lastPipelineId,
         ref ulong lastCameraDescriptorSetHandle,
         ref ulong lastMaterialDescriptorSetHandle
@@ -253,15 +255,20 @@ public unsafe class Renderer(
         if (cmd.InstanceCount == 0)
             return;
 
-        if (cmd.Pipeline.Handle != lastPipelineId)
+        var pipeline = cmd.Pipelines[passIndex];
+        var layout = cmd.Layouts[passIndex];
+        var descriptorSet = cmd.DescriptorSets[passIndex];
+        var vertexBuffer = cmd.VertexBuffers[passIndex];
+
+        if (pipeline.Handle != lastPipelineId)
         {
             _context.VulkanApi.CmdBindPipeline(
                 _commandBuffer,
                 PipelineBindPoint.Graphics,
-                cmd.Pipeline
+                pipeline
             );
 
-            lastPipelineId = cmd.Pipeline.Handle;
+            lastPipelineId = pipeline.Handle;
 
             // Descriptor sets bound against a previous pipeline's layout are not guaranteed to
             // remain valid for this one, so force both to be rebound below.
@@ -272,15 +279,14 @@ public unsafe class Renderer(
         // The pipeline's own descriptor schema is authoritative for which sets exist - a camera
         // or material resource existing does not mean this pipeline's layout declared that set.
         if (
-            cmd.DescriptorSetCount > 0
-            && _cameraRegistry.ActiveCameraDescriptorSet is { } cameraDescriptorSet
+            _cameraRegistry.ActiveCameraDescriptorSet is { } cameraDescriptorSet
             && cameraDescriptorSet.Handle != lastCameraDescriptorSetHandle
         )
         {
             _context.VulkanApi.CmdBindDescriptorSets(
                 _commandBuffer,
                 PipelineBindPoint.Graphics,
-                cmd.Layout,
+                layout,
                 0,
                 1,
                 &cameraDescriptorSet,
@@ -291,18 +297,12 @@ public unsafe class Renderer(
             lastCameraDescriptorSetHandle = cameraDescriptorSet.Handle;
         }
 
-        if (
-            cmd.DescriptorSetCount > 1
-            && cmd.DescriptorSet.Handle != 0
-            && cmd.DescriptorSet.Handle != lastMaterialDescriptorSetHandle
-        )
+        if (descriptorSet.Handle != 0 && descriptorSet.Handle != lastMaterialDescriptorSetHandle)
         {
-            var descriptorSet = cmd.DescriptorSet;
-
             _context.VulkanApi.CmdBindDescriptorSets(
                 _commandBuffer,
                 PipelineBindPoint.Graphics,
-                cmd.Layout,
+                layout,
                 1,
                 1,
                 &descriptorSet,
@@ -313,7 +313,7 @@ public unsafe class Renderer(
             lastMaterialDescriptorSetHandle = descriptorSet.Handle;
         }
 
-        if (cmd.PushConstants != null && cmd.Layout.Handle != 0)
+        if (cmd.PushConstants != null && layout.Handle != 0)
         {
             var handle = GCHandle.Alloc(cmd.PushConstants, GCHandleType.Pinned);
 
@@ -321,7 +321,7 @@ public unsafe class Renderer(
             {
                 _context.VulkanApi.CmdPushConstants(
                     _commandBuffer,
-                    cmd.Layout,
+                    layout,
                     cmd.ShaderStageFlags,
                     0,
                     (uint)Marshal.SizeOf(cmd.PushConstants),
@@ -337,7 +337,7 @@ public unsafe class Renderer(
         var instanceBuffer = _instanceBuffers[_currentFrameIndex];
         var instanceOffset = instanceBuffer.Write(cmd.InstanceData);
 
-        VkBuffer* buffers = stackalloc VkBuffer[2] { cmd.VertexBuffer, instanceBuffer.Buffer };
+        VkBuffer* buffers = stackalloc VkBuffer[2] { vertexBuffer, instanceBuffer.Buffer };
         ulong* offsets = stackalloc ulong[2] { 0, instanceOffset };
 
         _context.VulkanApi.CmdBindVertexBuffers(_commandBuffer, 0, 2, buffers, offsets);

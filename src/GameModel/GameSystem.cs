@@ -117,12 +117,7 @@ public class GameSystem(
         var regionWidth = 1.0f / atlasColumns;
         var regionHeight = 1.0f / atlasRows;
 
-        var atlasTexture = new Texture(
-            contentId: "button_atlas",
-            width: 1792,
-            height: 1664,
-            source: textureProvider.Get("button_atlas").Source
-        );
+        var atlasTexture = textureProvider.Get("button_atlas");
 
         for (int x = 0; x < columns; x++)
         {

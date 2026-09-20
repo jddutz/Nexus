@@ -44,7 +44,7 @@ public sealed class TextureProvider(IContentManifest manifest, ILogger<TexturePr
                 contentId: contentId,
                 width: (uint)image.Width,
                 height: (uint)image.Height,
-                source: new TextureSource(colors)
+                colorData: colors
             );
 
             _textures[contentId] = texture;
@@ -65,7 +65,7 @@ public sealed class TextureProvider(IContentManifest manifest, ILogger<TexturePr
         }
 
         // If we get here then the texture source is invalid
-        var invalidTexture = new Texture(contentId, 1, 1, TextureSource.Invalid);
+        var invalidTexture = new Texture(contentId, 1, 1, [Colors.Magenta]);
 
         _textures[contentId] = invalidTexture;
 
@@ -82,13 +82,13 @@ public sealed class TextureProvider(IContentManifest manifest, ILogger<TexturePr
         if (_textures.TryGetValue(id, out var cached))
             return cached;
 
-        if (id == BuiltInTextures.Invalid)
+        if (id == ContentId.Invalid)
         {
             var result = new Texture(
                 contentId: id,
                 width: 1,
                 height: 1,
-                source: new TextureSource([Colors.Magenta])
+                colorData: [Colors.Magenta]
             );
 
             _textures[id] = result;
@@ -96,14 +96,9 @@ public sealed class TextureProvider(IContentManifest manifest, ILogger<TexturePr
             return result;
         }
 
-        if (id == BuiltInTextures.Uniform)
+        if (id == (ContentId)"uniform")
         {
-            var result = new Texture(
-                contentId: id,
-                width: 1,
-                height: 1,
-                source: new TextureSource([Colors.White])
-            );
+            var result = new Texture(contentId: id, width: 1, height: 1, colorData: [Colors.White]);
 
             _textures[id] = result;
 

@@ -1,34 +1,44 @@
 namespace Nexus.Graphics.Vulkan;
 
 /// <summary>
-/// Defines the immutable render state used to order and batch render items.
+/// Defines the resolved Vulkan render state used to render an item across its supported passes.
 /// </summary>
 public interface IRenderItem
 {
     /// <summary>
-    /// Gets the graphics pipeline used to draw the item.
+    /// Gets the render passes in which this item participates.
     /// </summary>
-    Pipeline Pipeline { get; }
+    uint RenderPassMask { get; }
 
     /// <summary>
-    /// Gets the layout associated with <see cref="Pipeline"/>.
+    /// Gets the graphics pipeline used for each render pass.
     /// </summary>
-    PipelineLayout Layout { get; }
+    Pipeline[] Pipelines { get; }
 
     /// <summary>
-    /// Gets the vertex buffer containing the item's geometry.
+    /// Gets the pipeline layout used for each render pass.
     /// </summary>
-    VkBuffer VertexBuffer { get; }
+    PipelineLayout[] Layouts { get; }
 
     /// <summary>
-    /// Gets the native descriptor set handle bound while drawing.
+    /// Gets the vertex buffer used for each render pass.
     /// </summary>
-    ulong DescriptorSetId { get; }
+    VkBuffer[] VertexBuffers { get; }
 
     /// <summary>
-    /// Gets the native index buffer handle, or zero when no index buffer is used.
+    /// Gets the instance buffer used for each render pass.
     /// </summary>
-    ulong IndexBufferId { get; }
+    VkBuffer[] InstanceBuffers { get; }
+
+    /// <summary>
+    /// Gets the index buffer used for each render pass.
+    /// </summary>
+    VkBuffer[] IndexBuffers { get; }
+
+    /// <summary>
+    /// Gets the descriptor set used for each render pass.
+    /// </summary>
+    DescriptorSet[] DescriptorSets { get; }
 
     /// <summary>
     /// Gets the optional push constant data sent before drawing.

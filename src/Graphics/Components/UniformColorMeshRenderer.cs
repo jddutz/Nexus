@@ -3,7 +3,12 @@ namespace Nexus.Graphics.Components;
 /// <summary>
 /// Renders geometry with a per-instance transformation matrix and uniform color.
 /// </summary>
-public class UniformColorMeshRenderer() : Component, IGraphicsComponent, IRenderable, IMeshInstance
+public class UniformColorMeshRenderer()
+    : Component,
+        IGraphicsComponent,
+        IRenderable,
+        IInstanceDataSource,
+        IMeshInstance
 {
     private static readonly int InstanceDataSize =
         System.Runtime.CompilerServices.Unsafe.SizeOf<Matrix4X4<float>>() + Marshal.SizeOf<Color>();
@@ -22,6 +27,21 @@ public class UniformColorMeshRenderer() : Component, IGraphicsComponent, IRender
     /// Gets the single renderable contribution produced by this component.
     /// </summary>
     public IReadOnlyList<IRenderable> Renderables => [this];
+
+    IVertexDataSource IRenderable.Vertices => Mesh.Source;
+
+    ITexture IRenderable.Texture => global::Nexus.Graphics.Textures.Texture.Uniform;
+
+    IInstanceDataSource IRenderable.Instances => this;
+
+    ResourceId IInstanceDataSource.Id =>
+        new IdentityHashBuilder(nameof(UniformColorMeshRenderer)).Add(Id).Compute();
+
+    ulong IInstanceDataSource.Count => 1;
+
+    VertexShader IRenderable.VertexShader => BuiltInShaders.UniformColorVertexShader;
+
+    FragmentShader IRenderable.FragmentShader => BuiltInShaders.UniformColorFragmentShader;
 
     /// <summary>Gets the number of packed instance records contributed by this component.</summary>
     public int InstanceCount => 1;
@@ -87,5 +107,20 @@ public class UniformColorMeshRenderer() : Component, IGraphicsComponent, IRender
             throw new ArgumentOutOfRangeException(nameof(instanceIndex));
 
         return GetInstanceData(destination);
+    }
+
+    ReadOnlyMemory<byte> IInstanceDataSource.GetInstanceData(InstanceLayout layout)
+    {
+        ArgumentNullException.ThrowIfNull(layout);
+
+        if (layout.Stride != InstanceDataSize)
+            throw new ArgumentException(
+                "The instance layout stride does not match the renderer data.",
+                nameof(layout)
+            );
+
+        var data = new byte[InstanceDataSize];
+        GetInstanceData(data);
+        return data;
     }
 }

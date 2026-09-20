@@ -1,8 +1,8 @@
 namespace Nexus.Graphics.Vulkan;
 
 /// <summary>
-/// Describes a single Vulkan draw command - what to draw and how.
-/// Contains all information needed for batching, state management, and rendering.
+/// Contains the resolved Vulkan state required to render one item across its supported passes.
+/// Resource arrays are indexed by render-pass index.
 /// </summary>
 public class RenderItem : IRenderItem
 {
@@ -17,66 +17,24 @@ public class RenderItem : IRenderItem
     /// </summary>
     public ResourceId Id { get; init; }
 
-    // REQUIRED
     /// <summary>
-    /// Gets the render pass mask in which this item is drawn.
+    /// Gets the render passes in which this item participates.
     /// </summary>
-    public required uint RenderMask { get; init; }
+    public required uint RenderPassMask { get; init; }
 
-    /// <summary>
-    /// Gets the graphics pipeline used to draw this item.
-    /// </summary>
-    public required Pipeline Pipeline { get; init; }
-
-    /// <summary>
-    /// Gets the layout associated with <see cref="Pipeline"/>.
-    /// </summary>
-    public required PipelineLayout Layout { get; init; }
-
-    /// <summary>
-    /// Gets the vertex buffer containing this item's geometry.
-    /// </summary>
-    public required VkBuffer VertexBuffer { get; init; }
+    public required Pipeline[] Pipelines { get; init; }
+    public required PipelineLayout[] Layouts { get; init; }
+    public required VkBuffer[] VertexBuffers { get; init; }
+    public required VkBuffer[] InstanceBuffers { get; init; }
+    public required VkBuffer[] IndexBuffers { get; init; }
+    public required DescriptorSet[] DescriptorSets { get; init; }
 
     /// <summary>
     /// Gets the number of vertices to draw per instance.
     /// </summary>
     public required uint VertexCount { get; init; }
 
-    // OPTIONAL with sensible defaults
-
-    /// <summary>
-    /// Gets the optional index buffer for this item's geometry.
-    /// </summary>
-    public VkBuffer IndexBuffer { get; init; }
-
-    /// <summary>
-    /// Gets the descriptor set bound while drawing this item.
-    /// </summary>
-    public DescriptorSet DescriptorSet { get; init; }
-
-    /// <summary>
-    /// Gets the number of descriptor sets defined by <see cref="Pipeline"/>'s descriptor schema,
-    /// as reported by <see cref="Pipelines.IPipelineRegistry.GetDescriptorSetLayoutCount"/> at
-    /// creation time. Authoritative for whether the camera (set 0) or material (set 1) descriptor
-    /// set should be bound - a resource existing (e.g. an active camera) does not imply the
-    /// pipeline's layout expects it.
-    /// </summary>
-    public required int DescriptorSetCount { get; init; }
-
-    /// <summary>
-    /// Gets the native index buffer handle.
-    /// </summary>
-    public ulong IndexBufferId => IndexBuffer.Handle;
-
-    /// <summary>
-    /// Gets the native descriptor set handle.
-    /// </summary>
-    public ulong DescriptorSetId => DescriptorSet.Handle;
-
-    /// <summary>
-    /// Gets the first vertex to draw from <see cref="VertexBuffer"/>.
-    /// </summary>
+    /// <summary>Gets the first vertex to draw.</summary>
     public uint FirstVertex { get; init; }
 
     /// <summary>
@@ -210,22 +168,22 @@ public class RenderItem : IRenderItem
     /// </summary>
     private byte[] PackInstances(IRenderable component)
     {
-        var count = component.InstanceCount;
+        var source = component.Instances;
+        var count = checked((int)source.Count);
         if (count <= 0)
             throw new ArgumentException(
                 "A renderable component must contribute at least one instance.",
                 nameof(component)
             );
 
-        for (var index = 0; index < count; index++)
-            InitializeOrValidateStride(component.GetInstanceData(index, Span<byte>.Empty));
+        var packedData = source.GetInstanceData(component.VertexShader.InstanceLayout).ToArray();
+        if (packedData.Length == 0 || packedData.Length % count != 0)
+            throw new ArgumentException(
+                "Instance data must contain a complete record for every instance.",
+                nameof(component)
+            );
 
-        var packedData = new byte[checked(count * _instanceStride)];
-        for (var index = 0; index < count; index++)
-        {
-            var destination = packedData.AsSpan(index * _instanceStride, _instanceStride);
-            ValidateStride(component.GetInstanceData(index, destination));
-        }
+        InitializeOrValidateStride(packedData.Length / count);
 
         return packedData;
     }

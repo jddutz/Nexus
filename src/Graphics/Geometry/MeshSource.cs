@@ -32,7 +32,7 @@ public sealed class MeshSource : IVertexDataSource
         Id = hash.Compute();
     }
 
-    public ReadOnlyMemory<byte> GetVertexData(VertexFormat format)
+    public ReadOnlyMemory<byte> GetVertexData(VertexFormat format, PrimitiveTopologyEnum topology)
     {
         if (_vertices.Length == 0)
         {
