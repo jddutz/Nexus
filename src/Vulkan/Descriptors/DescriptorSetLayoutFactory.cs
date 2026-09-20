@@ -1,4 +1,4 @@
-namespace Nexus.Graphics.Vulkan.Pipelines;
+namespace Nexus.Graphics.Vulkan.Descriptors;
 
 /// <inheritdoc cref="IDescriptorSetLayoutFactory" />
 public unsafe class DescriptorSetLayoutFactory(Context context) : IDescriptorSetLayoutFactory

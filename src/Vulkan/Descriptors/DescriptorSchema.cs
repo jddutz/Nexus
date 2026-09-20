@@ -1,4 +1,4 @@
-namespace Nexus.Graphics.Vulkan.Pipelines;
+namespace Nexus.Graphics.Vulkan.Descriptors;
 
 public readonly record struct DescriptorBinding(
     uint Binding,

@@ -1,4 +1,4 @@
-namespace Nexus.Graphics.Vulkan.Pipelines;
+namespace Nexus.Graphics.Vulkan.Descriptors;
 
 /// <summary>
 /// Allocates, writes, and releases Vulkan descriptor sets from a single fixed-capacity

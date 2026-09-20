@@ -1,4 +1,4 @@
-namespace Nexus.Graphics.Vulkan.Pipelines;
+namespace Nexus.Graphics.Vulkan.Descriptors;
 
 /// <summary>
 /// Realizes Vulkan descriptor-set layouts directly from a <see cref="DescriptorSchema"/>,
