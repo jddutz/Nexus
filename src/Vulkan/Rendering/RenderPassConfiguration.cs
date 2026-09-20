@@ -1,4 +1,4 @@
-namespace Nexus.Graphics.Vulkan;
+namespace Nexus.Graphics.Vulkan.Rendering;
 
 /// <summary>
 /// Configuration for a single render pass using Vulkan native types.

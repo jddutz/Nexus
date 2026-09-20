@@ -1,4 +1,4 @@
-namespace Nexus.Graphics.Vulkan;
+namespace Nexus.Graphics.Vulkan.Rendering;
 
 public class RenderPassDefinition
 {

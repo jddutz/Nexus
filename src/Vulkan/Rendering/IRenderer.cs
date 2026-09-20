@@ -1,4 +1,4 @@
-namespace Nexus.Graphics.Vulkan;
+namespace Nexus.Graphics.Vulkan.Rendering;
 
 /// <summary>
 /// Defines the contract for a renderer that executes Vulkan rendering operations.

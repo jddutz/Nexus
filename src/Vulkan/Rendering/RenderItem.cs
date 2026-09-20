@@ -1,4 +1,4 @@
-namespace Nexus.Graphics.Vulkan;
+namespace Nexus.Graphics.Vulkan.Rendering;
 
 /// <summary>
 /// Contains the resolved Vulkan state required to render one item across its supported passes.

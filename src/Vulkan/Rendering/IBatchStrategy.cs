@@ -1,4 +1,4 @@
-namespace Nexus.Graphics.Vulkan;
+namespace Nexus.Graphics.Vulkan.Rendering;
 
 /// <summary>
 /// Provides an abstraction for batching strategies in the rendering pipeline.

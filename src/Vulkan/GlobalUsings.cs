@@ -18,6 +18,7 @@ global using Nexus.Graphics.Vulkan.Buffers;
 global using Nexus.Graphics.Vulkan.Components;
 global using Nexus.Graphics.Vulkan.Descriptors;
 global using Nexus.Graphics.Vulkan.Pipelines;
+global using Nexus.Graphics.Vulkan.Rendering;
 global using Nexus.Graphics.Vulkan.Synchronization;
 global using Silk.NET.Core.Native;
 global using Silk.NET.Maths;
