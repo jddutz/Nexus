@@ -6,7 +6,7 @@ namespace Nexus.Graphics.Vulkan.Pipelines;
 public sealed unsafe class PipelineDefinitionBuilder : IPipelineDefinitionBuilder
 {
     private readonly Context _context;
-    private readonly List<Shader> _shaders = [];
+    private readonly List<IShaderContract> _shaders = [];
     private readonly List<VertexInputBindingDescription> _vertexBindings = [];
     private readonly List<VertexInputAttributeDescription> _vertexAttributes = [];
     private readonly List<PushConstantRange> _pushConstantRanges = [];
@@ -42,7 +42,7 @@ public sealed unsafe class PipelineDefinitionBuilder : IPipelineDefinitionBuilde
     /// <summary>Adds a shader stage to the pipeline.</summary>
     /// <param name="shader">The shader stage description.</param>
     /// <returns>This builder.</returns>
-    public PipelineDefinitionBuilder WithShader(Shader shader)
+    public PipelineDefinitionBuilder WithShader(IShaderContract shader)
     {
         ArgumentNullException.ThrowIfNull(shader);
         _shaders.Add(shader);
@@ -117,32 +117,32 @@ public sealed unsafe class PipelineDefinitionBuilder : IPipelineDefinitionBuilde
     /// <summary>Adds the instance-buffer layout described by <paramref name="layout"/>.</summary>
     /// <param name="layout">The instance buffer layout.</param>
     /// <returns>This builder.</returns>
-    public PipelineDefinitionBuilder WithInstanceLayout(InstanceLayout layout)
+    public PipelineDefinitionBuilder WithInstanceLayout(ShaderInput[] layout)
     {
         ArgumentNullException.ThrowIfNull(layout);
 
-        const uint binding = 1;
+        if (layout.Length == 0)
+            return this;
 
+        const uint binding = 1;
         WithVertexBinding(
             new VertexInputBindingDescription
             {
                 Binding = binding,
-                Stride = layout.Stride,
+                Stride = layout.Aggregate(0u, (size, input) => size + input.Size),
                 InputRate = VertexInputRate.Instance,
             }
         );
 
-        foreach (var input in layout.Inputs)
+        var offset = 0u;
+        var location = 0u;
+        foreach (var input in layout)
         {
-            WithVertexAttribute(
-                new VertexInputAttributeDescription
-                {
-                    Location = input.Location,
-                    Binding = binding,
-                    Format = ToVulkanFormat(input.Format),
-                    Offset = input.Offset,
-                }
-            );
+            foreach (var attribute in input.ToVulkanAttributes(binding, location, offset))
+                WithVertexAttribute(attribute);
+
+            location += input.GetVulkanAttributeCount();
+            offset += input.Size;
         }
 
         return this;
@@ -158,16 +158,6 @@ public sealed unsafe class PipelineDefinitionBuilder : IPipelineDefinitionBuilde
             VertexSemanticEnum.Color => (uint)format.ColorFormat.GetBytesPerPixel(),
             VertexSemanticEnum.TexCoord => sizeof(float) * 2u,
             _ => throw new ArgumentOutOfRangeException(nameof(semantic), semantic, null),
-        };
-
-    /// <summary>Converts an instance input format to its Vulkan equivalent.</summary>
-    /// <param name="format">The instance input format.</param>
-    /// <returns>The corresponding Vulkan format.</returns>
-    private static Format ToVulkanFormat(InstanceInputFormatEnum format) =>
-        format switch
-        {
-            InstanceInputFormatEnum.Float4 => Format.R32G32B32A32Sfloat,
-            _ => throw new ArgumentOutOfRangeException(nameof(format), format, null),
         };
 
     /// <summary>Sets the primitive topology.</summary>
@@ -322,27 +312,17 @@ public sealed unsafe class PipelineDefinitionBuilder : IPipelineDefinitionBuilde
     /// <param name="fragmentShader">The optional pipeline fragment shader.</param>
     /// <returns>The derived descriptor schema.</returns>
     private static DescriptorSchema BuildDescriptorSchema(
-        VertexShader vertexShader,
-        FragmentShader? fragmentShader
+        IEnumerable<IShaderContract> shaders
     )
     {
         var schema = new SchemaBuilder();
         var set = 0u;
 
-        if (vertexShader.Resources.HasFlag(ShaderResourceFlags.Camera))
+        foreach (var shader in shaders.Where(shader => shader.UniformLayout.Length > 0))
         {
             schema.AddDescriptorSet(
                 set++,
-                descriptorSet => descriptorSet.AddUniformBuffer(0, ShaderStageFlags.VertexBit)
-            );
-        }
-
-        if (fragmentShader?.Resources.HasFlag(ShaderResourceFlags.SampledColor) == true)
-        {
-            schema.AddDescriptorSet(
-                set,
-                descriptorSet =>
-                    descriptorSet.AddCombinedImageSampler(0, ShaderStageFlags.FragmentBit)
+                descriptorSet => descriptorSet.AddUniformBuffer(shader.Stage.ToVulkanStageFlags())
             );
         }
 
@@ -361,9 +341,9 @@ public sealed unsafe class PipelineDefinitionBuilder : IPipelineDefinitionBuilde
             throw new InvalidOperationException("A render pass is required.");
 
         VertexShader? vertexShader = null;
-        Shader? tessellationControlShader = null;
-        Shader? tessellationEvalShader = null;
-        Shader? geometryShader = null;
+        IShaderContract? tessellationControlShader = null;
+        IShaderContract? tessellationEvalShader = null;
+        IShaderContract? geometryShader = null;
         FragmentShader? fragmentShader = null;
 
         foreach (var shader in _shaders)
@@ -419,10 +399,11 @@ public sealed unsafe class PipelineDefinitionBuilder : IPipelineDefinitionBuilde
         ValidateFragmentFormat(fragmentShader);
 
         WithVertexFormat(vertexShader.VertexFormat);
+        WithTopology(vertexShader.Topology);
         WithInstanceLayout(vertexShader.InstanceLayout);
 
         var descriptorSchema =
-            _descriptorSchemaOverride ?? BuildDescriptorSchema(vertexShader, fragmentShader);
+            _descriptorSchemaOverride ?? BuildDescriptorSchema(_shaders);
 
         return new PipelineDefinition(
             _name,
@@ -461,13 +442,13 @@ public sealed unsafe class PipelineDefinitionBuilder : IPipelineDefinitionBuilde
     /// <exception cref="InvalidOperationException">Thrown when adjacent shader interfaces differ.</exception>
     private static void ValidateShaderInterfaces(
         VertexShader vertexShader,
-        Shader? tessellationControlShader,
-        Shader? tessellationEvalShader,
-        Shader? geometryShader,
+        IShaderContract? tessellationControlShader,
+        IShaderContract? tessellationEvalShader,
+        IShaderContract? geometryShader,
         FragmentShader? fragmentShader
     )
     {
-        Shader? previous = vertexShader;
+        IShaderContract? previous = vertexShader;
         foreach (
             var current in new[]
             {

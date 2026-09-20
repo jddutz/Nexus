@@ -2,7 +2,7 @@ namespace Nexus.Graphics.Vulkan.Pipelines;
 
 public interface IPipelineDefinitionBuilder
 {
-    PipelineDefinitionBuilder WithShader(Shader shader);
+    PipelineDefinitionBuilder WithShader(IShaderContract shader);
     PipelineDefinitionBuilder WithVertexBinding(VertexInputBindingDescription binding);
     PipelineDefinitionBuilder WithVertexAttribute(VertexInputAttributeDescription attribute);
 
@@ -11,10 +11,6 @@ public interface IPipelineDefinitionBuilder
     /// <returns>This builder.</returns>
     PipelineDefinitionBuilder WithVertexFormat(VertexFormat format);
 
-    /// <summary>Adds the instance-buffer layout described by <paramref name="format"/>.</summary>
-    /// <param name="layout">The instance buffer layout.</param>
-    /// <returns>This builder.</returns>
-    PipelineDefinitionBuilder WithInstanceLayout(InstanceLayout layout);
     PipelineDefinitionBuilder WithTopology(PrimitiveTopologyEnum topology);
     PipelineDefinitionBuilder WithRenderPass(RenderPass renderPass, uint subpass = 0);
     PipelineDefinitionBuilder WithDepthTest(bool enabled = true);

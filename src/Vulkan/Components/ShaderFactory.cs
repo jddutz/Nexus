@@ -5,7 +5,7 @@ public unsafe class ShaderFactory(Context context) : IShaderFactory
     private readonly Context _context = context;
     private readonly Dictionary<ResourceId, ShaderModule> _modules = [];
 
-    public ResourceId Create(Shader description)
+    public ResourceId Create(IShaderContract description)
     {
         var id = description.Id;
 
@@ -27,7 +27,7 @@ public unsafe class ShaderFactory(Context context) : IShaderFactory
         return module;
     }
 
-    public void Update(ResourceId id, Shader description)
+    public void Update(ResourceId id, IShaderContract description)
     {
         if (!_modules.TryGetValue(id, out var existing))
             throw new KeyNotFoundException($"Shader resource '{id}' does not exist.");
@@ -48,7 +48,7 @@ public unsafe class ShaderFactory(Context context) : IShaderFactory
         _context.VulkanApi.DestroyShaderModule(_context.Device, module, null);
     }
 
-    private ShaderModule CreateModule(Shader shader)
+    private ShaderModule CreateModule(IShaderContract shader)
     {
         var shaderPath = Path.Combine(
             AppContext.BaseDirectory,

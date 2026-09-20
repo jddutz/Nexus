@@ -65,9 +65,9 @@ public unsafe class PipelineFactory(
     /// </summary>
     /// <param name="definition">The pipeline definition.</param>
     /// <returns>The shader definitions included in the pipeline.</returns>
-    private static ImmutableArray<Shader> GetShaders(PipelineDefinition definition)
+    private static ImmutableArray<IShaderContract> GetShaders(PipelineDefinition definition)
     {
-        var shaders = new List<Shader>();
+        var shaders = new List<IShaderContract>();
 
         if (definition.VertexShader is not null)
             shaders.Add(definition.VertexShader);
@@ -88,7 +88,7 @@ public unsafe class PipelineFactory(
     /// </summary>
     /// <param name="shaders">The shader definitions to load.</param>
     /// <returns>The created shader modules.</returns>
-    private ShaderModule[] CreateShaderModules(ImmutableArray<Shader> shaders)
+    private ShaderModule[] CreateShaderModules(ImmutableArray<IShaderContract> shaders)
     {
         var modules = new ShaderModule[shaders.Length];
 
@@ -134,7 +134,7 @@ public unsafe class PipelineFactory(
     /// <param name="shaderModules">The corresponding shader modules.</param>
     /// <returns>The shader-stage descriptions.</returns>
     private static PipelineShaderStageCreateInfo[] CreateShaderStages(
-        ImmutableArray<Shader> shaders,
+        ImmutableArray<IShaderContract> shaders,
         ShaderModule[] shaderModules
     )
     {

@@ -1,0 +1,10 @@
+namespace Nexus.Graphics.Shaders;
+
+public static class InputSemantics
+{
+    public const int Transform = 0;
+    public const int View = 1;
+    public const int Projection = 2;
+    public const int Color = 3;
+    public const int TextureRegion = 4;
+}
