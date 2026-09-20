@@ -40,13 +40,11 @@ public static class ContentManagementExtensions
 
     public static string GetContentFilePath(this IConfiguration configuration, ContentId id)
     {
-        var path = configuration.GetRequiredValue("Path");
-
         var filePath = configuration
             .GetRequiredSection("Content")
             .GetRequiredSection(id.Value)
             .GetRequiredValue("FilePath");
 
-        return Path.Combine(path, filePath);
+        return filePath;
     }
 }

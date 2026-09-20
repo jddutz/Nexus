@@ -56,12 +56,15 @@ public sealed class Application : IApplication, IDisposable
 
     private static ContentManifest BuildContentManifest(IConfiguration appConfig)
     {
-        var contentLibraryPath = appConfig.GetValue<string>("Path") ?? "Content/";
+        var appSettings =
+            appConfig.GetSection("Application").Get<ApplicationSettings>()
+            ?? new ApplicationSettings();
+        var manifestPath = Path.IsPathRooted(appSettings.ContentManifestLocation)
+            ? appSettings.ContentManifestLocation
+            : Path.Combine(AppContext.BaseDirectory, appSettings.ContentManifestLocation);
+        var contentLibraryPath = Path.GetDirectoryName(Path.GetFullPath(manifestPath))!;
 
-        return new ContentManifest(
-            Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, contentLibraryPath)),
-            appConfig
-        );
+        return new ContentManifest(contentLibraryPath, appConfig);
     }
 
     /// <inheritdoc />
