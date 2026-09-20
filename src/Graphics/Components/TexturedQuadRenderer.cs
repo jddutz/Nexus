@@ -122,7 +122,10 @@ public class TexturedQuadRenderer
     {
         ArgumentNullException.ThrowIfNull(layout);
         if (layout.Length != 1 || layout[0] is not { Semantic: InputSemantics.View, Size: 64 })
-            throw new ArgumentException("The uniform layout must contain one 64-byte View input.", nameof(layout));
+            throw new ArgumentException(
+                "The uniform layout must contain one 64-byte View input.",
+                nameof(layout)
+            );
 
         var data = new byte[64];
         MemoryMarshal.Write(data.AsSpan(), in _view);
