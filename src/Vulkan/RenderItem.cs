@@ -8,10 +8,11 @@ namespace Nexus.Graphics.Vulkan;
 /// </summary>
 public class RenderItem : IRenderItem
 {
-    private readonly Dictionary<ComponentId, int> _instanceSlots = [];
-    private readonly List<ComponentId> _slotComponents = [];
+    private readonly Dictionary<ComponentId, byte[]> _componentInstanceData = [];
+    private readonly List<ComponentId> _componentOrder = [];
     private byte[] _instanceData = [];
     private int _instanceStride;
+    private int _instanceCount;
 
     /// <summary>
     /// Gets the resource identifier for this render item.
@@ -83,7 +84,7 @@ public class RenderItem : IRenderItem
     /// <summary>
     /// Gets the number of active instance records.
     /// </summary>
-    public uint InstanceCount => (uint)_instanceSlots.Count;
+    public uint InstanceCount => (uint)_instanceCount;
 
     /// <summary>
     /// Gets the byte size of a single instance record, or zero until the first record is added.
@@ -94,78 +95,122 @@ public class RenderItem : IRenderItem
     /// Gets the contiguous data for all active instance records.
     /// </summary>
     public ReadOnlySpan<byte> InstanceData =>
-        _instanceData.AsSpan(0, checked(_instanceSlots.Count * _instanceStride));
+        _instanceData;
 
     /// <summary>
-    /// Adds an instance record for the specified component.
+    /// Adds all instance records produced by the specified component.
     /// </summary>
     /// <param name="component">The component that writes its packed instance record.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="component"/> is <see langword="null"/>.</exception>
     /// <exception cref="ArgumentException">Thrown when the component already has a record or writes an invalid record size.</exception>
-    public void AddInstance(IRenderableComponent component)
+    public void AddInstances(IRenderableComponent component)
     {
         ArgumentNullException.ThrowIfNull(component);
 
-        if (_instanceSlots.ContainsKey(component.Id))
+        if (_componentInstanceData.ContainsKey(component.Id))
             throw new ArgumentException(
-                "An instance record already exists for this component.",
+                "Instance records already exist for this component.",
                 nameof(component)
             );
 
-        InitializeOrValidateStride(component.GetInstanceData(Span<byte>.Empty));
-        EnsureCapacity(_instanceSlots.Count + 1);
-
-        var slot = _instanceSlots.Count;
-        var destination = _instanceData.AsSpan(slot * _instanceStride, _instanceStride);
-        ValidateStride(component.GetInstanceData(destination));
-
-        _instanceSlots.Add(component.Id, slot);
-        _slotComponents.Add(component.Id);
+        var packedData = PackInstances(component);
+        _componentInstanceData.Add(component.Id, packedData);
+        _componentOrder.Add(component.Id);
+        RebuildFlattenedData();
     }
 
     /// <summary>
-    /// Updates the existing instance record for the specified component.
+    /// Adds all instance records produced by the specified component.
+    /// </summary>
+    /// <remarks>
+    /// Retained for source compatibility; despite the singular name, component ownership now
+    /// applies to the component's complete instance contribution.
+    /// </remarks>
+    public void AddInstance(IRenderableComponent component) => AddInstances(component);
+
+    /// <summary>
+    /// Replaces all existing instance records owned by the specified component.
     /// </summary>
     /// <param name="component">The component that writes its replacement instance record.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="component"/> is <see langword="null"/>.</exception>
     /// <exception cref="KeyNotFoundException">Thrown when the component has no record.</exception>
     /// <exception cref="ArgumentException">Thrown when the component writes a record whose size differs from <see cref="InstanceStride"/>.</exception>
-    public void UpdateInstance(IRenderableComponent component)
+    public void UpdateInstances(IRenderableComponent component)
     {
         ArgumentNullException.ThrowIfNull(component);
 
-        if (!_instanceSlots.TryGetValue(component.Id, out var slot))
-            throw new KeyNotFoundException("The component has no instance record.");
+        if (!_componentInstanceData.ContainsKey(component.Id))
+            throw new KeyNotFoundException("The component has no instance records.");
 
-        var destination = _instanceData.AsSpan(slot * _instanceStride, _instanceStride);
-        ValidateStride(component.GetInstanceData(destination));
+        _componentInstanceData[component.Id] = PackInstances(component);
+        RebuildFlattenedData();
     }
 
     /// <summary>
-    /// Removes the instance record for the specified component.
+    /// Replaces all instance records owned by the specified component.
+    /// </summary>
+    /// <remarks>
+    /// Retained for source compatibility; despite the singular name, the complete contribution
+    /// is regenerated and may change size.
+    /// </remarks>
+    public void UpdateInstance(IRenderableComponent component) => UpdateInstances(component);
+
+    /// <summary>
+    /// Removes every instance record owned by the specified component.
     /// </summary>
     /// <param name="componentId">The identifier of the component that owns the record.</param>
-    /// <returns><see langword="true"/> when a record was removed; otherwise, <see langword="false"/>.</returns>
     public void RemoveInstance(ComponentId componentId)
     {
-        if (!_instanceSlots.Remove(componentId, out var removedSlot))
+        if (!_componentInstanceData.Remove(componentId))
             return;
 
-        var lastSlot = _slotComponents.Count - 1;
-        if (removedSlot == lastSlot)
+        _componentOrder.Remove(componentId);
+        RebuildFlattenedData();
+    }
+
+    /// <summary>
+    /// Packs every instance currently produced by a component into one contribution.
+    /// </summary>
+    private byte[] PackInstances(IRenderableComponent component)
+    {
+        var count = component.InstanceCount;
+        if (count <= 0)
+            throw new ArgumentException(
+                "A renderable component must contribute at least one instance.",
+                nameof(component)
+            );
+
+        for (var index = 0; index < count; index++)
+            InitializeOrValidateStride(component.GetInstanceData(index, Span<byte>.Empty));
+
+        var packedData = new byte[checked(count * _instanceStride)];
+        for (var index = 0; index < count; index++)
         {
-            _slotComponents.RemoveAt(lastSlot);
-            return;
+            var destination = packedData.AsSpan(index * _instanceStride, _instanceStride);
+            ValidateStride(component.GetInstanceData(index, destination));
         }
 
-        _instanceData
-            .AsSpan(lastSlot * _instanceStride, _instanceStride)
-            .CopyTo(_instanceData.AsSpan(removedSlot * _instanceStride, _instanceStride));
+        return packedData;
+    }
 
-        var movedComponentId = _slotComponents[lastSlot];
-        _instanceSlots[movedComponentId] = removedSlot;
-        _slotComponents[removedSlot] = movedComponentId;
-        _slotComponents.RemoveAt(lastSlot);
+    /// <summary>
+    /// Rebuilds the GPU-facing sequence while retaining component contribution order.
+    /// </summary>
+    private void RebuildFlattenedData()
+    {
+        var totalLength = _componentOrder.Sum(id => _componentInstanceData[id].Length);
+        var flattenedData = new byte[totalLength];
+        var offset = 0;
+
+        foreach (var componentId in _componentOrder)
+        {
+            var contribution = _componentInstanceData[componentId];
+            contribution.CopyTo(flattenedData, offset);
+            offset += contribution.Length;
+        }
+
+        _instanceData = flattenedData;
+        _instanceCount = _instanceStride == 0 ? 0 : totalLength / _instanceStride;
     }
 
     /// <summary>
@@ -199,23 +244,6 @@ public class RenderItem : IRenderItem
                 $"Instance data must be exactly {_instanceStride} bytes.",
                 nameof(stride)
             );
-    }
-
-    /// <summary>
-    /// Ensures that the backing store can contain the requested number of records.
-    /// </summary>
-    /// <param name="requiredInstanceCount">The required number of records.</param>
-    private void EnsureCapacity(int requiredInstanceCount)
-    {
-        var requiredLength = checked(requiredInstanceCount * _instanceStride);
-        if (_instanceData.Length >= requiredLength)
-            return;
-
-        var newLength = Math.Max(
-            requiredLength,
-            Math.Max(_instanceStride, _instanceData.Length * 2)
-        );
-        Array.Resize(ref _instanceData, newLength);
     }
 
     // PUSH CONSTANTS

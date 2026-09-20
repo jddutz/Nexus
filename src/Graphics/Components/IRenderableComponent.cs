@@ -17,4 +17,28 @@ public interface IRenderableComponent : IGraphicsComponent
     /// <param name="destination">The destination for the instance record, or an empty span when querying its size.</param>
     /// <returns>The required or written byte count.</returns>
     int GetInstanceData(Span<byte> destination);
+
+    /// <summary>
+    /// Gets the number of packed instance records contributed by this component.
+    /// </summary>
+    /// <remarks>
+    /// Most renderable components contribute one record and need not implement this member.
+    /// Components that expand into several instances can override it without exposing a
+    /// collection as part of their public model.
+    /// </remarks>
+    int InstanceCount => 1;
+
+    /// <summary>
+    /// Gets the required size of, or writes, one of this component's packed instance records.
+    /// </summary>
+    /// <param name="instanceIndex">The zero-based component-local instance index.</param>
+    /// <param name="destination">The destination, or an empty span when querying the size.</param>
+    /// <returns>The required or written byte count.</returns>
+    int GetInstanceData(int instanceIndex, Span<byte> destination)
+    {
+        if (instanceIndex != 0)
+            throw new ArgumentOutOfRangeException(nameof(instanceIndex));
+
+        return GetInstanceData(destination);
+    }
 }

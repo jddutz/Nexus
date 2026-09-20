@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Testing\Nexus.Testing.csproj" />
+    <ProjectReference Include="..\..\src\Vulkan\Nexus.Graphics.Vulkan.csproj" />
   </ItemGroup>
 
   <ItemGroup>
