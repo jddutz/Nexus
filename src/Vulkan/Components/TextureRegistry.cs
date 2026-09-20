@@ -72,7 +72,8 @@ public sealed unsafe class TextureRegistry(Context context) : ITextureRegistry, 
             );
         }
 
-        var (vulkanFormat, bytesPerPixel) = ToVulkanFormat(format);
+        var vulkanFormat = format.ToVulkanFormat();
+        var bytesPerPixel = format.GetBytesPerPixel();
         var pixelData = source.GetPixelData(format);
 
         if (pixelData.Length == 0)
@@ -216,32 +217,6 @@ public sealed unsafe class TextureRegistry(Context context) : ITextureRegistry, 
             _context.VulkanApi.FreeMemory(_context.Device, entry.Memory, null);
         }
     }
-
-    /// <summary>
-    /// Translates a <see cref="ColorFormatEnum"/> into the corresponding Vulkan format and its
-    /// packed byte size per pixel. Formats with no direct Vulkan byte-order equivalent are rejected
-    /// rather than silently substituted.
-    /// </summary>
-    /// <param name="format">The pixel format to translate.</param>
-    /// <returns>The matching Vulkan format and its byte size per pixel.</returns>
-    /// <exception cref="NotSupportedException">Thrown when <paramref name="format"/> has no corresponding Vulkan format.</exception>
-    private static (Format Format, int BytesPerPixel) ToVulkanFormat(ColorFormatEnum format) =>
-        format switch
-        {
-            ColorFormatEnum.RGB8UNorm => (Format.R8G8B8Unorm, 3),
-            ColorFormatEnum.RGBA8UNorm => (Format.R8G8B8A8Unorm, 4),
-            ColorFormatEnum.RGB16UNorm => (Format.R16G16B16Unorm, 6),
-            ColorFormatEnum.RGBA16UNorm => (Format.R16G16B16A16Unorm, 8),
-            ColorFormatEnum.RGB16Float => (Format.R16G16B16Sfloat, 6),
-            ColorFormatEnum.RGBA16Float => (Format.R16G16B16A16Sfloat, 8),
-            ColorFormatEnum.RGB32UInt => (Format.R32G32B32Uint, 12),
-            ColorFormatEnum.RGBA32UInt => (Format.R32G32B32A32Uint, 16),
-            ColorFormatEnum.RGB32Float => (Format.R32G32B32Sfloat, 12),
-            ColorFormatEnum.RGBA32Float => (Format.R32G32B32A32Sfloat, 16),
-            _ => throw new NotSupportedException(
-                $"Pixel format '{format}' has no corresponding Vulkan format for texture upload."
-            ),
-        };
 
     /// <summary>
     /// Creates a 2D, single-mip, single-layer sampled Vulkan image sized for the given dimensions.

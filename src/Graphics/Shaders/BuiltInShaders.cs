@@ -2,40 +2,40 @@ namespace Nexus.Graphics.Shaders;
 
 public static class BuiltInShaders
 {
-    public static Shader UniformColorVertexShader { get; } =
+    public static VertexShader UniformColorVertexShader { get; } =
         new(
             nameof(UniformColorVertexShader),
             "uniform_color.vert",
-            ShaderStageEnum.Vertex,
             PrimitiveTopologyEnum.TriangleStrip,
-            BuiltInVertexFormats.UniformColor
+            BuiltInVertexFormats.UniformColor,
+            BuiltInInstanceLayouts.UniformColor
         );
 
-    public static Shader UniformColorFragmentShader { get; } =
+    public static FragmentShader UniformColorFragmentShader { get; } =
         new(
             nameof(UniformColorFragmentShader),
             "uniform_color.frag",
-            ShaderStageEnum.Fragment,
             PrimitiveTopologyEnum.TriangleStrip,
-            BuiltInVertexFormats.UniformColor
+            BuiltInVertexFormats.UniformColor,
+            ColorFormatEnum.RGBA8UNorm
         );
 
-    public static Shader TexturedQuadVertexShader { get; } =
+    public static VertexShader TexturedQuadVertexShader { get; } =
         new(
             nameof(TexturedQuadVertexShader),
             "textured_quad.vert",
-            ShaderStageEnum.Vertex,
             PrimitiveTopologyEnum.TriangleStrip,
-            BuiltInVertexFormats.TexturedQuad
+            BuiltInVertexFormats.TexturedQuad,
+            BuiltInInstanceLayouts.TexturedQuad
         );
 
-    public static Shader TexturedQuadFragmentShader { get; } =
+    public static FragmentShader TexturedQuadFragmentShader { get; } =
         new(
             nameof(TexturedQuadFragmentShader),
             "textured_quad.frag",
-            ShaderStageEnum.Fragment,
             PrimitiveTopologyEnum.TriangleStrip,
-            BuiltInVertexFormats.TexturedQuad
+            BuiltInVertexFormats.TexturedQuad,
+            ColorFormatEnum.RGBA8UNorm
         );
 
     public static readonly Shader[] All =

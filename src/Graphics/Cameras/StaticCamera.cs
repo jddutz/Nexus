@@ -18,6 +18,9 @@ public class StaticCamera : Component, ICameraComponent
     private Rectangle<float> _visibleRect;
     private bool _visibleRectDirty = true;
 
+    /// <summary>Gets the renderable contributions produced by this camera.</summary>
+    public IReadOnlyList<IRenderable> Renderables => [];
+
     /// <summary>
     /// Initializes a new instance of the <see cref="StaticCamera"/> class with a default 1x1
     /// viewport. Call <see cref="SetViewportSize"/> before rendering.

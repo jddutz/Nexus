@@ -138,9 +138,7 @@ public class RenderItemInstanceTests
             DescriptorSetCount = 0,
         };
 
-    private sealed class TestRenderable(params int[] values)
-        : Component,
-            IRenderableComponent
+    private sealed class TestRenderable(params int[] values) : Component, IRenderable
     {
         public int[] Values { get; set; } = values;
 
@@ -148,8 +146,7 @@ public class RenderItemInstanceTests
 
         public int InstanceCount => Values.Length;
 
-        public int GetInstanceData(Span<byte> destination) =>
-            GetInstanceData(0, destination);
+        public int GetInstanceData(Span<byte> destination) => GetInstanceData(0, destination);
 
         public int GetInstanceData(int instanceIndex, Span<byte> destination)
         {

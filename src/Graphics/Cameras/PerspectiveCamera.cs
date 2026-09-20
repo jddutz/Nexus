@@ -21,6 +21,9 @@ public class PerspectiveCamera : Component, ICameraComponent
     private Matrix4X4<float> _viewProjectionMatrix;
     private bool _viewProjectionDirty = true;
 
+    /// <summary>Gets the renderable contributions produced by this camera.</summary>
+    public IReadOnlyList<IRenderable> Renderables => [];
+
     /// <summary>
     /// Initializes a new instance of the <see cref="PerspectiveCamera"/> class and computes its initial matrices.
     /// </summary>

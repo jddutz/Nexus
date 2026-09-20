@@ -24,6 +24,9 @@ public sealed record InstanceInput(uint Location, uint Offset, InstanceInputForm
 /// </summary>
 public sealed class InstanceLayout
 {
+    /// <summary>Gets the identity of this instance layout.</summary>
+    public ResourceId Id { get; }
+
     /// <summary>
     /// Gets the byte size of one instance record.
     /// </summary>

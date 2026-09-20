@@ -16,6 +16,7 @@ internal sealed record ComponentRegistration(
 /// Creates and maintains Vulkan render-item registrations for supported graphics components.
 /// </summary>
 public class ComponentRegistry(
+    Context context,
     IMeshFactory meshFactory,
     IShaderFactory shaderFactory,
     IPipelineRegistry pipelineRegistry,
@@ -27,6 +28,7 @@ public class ComponentRegistry(
     ILogger<ComponentRegistry> logger
 ) : IComponentRegistry
 {
+    private readonly Context _context = context;
     private const string UNIFORM_COLOR_PIPELINE_NAME = "UniformColorMesh";
     private const string TEXTURED_QUAD_PIPELINE_NAME = "TexturedQuad";
     private readonly Dictionary<ComponentId, ComponentRegistration> _components = [];
@@ -72,12 +74,10 @@ public class ComponentRegistry(
 
         var renderItems = GetOrCreateRenderItems(component);
 
-        if (component is IRenderableComponent renderable)
+        foreach (var renderable in component.Renderables)
         {
             foreach (var item in renderItems)
-            {
-                item.AddInstances(renderable);
-            }
+                item.AddInstances(component.Id, renderable);
         }
 
         _components[component.Id] = new ComponentRegistration(component, renderItems);
@@ -177,12 +177,13 @@ public class ComponentRegistry(
 
         var mainPassIndex = RenderPasses.GetIndex(RenderPasses.Main);
 
-        var pipelineDefinition = new PipelineDefinitionBuilder(UNIFORM_COLOR_PIPELINE_NAME)
+        var pipelineDefinition = new PipelineDefinitionBuilder(
+            UNIFORM_COLOR_PIPELINE_NAME,
+            _context
+        )
             .WithShader(vertexShader)
             .WithShader(fragmentShader)
             .WithRenderPass(_swapChain.Passes[mainPassIndex])
-            .WithVertexFormat(vertexShader.VertexFormat)
-            .WithInstanceLayout(BuiltInInstanceLayouts.UniformColor)
             .WithTopology(vertexShader.Topology)
             .WithDepthTest(false)
             .WithDepthWrite(false)
@@ -314,12 +315,13 @@ public class ComponentRegistry(
 
         var mainPassIndex = RenderPasses.GetIndex(RenderPasses.Main);
 
-        var pipelineDefinition = new PipelineDefinitionBuilder(TEXTURED_QUAD_PIPELINE_NAME)
+        var pipelineDefinition = new PipelineDefinitionBuilder(
+            TEXTURED_QUAD_PIPELINE_NAME,
+            _context
+        )
             .WithShader(vertexShader)
             .WithShader(fragmentShader)
             .WithRenderPass(_swapChain.Passes[mainPassIndex])
-            .WithVertexFormat(vertexShader.VertexFormat)
-            .WithInstanceLayout(BuiltInInstanceLayouts.TexturedQuad)
             .WithTopology(vertexShader.Topology)
             .WithDepthTest(false)
             .WithDepthWrite(false)
@@ -476,15 +478,14 @@ public class ComponentRegistry(
     /// descriptor update, or command recording happens until the next frame is rendered.
     /// </summary>
     /// <param name="component">The renderable component whose instance record should be repacked.</param>
-    private void UpdateInstances(IRenderableComponent component)
+    private void UpdateInstances(IGraphicsComponent component)
     {
         if (!_components.TryGetValue(component.Id, out var registration))
             return;
 
+        foreach (var renderable in component.Renderables)
         foreach (var item in registration.RenderItems)
-        {
-            item.UpdateInstances(component);
-        }
+            item.UpdateInstances(component.Id, renderable);
     }
 
     /// <summary>
@@ -492,7 +493,7 @@ public class ComponentRegistry(
     /// matching its current state, creating new render items when no existing one matches.
     /// </summary>
     /// <param name="component">The renderable component whose render-item registration should be recreated.</param>
-    private void Recreate(IRenderableComponent component)
+    private void Recreate(IGraphicsComponent component)
     {
         if (!_components.TryGetValue(component.Id, out var registration))
             return;
@@ -504,10 +505,9 @@ public class ComponentRegistry(
 
         var renderItems = GetOrCreateRenderItems(component);
 
+        foreach (var renderable in component.Renderables)
         foreach (var item in renderItems)
-        {
-            item.AddInstances(component);
-        }
+            item.AddInstances(component.Id, renderable);
 
         _components[component.Id] = registration with { RenderItems = renderItems };
 

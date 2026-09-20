@@ -3,8 +3,9 @@ namespace Nexus.Graphics.Vulkan.Pipelines;
 /// <summary>
 /// Builds immutable graphics pipeline descriptions from configured pipeline state.
 /// </summary>
-public sealed class PipelineDefinitionBuilder : IPipelineDefinitionBuilder
+public sealed unsafe class PipelineDefinitionBuilder : IPipelineDefinitionBuilder
 {
+    private readonly Context _context;
     private readonly List<Shader> _shaders = [];
     private readonly List<VertexInputBindingDescription> _vertexBindings = [];
     private readonly List<VertexInputAttributeDescription> _vertexAttributes = [];
@@ -30,10 +31,12 @@ public sealed class PipelineDefinitionBuilder : IPipelineDefinitionBuilder
     /// <summary>Sets the pipeline name.</summary>
     /// <param name="name">The non-empty pipeline name.</param>
     /// <returns>This builder.</returns>
-    public PipelineDefinitionBuilder(string name)
+    public PipelineDefinitionBuilder(string name, Context context)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ArgumentNullException.ThrowIfNull(context);
         _name = name;
+        _context = context;
     }
 
     /// <summary>Adds a shader stage to the pipeline.</summary>
@@ -325,19 +328,24 @@ public sealed class PipelineDefinitionBuilder : IPipelineDefinitionBuilder
         if (_renderPass is null)
             throw new InvalidOperationException("A render pass is required.");
 
-        Shader? vertexShader = null;
+        VertexShader? vertexShader = null;
         Shader? tessellationControlShader = null;
         Shader? tessellationEvalShader = null;
         Shader? geometryShader = null;
-        Shader? fragmentShader = null;
+        FragmentShader? fragmentShader = null;
 
         foreach (var shader in _shaders)
         {
             switch (shader.Stage)
             {
-                case ShaderStageEnum.Vertex when vertexShader is null:
-                    vertexShader = shader;
+                case ShaderStageEnum.Vertex
+                    when shader is VertexShader typedVertexShader && vertexShader is null:
+                    vertexShader = typedVertexShader;
                     break;
+                case ShaderStageEnum.Vertex:
+                    throw new InvalidOperationException(
+                        "The vertex stage must use a VertexShader."
+                    );
                 case ShaderStageEnum.TessellationControl when tessellationControlShader is null:
                     tessellationControlShader = shader;
                     break;
@@ -347,9 +355,14 @@ public sealed class PipelineDefinitionBuilder : IPipelineDefinitionBuilder
                 case ShaderStageEnum.Geometry when geometryShader is null:
                     geometryShader = shader;
                     break;
-                case ShaderStageEnum.Fragment when fragmentShader is null:
-                    fragmentShader = shader;
+                case ShaderStageEnum.Fragment
+                    when shader is FragmentShader typedFragmentShader && fragmentShader is null:
+                    fragmentShader = typedFragmentShader;
                     break;
+                case ShaderStageEnum.Fragment:
+                    throw new InvalidOperationException(
+                        "The fragment stage must use a FragmentShader."
+                    );
                 case ShaderStageEnum.Compute:
                     throw new InvalidOperationException(
                         "Compute shaders cannot be used in a graphics pipeline."
@@ -363,6 +376,18 @@ public sealed class PipelineDefinitionBuilder : IPipelineDefinitionBuilder
 
         if (vertexShader is null)
             throw new InvalidOperationException("A graphics pipeline requires a vertex shader.");
+
+        ValidateShaderInterfaces(
+            vertexShader,
+            tessellationControlShader,
+            tessellationEvalShader,
+            geometryShader,
+            fragmentShader
+        );
+        ValidateFragmentFormat(fragmentShader);
+
+        WithVertexFormat(vertexShader.VertexFormat);
+        WithInstanceLayout(vertexShader.InstanceLayout);
 
         return new PipelineDefinition(
             _name,
@@ -390,5 +415,68 @@ public sealed class PipelineDefinitionBuilder : IPipelineDefinitionBuilder
             _pushConstantRanges,
             _descriptorSchema
         );
+    }
+
+    /// <summary>Validates that each adjacent graphics stage exposes the same vertex interface.</summary>
+    /// <param name="vertexShader">The pipeline vertex shader.</param>
+    /// <param name="tessellationControlShader">The optional tessellation-control shader.</param>
+    /// <param name="tessellationEvalShader">The optional tessellation-evaluation shader.</param>
+    /// <param name="geometryShader">The optional geometry shader.</param>
+    /// <param name="fragmentShader">The optional fragment shader.</param>
+    /// <exception cref="InvalidOperationException">Thrown when adjacent shader interfaces differ.</exception>
+    private static void ValidateShaderInterfaces(
+        VertexShader vertexShader,
+        Shader? tessellationControlShader,
+        Shader? tessellationEvalShader,
+        Shader? geometryShader,
+        FragmentShader? fragmentShader
+    )
+    {
+        Shader? previous = vertexShader;
+        foreach (
+            var current in new[]
+            {
+                tessellationControlShader,
+                tessellationEvalShader,
+                geometryShader,
+                fragmentShader,
+            }
+        )
+        {
+            if (current is null)
+                continue;
+
+            if (previous!.VertexFormat.Id != current.VertexFormat.Id)
+            {
+                throw new InvalidOperationException(
+                    $"Shader stages '{previous.Name}' and '{current.Name}' have incompatible vertex formats."
+                );
+            }
+
+            previous = current;
+        }
+    }
+
+    /// <summary>Validates the fragment shader output format against the selected physical device.</summary>
+    /// <param name="fragmentShader">The optional fragment shader.</param>
+    /// <exception cref="NotSupportedException">Thrown when the format is unsupported for sampled images.</exception>
+    private void ValidateFragmentFormat(FragmentShader? fragmentShader)
+    {
+        if (fragmentShader is null)
+            return;
+
+        var format = fragmentShader.ColorFormat.ToVulkanFormat();
+        _context.VulkanApi.GetPhysicalDeviceFormatProperties(
+            _context.PhysicalDevice,
+            format,
+            out var properties
+        );
+
+        if ((properties.OptimalTilingFeatures & FormatFeatureFlags.SampledImageBit) == 0)
+        {
+            throw new NotSupportedException(
+                $"Fragment color format '{fragmentShader.ColorFormat}' ({format}) is not supported for sampled images by the selected Vulkan device."
+            );
+        }
     }
 }

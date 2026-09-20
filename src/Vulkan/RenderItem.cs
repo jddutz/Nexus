@@ -94,29 +94,47 @@ public class RenderItem : IRenderItem
     /// <summary>
     /// Gets the contiguous data for all active instance records.
     /// </summary>
-    public ReadOnlySpan<byte> InstanceData =>
-        _instanceData;
+    public ReadOnlySpan<byte> InstanceData => _instanceData;
 
     /// <summary>
     /// Adds all instance records produced by the specified component.
     /// </summary>
-    /// <param name="component">The component that writes its packed instance record.</param>
+    /// <param name="componentId">The owning component identifier.</param>
+    /// <param name="component">The renderable that writes its packed instance record.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="component"/> is <see langword="null"/>.</exception>
     /// <exception cref="ArgumentException">Thrown when the component already has a record or writes an invalid record size.</exception>
-    public void AddInstances(IRenderableComponent component)
+    public void AddInstances(ComponentId componentId, IRenderable component)
     {
         ArgumentNullException.ThrowIfNull(component);
 
-        if (_componentInstanceData.ContainsKey(component.Id))
+        if (_componentInstanceData.ContainsKey(componentId))
             throw new ArgumentException(
                 "Instance records already exist for this component.",
-                nameof(component)
+                nameof(componentId)
             );
 
         var packedData = PackInstances(component);
-        _componentInstanceData.Add(component.Id, packedData);
-        _componentOrder.Add(component.Id);
+        _componentInstanceData.Add(componentId, packedData);
+        _componentOrder.Add(componentId);
         RebuildFlattenedData();
+    }
+
+    /// <summary>
+    /// Adds all instance records produced by a renderable component using its component identity.
+    /// </summary>
+    /// <param name="component">The component that writes its packed instance records.</param>
+    /// <exception cref="ArgumentException">Thrown when the renderable does not also implement <see cref="IComponent"/>.</exception>
+    public void AddInstances(IRenderable component)
+    {
+        ArgumentNullException.ThrowIfNull(component);
+
+        if (component is not Nexus.Core.IComponent owner)
+            throw new ArgumentException(
+                "The renderable must implement IComponent to provide an instance owner.",
+                nameof(component)
+            );
+
+        AddInstances(owner.Id, component);
     }
 
     /// <summary>
@@ -126,24 +144,44 @@ public class RenderItem : IRenderItem
     /// Retained for source compatibility; despite the singular name, component ownership now
     /// applies to the component's complete instance contribution.
     /// </remarks>
-    public void AddInstance(IRenderableComponent component) => AddInstances(component);
+    public void AddInstance(ComponentId componentId, IRenderable component) =>
+        AddInstances(componentId, component);
 
     /// <summary>
     /// Replaces all existing instance records owned by the specified component.
     /// </summary>
-    /// <param name="component">The component that writes its replacement instance record.</param>
+    /// <param name="componentId">The owning component identifier.</param>
+    /// <param name="component">The renderable that writes its replacement instance record.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="component"/> is <see langword="null"/>.</exception>
     /// <exception cref="KeyNotFoundException">Thrown when the component has no record.</exception>
     /// <exception cref="ArgumentException">Thrown when the component writes a record whose size differs from <see cref="InstanceStride"/>.</exception>
-    public void UpdateInstances(IRenderableComponent component)
+    public void UpdateInstances(ComponentId componentId, IRenderable component)
     {
         ArgumentNullException.ThrowIfNull(component);
 
-        if (!_componentInstanceData.ContainsKey(component.Id))
+        if (!_componentInstanceData.ContainsKey(componentId))
             throw new KeyNotFoundException("The component has no instance records.");
 
-        _componentInstanceData[component.Id] = PackInstances(component);
+        _componentInstanceData[componentId] = PackInstances(component);
         RebuildFlattenedData();
+    }
+
+    /// <summary>
+    /// Replaces all instance records produced by a renderable component using its component identity.
+    /// </summary>
+    /// <param name="component">The component that writes its replacement instance records.</param>
+    /// <exception cref="ArgumentException">Thrown when the renderable does not also implement <see cref="IComponent"/>.</exception>
+    public void UpdateInstances(IRenderable component)
+    {
+        ArgumentNullException.ThrowIfNull(component);
+
+        if (component is not Nexus.Core.IComponent owner)
+            throw new ArgumentException(
+                "The renderable must implement IComponent to provide an instance owner.",
+                nameof(component)
+            );
+
+        UpdateInstances(owner.Id, component);
     }
 
     /// <summary>
@@ -153,7 +191,8 @@ public class RenderItem : IRenderItem
     /// Retained for source compatibility; despite the singular name, the complete contribution
     /// is regenerated and may change size.
     /// </remarks>
-    public void UpdateInstance(IRenderableComponent component) => UpdateInstances(component);
+    public void UpdateInstance(ComponentId componentId, IRenderable component) =>
+        UpdateInstances(componentId, component);
 
     /// <summary>
     /// Removes every instance record owned by the specified component.
@@ -171,7 +210,7 @@ public class RenderItem : IRenderItem
     /// <summary>
     /// Packs every instance currently produced by a component into one contribution.
     /// </summary>
-    private byte[] PackInstances(IRenderableComponent component)
+    private byte[] PackInstances(IRenderable component)
     {
         var count = component.InstanceCount;
         if (count <= 0)

@@ -3,7 +3,7 @@ namespace Nexus.Graphics.Components;
 /// <summary>
 /// Renders geometry with a per-instance transformation matrix and uniform color.
 /// </summary>
-public class UniformColorMeshRenderer() : Component, IRenderableComponent, IMeshInstance
+public class UniformColorMeshRenderer() : Component, IGraphicsComponent, IRenderable, IMeshInstance
 {
     private static readonly int InstanceDataSize =
         System.Runtime.CompilerServices.Unsafe.SizeOf<Matrix4X4<float>>() + Marshal.SizeOf<Color>();
@@ -17,6 +17,14 @@ public class UniformColorMeshRenderer() : Component, IRenderableComponent, IMesh
     /// Gets the render layers in which this component participates.
     /// </summary>
     public IEnumerable<RenderLayer> RenderLayers => _renderLayers;
+
+    /// <summary>
+    /// Gets the single renderable contribution produced by this component.
+    /// </summary>
+    public IReadOnlyList<IRenderable> Renderables => [this];
+
+    /// <summary>Gets the number of packed instance records contributed by this component.</summary>
+    public int InstanceCount => 1;
 
     /// <summary>
     /// Gets or sets the mesh rendered by this component.
@@ -65,5 +73,19 @@ public class UniformColorMeshRenderer() : Component, IRenderableComponent, IMesh
         MemoryMarshal.Write(destination[transformationMatrixSize..], in color);
 
         return InstanceDataSize;
+    }
+
+    /// <summary>
+    /// Gets or writes the packed instance record at the specified component-local index.
+    /// </summary>
+    /// <param name="instanceIndex">The zero-based instance index.</param>
+    /// <param name="destination">The destination span, or an empty span when querying its size.</param>
+    /// <returns>The required or written byte count.</returns>
+    public int GetInstanceData(int instanceIndex, Span<byte> destination)
+    {
+        if (instanceIndex != 0)
+            throw new ArgumentOutOfRangeException(nameof(instanceIndex));
+
+        return GetInstanceData(destination);
     }
 }

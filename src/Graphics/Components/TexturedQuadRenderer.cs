@@ -5,7 +5,7 @@ namespace Nexus.Graphics.Components;
 /// <summary>
 /// Renders a texture-mapped quad with a per-instance transformation matrix, source rectangle, and tint color.
 /// </summary>
-public class TexturedQuadRenderer : Component, IRenderableComponent, IMeshInstance
+public class TexturedQuadRenderer : Component, IGraphicsComponent, IRenderable, IMeshInstance
 {
     private static readonly int InstanceDataSize =
         System.Runtime.CompilerServices.Unsafe.SizeOf<Matrix4X4<float>>()
@@ -39,6 +39,14 @@ public class TexturedQuadRenderer : Component, IRenderableComponent, IMeshInstan
     /// Gets the render layers in which this component participates.
     /// </summary>
     public IEnumerable<RenderLayer> RenderLayers => _renderLayers;
+
+    /// <summary>
+    /// Gets the single renderable contribution produced by this component.
+    /// </summary>
+    public IReadOnlyList<IRenderable> Renderables => [this];
+
+    /// <summary>Gets the number of packed instance records contributed by this component.</summary>
+    public int InstanceCount => 1;
 
     /// <summary>
     /// Gets the constant quad geometry rendered by this component, pivoted at its center when
@@ -108,5 +116,19 @@ public class TexturedQuadRenderer : Component, IRenderableComponent, IMeshInstan
         );
 
         return InstanceDataSize;
+    }
+
+    /// <summary>
+    /// Gets or writes the packed instance record at the specified component-local index.
+    /// </summary>
+    /// <param name="instanceIndex">The zero-based instance index.</param>
+    /// <param name="destination">The destination span, or an empty span when querying its size.</param>
+    /// <returns>The required or written byte count.</returns>
+    public int GetInstanceData(int instanceIndex, Span<byte> destination)
+    {
+        if (instanceIndex != 0)
+            throw new ArgumentOutOfRangeException(nameof(instanceIndex));
+
+        return GetInstanceData(destination);
     }
 }
