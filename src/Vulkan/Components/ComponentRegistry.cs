@@ -76,7 +76,7 @@ public class ComponentRegistry(
         {
             foreach (var item in renderItems)
             {
-                item.AddInstance(renderable);
+                item.AddInstances(renderable);
             }
         }
 
@@ -436,7 +436,7 @@ public class ComponentRegistry(
         {
             case nameof(UniformColorMeshRenderer.TransformationMatrix):
             case nameof(UniformColorMeshRenderer.Color):
-                UpdateInstance(component);
+                UpdateInstances(component);
                 break;
 
             // Geometry affects render-item identity; an unknown/null property name is handled
@@ -460,7 +460,7 @@ public class ComponentRegistry(
             case nameof(TexturedQuadRenderer.TransformationMatrix):
             case nameof(TexturedQuadRenderer.TextureRegion):
             case nameof(TexturedQuadRenderer.Color):
-                UpdateInstance(component);
+                UpdateInstances(component);
                 break;
 
             // Texture affects render-item identity; an unknown/null property name is handled
@@ -472,23 +472,23 @@ public class ComponentRegistry(
     }
 
     /// <summary>
-    /// Repacks a component's existing instance record in place. Cheap: no buffer upload,
+    /// Replaces a component's existing instance records. No buffer upload,
     /// descriptor update, or command recording happens until the next frame is rendered.
     /// </summary>
     /// <param name="component">The renderable component whose instance record should be repacked.</param>
-    private void UpdateInstance(IRenderableComponent component)
+    private void UpdateInstances(IRenderableComponent component)
     {
         if (!_components.TryGetValue(component.Id, out var registration))
             return;
 
         foreach (var item in registration.RenderItems)
         {
-            item.UpdateInstance(component);
+            item.UpdateInstances(component);
         }
     }
 
     /// <summary>
-    /// Moves a component's instance record from its previous render items to the render items
+    /// Moves all of a component's instance records from its previous render items to the render items
     /// matching its current state, creating new render items when no existing one matches.
     /// </summary>
     /// <param name="component">The renderable component whose render-item registration should be recreated.</param>
@@ -506,7 +506,7 @@ public class ComponentRegistry(
 
         foreach (var item in renderItems)
         {
-            item.AddInstance(component);
+            item.AddInstances(component);
         }
 
         _components[component.Id] = registration with { RenderItems = renderItems };
