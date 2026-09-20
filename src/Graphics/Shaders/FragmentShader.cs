@@ -7,11 +7,19 @@ public sealed record FragmentShader : Shader
     public FragmentShader(
         string name,
         string sourceFileName,
-        PrimitiveTopologyEnum topology,
         VertexFormat vertexFormat,
-        ColorFormatEnum colorFormat
+        ColorFormatEnum colorFormat,
+        ShaderInput[] uniformInputs,
+        ShaderInput[] instanceInputs
     )
-        : base(name, sourceFileName, ShaderStageEnum.Fragment, topology, vertexFormat)
+        : base(
+            name,
+            sourceFileName,
+            ShaderStageEnum.Fragment,
+            vertexFormat,
+            uniformInputs,
+            instanceInputs
+        )
     {
         ColorFormat = colorFormat;
     }

@@ -3,18 +3,24 @@ namespace Nexus.Graphics.Shaders;
 public sealed record VertexShader : Shader
 {
     public PrimitiveTopologyEnum Topology { get; }
-    public InstanceLayout InstanceLayout { get; }
 
     public VertexShader(
         string name,
         string sourceFileName,
         PrimitiveTopologyEnum topology,
         VertexFormat vertexFormat,
-        InstanceLayout instanceLayout
+        ShaderInput[] uniformInputs,
+        ShaderInput[] instanceInputs
     )
-        : base(name, sourceFileName, ShaderStageEnum.Vertex, topology, vertexFormat)
+        : base(
+            name,
+            sourceFileName,
+            ShaderStageEnum.Vertex,
+            vertexFormat,
+            uniformInputs,
+            instanceInputs
+        )
     {
         Topology = topology;
-        InstanceLayout = instanceLayout;
     }
 }

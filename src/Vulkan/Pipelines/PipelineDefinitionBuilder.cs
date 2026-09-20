@@ -10,7 +10,7 @@ public sealed unsafe class PipelineDefinitionBuilder : IPipelineDefinitionBuilde
     private readonly List<VertexInputBindingDescription> _vertexBindings = [];
     private readonly List<VertexInputAttributeDescription> _vertexAttributes = [];
     private readonly List<PushConstantRange> _pushConstantRanges = [];
-    private DescriptorSchema? _descriptorSchema;
+    private DescriptorSchema? _descriptorSchemaOverride;
 
     private string? _name;
     private RenderPass? _renderPass;
@@ -313,8 +313,40 @@ public sealed unsafe class PipelineDefinitionBuilder : IPipelineDefinitionBuilde
     /// <returns>This builder.</returns>
     public PipelineDefinitionBuilder WithDescriptorSchema(DescriptorSchema schema)
     {
-        _descriptorSchema = schema;
+        _descriptorSchemaOverride = schema;
         return this;
+    }
+
+    /// <summary>Builds the descriptor schema declared by the pipeline shaders.</summary>
+    /// <param name="vertexShader">The pipeline vertex shader.</param>
+    /// <param name="fragmentShader">The optional pipeline fragment shader.</param>
+    /// <returns>The derived descriptor schema.</returns>
+    private static DescriptorSchema BuildDescriptorSchema(
+        VertexShader vertexShader,
+        FragmentShader? fragmentShader
+    )
+    {
+        var schema = new SchemaBuilder();
+        var set = 0u;
+
+        if (vertexShader.Resources.HasFlag(ShaderResourceFlags.Camera))
+        {
+            schema.AddDescriptorSet(
+                set++,
+                descriptorSet => descriptorSet.AddUniformBuffer(0, ShaderStageFlags.VertexBit)
+            );
+        }
+
+        if (fragmentShader?.Resources.HasFlag(ShaderResourceFlags.SampledColor) == true)
+        {
+            schema.AddDescriptorSet(
+                set,
+                descriptorSet =>
+                    descriptorSet.AddCombinedImageSampler(0, ShaderStageFlags.FragmentBit)
+            );
+        }
+
+        return schema.Build();
     }
 
     /// <summary>Builds an immutable snapshot of the configured pipeline description.</summary>
@@ -389,6 +421,9 @@ public sealed unsafe class PipelineDefinitionBuilder : IPipelineDefinitionBuilde
         WithVertexFormat(vertexShader.VertexFormat);
         WithInstanceLayout(vertexShader.InstanceLayout);
 
+        var descriptorSchema =
+            _descriptorSchemaOverride ?? BuildDescriptorSchema(vertexShader, fragmentShader);
+
         return new PipelineDefinition(
             _name,
             vertexShader,
@@ -413,7 +448,7 @@ public sealed unsafe class PipelineDefinitionBuilder : IPipelineDefinitionBuilde
             _frontFace,
             _lineWidth,
             _pushConstantRanges,
-            _descriptorSchema
+            descriptorSchema
         );
     }
 
