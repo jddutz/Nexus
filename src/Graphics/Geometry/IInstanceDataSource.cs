@@ -5,5 +5,5 @@ public interface IInstanceDataSource
     ResourceId Id { get; }
     ulong Count { get; }
 
-    ReadOnlyMemory<byte> GetInstanceData(InstanceLayout layout);
+    ReadOnlyMemory<byte> GetInstanceData(ShaderInput[] layout);
 }

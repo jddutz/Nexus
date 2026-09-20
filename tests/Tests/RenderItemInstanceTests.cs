@@ -6,6 +6,7 @@ using Nexus.Graphics.Geometry;
 using Nexus.Graphics.Shaders;
 using Nexus.Graphics.Textures;
 using Nexus.Graphics.Vulkan;
+using Nexus.Graphics.Vulkan.Pipelines;
 using Silk.NET.Vulkan;
 using VkBuffer = Silk.NET.Vulkan.Buffer;
 
@@ -140,9 +141,7 @@ public class RenderItemInstanceTests
             Pipelines = new Pipeline[RenderPasses.Count],
             Layouts = new PipelineLayout[RenderPasses.Count],
             VertexBuffers = new VkBuffer[RenderPasses.Count],
-            InstanceBuffers = new VkBuffer[RenderPasses.Count],
-            IndexBuffers = new VkBuffer[RenderPasses.Count],
-            DescriptorSets = new DescriptorSet[RenderPasses.Count],
+            DescriptorSets = new DescriptorSet[RenderPasses.Count][],
             VertexCount = 4,
         };
 
@@ -157,6 +156,9 @@ public class RenderItemInstanceTests
 
         ITexture IRenderable.Texture => Texture.Uniform;
 
+        ReadOnlyMemory<byte> IRenderable.GetUniformData(ShaderInput[] layout) =>
+            Array.Empty<byte>();
+
         IInstanceDataSource IRenderable.Instances => this;
 
         VertexShader IRenderable.VertexShader => BuiltInShaders.UniformColorVertexShader;
@@ -168,7 +170,7 @@ public class RenderItemInstanceTests
 
         ulong IInstanceDataSource.Count => (ulong)Values.Length;
 
-        ReadOnlyMemory<byte> IInstanceDataSource.GetInstanceData(InstanceLayout layout)
+        ReadOnlyMemory<byte> IInstanceDataSource.GetInstanceData(ShaderInput[] layout)
         {
             var data = new byte[Values.Length * sizeof(int)];
 

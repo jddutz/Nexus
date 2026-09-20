@@ -8,8 +8,7 @@ public static class DescriptorSchemas
             .Build();
 
     /// <summary>
-    /// Set 0 only: the camera view-projection uniform buffer shared by every pipeline that
-    /// consumes camera state.
+    /// Set 0 only: one vertex-stage uniform buffer.
     /// </summary>
     public static DescriptorSchema Camera { get; } =
         new SchemaBuilder()
@@ -17,9 +16,7 @@ public static class DescriptorSchemas
             .Build();
 
     /// <summary>
-    /// Set 0 - camera view-projection uniform buffer, set 1 - material combined image sampler.
-    /// Kept as separate sets so the camera descriptor set can be shared across render items
-    /// while each item's material descriptor set stays independent.
+    /// Set 0 - vertex-stage uniform buffer, set 1 - explicit combined image sampler.
     /// </summary>
     public static DescriptorSchema Textured { get; } =
         new SchemaBuilder()

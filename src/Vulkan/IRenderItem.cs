@@ -26,19 +26,9 @@ public interface IRenderItem
     VkBuffer[] VertexBuffers { get; }
 
     /// <summary>
-    /// Gets the instance buffer used for each render pass.
+    /// Gets the descriptor sets used for each render pass, ordered by Vulkan set number.
     /// </summary>
-    VkBuffer[] InstanceBuffers { get; }
-
-    /// <summary>
-    /// Gets the index buffer used for each render pass.
-    /// </summary>
-    VkBuffer[] IndexBuffers { get; }
-
-    /// <summary>
-    /// Gets the descriptor set used for each render pass.
-    /// </summary>
-    DescriptorSet[] DescriptorSets { get; }
+    DescriptorSet[][] DescriptorSets { get; }
 
     /// <summary>
     /// Gets the optional push constant data sent before drawing.

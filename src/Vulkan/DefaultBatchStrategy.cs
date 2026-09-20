@@ -36,7 +36,6 @@ public class DefaultBatchStrategy : IBatchStrategy
                 stats.PipelineChanges++;
                 stats.DescriptorSetChanges++;
                 stats.VertexBufferChanges++;
-                stats.IndexBufferChanges++;
             }
             else
             {
@@ -46,13 +45,7 @@ public class DefaultBatchStrategy : IBatchStrategy
                     stats.PipelineChanges++;
                 }
 
-                if (
-                    CompareHandles(
-                        cmd.DescriptorSets,
-                        previous.DescriptorSets,
-                        value => value.Handle
-                    ) != 0
-                )
+                if (CompareDescriptorSets(cmd.DescriptorSets, previous.DescriptorSets) != 0)
                 {
                     stats.DescriptorSetChanges++;
                 }
@@ -63,14 +56,6 @@ public class DefaultBatchStrategy : IBatchStrategy
                 )
                 {
                     stats.VertexBufferChanges++;
-                }
-
-                if (
-                    CompareHandles(cmd.IndexBuffers, previous.IndexBuffers, value => value.Handle)
-                    != 0
-                )
-                {
-                    stats.IndexBufferChanges++;
                 }
             }
 
@@ -89,7 +74,6 @@ public class DefaultBatchStrategy : IBatchStrategy
         public int PipelineChanges { get; set; }
         public int DescriptorSetChanges { get; set; }
         public int VertexBufferChanges { get; set; }
-        public int IndexBufferChanges { get; set; }
 
         /// <summary>
         /// Gets the batching efficiency (lower is better).
@@ -110,7 +94,6 @@ public class DefaultBatchStrategy : IBatchStrategy
                 + $"Pipeline Changes: {PipelineChanges}, "
                 + $"Descriptor Changes: {DescriptorSetChanges}, "
                 + $"Vertex Buffer Changes: {VertexBufferChanges}, "
-                + $"Index Buffer Changes: {IndexBufferChanges}, "
                 + $"Batching Efficiency: {efficiency:F1}%";
         }
     }
@@ -141,7 +124,7 @@ public class DefaultBatchStrategy : IBatchStrategy
             return priorityCompare;
 
         // Within the same priority, optimize for batching to minimize state changes
-        // Order by cost: pipeline (most expensive) → descriptor set → vertex buffer → index buffer → push constants (least expensive)
+        // Order by cost: pipeline (most expensive) → descriptor set → vertex buffer → push constants (least expensive)
 
         // 1. Sort by pipeline (most expensive to change)
         var pipelineCompare = CompareHandles(x.Pipelines, y.Pipelines, value => value.Handle);
@@ -149,11 +132,7 @@ public class DefaultBatchStrategy : IBatchStrategy
             return pipelineCompare;
 
         // 2. Then by descriptor set (textures/uniforms)
-        var descriptorCompare = CompareHandles(
-            x.DescriptorSets,
-            y.DescriptorSets,
-            value => value.Handle
-        );
+        var descriptorCompare = CompareDescriptorSets(x.DescriptorSets, y.DescriptorSets);
         if (descriptorCompare != 0)
             return descriptorCompare;
 
@@ -162,12 +141,7 @@ public class DefaultBatchStrategy : IBatchStrategy
         if (vertexCompare != 0)
             return vertexCompare;
 
-        // 4. Then by index buffer
-        var indexCompare = CompareHandles(x.IndexBuffers, y.IndexBuffers, value => value.Handle);
-        if (indexCompare != 0)
-            return indexCompare;
-
-        // 5. Finally by push constants (least expensive, already part of draw call)
+        // 4. Finally by push constants (least expensive, already part of draw call)
         // This prevents SortedSet from treating commands with different push constants as duplicates
         // Using GetHashCode() works for both value types and reference types
         if (x.PushConstants != null && y.PushConstants != null)
@@ -203,9 +177,8 @@ public class DefaultBatchStrategy : IBatchStrategy
 
         // Then add in order of state change cost (most expensive first)
         AddHandles(hash, state.Pipelines, value => value.Handle);
-        AddHandles(hash, state.DescriptorSets, value => value.Handle);
+        AddDescriptorSetHandles(hash, state.DescriptorSets);
         AddHandles(hash, state.VertexBuffers, value => value.Handle);
-        AddHandles(hash, state.IndexBuffers, value => value.Handle);
 
         // NOTE: DepthSortKey deliberately excluded - it's camera-relative and changes every frame
 
@@ -229,6 +202,25 @@ public class DefaultBatchStrategy : IBatchStrategy
     {
         foreach (var value in values)
             hash.Add(getHandle(value));
+    }
+
+    private static int CompareDescriptorSets(DescriptorSet[][] left, DescriptorSet[][] right)
+    {
+        var count = Math.Min(left.Length, right.Length);
+        for (var index = 0; index < count; index++)
+        {
+            var comparison = CompareHandles(left[index], right[index], value => value.Handle);
+            if (comparison != 0)
+                return comparison;
+        }
+
+        return left.Length.CompareTo(right.Length);
+    }
+
+    private static void AddDescriptorSetHandles(HashCode hash, DescriptorSet[][] values)
+    {
+        foreach (var setArray in values)
+            AddHandles(hash, setArray, value => value.Handle);
     }
 
     /// <summary>

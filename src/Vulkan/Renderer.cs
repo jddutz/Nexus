@@ -3,14 +3,13 @@ namespace Nexus.Graphics.Vulkan;
 /// <summary>
 /// Vulkan renderer implementation that orchestrates frame rendering.
 /// Manages image acquisition, command recording, and presentation.
-/// Uses ContentManager to get active cameras for rendering.
+/// Binds the resources already resolved on each render item.
 /// </summary>
 public unsafe class Renderer(
     Context context,
     ISwapChain swapChain,
     ISyncManager syncManager,
     IPipelineRegistry pipelineManager,
-    ICameraRegistry cameraRegistry,
     ILogger<Renderer> logger
 ) : IRenderer, IDisposable
 {
@@ -20,7 +19,6 @@ public unsafe class Renderer(
     private ISwapChain _swapChain = swapChain;
     private ISyncManager _syncManager = syncManager;
     private IPipelineRegistry _pipelineManager = pipelineManager;
-    private readonly ICameraRegistry _cameraRegistry = cameraRegistry;
     private readonly ILogger<Renderer> _logger = logger;
     private CommandBufferPool _commandPool = CommandBufferPool.ForGraphics(context, 2);
     private FrameSync? _frameSync;
@@ -88,8 +86,6 @@ public unsafe class Renderer(
                     }
 
                     ulong lastPipelineId = 0;
-                    ulong lastCameraDescriptorSetHandle = 0;
-                    ulong lastMaterialDescriptorSetHandle = 0;
 
                     foreach (var command in layer.Items)
                     {
@@ -97,9 +93,7 @@ public unsafe class Renderer(
                             Draw(
                                 command,
                                 RenderPasses.GetIndex(pass.RenderPass),
-                                ref lastPipelineId,
-                                ref lastCameraDescriptorSetHandle,
-                                ref lastMaterialDescriptorSetHandle
+                                ref lastPipelineId
                             );
                     }
 
@@ -244,20 +238,14 @@ public unsafe class Renderer(
         );
     }
 
-    private void Draw(
-        RenderItem cmd,
-        int passIndex,
-        ref ulong lastPipelineId,
-        ref ulong lastCameraDescriptorSetHandle,
-        ref ulong lastMaterialDescriptorSetHandle
-    )
+    private void Draw(RenderItem cmd, int passIndex, ref ulong lastPipelineId)
     {
         if (cmd.InstanceCount == 0)
             return;
 
         var pipeline = cmd.Pipelines[passIndex];
         var layout = cmd.Layouts[passIndex];
-        var descriptorSet = cmd.DescriptorSets[passIndex];
+        var descriptorSets = cmd.DescriptorSets[passIndex];
         var vertexBuffer = cmd.VertexBuffers[passIndex];
 
         if (pipeline.Handle != lastPipelineId)
@@ -269,48 +257,23 @@ public unsafe class Renderer(
             );
 
             lastPipelineId = pipeline.Handle;
-
-            // Descriptor sets bound against a previous pipeline's layout are not guaranteed to
-            // remain valid for this one, so force both to be rebound below.
-            lastCameraDescriptorSetHandle = 0;
-            lastMaterialDescriptorSetHandle = 0;
         }
 
-        // The pipeline's own descriptor schema is authoritative for which sets exist - a camera
-        // or material resource existing does not mean this pipeline's layout declared that set.
-        if (
-            _cameraRegistry.ActiveCameraDescriptorSet is { } cameraDescriptorSet
-            && cameraDescriptorSet.Handle != lastCameraDescriptorSetHandle
-        )
+        if (descriptorSets.Length > 0)
         {
-            _context.VulkanApi.CmdBindDescriptorSets(
-                _commandBuffer,
-                PipelineBindPoint.Graphics,
-                layout,
-                0,
-                1,
-                &cameraDescriptorSet,
-                0,
-                null
-            );
-
-            lastCameraDescriptorSetHandle = cameraDescriptorSet.Handle;
-        }
-
-        if (descriptorSet.Handle != 0 && descriptorSet.Handle != lastMaterialDescriptorSetHandle)
-        {
-            _context.VulkanApi.CmdBindDescriptorSets(
-                _commandBuffer,
-                PipelineBindPoint.Graphics,
-                layout,
-                1,
-                1,
-                &descriptorSet,
-                0,
-                null
-            );
-
-            lastMaterialDescriptorSetHandle = descriptorSet.Handle;
+            fixed (DescriptorSet* descriptorSetsPointer = descriptorSets)
+            {
+                _context.VulkanApi.CmdBindDescriptorSets(
+                    _commandBuffer,
+                    PipelineBindPoint.Graphics,
+                    layout,
+                    0,
+                    (uint)descriptorSets.Length,
+                    descriptorSetsPointer,
+                    0,
+                    null
+                );
+            }
         }
 
         if (cmd.PushConstants != null && layout.Handle != 0)

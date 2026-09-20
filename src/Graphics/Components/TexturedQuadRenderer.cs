@@ -22,6 +22,7 @@ public class TexturedQuadRenderer
     private Matrix4X4<float> _transformationMatrix = Matrix4X4<float>.Identity;
     private Vector4D<float> _textureRegion = new(0f, 0f, 1f, 1f);
     private Color _color = Colors.White;
+    private Matrix4X4<float> _view = Matrix4X4<float>.Identity;
 
     /// <summary>
     /// Initializes a textured quad renderer with a corner-pivoted quad mesh.
@@ -110,6 +111,24 @@ public class TexturedQuadRenderer
         set => SetProperty(ref _color, value);
     }
 
+    /// <summary>Gets or sets the view matrix supplied to the vertex shader contract.</summary>
+    public Matrix4X4<float> View
+    {
+        get => _view;
+        set => SetProperty(ref _view, value);
+    }
+
+    ReadOnlyMemory<byte> IRenderable.GetUniformData(ShaderInput[] layout)
+    {
+        ArgumentNullException.ThrowIfNull(layout);
+        if (layout.Length != 1 || layout[0] is not { Semantic: InputSemantics.View, Size: 64 })
+            throw new ArgumentException("The uniform layout must contain one 64-byte View input.", nameof(layout));
+
+        var data = new byte[64];
+        MemoryMarshal.Write(data.AsSpan(), in _view);
+        return data;
+    }
+
     /// <summary>
     /// Gets the required instance-record size or writes the transform, texture region, and color to a destination span.
     /// </summary>
@@ -152,11 +171,11 @@ public class TexturedQuadRenderer
         return GetInstanceData(destination);
     }
 
-    ReadOnlyMemory<byte> IInstanceDataSource.GetInstanceData(InstanceLayout layout)
+    ReadOnlyMemory<byte> IInstanceDataSource.GetInstanceData(ShaderInput[] layout)
     {
         ArgumentNullException.ThrowIfNull(layout);
 
-        if (layout.Stride != InstanceDataSize)
+        if (layout.Sum(input => input.Size) != InstanceDataSize)
             throw new ArgumentException(
                 "The instance layout stride does not match the renderer data.",
                 nameof(layout)

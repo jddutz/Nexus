@@ -79,11 +79,7 @@ public class DepthSortBatchStrategy : IBatchStrategy
             return pipelineCompare;
 
         // Then by descriptor set (textures/uniforms)
-        var descriptorCompare = CompareHandles(
-            x.DescriptorSets,
-            y.DescriptorSets,
-            value => value.Handle
-        );
+        var descriptorCompare = CompareDescriptorSets(x.DescriptorSets, y.DescriptorSets);
         if (descriptorCompare != 0)
             return descriptorCompare;
 
@@ -92,8 +88,7 @@ public class DepthSortBatchStrategy : IBatchStrategy
         if (vertexCompare != 0)
             return vertexCompare;
 
-        // Finally by index buffer
-        return CompareHandles(x.IndexBuffers, y.IndexBuffers, value => value.Handle);
+        return 0;
     }
 
     /// <summary>
@@ -111,9 +106,8 @@ public class DepthSortBatchStrategy : IBatchStrategy
 
         // Add state change costs
         AddHandles(hash, state.Pipelines, value => value.Handle);
-        AddHandles(hash, state.DescriptorSets, value => value.Handle);
+        AddDescriptorSetHandles(hash, state.DescriptorSets);
         AddHandles(hash, state.VertexBuffers, value => value.Handle);
-        AddHandles(hash, state.IndexBuffers, value => value.Handle);
 
         // NOTE: DepthSortKey deliberately excluded - it's camera-relative and changes every frame
         // Including it would prevent any hash-based caching or grouping optimizations
@@ -132,6 +126,26 @@ public class DepthSortBatchStrategy : IBatchStrategy
         }
 
         return left.Length.CompareTo(right.Length);
+    }
+
+    private static int CompareDescriptorSets(DescriptorSet[][] left, DescriptorSet[][] right)
+    {
+        var count = Math.Min(left.Length, right.Length);
+        for (var index = 0; index < count; index++)
+        {
+            var comparison = CompareHandles(left[index], right[index], value => value.Handle);
+            if (comparison != 0)
+                return comparison;
+        }
+
+        return left.Length.CompareTo(right.Length);
+    }
+
+    private static void AddDescriptorSetHandles(HashCode hash, DescriptorSet[][] values)
+    {
+        foreach (var setArray in values)
+        foreach (var descriptorSet in setArray)
+            hash.Add(descriptorSet.Handle);
     }
 
     private static void AddHandles<T>(HashCode hash, T[] values, Func<T, ulong> getHandle)

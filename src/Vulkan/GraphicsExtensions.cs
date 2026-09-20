@@ -4,6 +4,74 @@ namespace Nexus.Graphics.Vulkan;
 
 public static class GraphicsExtensions
 {
+    /// <summary>Converts a shader stage to its Vulkan stage flags.</summary>
+    /// <param name="stage">The Nexus shader stage.</param>
+    /// <returns>The corresponding Vulkan stage flags.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown for an unsupported stage.</exception>
+    public static ShaderStageFlags ToVulkanStageFlags(this ShaderStageEnum stage) =>
+        stage switch
+        {
+            ShaderStageEnum.Vertex => ShaderStageFlags.VertexBit,
+            ShaderStageEnum.TessellationControl => ShaderStageFlags.TessellationControlBit,
+            ShaderStageEnum.TessellationEval => ShaderStageFlags.TessellationEvaluationBit,
+            ShaderStageEnum.Geometry => ShaderStageFlags.GeometryBit,
+            ShaderStageEnum.Fragment => ShaderStageFlags.FragmentBit,
+            ShaderStageEnum.Compute => ShaderStageFlags.ComputeBit,
+            _ => throw new ArgumentOutOfRangeException(nameof(stage), stage, null),
+        };
+
+    /// <summary>Gets the number of Vulkan attributes emitted for a shader input.</summary>
+    /// <param name="input">The shader input.</param>
+    /// <returns>The number of vertex attributes.</returns>
+    public static uint GetVulkanAttributeCount(this ShaderInput input) =>
+        input.Semantic == InputSemantics.Transform ? 4u : 1u;
+
+    /// <summary>Converts an instance shader input to Vulkan vertex attributes.</summary>
+    /// <param name="input">The shader input.</param>
+    /// <param name="binding">The Vulkan vertex binding.</param>
+    /// <param name="location">The first Vulkan attribute location.</param>
+    /// <param name="offset">The byte offset in the packed instance record.</param>
+    /// <returns>The Vulkan attributes represented by the input.</returns>
+    /// <exception cref="NotSupportedException">Thrown for an unsupported semantic.</exception>
+    /// <exception cref="ArgumentException">Thrown when the input size is incompatible.</exception>
+    public static VertexInputAttributeDescription[] ToVulkanAttributes(
+        this ShaderInput input,
+        uint binding,
+        uint location,
+        uint offset
+    )
+    {
+        var format = input.Semantic switch
+        {
+            InputSemantics.Transform when input.Size == 64 => Format.R32G32B32A32Sfloat,
+            InputSemantics.Color or InputSemantics.TextureRegion when input.Size == 16 =>
+                Format.R32G32B32A32Sfloat,
+            InputSemantics.Transform or InputSemantics.Color or InputSemantics.TextureRegion =>
+                throw new ArgumentException(
+                    $"Shader input semantic {input.Semantic} requires a supported packed size, but received {input.Size} bytes.",
+                    nameof(input)
+                ),
+            _ => throw new NotSupportedException(
+                $"Instance shader input semantic {input.Semantic} is not supported by Vulkan."
+            ),
+        };
+
+        var count = input.GetVulkanAttributeCount();
+        var attributes = new VertexInputAttributeDescription[count];
+        for (var index = 0u; index < count; index++)
+        {
+            attributes[index] = new VertexInputAttributeDescription
+            {
+                Location = location + index,
+                Binding = binding,
+                Format = format,
+                Offset = offset + index * 16,
+            };
+        }
+
+        return attributes;
+    }
+
     /// <summary>Converts a Nexus color format to its Vulkan image format.</summary>
     /// <param name="format">The Nexus color format.</param>
     /// <returns>The corresponding Vulkan format.</returns>

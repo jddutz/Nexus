@@ -18,6 +18,7 @@ internal sealed record ComponentRegistration(
 public class ComponentRegistry(
     Context context,
     IMeshFactory meshFactory,
+    IBufferManager bufferManager,
     IShaderFactory shaderFactory,
     IPipelineRegistry pipelineRegistry,
     IDescriptorSetPool descriptorSetPool,
@@ -33,8 +34,10 @@ public class ComponentRegistry(
     private const string TEXTURED_QUAD_PIPELINE_NAME = "TexturedQuad";
     private readonly Dictionary<ComponentId, ComponentRegistration> _components = [];
     private readonly Dictionary<ResourceId, RenderItem> _renderItems = [];
+    private readonly Dictionary<ResourceId, VkBuffer[]> _uniformBuffers = [];
 
     private readonly IMeshFactory _meshFactory = meshFactory;
+    private readonly IBufferManager _bufferManager = bufferManager;
     private readonly IShaderFactory _shaderFactory = shaderFactory;
     private readonly IPipelineRegistry _pipelineRegistry = pipelineRegistry;
     private readonly IDescriptorSetPool _descriptorSetPool = descriptorSetPool;
@@ -191,6 +194,8 @@ public class ComponentRegistry(
             .Build();
 
         var (pipeline, layout) = _pipelineRegistry.GetOrCreate(pipelineDefinition);
+        var descriptorSets = CreateDescriptorSets(pipelineDefinition, component, null);
+        _uniformBuffers[id] = descriptorSets.UniformBuffers;
 
         return new RenderItem
         {
@@ -199,9 +204,7 @@ public class ComponentRegistry(
             Pipelines = CreatePassArray(pipeline, RenderPasses.Main),
             Layouts = CreatePassArray(layout, RenderPasses.Main),
             VertexBuffers = CreatePassArray(_meshFactory.ReadBuffer(meshId), RenderPasses.Main),
-            InstanceBuffers = new VkBuffer[RenderPasses.Count],
-            IndexBuffers = new VkBuffer[RenderPasses.Count],
-            DescriptorSets = new DescriptorSet[RenderPasses.Count],
+            DescriptorSets = CreatePassArray(descriptorSets.Sets, RenderPasses.Main),
             VertexCount = _meshFactory.ReadVertexCount(meshId),
         };
     }
@@ -271,14 +274,9 @@ public class ComponentRegistry(
         );
         var meshId = _meshFactory.Create(meshDefinition);
 
-        var (pipeline, layout, pipelineId) = GetOrCreateTexturedQuadPipeline();
-
-        var materialDescriptorSetLayout = _pipelineRegistry.GetDescriptorSetLayout(pipelineId, 1);
-        var descriptorSet = _descriptorSetPool.Allocate(materialDescriptorSetLayout);
-
-        _textureRegistry.TryGetImageView(texture.Id, out var imageView);
-        _textureRegistry.TryGetSampler(texture.Id, out var sampler);
-        _descriptorSetPool.WriteCombinedImageSampler(descriptorSet, binding: 0, imageView, sampler);
+        var (pipeline, layout, pipelineDefinition) = GetOrCreateTexturedQuadPipeline();
+        var descriptorSets = CreateDescriptorSets(pipelineDefinition, component, texture);
+        _uniformBuffers[id] = descriptorSets.UniformBuffers;
 
         return new RenderItem
         {
@@ -287,10 +285,8 @@ public class ComponentRegistry(
             Pipelines = CreatePassArray(pipeline, RenderPasses.Main),
             Layouts = CreatePassArray(layout, RenderPasses.Main),
             VertexBuffers = CreatePassArray(_meshFactory.ReadBuffer(meshId), RenderPasses.Main),
-            InstanceBuffers = new VkBuffer[RenderPasses.Count],
-            IndexBuffers = new VkBuffer[RenderPasses.Count],
             VertexCount = _meshFactory.ReadVertexCount(meshId),
-            DescriptorSets = CreatePassArray(descriptorSet, RenderPasses.Main),
+            DescriptorSets = CreatePassArray(descriptorSets.Sets, RenderPasses.Main),
         };
     }
 
@@ -302,16 +298,14 @@ public class ComponentRegistry(
     }
 
     /// <summary>
-    /// Gets or creates the textured-quad pipeline. Set 0 of its descriptor schema is a camera
-    /// view-projection uniform buffer (structurally compatible with, but independent of, the
-    /// layout <see cref="ICameraRegistry"/> owns); set 1 is the per-render-item material (texture)
-    /// descriptor set.
+    /// Gets or creates the textured-quad pipeline. Its descriptor schema contains the contract
+    /// uniform buffer followed by the explicit sampled-texture descriptor set.
     /// </summary>
     /// <returns>The pipeline, its layout, and its identifier.</returns>
     private (
         Pipeline Pipeline,
         PipelineLayout Layout,
-        PipelineId Id
+        PipelineDefinition Definition
     ) GetOrCreateTexturedQuadPipeline()
     {
         var vertexShader = BuiltInShaders.TexturedQuadVertexShader;
@@ -333,11 +327,108 @@ public class ComponentRegistry(
             .WithDepthTest(false)
             .WithDepthWrite(false)
             .WithCullMode(CullModeFlags.None)
+            .WithDescriptorSchema(DescriptorSchemas.Textured)
             .Build();
 
         var (pipeline, layout) = _pipelineRegistry.GetOrCreate(pipelineDefinition);
 
-        return (pipeline, layout, pipelineDefinition.Id);
+        return (pipeline, layout, pipelineDefinition);
+    }
+
+    private (DescriptorSet[] Sets, VkBuffer[] UniformBuffers) CreateDescriptorSets(
+        PipelineDefinition definition,
+        IRenderable renderable,
+        Texture? texture
+    )
+    {
+        if (definition.DescriptorSchema is not { } schema)
+            return ([], []);
+
+        var contracts = new IShaderContract?[]
+        {
+            definition.VertexShader,
+            definition.TessellationControlShader,
+            definition.TessellationEvalShader,
+            definition.GeometryShader,
+            definition.FragmentShader,
+        };
+        var uniformContracts = contracts
+            .Where(shader => shader?.UniformLayout.Length > 0)
+            .ToArray();
+        var uniformIndex = 0;
+        var sets = new DescriptorSet[schema.Sets.Length];
+        var buffers = new List<VkBuffer>();
+
+        for (var setIndex = 0; setIndex < schema.Sets.Length; setIndex++)
+        {
+            var setSchema = schema.Sets[setIndex];
+            sets[setIndex] = _descriptorSetPool.Allocate(
+                _pipelineRegistry.GetDescriptorSetLayout(definition.Id, (uint)setIndex)
+            );
+
+            foreach (var binding in setSchema.Bindings)
+            {
+                switch (binding.DescriptorType)
+                {
+                    case DescriptorType.UniformBuffer:
+                        if (uniformIndex >= uniformContracts.Length)
+                            throw new InvalidOperationException(
+                                $"Pipeline '{definition.Name}' declares a uniform descriptor without a shader contract."
+                            );
+
+                        var shader = uniformContracts[uniformIndex++]!;
+                        var data = renderable.GetUniformData(shader.UniformLayout).ToArray();
+                        var expectedSize = checked(
+                            (ulong)shader.UniformLayout.Sum(input => input.Size)
+                        );
+                        if ((ulong)data.Length != expectedSize)
+                            throw new InvalidOperationException(
+                                $"Renderable '{renderable.GetType().Name}' supplied {data.Length} uniform bytes for shader '{shader.Name}', expected {expectedSize}."
+                            );
+
+                        var buffer = _bufferManager.CreateUniformBuffer(expectedSize);
+                        _bufferManager.UpdateBuffer(buffer, data);
+                        _descriptorSetPool.WriteUniformBuffer(
+                            sets[setIndex],
+                            binding.Binding,
+                            buffer,
+                            0,
+                            expectedSize
+                        );
+                        buffers.Add(buffer);
+                        break;
+
+                    case DescriptorType.CombinedImageSampler:
+                        if (texture is null)
+                            throw new InvalidOperationException(
+                                $"Pipeline '{definition.Name}' requires a sampled texture, but the renderable supplied none."
+                            );
+
+                        if (
+                            !_textureRegistry.TryGetImageView(texture.Id, out var imageView)
+                            || !_textureRegistry.TryGetSampler(texture.Id, out var sampler)
+                        )
+                            throw new InvalidOperationException(
+                                $"Texture '{texture.Id}' has no realized Vulkan image view and sampler."
+                            );
+
+                        _descriptorSetPool.WriteCombinedImageSampler(
+                            sets[setIndex],
+                            binding.Binding,
+                            imageView,
+                            sampler
+                        );
+                        break;
+                }
+            }
+        }
+
+        if (uniformIndex != uniformContracts.Length)
+            throw new InvalidOperationException(
+                $"Pipeline '{definition.Name}' has {uniformContracts.Length} uniform shader contracts but only {uniformIndex} uniform descriptor bindings."
+            );
+
+        return (sets, [.. buffers]);
     }
 
     /// <summary>
@@ -446,6 +537,9 @@ public class ComponentRegistry(
             case nameof(UniformColorMeshRenderer.Color):
                 UpdateInstances(component);
                 break;
+            case nameof(UniformColorMeshRenderer.View):
+                UpdateUniformData(component);
+                break;
 
             // Geometry affects render-item identity; an unknown/null property name is handled
             // conservatively the same way, since it may represent any property.
@@ -470,6 +564,9 @@ public class ComponentRegistry(
             case nameof(TexturedQuadRenderer.Color):
                 UpdateInstances(component);
                 break;
+            case nameof(TexturedQuadRenderer.View):
+                UpdateUniformData(component);
+                break;
 
             // Texture affects render-item identity; an unknown/null property name is handled
             // conservatively the same way, since it may represent any property.
@@ -492,6 +589,49 @@ public class ComponentRegistry(
         foreach (var renderable in component.Renderables)
         foreach (var item in registration.RenderItems)
             item.UpdateInstances(component.Id, renderable);
+    }
+
+    /// <summary>Updates the contract-driven uniform buffers for a renderable component.</summary>
+    /// <param name="component">The component whose uniform data changed.</param>
+    private void UpdateUniformData(IGraphicsComponent component)
+    {
+        if (!_components.TryGetValue(component.Id, out var registration))
+            return;
+
+        foreach (var renderable in component.Renderables)
+        foreach (var item in registration.RenderItems)
+        {
+            if (!_uniformBuffers.TryGetValue(item.Id, out var buffers))
+                continue;
+            var contracts = new IShaderContract[]
+            {
+                renderable.VertexShader,
+                renderable.FragmentShader,
+            };
+            var uniformContracts = contracts
+                .Where(shader => shader.UniformLayout.Length > 0)
+                .ToArray();
+            if (buffers.Length != uniformContracts.Length)
+                throw new InvalidOperationException(
+                    $"Render item uniform buffer count {buffers.Length} does not match shader contract count {uniformContracts.Length}."
+                );
+
+            if (buffers.Length == 0)
+                continue;
+
+            for (var index = 0; index < buffers.Length; index++)
+            {
+                var layout = uniformContracts[index].UniformLayout;
+                var data = renderable.GetUniformData(layout).ToArray();
+                var expectedSize = checked((ulong)layout.Sum(input => input.Size));
+                if ((ulong)data.Length != expectedSize)
+                    throw new InvalidOperationException(
+                        $"Renderable '{renderable.GetType().Name}' supplied {data.Length} uniform bytes for shader '{uniformContracts[index].Name}', expected {expectedSize}."
+                    );
+
+                _bufferManager.UpdateBuffer(buffers[index], data);
+            }
+        }
     }
 
     /// <summary>

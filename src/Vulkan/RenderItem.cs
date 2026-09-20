@@ -22,12 +22,17 @@ public class RenderItem : IRenderItem
     /// </summary>
     public required uint RenderPassMask { get; init; }
 
+    /// <summary>Gets the graphics pipeline used for each render pass.</summary>
     public required Pipeline[] Pipelines { get; init; }
+
+    /// <summary>Gets the pipeline layout used for each render pass.</summary>
     public required PipelineLayout[] Layouts { get; init; }
+
+    /// <summary>Gets the vertex buffer used for each render pass.</summary>
     public required VkBuffer[] VertexBuffers { get; init; }
-    public required VkBuffer[] InstanceBuffers { get; init; }
-    public required VkBuffer[] IndexBuffers { get; init; }
-    public required DescriptorSet[] DescriptorSets { get; init; }
+
+    /// <summary>Gets the descriptor sets used for each pass, ordered by Vulkan set number.</summary>
+    public required DescriptorSet[][] DescriptorSets { get; init; }
 
     /// <summary>
     /// Gets the number of vertices to draw per instance.

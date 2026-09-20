@@ -135,7 +135,7 @@ public sealed unsafe class PipelineDefinitionBuilder : IPipelineDefinitionBuilde
         );
 
         var offset = 0u;
-        var location = 0u;
+        var location = (uint)_vertexAttributes.Count;
         foreach (var input in layout)
         {
             foreach (var attribute in input.ToVulkanAttributes(binding, location, offset))
@@ -308,12 +308,9 @@ public sealed unsafe class PipelineDefinitionBuilder : IPipelineDefinitionBuilde
     }
 
     /// <summary>Builds the descriptor schema declared by the pipeline shaders.</summary>
-    /// <param name="vertexShader">The pipeline vertex shader.</param>
-    /// <param name="fragmentShader">The optional pipeline fragment shader.</param>
+    /// <param name="shaders">The shader contracts in pipeline order.</param>
     /// <returns>The derived descriptor schema.</returns>
-    private static DescriptorSchema BuildDescriptorSchema(
-        IEnumerable<IShaderContract> shaders
-    )
+    private static DescriptorSchema BuildDescriptorSchema(IEnumerable<IShaderContract> shaders)
     {
         var schema = new SchemaBuilder();
         var set = 0u;
@@ -402,8 +399,7 @@ public sealed unsafe class PipelineDefinitionBuilder : IPipelineDefinitionBuilde
         WithTopology(vertexShader.Topology);
         WithInstanceLayout(vertexShader.InstanceLayout);
 
-        var descriptorSchema =
-            _descriptorSchemaOverride ?? BuildDescriptorSchema(_shaders);
+        var descriptorSchema = _descriptorSchemaOverride ?? BuildDescriptorSchema(_shaders);
 
         return new PipelineDefinition(
             _name,

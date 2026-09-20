@@ -3,7 +3,7 @@ namespace Nexus.Graphics.Vulkan.Pipelines;
 /// <summary>
 /// Realizes Vulkan descriptor-set layouts directly from a <see cref="DescriptorSchema"/>,
 /// independent of any pipeline. Use this when a component needs a descriptor-set layout that is
-/// not tied to a specific pipeline's lifetime (e.g. a shared camera descriptor set).
+/// not tied to a specific pipeline's lifetime.
 /// </summary>
 public interface IDescriptorSetLayoutFactory
 {
