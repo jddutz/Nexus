@@ -4,7 +4,7 @@ namespace Nexus.Graphics.Textures;
 /// Creates a texture source from an array of <see cref="Color"/> values, converting them on demand
 /// into packed pixel data for any format defined by <see cref="ColorFormatEnum"/>.
 /// </summary>
-public sealed class TextureSource : ITextureSource
+public sealed class TextureSource : ITextureDataSource
 {
     private readonly Color[] _colorData;
 
@@ -44,6 +44,6 @@ public sealed class TextureSource : ITextureSource
         return pixelData;
     }
 
-    public static readonly ITextureSource Invalid = new TextureSource([Colors.Magenta]);
-    public static readonly ITextureSource Uniform = new TextureSource([Colors.White]);
+    public static readonly ITextureDataSource Invalid = new TextureSource([Colors.Magenta]);
+    public static readonly ITextureDataSource Uniform = new TextureSource([Colors.White]);
 }

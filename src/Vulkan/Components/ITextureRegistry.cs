@@ -5,7 +5,7 @@ public interface ITextureRegistry
     bool IsRegistered(ContentId id);
     void Register(
         Texture description,
-        ITextureSource source,
+        ITextureDataSource source,
         ColorFormatEnum format = ColorFormatEnum.RGBA8UNorm
     );
     bool TryGetImageView(ContentId id, out ImageView imageView);

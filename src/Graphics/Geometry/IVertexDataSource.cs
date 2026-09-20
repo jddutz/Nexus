@@ -1,6 +1,6 @@
 namespace Nexus.Graphics.Geometry;
 
-public interface IMeshSource
+public interface IVertexDataSource
 {
     ResourceId Id { get; }
     ulong Count { get; }

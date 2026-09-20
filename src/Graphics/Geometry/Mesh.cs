@@ -5,9 +5,9 @@ public class Mesh
     public ResourceId Id { get; }
     public string Name { get; }
     public PrimitiveTopologyEnum Topology { get; }
-    public IMeshSource Source { get; }
+    public IVertexDataSource Source { get; }
 
-    public Mesh(string name, PrimitiveTopologyEnum topology, IMeshSource source)
+    public Mesh(string name, PrimitiveTopologyEnum topology, IVertexDataSource source)
     {
         Name = name;
         Topology = topology;

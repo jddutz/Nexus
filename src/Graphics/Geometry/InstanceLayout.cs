@@ -1,4 +1,4 @@
-namespace Nexus.Graphics.Components;
+namespace Nexus.Graphics.Geometry;
 
 /// <summary>
 /// Identifies the scalar layout of an instance input attribute.

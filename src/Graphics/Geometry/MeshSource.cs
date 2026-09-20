@@ -1,6 +1,6 @@
 namespace Nexus.Graphics.Geometry;
 
-public sealed class MeshSource : IMeshSource
+public sealed class MeshSource : IVertexDataSource
 {
     private readonly Vertex[] _vertices;
 
