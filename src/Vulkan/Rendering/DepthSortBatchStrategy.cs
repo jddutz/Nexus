@@ -115,6 +115,7 @@ public class DepthSortBatchStrategy : IBatchStrategy
         return hash.ToHashCode();
     }
 
+    /// <summary>Compares two handle arrays lexicographically.</summary>
     private static int CompareHandles<T>(T[] left, T[] right, Func<T, ulong> getHandle)
     {
         var count = Math.Min(left.Length, right.Length);
@@ -128,6 +129,7 @@ public class DepthSortBatchStrategy : IBatchStrategy
         return left.Length.CompareTo(right.Length);
     }
 
+    /// <summary>Compares descriptor-set arrays lexicographically by Vulkan handle.</summary>
     private static int CompareDescriptorSets(DescriptorSet[][] left, DescriptorSet[][] right)
     {
         var count = Math.Min(left.Length, right.Length);
@@ -141,6 +143,7 @@ public class DepthSortBatchStrategy : IBatchStrategy
         return left.Length.CompareTo(right.Length);
     }
 
+    /// <summary>Adds descriptor-set handles to a hash accumulator.</summary>
     private static void AddDescriptorSetHandles(HashCode hash, DescriptorSet[][] values)
     {
         foreach (var setArray in values)
@@ -148,6 +151,7 @@ public class DepthSortBatchStrategy : IBatchStrategy
             hash.Add(descriptorSet.Handle);
     }
 
+    /// <summary>Adds the handles in an array to a hash accumulator.</summary>
     private static void AddHandles<T>(HashCode hash, T[] values, Func<T, ulong> getHandle)
     {
         foreach (var value in values)

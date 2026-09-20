@@ -5,6 +5,11 @@ namespace Nexus.Graphics.Vulkan.Rendering;
 /// Manages image acquisition, command recording, and presentation.
 /// Binds the resources already resolved on each render item.
 /// </summary>
+/// <param name="context">The Vulkan context used for device and command recording operations.</param>
+/// <param name="swapChain">The swap chain that supplies render targets and presentation.</param>
+/// <param name="syncManager">The synchronization manager for frames and swap-chain images.</param>
+/// <param name="pipelineManager">The pipeline registry used to resolve pipeline state.</param>
+/// <param name="logger">The logger used to record rendering failures.</param>
 public unsafe class Renderer(
     Context context,
     ISwapChain swapChain,
@@ -32,11 +37,17 @@ public unsafe class Renderer(
         .Select(_ => new InstanceBuffer(context))
         .ToArray();
 
+    /// <summary>Occurs after a frame is acquired and before command recording begins.</summary>
     public event EventHandler<RenderEventArgs>? BeforeRendering;
+
+    /// <summary>Occurs after the frame has been submitted and presented.</summary>
     public event EventHandler<RenderEventArgs>? AfterRendering;
 
+    /// <summary>Gets or sets the render layers processed for each frame.</summary>
     public VulkanRenderLayer[] Layers { get; set; } = [];
 
+    /// <summary>Determines whether the renderer has a usable swap chain and render layer.</summary>
+    /// <returns><see langword="true"/> when rendering can begin; otherwise, <see langword="false"/>.</returns>
     public bool CanRender() =>
         _context != null
         && _swapChain != null
@@ -44,6 +55,8 @@ public unsafe class Renderer(
         && _swapChain.SwapchainExtent.Width > 0
         && _swapChain.SwapchainExtent.Height > 0;
 
+    /// <summary>Acquires, records, submits, and presents one frame.</summary>
+    /// <returns><see langword="true"/> when the frame was rendered; otherwise, <see langword="false"/>.</returns>
     public bool Render()
     {
         try
@@ -142,6 +155,9 @@ public unsafe class Renderer(
         _disposed = true;
     }
 
+    /// <summary>Validates the render-pass definitions associated with a layer.</summary>
+    /// <param name="definition">The layer whose passes are validated.</param>
+    /// <exception cref="InvalidOperationException">Thrown when the layer or one of its passes is invalid.</exception>
     private void ValidateRenderPasses(VulkanRenderLayer definition)
     {
         if (definition.RenderPasses.Length == 0)
@@ -202,6 +218,8 @@ public unsafe class Renderer(
         return true;
     }
 
+    /// <summary>Begins recording the command buffer for the current frame.</summary>
+    /// <returns><see langword="true"/> when command recording begins successfully.</returns>
     private bool BeginCommandBuffer()
     {
         var beginInfo = new CommandBufferBeginInfo
@@ -215,6 +233,10 @@ public unsafe class Renderer(
         return result == Result.Success;
     }
 
+    /// <summary>Begins the selected swap-chain render pass.</summary>
+    /// <param name="index">The zero-based render-pass index.</param>
+    /// <param name="clearValueCount">The number of clear values supplied.</param>
+    /// <param name="passClearValues">A pointer to the pass clear values.</param>
     private void BeginRenderPass(int index, uint clearValueCount, ClearValue* passClearValues)
     {
         var renderPassInfo = new RenderPassBeginInfo
@@ -238,6 +260,10 @@ public unsafe class Renderer(
         );
     }
 
+    /// <summary>Records the draw commands for one render item and pass.</summary>
+    /// <param name="cmd">The render item to draw.</param>
+    /// <param name="passIndex">The zero-based pass index used to select resources.</param>
+    /// <param name="lastPipelineId">The pipeline handle most recently bound in this pass.</param>
     private void Draw(RenderItem cmd, int passIndex, ref ulong lastPipelineId)
     {
         if (cmd.InstanceCount == 0)

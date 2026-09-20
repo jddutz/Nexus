@@ -1,7 +1,7 @@
 namespace Nexus.Graphics.Vulkan.Rendering;
 
 /// <summary>
-/// Default batching strategy that optimizes OpenGL state changes by grouping render states
+/// Default batching strategy that optimizes Vulkan state changes by grouping render states
 /// based on expensive state transitions (framebuffer, shader program, textures, VAO).
 /// Prioritizes batches to minimize the most expensive state changes first.
 ///
@@ -13,7 +13,7 @@ namespace Nexus.Graphics.Vulkan.Rendering;
 /// <item><b>Textures and VAO</b> - Included in hash for fine-grained batching</item>
 /// </list>
 ///
-/// <para>Hash-based change detection allows the renderer to detect when GL state updates are needed between consecutive render states.</para>
+/// <para>Hash-based change detection allows the renderer to detect when Vulkan state updates are needed between consecutive render states.</para>
 /// </summary>
 public class DefaultBatchStrategy : IBatchStrategy
 {
@@ -70,9 +70,16 @@ public class DefaultBatchStrategy : IBatchStrategy
     /// </summary>
     public struct BatchingStatistics
     {
+        /// <summary>Gets or sets the number of draw commands analyzed.</summary>
         public int TotalDrawCommands { get; set; }
+
+        /// <summary>Gets or sets the number of pipeline changes between consecutive commands.</summary>
         public int PipelineChanges { get; set; }
+
+        /// <summary>Gets or sets the number of descriptor-set changes between consecutive commands.</summary>
         public int DescriptorSetChanges { get; set; }
+
+        /// <summary>Gets or sets the number of vertex-buffer changes between consecutive commands.</summary>
         public int VertexBufferChanges { get; set; }
 
         /// <summary>
@@ -82,6 +89,8 @@ public class DefaultBatchStrategy : IBatchStrategy
         public float GetBatchingRatio() =>
             TotalDrawCommands > 0 ? (float)PipelineChanges / TotalDrawCommands : 0f;
 
+        /// <summary>Returns a readable summary of the batching statistics.</summary>
+        /// <returns>A formatted summary of the analyzed commands and state changes.</returns>
         public override string ToString()
         {
             if (TotalDrawCommands == 0)
@@ -185,6 +194,7 @@ public class DefaultBatchStrategy : IBatchStrategy
         return hash.ToHashCode();
     }
 
+    /// <summary>Compares two handle arrays lexicographically.</summary>
     private static int CompareHandles<T>(T[] left, T[] right, Func<T, ulong> getHandle)
     {
         var count = Math.Min(left.Length, right.Length);
@@ -198,12 +208,14 @@ public class DefaultBatchStrategy : IBatchStrategy
         return left.Length.CompareTo(right.Length);
     }
 
+    /// <summary>Adds the handles in an array to a hash accumulator.</summary>
     private static void AddHandles<T>(HashCode hash, T[] values, Func<T, ulong> getHandle)
     {
         foreach (var value in values)
             hash.Add(getHandle(value));
     }
 
+    /// <summary>Compares descriptor-set arrays lexicographically by Vulkan handle.</summary>
     private static int CompareDescriptorSets(DescriptorSet[][] left, DescriptorSet[][] right)
     {
         var count = Math.Min(left.Length, right.Length);
@@ -217,6 +229,7 @@ public class DefaultBatchStrategy : IBatchStrategy
         return left.Length.CompareTo(right.Length);
     }
 
+    /// <summary>Adds descriptor-set handles to a hash accumulator.</summary>
     private static void AddDescriptorSetHandles(HashCode hash, DescriptorSet[][] values)
     {
         foreach (var setArray in values)
@@ -224,14 +237,14 @@ public class DefaultBatchStrategy : IBatchStrategy
     }
 
     /// <summary>
-    /// Computes a consistent hash code for the given GL state parameters.
-    /// This method ensures that both GetHashCode(DrawCommand) and GetHashCode(GL)
+    /// Computes a consistent hash code for the given Vulkan state parameters.
+    /// This method ensures that equivalent render states produce identical hash codes.
     /// produce identical hash codes when the states are equivalent.
     /// </summary>
-    /// <param name="framebuffer">Framebuffer ID or null for default framebuffer</param>
-    /// <param name="shaderProgram">Shader program ID or null for no program</param>
-    /// <param name="vertexArray">Vertex array object ID or null for no VAO</param>
-    /// <param name="boundTextures">Array of bound texture IDs for each texture unit</param>
+    /// <param name="framebuffer">Framebuffer identifier or null for the default framebuffer.</param>
+    /// <param name="shaderProgram">Shader program identifier or null when no program is bound.</param>
+    /// <param name="vertexArray">Vertex-array identifier or null when no vertex array is bound.</param>
+    /// <param name="boundTextures">Bound texture identifiers for each texture unit.</param>
     /// <returns>Consistent hash code for the given state parameters</returns>
     private static int ComputeStateHash(
         uint? framebuffer,
@@ -261,7 +274,7 @@ public class DefaultBatchStrategy : IBatchStrategy
     }
 
     /// <summary>
-    /// Compares framebuffer IDs with special handling for the default framebuffer.
+    /// Compares framebuffer identifiers with special handling for the default framebuffer.
     /// Off-screen framebuffers (non-null) should render before the default framebuffer (null).
     /// </summary>
     private static int CompareFramebuffers(uint? framebuffer1, uint? framebuffer2)
@@ -283,7 +296,7 @@ public class DefaultBatchStrategy : IBatchStrategy
     }
 
     /// <summary>
-    /// Compares two nullable uint values, treating null as "less than" any actual value.
+    /// Compares two nullable unsigned integers, treating null as less than any actual value.
     /// </summary>
     private static int CompareNullableUInt(uint? value1, uint? value2)
     {
