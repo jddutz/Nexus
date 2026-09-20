@@ -1,6 +1,3 @@
-using VkBuffer = Silk.NET.Vulkan.Buffer;
-using VkDescriptorPool = Silk.NET.Vulkan.DescriptorPool;
-
 namespace Nexus.Graphics.Vulkan.Pipelines;
 
 /// <summary>

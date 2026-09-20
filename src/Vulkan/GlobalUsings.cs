@@ -23,3 +23,5 @@ global using Silk.NET.Maths;
 global using Silk.NET.Vulkan;
 global using Silk.NET.Vulkan.Extensions.KHR;
 global using Silk.NET.Windowing;
+global using VkBuffer = Silk.NET.Vulkan.Buffer;
+global using VkDescriptorPool = Silk.NET.Vulkan.DescriptorPool;

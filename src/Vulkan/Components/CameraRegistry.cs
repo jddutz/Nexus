@@ -1,5 +1,3 @@
-using VkBuffer = Silk.NET.Vulkan.Buffer;
-
 namespace Nexus.Graphics.Vulkan.Components;
 
 /// <summary>

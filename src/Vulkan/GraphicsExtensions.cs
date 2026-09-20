@@ -73,4 +73,55 @@ public static class GraphicsExtensions
                 "Unsupported primitive topology."
             ),
         };
+
+    public static Filter ToVulkanFilter(this MagFilterEnum filter) =>
+        filter switch
+        {
+            MagFilterEnum.Nearest => Filter.Nearest,
+            MagFilterEnum.Linear => Filter.Linear,
+            _ => throw new ArgumentOutOfRangeException(nameof(filter)),
+        };
+
+    public static Filter ToVulkanFilter(this MinFilterEnum filter) =>
+        filter switch
+        {
+            MinFilterEnum.Nearest => Filter.Nearest,
+            MinFilterEnum.Linear => Filter.Linear,
+            MinFilterEnum.NearestMipmapNearest => Filter.Nearest,
+            MinFilterEnum.NearestMipmapLinear => Filter.Nearest,
+            MinFilterEnum.LinearMipmapNearest => Filter.Linear,
+            MinFilterEnum.LinearMipmapLinear => Filter.Linear,
+            _ => throw new ArgumentOutOfRangeException(nameof(filter)),
+        };
+
+    public static SamplerMipmapMode ToVulkanMipmapMode(this MinFilterEnum filter) =>
+        filter switch
+        {
+            MinFilterEnum.Nearest => SamplerMipmapMode.Nearest,
+            MinFilterEnum.Linear => SamplerMipmapMode.Nearest,
+            MinFilterEnum.NearestMipmapNearest => SamplerMipmapMode.Nearest,
+            MinFilterEnum.LinearMipmapNearest => SamplerMipmapMode.Nearest,
+            MinFilterEnum.NearestMipmapLinear => SamplerMipmapMode.Linear,
+            MinFilterEnum.LinearMipmapLinear => SamplerMipmapMode.Linear,
+            _ => throw new ArgumentOutOfRangeException(nameof(filter)),
+        };
+
+    public static SamplerAddressMode ToVulkanAddressMode(this WrapModeEnum mode) =>
+        mode switch
+        {
+            WrapModeEnum.ClampToEdge => SamplerAddressMode.ClampToEdge,
+
+            WrapModeEnum.Repeat => SamplerAddressMode.Repeat,
+
+            WrapModeEnum.MirroredRepeat => SamplerAddressMode.MirroredRepeat,
+
+            _ => throw new ArgumentOutOfRangeException(nameof(mode)),
+        };
+
+    public static bool UsesMipmaps(this MinFilterEnum filter) =>
+        filter
+            is MinFilterEnum.NearestMipmapNearest
+                or MinFilterEnum.LinearMipmapNearest
+                or MinFilterEnum.NearestMipmapLinear
+                or MinFilterEnum.LinearMipmapLinear;
 }

@@ -1,5 +1,3 @@
-using VkBuffer = Silk.NET.Vulkan.Buffer;
-
 namespace Nexus.Graphics.Vulkan.Components;
 
 /// <summary>
@@ -21,7 +19,9 @@ public unsafe class MeshFactory(Context context, ILogger<MeshFactory> logger) : 
         if (definition.VertexCount == 0)
             throw new InvalidOperationException($"Mesh '{definition.Id}' contains no vertices.");
         if (definition.VertexCount > uint.MaxValue)
-            throw new InvalidOperationException($"Mesh '{definition.Id}' exceeds Vulkan's vertex-count limit.");
+            throw new InvalidOperationException(
+                $"Mesh '{definition.Id}' exceeds Vulkan's vertex-count limit."
+            );
         if (_vertexBuffers.ContainsKey(definition.Id))
             return definition.Id;
 
@@ -39,13 +39,18 @@ public unsafe class MeshFactory(Context context, ILogger<MeshFactory> logger) : 
                 SharingMode = SharingMode.Exclusive,
             };
             var result = _context.VulkanApi.CreateBuffer(
-                _context.Device, in bufferInfo, null, out vertexBuffer
+                _context.Device,
+                in bufferInfo,
+                null,
+                out vertexBuffer
             );
             if (result != Result.Success)
                 throw new InvalidOperationException($"Unable to create vertex buffer: {result}");
 
             _context.VulkanApi.GetBufferMemoryRequirements(
-                _context.Device, vertexBuffer, out var requirements
+                _context.Device,
+                vertexBuffer,
+                out var requirements
             );
             var allocationInfo = new MemoryAllocateInfo
             {
@@ -57,20 +62,31 @@ public unsafe class MeshFactory(Context context, ILogger<MeshFactory> logger) : 
                 ),
             };
             result = _context.VulkanApi.AllocateMemory(
-                _context.Device, in allocationInfo, null, out vertexMemory
+                _context.Device,
+                in allocationInfo,
+                null,
+                out vertexMemory
             );
             if (result != Result.Success)
                 throw new InvalidOperationException($"Unable to allocate vertex memory: {result}");
 
             result = _context.VulkanApi.BindBufferMemory(
-                _context.Device, vertexBuffer, vertexMemory, 0
+                _context.Device,
+                vertexBuffer,
+                vertexMemory,
+                0
             );
             if (result != Result.Success)
                 throw new InvalidOperationException($"Unable to bind vertex memory: {result}");
 
             void* mapped = null;
             result = _context.VulkanApi.MapMemory(
-                _context.Device, vertexMemory, 0, size, 0, &mapped
+                _context.Device,
+                vertexMemory,
+                0,
+                size,
+                0,
+                &mapped
             );
             if (result != Result.Success)
                 throw new InvalidOperationException($"Unable to map vertex memory: {result}");
@@ -79,7 +95,12 @@ public unsafe class MeshFactory(Context context, ILogger<MeshFactory> logger) : 
             {
                 fixed (byte* source = definition.VertexData.Span)
                 {
-                    System.Buffer.MemoryCopy(source, mapped, checked((long)size), checked((long)size));
+                    System.Buffer.MemoryCopy(
+                        source,
+                        mapped,
+                        checked((long)size),
+                        checked((long)size)
+                    );
                 }
             }
             finally
@@ -92,7 +113,9 @@ public unsafe class MeshFactory(Context context, ILogger<MeshFactory> logger) : 
             _vertexCounts.Add(definition.Id, (uint)definition.VertexCount);
             _logger.LogInformation(
                 "Created Vulkan mesh. MeshId={MeshId}, VertexCount={VertexCount}, VertexStride={VertexStride}",
-                definition.Id, definition.VertexCount, definition.VertexStride
+                definition.Id,
+                definition.VertexCount,
+                definition.VertexStride
             );
             return definition.Id;
         }
@@ -107,14 +130,16 @@ public unsafe class MeshFactory(Context context, ILogger<MeshFactory> logger) : 
     }
 
     /// <inheritdoc/>
-    public VkBuffer ReadBuffer(ResourceId id) => _vertexBuffers.TryGetValue(id, out var buffer)
-        ? buffer
-        : throw new KeyNotFoundException($"Mesh resource '{id}' does not exist.");
+    public VkBuffer ReadBuffer(ResourceId id) =>
+        _vertexBuffers.TryGetValue(id, out var buffer)
+            ? buffer
+            : throw new KeyNotFoundException($"Mesh resource '{id}' does not exist.");
 
     /// <inheritdoc/>
-    public uint ReadVertexCount(ResourceId id) => _vertexCounts.TryGetValue(id, out var count)
-        ? count
-        : throw new KeyNotFoundException($"Mesh resource '{id}' does not exist.");
+    public uint ReadVertexCount(ResourceId id) =>
+        _vertexCounts.TryGetValue(id, out var count)
+            ? count
+            : throw new KeyNotFoundException($"Mesh resource '{id}' does not exist.");
 
     /// <inheritdoc/>
     public ResourceId Delete(ResourceId id)
@@ -136,13 +161,15 @@ public unsafe class MeshFactory(Context context, ILogger<MeshFactory> logger) : 
     private uint FindMemoryType(uint typeFilter, MemoryPropertyFlags properties)
     {
         _context.VulkanApi.GetPhysicalDeviceMemoryProperties(
-            _context.PhysicalDevice, out var memoryProperties
+            _context.PhysicalDevice,
+            out var memoryProperties
         );
         for (uint index = 0; index < memoryProperties.MemoryTypeCount; index++)
         {
             if (
                 (typeFilter & (1u << (int)index)) != 0
-                && (memoryProperties.MemoryTypes[(int)index].PropertyFlags & properties) == properties
+                && (memoryProperties.MemoryTypes[(int)index].PropertyFlags & properties)
+                    == properties
             )
                 return index;
         }
