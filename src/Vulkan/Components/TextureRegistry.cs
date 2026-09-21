@@ -60,7 +60,7 @@ public sealed unsafe class TextureRegistry(Context context) : ITextureRegistry, 
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        if (_textures.ContainsKey(description.Id))
+        if (_textures.ContainsKey(description.ContentId))
         {
             return;
         }
@@ -115,7 +115,7 @@ public sealed unsafe class TextureRegistry(Context context) : ITextureRegistry, 
         var imageView = CreateImageView(image, vulkanFormat);
         var sampler = CreateSampler();
 
-        _textures[description.Id] = new TextureEntry(
+        _textures[description.ContentId] = new TextureEntry(
             image,
             memory,
             imageView,

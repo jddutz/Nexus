@@ -255,7 +255,7 @@ public class ComponentRegistry(
                 $"{nameof(TexturedQuadRenderer)} requires a texture."
             );
 
-        if (!_textureRegistry.IsRegistered(texture.Id))
+        if (!_textureRegistry.IsRegistered(texture.ContentId))
             _textureRegistry.Register(texture, texture);
 
         var mesh = component.Mesh;
@@ -394,8 +394,8 @@ public class ComponentRegistry(
                             );
 
                         if (
-                            !_textureRegistry.TryGetImageView(texture.Id, out var imageView)
-                            || !_textureRegistry.TryGetSampler(texture.Id, out var sampler)
+                            !_textureRegistry.TryGetImageView(texture.ContentId, out var imageView)
+                            || !_textureRegistry.TryGetSampler(texture.ContentId, out var sampler)
                         )
                             throw new InvalidOperationException(
                                 $"Texture '{texture.Id}' has no realized Vulkan image view and sampler."
