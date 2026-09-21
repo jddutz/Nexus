@@ -32,19 +32,31 @@ public sealed class Texture : ITexture
 
     /// <inheritdoc/>
     /// <exception cref="ArgumentOutOfRangeException">Thrown if <paramref name="format"/> is not a supported <see cref="ColorFormatEnum"/> value.</exception>
-    public ReadOnlyMemory<byte> GetPixelData(ColorFormatEnum format)
+    public void WriteTo(ulong start, ulong count, ColorFormatEnum format, Span<byte> target)
     {
+        if (start > Count || count > Count - start)
+            throw new ArgumentOutOfRangeException(
+                nameof(count),
+                "The requested pixel range exceeds the texture bounds."
+            );
+
         var bytesPerPixel = format.GetBytesPerPixel();
-        var pixelData = new byte[_colorData.Length * bytesPerPixel];
+        var requiredBytes = checked(count * (ulong)bytesPerPixel);
 
-        for (var pixelIndex = 0; pixelIndex < _colorData.Length; pixelIndex++)
+        if ((ulong)target.Length < requiredBytes)
+            throw new ArgumentException(
+                $"Target must contain at least {requiredBytes} bytes.",
+                nameof(target)
+            );
+
+        for (ulong index = 0; index < count; index++)
         {
-            _colorData[pixelIndex]
+            _colorData[checked((int)(start + index))]
                 .ToColorData(format)
-                .Span.CopyTo(pixelData.AsSpan(pixelIndex * bytesPerPixel, bytesPerPixel));
+                .Span.CopyTo(
+                    target.Slice(checked((int)(index * (ulong)bytesPerPixel)), bytesPerPixel)
+                );
         }
-
-        return pixelData;
     }
 
     public static readonly ITexture Invalid = new Texture(string.Empty, 1, 1, [Colors.Magenta]);

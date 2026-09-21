@@ -12,5 +12,5 @@ public interface ITexture
     public uint Height { get; }
 
     ulong Count { get; }
-    ReadOnlyMemory<byte> GetPixelData(ColorFormatEnum format);
+    void WriteTo(ulong start, ulong count, ColorFormatEnum format, Span<byte> target);
 }

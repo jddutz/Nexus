@@ -55,7 +55,7 @@ public class TexturedQuadRenderer
     /// <inheritdoc/>
     RenderableId IRenderable.Id => new(Id.Value);
 
-    IVertexDataSource IRenderable.Vertices => Mesh.Source;
+    Mesh IRenderable.Mesh => Mesh;
 
     ITexture IRenderable.Texture => _texture ?? global::Nexus.Graphics.Textures.Texture.Invalid;
 

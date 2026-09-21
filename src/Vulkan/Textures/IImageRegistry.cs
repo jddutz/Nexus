@@ -4,7 +4,9 @@ public interface IImageRegistry : IDisposable
 {
     VkImage Acquire(ITexture texture, ColorFormatEnum format);
 
-    VkImage Get(TextureId id);
+    void TransitionToShaderReadOnly(CommandBuffer commandBuffer);
+
+    VkImage Get(TextureId textureId, ColorFormatEnum format);
 
     void Release(TextureId id);
 

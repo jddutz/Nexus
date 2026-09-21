@@ -4,9 +4,11 @@ public unsafe class ImageRegistry(Context context, ILogger<ImageRegistry> logger
 {
     private readonly Context _context = context;
     private readonly ILogger<ImageRegistry> _logger = logger;
-    private readonly Dictionary<TextureId, VkImage> _images = [];
+    private readonly Dictionary<(TextureId TextureId, ColorFormatEnum Format), VkImage> _images =
+    [];
     private readonly Dictionary<VkImage, DeviceMemory> _memory = [];
     private readonly Dictionary<VkImage, int> _refs = [];
+    private readonly HashSet<VkImage> _shaderReadImages = [];
 
     private uint FindMemoryType(uint typeFilter, MemoryPropertyFlags properties)
     {
@@ -101,18 +103,62 @@ public unsafe class ImageRegistry(Context context, ILogger<ImageRegistry> logger
         return image;
     }
 
+    public void TransitionToShaderReadOnly(CommandBuffer commandBuffer)
+    {
+        foreach (var image in _images.Values)
+        {
+            if (!_shaderReadImages.Add(image))
+                continue;
+
+            var barrier = new ImageMemoryBarrier
+            {
+                SType = StructureType.ImageMemoryBarrier,
+                SrcAccessMask = 0,
+                DstAccessMask = AccessFlags.ShaderReadBit,
+                OldLayout = ImageLayout.Undefined,
+                NewLayout = ImageLayout.ShaderReadOnlyOptimal,
+                SrcQueueFamilyIndex = uint.MaxValue,
+                DstQueueFamilyIndex = uint.MaxValue,
+                Image = image,
+                SubresourceRange = new ImageSubresourceRange
+                {
+                    AspectMask = ImageAspectFlags.ColorBit,
+                    BaseMipLevel = 0,
+                    LevelCount = 1,
+                    BaseArrayLayer = 0,
+                    LayerCount = 1,
+                },
+            };
+
+            _context.VulkanApi.CmdPipelineBarrier(
+                commandBuffer,
+                PipelineStageFlags.TopOfPipeBit,
+                PipelineStageFlags.FragmentShaderBit,
+                DependencyFlags.None,
+                0,
+                null,
+                0,
+                null,
+                1,
+                &barrier
+            );
+        }
+    }
+
     public VkImage Acquire(ITexture texture, ColorFormatEnum format)
     {
         ArgumentNullException.ThrowIfNull(texture);
 
-        if (_images.TryGetValue(texture.Id, out var image))
+        var key = (texture.Id, format);
+        if (_images.TryGetValue(key, out var image))
         {
             var referenceCount = ++_refs[image];
 
             if (_logger.IsEnabled(LogLevel.Debug))
                 _logger.LogDebug(
-                    "Acquired existing image. TextureId={TextureId}, ImageHandle={ImageHandle}, ReferenceCount={ReferenceCount}",
+                    "Acquired existing image. TextureId={TextureId}, Format={Format}, ImageHandle={ImageHandle}, ReferenceCount={ReferenceCount}",
                     texture.Id,
+                    format,
                     image.Handle,
                     referenceCount
                 );
@@ -124,65 +170,72 @@ public unsafe class ImageRegistry(Context context, ILogger<ImageRegistry> logger
 
         // Upload texture.GetPixelData(format) here.
 
-        _images.Add(texture.Id, image);
+        _images.Add(key, image);
         _refs.Add(image, 1);
 
         if (_logger.IsEnabled(LogLevel.Debug))
             _logger.LogDebug(
-                "Created image. TextureId={TextureId}, ImageHandle={ImageHandle}, ReferenceCount=1",
+                "Created image. TextureId={TextureId}, Format={Format}, ImageHandle={ImageHandle}, ReferenceCount=1",
                 texture.Id,
+                format,
                 image.Handle
             );
 
         return image;
     }
 
-    public VkImage Get(TextureId id)
+    public VkImage Get(TextureId textureId, ColorFormatEnum format)
     {
-        if (!_images.TryGetValue(id, out var image))
-            throw new KeyNotFoundException($"Image '{id}' is not registered.");
+        var key = (textureId, format);
+        if (!_images.TryGetValue(key, out var image))
+            throw new KeyNotFoundException(
+                $"Image for texture '{textureId}' and format '{format}' is not registered."
+            );
 
         return image;
     }
 
-    public void Release(TextureId id)
+    public void Release(TextureId textureId)
     {
-        if (!_images.Remove(id, out var image))
-            return;
-
-        var referenceCount = --_refs[image];
-
-        if (referenceCount > 0)
+        foreach (var key in _images.Keys.Where(key => key.TextureId == textureId).ToArray())
         {
+            var image = _images[key];
+            var referenceCount = --_refs[image];
+            if (referenceCount > 0)
+            {
+                if (_logger.IsEnabled(LogLevel.Debug))
+                    _logger.LogDebug(
+                        "Released image reference. TextureId={TextureId}, Format={Format}, ImageHandle={ImageHandle}, ReferenceCount={ReferenceCount}",
+                        textureId,
+                        key.Format,
+                        image.Handle,
+                        referenceCount
+                    );
+                continue;
+            }
+
+            _refs.Remove(image);
+            _images.Remove(key);
+            _shaderReadImages.Remove(image);
+
+            _context.VulkanApi.DestroyImage(_context.Device, image, null);
+
+            if (_memory.Remove(image, out var memory))
+                _context.VulkanApi.FreeMemory(_context.Device, memory, null);
+
             if (_logger.IsEnabled(LogLevel.Debug))
                 _logger.LogDebug(
-                    "Released image reference. TextureId={TextureId}, ImageHandle={ImageHandle}, ReferenceCount={ReferenceCount}",
-                    id,
-                    image.Handle,
-                    referenceCount
+                    "Destroyed image. TextureId={TextureId}, Format={Format}, ImageHandle={ImageHandle}",
+                    textureId,
+                    key.Format,
+                    image.Handle
                 );
-
-            return;
         }
-
-        _refs.Remove(image);
-
-        _context.VulkanApi.DestroyImage(_context.Device, image, null);
-
-        if (_memory.Remove(image, out var memory))
-            _context.VulkanApi.FreeMemory(_context.Device, memory, null);
-
-        if (_logger.IsEnabled(LogLevel.Debug))
-            _logger.LogDebug(
-                "Destroyed image. TextureId={TextureId}, ImageHandle={ImageHandle}",
-                id,
-                image.Handle
-            );
     }
 
     public void Reset()
     {
-        foreach (var (id, image) in _images)
+        foreach (var (key, image) in _images)
         {
             _context.VulkanApi.DestroyImage(_context.Device, image, null);
 
@@ -191,8 +244,9 @@ public unsafe class ImageRegistry(Context context, ILogger<ImageRegistry> logger
 
             if (_logger.IsEnabled(LogLevel.Debug))
                 _logger.LogDebug(
-                    "Reset image. TextureId={TextureId}, ImageHandle={ImageHandle}",
-                    id,
+                    "Reset image. TextureId={TextureId}, Format={Format}, ImageHandle={ImageHandle}",
+                    key.TextureId,
+                    key.Format,
                     image.Handle
                 );
         }
@@ -200,6 +254,7 @@ public unsafe class ImageRegistry(Context context, ILogger<ImageRegistry> logger
         _images.Clear();
         _memory.Clear();
         _refs.Clear();
+        _shaderReadImages.Clear();
     }
 
     public void Dispose()

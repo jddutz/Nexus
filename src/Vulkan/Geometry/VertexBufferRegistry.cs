@@ -5,7 +5,7 @@ public unsafe class VertexBufferRegistry(Context context, ILogger<VertexBufferRe
 {
     private readonly Context _context = context;
     private readonly ILogger<VertexBufferRegistry> _logger = logger;
-    private readonly Dictionary<MeshId, VkBuffer> _buffers = [];
+    private readonly Dictionary<(MeshId MeshId, VertexFormatId FormatId), VkBuffer> _buffers = [];
     private readonly Dictionary<VkBuffer, DeviceMemory> _memory = [];
     private readonly Dictionary<VkBuffer, int> _refs = [];
 
@@ -132,10 +132,13 @@ public unsafe class VertexBufferRegistry(Context context, ILogger<VertexBufferRe
         }
     }
 
-    public VkBuffer Get(MeshId id)
+    public VkBuffer Get(MeshId meshId, VertexFormatId formatId)
     {
-        if (!_buffers.TryGetValue(id, out var buffer))
-            throw new KeyNotFoundException($"Vertex buffer '{id}' is not registered.");
+        var key = (meshId, formatId);
+        if (!_buffers.TryGetValue(key, out var buffer))
+            throw new KeyNotFoundException(
+                $"Vertex buffer for mesh '{meshId}' and vertex format '{formatId}' is not registered."
+            );
 
         return buffer;
     }
@@ -150,22 +153,18 @@ public unsafe class VertexBufferRegistry(Context context, ILogger<VertexBufferRe
                 $"Renderable '{renderable.Id}' requires a vertex shader."
             );
 
-        var source = renderable.Vertices;
+        var mesh = renderable.Mesh;
         var format = shader.VertexFormat;
+        var key = (mesh.Id, format.Id);
 
-        MeshId id = new IdentityHashBuilder(nameof(VertexBufferRegistry))
-            .Add(source.Id)
-            .Add(format.Id)
-            .Compute();
-
-        if (_buffers.TryGetValue(id, out var buffer))
+        if (_buffers.TryGetValue(key, out var buffer))
         {
             var referenceCount = ++_refs[buffer];
             if (_logger.IsEnabled(LogLevel.Debug))
                 _logger.LogDebug(
                     "Reusing vertex buffer. ResourceId={ResourceId}, SourceId={SourceId}, VertexFormatId={VertexFormatId}, BufferHandle={BufferHandle}, ReferenceCount={ReferenceCount}",
-                    id,
-                    source.Id,
+                    mesh.Id,
+                    mesh.Id,
                     format.Id,
                     buffer.Handle,
                     referenceCount
@@ -173,18 +172,19 @@ public unsafe class VertexBufferRegistry(Context context, ILogger<VertexBufferRe
             return buffer;
         }
 
-        var data = source.GetVertexData(format, shader.Topology);
+        var data = new byte[checked((int)mesh.Count * (int)format.Stride)];
+        mesh.WriteTo(0, checked((int)mesh.Count), format, data);
 
         buffer = CreateBuffer(data);
 
-        _buffers.Add(id, buffer);
+        _buffers.Add(key, buffer);
         _refs.Add(buffer, 1);
 
         if (_logger.IsEnabled(LogLevel.Debug))
             _logger.LogDebug(
                 "Created vertex buffer. ResourceId={ResourceId}, SourceId={SourceId}, VertexFormatId={VertexFormatId}, BufferHandle={BufferHandle}, Size={Size}",
-                id,
-                source.Id,
+                mesh.Id,
+                mesh.Id,
                 format.Id,
                 buffer.Handle,
                 data.Length
@@ -193,42 +193,45 @@ public unsafe class VertexBufferRegistry(Context context, ILogger<VertexBufferRe
         return buffer;
     }
 
-    public void Release(MeshId id)
+    public void Release(MeshId meshId)
     {
-        if (!_buffers.TryGetValue(id, out var buffer))
-            return;
-
-        var referenceCount = --_refs[buffer];
-        if (referenceCount > 0)
+        foreach (var key in _buffers.Keys.Where(key => key.MeshId == meshId).ToArray())
         {
+            var buffer = _buffers[key];
+            var referenceCount = --_refs[buffer];
+            if (referenceCount > 0)
+            {
+                if (_logger.IsEnabled(LogLevel.Debug))
+                    _logger.LogDebug(
+                        "Released vertex buffer reference. MeshId={MeshId}, VertexFormatId={VertexFormatId}, BufferHandle={BufferHandle}, ReferenceCount={ReferenceCount}",
+                        meshId,
+                        key.FormatId,
+                        buffer.Handle,
+                        referenceCount
+                    );
+                continue;
+            }
+
+            _refs.Remove(buffer);
+            _buffers.Remove(key);
+
+            _context.VulkanApi.DestroyBuffer(_context.Device, buffer, null);
+            if (_memory.Remove(buffer, out var memory))
+                _context.VulkanApi.FreeMemory(_context.Device, memory, null);
+
             if (_logger.IsEnabled(LogLevel.Debug))
                 _logger.LogDebug(
-                    "Released vertex buffer reference. ResourceId={ResourceId}, BufferHandle={BufferHandle}, ReferenceCount={ReferenceCount}",
-                    id,
-                    buffer.Handle,
-                    referenceCount
+                    "Destroyed vertex buffer. MeshId={MeshId}, VertexFormatId={VertexFormatId}, BufferHandle={BufferHandle}",
+                    meshId,
+                    key.FormatId,
+                    buffer.Handle
                 );
-            return;
         }
-
-        _refs.Remove(buffer);
-        _buffers.Remove(id);
-
-        _context.VulkanApi.DestroyBuffer(_context.Device, buffer, null);
-        if (_memory.Remove(buffer, out var memory))
-            _context.VulkanApi.FreeMemory(_context.Device, memory, null);
-
-        if (_logger.IsEnabled(LogLevel.Debug))
-            _logger.LogDebug(
-                "Destroyed vertex buffer. ResourceId={ResourceId}, BufferHandle={BufferHandle}",
-                id,
-                buffer.Handle
-            );
     }
 
     public void Reset()
     {
-        foreach (var (id, buffer) in _buffers)
+        foreach (var (key, buffer) in _buffers)
         {
             _context.VulkanApi.DestroyBuffer(_context.Device, buffer, null);
             if (_memory.Remove(buffer, out var memory))
@@ -237,7 +240,7 @@ public unsafe class VertexBufferRegistry(Context context, ILogger<VertexBufferRe
             if (_logger.IsEnabled(LogLevel.Debug))
                 _logger.LogDebug(
                     "Reset vertex buffer. ResourceId={ResourceId}, BufferHandle={BufferHandle}",
-                    id,
+                    key.MeshId,
                     buffer.Handle
                 );
         }

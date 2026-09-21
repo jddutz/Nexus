@@ -15,6 +15,7 @@ public unsafe class Renderer(
     ISwapChain swapChain,
     ISyncManager syncManager,
     IPipelineRegistry pipelineManager,
+    IImageRegistry imageRegistry,
     ILogger<Renderer> logger
 ) : IRenderer, IDisposable
 {
@@ -24,6 +25,7 @@ public unsafe class Renderer(
     private ISwapChain _swapChain = swapChain;
     private ISyncManager _syncManager = syncManager;
     private IPipelineRegistry _pipelineManager = pipelineManager;
+    private IImageRegistry _imageRegistry = imageRegistry;
     private readonly ILogger<Renderer> _logger = logger;
     private CommandBufferPool _commandPool = CommandBufferPool.ForGraphics(context, 2);
     private FrameSync? _frameSync;
@@ -71,6 +73,8 @@ public unsafe class Renderer(
 
             if (!BeginCommandBuffer())
                 return false;
+
+            _imageRegistry.TransitionToShaderReadOnly(_commandBuffer);
 
             foreach (var layer in Layers)
             {

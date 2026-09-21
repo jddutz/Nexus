@@ -155,7 +155,7 @@ public class RenderItemInstanceTests
 
         RenderableId IRenderable.Id => new(Id.Value);
 
-        IVertexDataSource IRenderable.Vertices => BuiltInMesh.Empty.Source;
+        Mesh IRenderable.Mesh => BuiltInMesh.Empty;
 
         ITexture IRenderable.Texture => Texture.Uniform;
 

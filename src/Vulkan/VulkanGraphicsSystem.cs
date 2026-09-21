@@ -87,7 +87,7 @@ public unsafe class VulkanGraphicsSystem(
     private static RenderableId GetRenderItemId(IRenderable renderable)
     {
         var builder = new IdentityHashBuilder(renderable.GetType().Name)
-            .Add(renderable.Vertices.Id)
+            .Add(renderable.Mesh.Id)
             .Add(RenderPasses.Main);
 
         if (renderable.Texture is { } texture)
@@ -144,7 +144,7 @@ public unsafe class VulkanGraphicsSystem(
                 RenderPasses.Main
             ),
             DescriptorSets = CreatePassArray(descriptorSets.Sets, RenderPasses.Main),
-            VertexCount = checked((uint)renderable.Mesh.Source.Count),
+            VertexCount = checked((uint)renderable.Mesh.Count),
         };
     }
 
@@ -196,13 +196,13 @@ public unsafe class VulkanGraphicsSystem(
                 Layouts = CreatePassArray(layout, RenderPasses.Main),
                 VertexBuffers = CreatePassArray(vertexBuffer, RenderPasses.Main),
                 DescriptorSets = CreatePassArray(descriptorSets.Sets, RenderPasses.Main),
-                VertexCount = checked((uint)renderable.Mesh.Source.Count),
+                VertexCount = checked((uint)renderable.Mesh.Count),
             };
         }
         catch
         {
             if (vertexBufferAcquired)
-                _vertexBufferRegistry.Release(GetVertexBufferResourceId(renderable));
+                _vertexBufferRegistry.Release(renderable.Mesh.Id);
             if (samplerAcquired)
                 _samplerRegistry.Release(samplerId);
             if (imageViewAcquired)
@@ -387,7 +387,7 @@ public unsafe class VulkanGraphicsSystem(
         foreach (var layer in _renderer.Layers)
             layer.Items.Remove(renderItem);
 
-        _vertexBufferRegistry.Release(GetVertexBufferResourceId(renderable));
+        _vertexBufferRegistry.Release(renderable.Mesh.Id);
 
         if (renderable is TexturedQuadRenderer textured && textured.Texture is { } texture)
         {
@@ -408,21 +408,6 @@ public unsafe class VulkanGraphicsSystem(
             renderItem.Id
         );
     }
-
-    private static MeshId GetVertexBufferResourceId(IRenderable renderable) =>
-        new IdentityHashBuilder(nameof(VertexBufferRegistry))
-            .Add(renderable.Vertices.Id)
-            .Add(
-                (
-                    renderable.VertexShader
-                    ?? throw new InvalidOperationException(
-                        $"Renderable '{renderable.Id}' requires a vertex shader."
-                    )
-                )
-                    .VertexFormat
-                    .Id
-            )
-            .Compute();
 
     private static RenderableId GetImageResourceId(ITexture texture, ColorFormatEnum format) =>
         new IdentityHashBuilder(nameof(ImageRegistry))

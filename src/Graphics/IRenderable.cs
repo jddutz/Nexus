@@ -9,9 +9,9 @@ public interface IRenderable
     RenderableId Id { get; }
 
     /// <summary>
-    /// Gets the vertex data used to define the renderable's geometry.
+    /// Gets the mesh rendered by the renderable.
     /// </summary>
-    IVertexDataSource Vertices { get; }
+    Mesh Mesh { get; }
 
     /// <summary>
     /// Gets the texture resource used by the renderable.
