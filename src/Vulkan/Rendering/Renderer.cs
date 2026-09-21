@@ -111,37 +111,6 @@ public unsafe class Renderer(
         }
     }
 
-    /// <summary>Ends command recording, submits the frame, and presents the rendered image.</summary>
-    public void Submit()
-    {
-        if (_context.VulkanApi.EndCommandBuffer(_commandBuffer) != Result.Success)
-            throw new InvalidOperationException("Failed to end command buffer recording.");
-
-        SubmitFrame();
-        PresentFrame();
-        AfterRendering?.Invoke(this, new RenderEventArgs(_imageIndex));
-
-        _currentFrameIndex = (_currentFrameIndex + 1) % _syncManager.MaxFramesInFlight;
-    }
-
-    /// <summary>
-    /// Releases the persistently mapped instance upload buffers owned by this renderer.
-    /// </summary>
-    public void Dispose()
-    {
-        if (_disposed)
-            return;
-
-        _context.VulkanApi.DeviceWaitIdle(_context.Device);
-
-        foreach (var instanceBuffer in _instanceBuffers)
-        {
-            instanceBuffer.Dispose();
-        }
-
-        _disposed = true;
-    }
-
     /// <summary>Validates the render-pass definitions associated with a layer.</summary>
     /// <param name="definition">The layer whose passes are validated.</param>
     /// <exception cref="InvalidOperationException">Thrown when the layer or one of its passes is invalid.</exception>
@@ -331,6 +300,19 @@ public unsafe class Renderer(
         );
     }
 
+    /// <summary>Ends command recording, submits the frame, and presents the rendered image.</summary>
+    public void Submit()
+    {
+        if (_context.VulkanApi.EndCommandBuffer(_commandBuffer) != Result.Success)
+            throw new InvalidOperationException("Failed to end command buffer recording.");
+
+        SubmitFrame();
+        PresentFrame();
+        AfterRendering?.Invoke(this, new RenderEventArgs(_imageIndex));
+
+        _currentFrameIndex = (_currentFrameIndex + 1) % _syncManager.MaxFramesInFlight;
+    }
+
     /// <summary>
     /// Submits the recorded command buffer to the GPU queue.
     /// </summary>
@@ -385,5 +367,23 @@ public unsafe class Renderer(
         {
             _swapChain.Recreate();
         }
+    }
+
+    /// <summary>
+    /// Releases the persistently mapped instance upload buffers owned by this renderer.
+    /// </summary>
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+
+        _context.VulkanApi.DeviceWaitIdle(_context.Device);
+
+        foreach (var instanceBuffer in _instanceBuffers)
+        {
+            instanceBuffer.Dispose();
+        }
+
+        _disposed = true;
     }
 }
