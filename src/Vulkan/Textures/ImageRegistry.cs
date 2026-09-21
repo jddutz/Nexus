@@ -59,12 +59,82 @@ public unsafe class ImageRegistry(Context context, ILogger<ImageRegistry> logger
         if (result != Result.Success)
             throw new InvalidOperationException($"Failed to create Vulkan image: {result}");
 
+        _context.VulkanApi.GetImageMemoryRequirements(_context.Device, image, out var requirements);
+
+        var allocateInfo = new MemoryAllocateInfo
+        {
+            SType = StructureType.MemoryAllocateInfo,
+            AllocationSize = requirements.Size,
+            MemoryTypeIndex = FindMemoryType(
+                requirements.MemoryTypeBits,
+                MemoryPropertyFlags.DeviceLocalBit
+            ),
+        };
+
+        result = _context.VulkanApi.AllocateMemory(
+            _context.Device,
+            &allocateInfo,
+            null,
+            out var memory
+        );
+
+        if (result != Result.Success)
+        {
+            _context.VulkanApi.DestroyImage(_context.Device, image, null);
+            throw new InvalidOperationException(
+                $"Failed to allocate Vulkan image memory: {result}"
+            );
+        }
+
+        result = _context.VulkanApi.BindImageMemory(_context.Device, image, memory, 0);
+
+        if (result != Result.Success)
+        {
+            _context.VulkanApi.FreeMemory(_context.Device, memory, null);
+            _context.VulkanApi.DestroyImage(_context.Device, image, null);
+
+            throw new InvalidOperationException($"Failed to bind Vulkan image memory: {result}");
+        }
+
+        _memory.Add(image, memory);
+
         return image;
     }
 
     public VkImage Acquire(ITexture texture, ColorFormatEnum format)
     {
-        throw new NotImplementedException();
+        ArgumentNullException.ThrowIfNull(texture);
+
+        if (_images.TryGetValue(texture.Id, out var image))
+        {
+            var referenceCount = ++_refs[image];
+
+            if (_logger.IsEnabled(LogLevel.Debug))
+                _logger.LogDebug(
+                    "Acquired existing image. TextureId={TextureId}, ImageHandle={ImageHandle}, ReferenceCount={ReferenceCount}",
+                    texture.Id,
+                    image.Handle,
+                    referenceCount
+                );
+
+            return image;
+        }
+
+        image = CreateImage(texture.Width, texture.Height, format.ToVulkanFormat());
+
+        // Upload texture.GetPixelData(format) here.
+
+        _images.Add(texture.Id, image);
+        _refs.Add(image, 1);
+
+        if (_logger.IsEnabled(LogLevel.Debug))
+            _logger.LogDebug(
+                "Created image. TextureId={TextureId}, ImageHandle={ImageHandle}, ReferenceCount=1",
+                texture.Id,
+                image.Handle
+            );
+
+        return image;
     }
 
     public VkImage Get(TextureId id)
