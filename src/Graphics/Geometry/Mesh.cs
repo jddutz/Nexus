@@ -2,7 +2,7 @@ namespace Nexus.Graphics.Geometry;
 
 public class Mesh
 {
-    public GraphicsId Id { get; }
+    public MeshId Id { get; }
     public string Name { get; }
     public PrimitiveTopologyEnum Topology { get; }
     public IVertexDataSource Source { get; }

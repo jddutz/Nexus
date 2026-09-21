@@ -10,7 +10,7 @@ public interface ITexture
     public uint Width { get; }
     public uint Height { get; }
 
-    GraphicsId GraphicsId { get; }
+    RenderableId GraphicsId { get; }
     ulong Count { get; }
     ReadOnlyMemory<byte> GetPixelData(ColorFormatEnum format);
 }

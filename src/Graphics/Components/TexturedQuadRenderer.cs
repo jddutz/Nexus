@@ -23,6 +23,7 @@ public class TexturedQuadRenderer
     private Vector4D<float> _textureRegion = new(0f, 0f, 1f, 1f);
     private Color _color = Colors.White;
     private Matrix4X4<float> _view = Matrix4X4<float>.Identity;
+    private ISamplingBehavior _samplingBehavior = SamplingBehaviors.Smooth;
 
     /// <summary>
     /// Initializes a textured quad renderer with a corner-pivoted quad mesh.
@@ -52,7 +53,7 @@ public class TexturedQuadRenderer
     public IReadOnlyList<IRenderable> Renderables => [this];
 
     /// <inheritdoc/>
-    GraphicsId IRenderable.Id => Id;
+    RenderableId IRenderable.Id => Id;
 
     IVertexDataSource IRenderable.Vertices => Mesh.Source;
 
@@ -60,7 +61,7 @@ public class TexturedQuadRenderer
 
     IInstanceDataSource IRenderable.Instances => this;
 
-    GraphicsId IInstanceDataSource.Id =>
+    RenderableId IInstanceDataSource.Id =>
         new IdentityHashBuilder(nameof(TexturedQuadRenderer)).Add(Id).Compute();
 
     ulong IInstanceDataSource.Count => 1;
@@ -91,6 +92,15 @@ public class TexturedQuadRenderer
     {
         get => _texture;
         set => SetProperty(ref _texture, value);
+    }
+
+    /// <summary>
+    /// Gets or sets the sampling behavior used when sampling <see cref="Texture"/>.
+    /// </summary>
+    public ISamplingBehavior SamplingBehavior
+    {
+        get => _samplingBehavior;
+        set => SetProperty(ref _samplingBehavior, value);
     }
 
     /// <summary>

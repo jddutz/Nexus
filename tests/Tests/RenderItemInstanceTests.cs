@@ -153,7 +153,7 @@ public class RenderItemInstanceTests
     {
         public int[] Values { get; set; } = values;
 
-        GraphicsId IRenderable.Id => Id;
+        RenderableId IRenderable.Id => Id;
 
         IVertexDataSource IRenderable.Vertices => BuiltInMesh.Empty.Source;
 
@@ -174,7 +174,7 @@ public class RenderItemInstanceTests
 
         FragmentShader? IRenderable.FragmentShader => BuiltInShaders.UniformColorFragmentShader;
 
-        GraphicsId IInstanceDataSource.Id =>
+        RenderableId IInstanceDataSource.Id =>
             new IdentityHashBuilder(nameof(TestRenderable)).Add(Id).Compute();
 
         ulong IInstanceDataSource.Count => (ulong)Values.Length;

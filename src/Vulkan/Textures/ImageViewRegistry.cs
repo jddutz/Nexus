@@ -5,10 +5,10 @@ public unsafe class ImageViewRegistry(Context context, ILogger<ImageViewRegistry
 {
     private readonly Context _context = context;
     private readonly ILogger<ImageViewRegistry> _logger = logger;
-    private readonly Dictionary<GraphicsId, ImageView> _imageViews = [];
+    private readonly Dictionary<RenderableId, ImageView> _imageViews = [];
     private readonly Dictionary<ImageView, int> _refs = [];
 
-    public ImageView Get(GraphicsId id)
+    public ImageView Get(RenderableId id)
     {
         if (!_imageViews.TryGetValue(id, out var imageView))
             throw new KeyNotFoundException($"Image view '{id}' is not registered.");
@@ -16,7 +16,7 @@ public unsafe class ImageViewRegistry(Context context, ILogger<ImageViewRegistry
         return imageView;
     }
 
-    public ImageView Acquire(GraphicsId imageId, Image image, Format format)
+    public ImageView Acquire(RenderableId imageId, Image image, Format format)
     {
         var id = new IdentityHashBuilder(nameof(ImageViewRegistry))
             .Add(imageId)
@@ -57,7 +57,7 @@ public unsafe class ImageViewRegistry(Context context, ILogger<ImageViewRegistry
         return imageView;
     }
 
-    public void Release(GraphicsId id)
+    public void Release(RenderableId id)
     {
         if (!_imageViews.TryGetValue(id, out var imageView))
             return;

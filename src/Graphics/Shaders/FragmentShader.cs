@@ -4,7 +4,7 @@ namespace Nexus.Graphics.Shaders;
 public sealed record FragmentShader : IShaderContract
 {
     /// <summary>Gets the stable identifier derived from the shader contract.</summary>
-    public GraphicsId Id { get; }
+    public RenderableId Id { get; }
 
     /// <summary>Gets the display name of the shader.</summary>
     public string Name { get; }

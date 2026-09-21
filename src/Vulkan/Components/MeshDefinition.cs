@@ -9,7 +9,7 @@ public sealed class MeshDefinition : IResourceDefinition
     /// <summary>
     /// Gets the identity of the source mesh data and vertex format.
     /// </summary>
-    public GraphicsId Id { get; }
+    public RenderableId Id { get; }
 
     /// <summary>
     /// Gets the packed vertex bytes.
@@ -34,7 +34,7 @@ public sealed class MeshDefinition : IResourceDefinition
     /// <param name="vertexData">The packed vertex bytes.</param>
     /// <param name="vertexCount">The number of packed vertices.</param>
     public MeshDefinition(
-        GraphicsId sourceId,
+        RenderableId sourceId,
         VertexFormat format,
         ReadOnlyMemory<byte> vertexData,
         ulong vertexCount

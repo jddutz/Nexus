@@ -6,7 +6,7 @@ public interface IRenderable
     /// <summary>
     /// Gets the unique identifier of the renderable.
     /// </summary>
-    GraphicsId Id { get; }
+    RenderableId Id { get; }
 
     /// <summary>
     /// Gets the vertex data used to define the renderable's geometry.
@@ -17,6 +17,11 @@ public interface IRenderable
     /// Gets the texture resource used by the renderable.
     /// </summary>
     ITexture Texture { get; }
+
+    /// <summary>
+    /// Defines the sampling behavior used when rendering.
+    /// </summary>
+    public ISamplingBehavior SamplingBehavior { get; }
 
     /// <summary>
     /// Gets the per-instance data used when rendering the renderable.

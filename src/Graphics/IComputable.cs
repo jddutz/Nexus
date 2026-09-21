@@ -2,7 +2,7 @@ namespace Nexus.Graphics;
 
 public interface IComputable
 {
-    GraphicsId Id { get; }
+    RenderableId Id { get; }
 
     IShaderContract ComputeShader { get; }
 

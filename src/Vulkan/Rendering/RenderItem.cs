@@ -6,8 +6,8 @@ namespace Nexus.Graphics.Vulkan.Rendering;
 /// </summary>
 public class RenderItem : IRenderItem
 {
-    private readonly Dictionary<GraphicsId, byte[]> _instanceDataByRenderable = [];
-    private readonly List<GraphicsId> _renderOrder = [];
+    private readonly Dictionary<RenderableId, byte[]> _instanceDataByRenderable = [];
+    private readonly List<RenderableId> _renderOrder = [];
     private byte[] _instanceData = [];
     private int _instanceStride;
     private int _instanceCount;
@@ -15,7 +15,7 @@ public class RenderItem : IRenderItem
     /// <summary>
     /// Gets the resource identifier for this render item.
     /// </summary>
-    public GraphicsId Id { get; init; }
+    public RenderableId Id { get; init; }
 
     /// <summary>
     /// Gets the render passes in which this item participates.
@@ -77,7 +77,7 @@ public class RenderItem : IRenderItem
     /// <param name="renderable">The renderable that writes its packed instance record.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="renderable"/> is <see langword="null"/>.</exception>
     /// <exception cref="ArgumentException">Thrown when the renderable already has a record or writes an invalid record size.</exception>
-    private void AddInstances(GraphicsId graphicsId, IRenderable renderable)
+    private void AddInstances(RenderableId graphicsId, IRenderable renderable)
     {
         ArgumentNullException.ThrowIfNull(renderable);
 
@@ -115,7 +115,7 @@ public class RenderItem : IRenderItem
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="renderable"/> is <see langword="null"/>.</exception>
     /// <exception cref="KeyNotFoundException">Thrown when the renderable has no record.</exception>
     /// <exception cref="ArgumentException">Thrown when the renderable writes a record whose size differs from <see cref="InstanceStride"/>.</exception>
-    private void UpdateInstances(GraphicsId graphicsId, IRenderable renderable)
+    private void UpdateInstances(RenderableId graphicsId, IRenderable renderable)
     {
         ArgumentNullException.ThrowIfNull(renderable);
 
@@ -130,7 +130,7 @@ public class RenderItem : IRenderItem
     /// Removes every instance record owned by the specified renderable.
     /// </summary>
     /// <param name="graphicsId">The graphics identifier whose records are removed.</param>
-    public void RemoveInstances(GraphicsId graphicsId)
+    public void RemoveInstances(RenderableId graphicsId)
     {
         if (!_instanceDataByRenderable.Remove(graphicsId))
             return;

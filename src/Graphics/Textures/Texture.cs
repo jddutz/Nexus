@@ -8,7 +8,7 @@ public sealed class Texture : ITexture
     public uint Width { get; }
     public uint Height { get; }
 
-    public GraphicsId GraphicsId { get; }
+    public RenderableId GraphicsId { get; }
     public ulong Count { get; }
 
     public Texture(ContentId contentId, uint width, uint height, Color[] colorData)

@@ -4,9 +4,9 @@ public interface ISamplerRegistry : IDisposable
 {
     Sampler Acquire(ISamplingBehavior samplingBehavior);
 
-    Sampler Get(GraphicsId id);
+    Sampler Get(RenderableId id);
 
-    void Release(GraphicsId id);
+    void Release(RenderableId id);
 
     void Reset();
 }

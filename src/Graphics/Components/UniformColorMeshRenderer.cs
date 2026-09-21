@@ -18,6 +18,7 @@ public class UniformColorMeshRenderer()
     private Matrix4X4<float> _transformationMatrix = Matrix4X4<float>.Identity;
     private Color _color = Colors.Black;
     private Matrix4X4<float> _view = Matrix4X4<float>.Identity;
+    private ISamplingBehavior _samplingBehavior = SamplingBehaviors.Smooth;
 
     /// <summary>
     /// Gets the render layers in which this component participates.
@@ -30,15 +31,17 @@ public class UniformColorMeshRenderer()
     public IReadOnlyList<IRenderable> Renderables => [this];
 
     /// <inheritdoc/>
-    GraphicsId IRenderable.Id => Id;
+    RenderableId IRenderable.Id => Id;
 
     IVertexDataSource IRenderable.Vertices => Mesh.Source;
 
     ITexture IRenderable.Texture => global::Nexus.Graphics.Textures.Texture.Uniform;
 
+    ISamplingBehavior IRenderable.SamplingBehavior => SamplingBehavior;
+
     IInstanceDataSource IRenderable.Instances => this;
 
-    GraphicsId IInstanceDataSource.Id =>
+    RenderableId IInstanceDataSource.Id =>
         new IdentityHashBuilder(nameof(UniformColorMeshRenderer)).Add(Id).Compute();
 
     ulong IInstanceDataSource.Count => 1;
@@ -63,6 +66,15 @@ public class UniformColorMeshRenderer()
     {
         get => _mesh;
         set => SetProperty(ref _mesh, value);
+    }
+
+    /// <summary>
+    /// Gets or sets the sampling behavior associated with this renderable.
+    /// </summary>
+    public ISamplingBehavior SamplingBehavior
+    {
+        get => _samplingBehavior;
+        set => SetProperty(ref _samplingBehavior, value);
     }
 
     /// <summary>

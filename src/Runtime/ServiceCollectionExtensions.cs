@@ -1,3 +1,5 @@
+using Nexus.Graphics.Vulkan.Textures;
+
 namespace Nexus.Graphics.Vulkan;
 
 public static class ServiceCollectionExtensions

@@ -2,11 +2,11 @@ namespace Nexus.Graphics.Vulkan.Components;
 
 public interface IShaderFactory
 {
-    GraphicsId Create(IShaderContract description);
+    RenderableId Create(IShaderContract description);
 
-    ShaderModule Read(GraphicsId id);
+    ShaderModule Read(RenderableId id);
 
-    void Update(GraphicsId id, IShaderContract description);
+    void Update(RenderableId id, IShaderContract description);
 
-    void Delete(GraphicsId id);
+    void Delete(RenderableId id);
 }

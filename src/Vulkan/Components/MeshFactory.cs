@@ -8,12 +8,12 @@ public unsafe class MeshFactory(Context context, ILogger<MeshFactory> logger) : 
 {
     private readonly Context _context = context;
     private readonly ILogger<MeshFactory> _logger = logger;
-    private readonly Dictionary<GraphicsId, VkBuffer> _vertexBuffers = [];
-    private readonly Dictionary<GraphicsId, DeviceMemory> _vertexMemory = [];
-    private readonly Dictionary<GraphicsId, uint> _vertexCounts = [];
+    private readonly Dictionary<RenderableId, VkBuffer> _vertexBuffers = [];
+    private readonly Dictionary<RenderableId, DeviceMemory> _vertexMemory = [];
+    private readonly Dictionary<RenderableId, uint> _vertexCounts = [];
 
     /// <inheritdoc/>
-    public GraphicsId Create(MeshDefinition definition)
+    public RenderableId Create(MeshDefinition definition)
     {
         ArgumentNullException.ThrowIfNull(definition);
 
@@ -131,19 +131,19 @@ public unsafe class MeshFactory(Context context, ILogger<MeshFactory> logger) : 
     }
 
     /// <inheritdoc/>
-    public VkBuffer ReadBuffer(GraphicsId id) =>
+    public VkBuffer ReadBuffer(RenderableId id) =>
         _vertexBuffers.TryGetValue(id, out var buffer)
             ? buffer
             : throw new KeyNotFoundException($"Mesh resource '{id}' does not exist.");
 
     /// <inheritdoc/>
-    public uint ReadVertexCount(GraphicsId id) =>
+    public uint ReadVertexCount(RenderableId id) =>
         _vertexCounts.TryGetValue(id, out var count)
             ? count
             : throw new KeyNotFoundException($"Mesh resource '{id}' does not exist.");
 
     /// <inheritdoc/>
-    public GraphicsId Delete(GraphicsId id)
+    public RenderableId Delete(RenderableId id)
     {
         if (_vertexBuffers.Remove(id, out var buffer))
             _context.VulkanApi.DestroyBuffer(_context.Device, buffer, null);

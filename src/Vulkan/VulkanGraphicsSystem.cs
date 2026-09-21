@@ -31,8 +31,8 @@ public unsafe class VulkanGraphicsSystem(
     private readonly IImageViewRegistry _imageViewRegistry = imageViewRegistry;
     private readonly ISamplerRegistry _samplerRegistry = samplerRegistry;
     private readonly ILogger<VulkanGraphicsSystem> _logger = logger;
-    private readonly Dictionary<GraphicsId, RenderItem> _renderItems = [];
-    private readonly Dictionary<GraphicsId, RenderItem> _renderItemByRenderable = [];
+    private readonly Dictionary<RenderableId, RenderItem> _renderItems = [];
+    private readonly Dictionary<RenderableId, RenderItem> _renderItemByRenderable = [];
 
     private bool disposedValue;
 
@@ -84,7 +84,7 @@ public unsafe class VulkanGraphicsSystem(
         );
     }
 
-    private static GraphicsId GetRenderItemId(IRenderable renderable)
+    private static RenderableId GetRenderItemId(IRenderable renderable)
     {
         var builder = new IdentityHashBuilder(renderable.GetType().Name)
             .Add(renderable.Vertices.Id)
@@ -93,10 +93,12 @@ public unsafe class VulkanGraphicsSystem(
         if (renderable.Texture is { } texture)
             builder.Add(texture.Id);
 
+        builder.Add(renderable.SamplingBehavior.Id);
+
         return builder.Compute();
     }
 
-    private RenderItem CreateRenderItem(IRenderable renderable, GraphicsId id)
+    private RenderItem CreateRenderItem(IRenderable renderable, RenderableId id)
     {
         return renderable switch
         {
@@ -108,7 +110,7 @@ public unsafe class VulkanGraphicsSystem(
         };
     }
 
-    private RenderItem CreateRenderItem(UniformColorMeshRenderer renderable, GraphicsId id)
+    private RenderItem CreateRenderItem(UniformColorMeshRenderer renderable, RenderableId id)
     {
         var vertexShader = BuiltInShaders.UniformColorVertexShader;
         var fragmentShader = BuiltInShaders.UniformColorFragmentShader;
@@ -146,7 +148,7 @@ public unsafe class VulkanGraphicsSystem(
         };
     }
 
-    private RenderItem CreateRenderItem(TexturedQuadRenderer renderable, GraphicsId id)
+    private RenderItem CreateRenderItem(TexturedQuadRenderer renderable, RenderableId id)
     {
         var texture =
             renderable.Texture
@@ -158,7 +160,7 @@ public unsafe class VulkanGraphicsSystem(
         var format = colorFormat.ToVulkanFormat();
         var imageId = GetImageResourceId(texture, colorFormat);
         var imageViewId = GetImageViewResourceId(imageId, format);
-        var samplingBehavior = SamplingBehaviors.Smooth;
+        var samplingBehavior = renderable.SamplingBehavior;
         var samplerId = GetSamplerResourceId(samplingBehavior);
         var imageAcquired = false;
         var imageViewAcquired = false;
@@ -393,7 +395,7 @@ public unsafe class VulkanGraphicsSystem(
             var format = colorFormat.ToVulkanFormat();
             var imageId = GetImageResourceId(texture, colorFormat);
             var imageViewId = GetImageViewResourceId(imageId, format);
-            var samplerId = GetSamplerResourceId(SamplingBehaviors.Smooth);
+            var samplerId = GetSamplerResourceId(textured.SamplingBehavior);
 
             _imageViewRegistry.Release(imageViewId);
             _samplerRegistry.Release(samplerId);
@@ -407,7 +409,7 @@ public unsafe class VulkanGraphicsSystem(
         );
     }
 
-    private static GraphicsId GetVertexBufferResourceId(IRenderable renderable) =>
+    private static RenderableId GetVertexBufferResourceId(IRenderable renderable) =>
         new IdentityHashBuilder(nameof(VertexBufferRegistry))
             .Add(renderable.Vertices.Id)
             .Add(
@@ -422,16 +424,16 @@ public unsafe class VulkanGraphicsSystem(
             )
             .Compute();
 
-    private static GraphicsId GetImageResourceId(ITexture texture, ColorFormatEnum format) =>
+    private static RenderableId GetImageResourceId(ITexture texture, ColorFormatEnum format) =>
         new IdentityHashBuilder(nameof(ImageRegistry)).Add(texture.Id).Add((ulong)format).Compute();
 
-    private static GraphicsId GetImageViewResourceId(GraphicsId imageId, Format format) =>
+    private static RenderableId GetImageViewResourceId(RenderableId imageId, Format format) =>
         new IdentityHashBuilder(nameof(ImageViewRegistry))
             .Add(imageId)
             .Add((ulong)format)
             .Compute();
 
-    private static GraphicsId GetSamplerResourceId(ISamplingBehavior samplingBehavior) =>
+    private static RenderableId GetSamplerResourceId(ISamplingBehavior samplingBehavior) =>
         new IdentityHashBuilder(nameof(SamplerRegistry)).Add(samplingBehavior.Id).Compute();
 
     private static T[] CreatePassArray<T>(T value, uint passMask)

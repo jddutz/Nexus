@@ -4,124 +4,132 @@ public unsafe class ImageRegistry(Context context, ILogger<ImageRegistry> logger
 {
     private readonly Context _context = context;
     private readonly ILogger<ImageRegistry> _logger = logger;
-    private readonly Dictionary<GraphicsId, ImageEntry> _images = [];
+    private readonly Dictionary<RenderableId, VkImage> _images = [];
+    private readonly Dictionary<VkImage, DeviceMemory> _memory = [];
     private readonly Dictionary<VkImage, int> _refs = [];
 
-    private readonly record struct ImageEntry(VkImage Image, DeviceMemory Memory);
-
-    public VkImage Get(GraphicsId id)
+    private uint FindMemoryType(uint typeFilter, MemoryPropertyFlags properties)
     {
-        if (!_images.TryGetValue(id, out var entry))
-            throw new KeyNotFoundException($"Image '{id}' is not registered.");
+        _context.VulkanApi.GetPhysicalDeviceMemoryProperties(
+            _context.PhysicalDevice,
+            out var memoryProperties
+        );
 
-        return entry.Image;
+        for (uint index = 0; index < memoryProperties.MemoryTypeCount; index++)
+        {
+            if (
+                (typeFilter & (1u << (int)index)) != 0
+                && (memoryProperties.MemoryTypes[(int)index].PropertyFlags & properties)
+                    == properties
+            )
+            {
+                return index;
+            }
+        }
+
+        throw new InvalidOperationException(
+            $"Unable to find Vulkan memory type with properties '{properties}'."
+        );
+    }
+
+    private VkImage CreateImage(uint width, uint height, Format format)
+    {
+        var imageInfo = new ImageCreateInfo
+        {
+            SType = StructureType.ImageCreateInfo,
+            ImageType = ImageType.Type2D,
+            Extent = new Extent3D(width, height, 1),
+            MipLevels = 1,
+            ArrayLayers = 1,
+            Format = format,
+            Tiling = ImageTiling.Optimal,
+            InitialLayout = ImageLayout.Undefined,
+            Usage = ImageUsageFlags.TransferDstBit | ImageUsageFlags.SampledBit,
+            SharingMode = SharingMode.Exclusive,
+            Samples = SampleCountFlags.Count1Bit,
+        };
+
+        var result = _context.VulkanApi.CreateImage(
+            _context.Device,
+            &imageInfo,
+            null,
+            out var image
+        );
+
+        if (result != Result.Success)
+            throw new InvalidOperationException($"Failed to create Vulkan image: {result}");
+
+        return image;
     }
 
     public VkImage Acquire(ITexture texture, ColorFormatEnum format)
     {
-        ArgumentNullException.ThrowIfNull(texture);
-
-        var id = new IdentityHashBuilder(nameof(ImageRegistry))
-            .Add(texture.Id)
-            .Add((ulong)format)
-            .Compute();
-
-        if (_images.TryGetValue(id, out var entry))
-        {
-            var referenceCount = ++_refs[entry.Image];
-
-            if (_logger.IsEnabled(LogLevel.Debug))
-                _logger.LogDebug(
-                    "Reusing image. ResourceId={ResourceId}, TextureId={TextureId}, Format={Format}, ImageHandle={ImageHandle}, ReferenceCount={ReferenceCount}",
-                    id,
-                    texture.Id,
-                    format,
-                    entry.Image.Handle,
-                    referenceCount
-                );
-
-            return entry.Image;
-        }
-
-        entry = CreateImage(texture, format);
-
-        _images.Add(id, entry);
-        _refs.Add(entry.Image, 1);
-
-        if (_logger.IsEnabled(LogLevel.Debug))
-            _logger.LogDebug(
-                "Created image. ResourceId={ResourceId}, TextureId={TextureId}, Format={Format}, ImageHandle={ImageHandle}",
-                id,
-                texture.Id,
-                format,
-                entry.Image.Handle
-            );
-
-        return entry.Image;
+        throw new NotImplementedException();
     }
 
-    public void Release(GraphicsId id)
+    public VkImage Get(RenderableId id)
     {
-        if (!_images.TryGetValue(id, out var entry))
+        if (!_images.TryGetValue(id, out var image))
+            throw new KeyNotFoundException($"Image '{id}' is not registered.");
+
+        return image;
+    }
+
+    public void Release(RenderableId id)
+    {
+        if (!_images.Remove(id, out var image))
             return;
 
-        var referenceCount = --_refs[entry.Image];
+        var referenceCount = --_refs[image];
 
         if (referenceCount > 0)
         {
             if (_logger.IsEnabled(LogLevel.Debug))
                 _logger.LogDebug(
-                    "Released image reference. ResourceId={ResourceId}, ImageHandle={ImageHandle}, ReferenceCount={ReferenceCount}",
+                    "Released image reference. GraphicsId={GraphicsId}, ImageHandle={ImageHandle}, ReferenceCount={ReferenceCount}",
                     id,
-                    entry.Image.Handle,
+                    image.Handle,
                     referenceCount
                 );
 
             return;
         }
 
-        _refs.Remove(entry.Image);
-        _images.Remove(id);
+        _refs.Remove(image);
 
-        DestroyImage(entry);
+        _context.VulkanApi.DestroyImage(_context.Device, image, null);
+
+        if (_memory.Remove(image, out var memory))
+            _context.VulkanApi.FreeMemory(_context.Device, memory, null);
 
         if (_logger.IsEnabled(LogLevel.Debug))
             _logger.LogDebug(
-                "Destroyed image. ResourceId={ResourceId}, ImageHandle={ImageHandle}",
+                "Destroyed image. GraphicsId={GraphicsId}, ImageHandle={ImageHandle}",
                 id,
-                entry.Image.Handle
+                image.Handle
             );
     }
 
     public void Reset()
     {
-        foreach (var (id, entry) in _images)
+        foreach (var (id, image) in _images)
         {
-            DestroyImage(entry);
+            _context.VulkanApi.DestroyImage(_context.Device, image, null);
+
+            if (_memory.Remove(image, out var memory))
+                _context.VulkanApi.FreeMemory(_context.Device, memory, null);
 
             if (_logger.IsEnabled(LogLevel.Debug))
                 _logger.LogDebug(
-                    "Reset image. ResourceId={ResourceId}, ImageHandle={ImageHandle}",
+                    "Reset image. GraphicsId={GraphicsId}, ImageHandle={ImageHandle}",
                     id,
-                    entry.Image.Handle
+                    image.Handle
                 );
         }
 
         _images.Clear();
+        _memory.Clear();
         _refs.Clear();
-    }
-
-    private ImageEntry CreateImage(ITexture texture, ColorFormatEnum format)
-    {
-        throw new NotImplementedException();
-    }
-
-    private void DestroyImage(ImageEntry entry)
-    {
-        _context.VulkanApi.DestroyImage(_context.Device, entry.Image, null);
-
-        if (entry.Memory.Handle != 0)
-            _context.VulkanApi.FreeMemory(_context.Device, entry.Memory, null);
     }
 
     public void Dispose()

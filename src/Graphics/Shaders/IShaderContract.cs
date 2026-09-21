@@ -9,7 +9,7 @@ public sealed record ShaderInput(int Semantic, uint Size);
 public interface IShaderContract
 {
     /// <summary>Gets the stable identifier of the shader contract.</summary>
-    GraphicsId Id { get; }
+    RenderableId Id { get; }
 
     /// <summary>Gets the display name of the shader.</summary>
     string Name { get; }

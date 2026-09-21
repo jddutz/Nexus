@@ -5,7 +5,7 @@ public unsafe class SamplerRegistry(Context context, ILogger<SamplerRegistry> lo
 {
     private readonly Context _context = context;
     private readonly ILogger<SamplerRegistry> _logger = logger;
-    private readonly Dictionary<GraphicsId, Sampler> _samplers = [];
+    private readonly Dictionary<RenderableId, Sampler> _samplers = [];
     private readonly Dictionary<Sampler, int> _refs = [];
 
     private Sampler CreateSampler(ISamplingBehavior behavior)
@@ -48,7 +48,7 @@ public unsafe class SamplerRegistry(Context context, ILogger<SamplerRegistry> lo
         return sampler;
     }
 
-    public Sampler Get(GraphicsId id)
+    public Sampler Get(RenderableId id)
     {
         if (!_samplers.TryGetValue(id, out var sampler))
             throw new KeyNotFoundException($"Sampler '{id}' is not registered.");
@@ -96,7 +96,7 @@ public unsafe class SamplerRegistry(Context context, ILogger<SamplerRegistry> lo
         return sampler;
     }
 
-    public void Release(GraphicsId id)
+    public void Release(RenderableId id)
     {
         if (!_samplers.TryGetValue(id, out var sampler))
             return;

@@ -4,9 +4,9 @@ public interface IVertexBufferRegistry : IDisposable
 {
     VkBuffer Acquire(IRenderable renderable);
 
-    VkBuffer Get(GraphicsId id);
+    VkBuffer Get(RenderableId id);
 
-    void Release(GraphicsId id);
+    void Release(RenderableId id);
 
     void Reset();
 }
