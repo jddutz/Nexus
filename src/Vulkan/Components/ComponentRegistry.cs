@@ -80,7 +80,7 @@ public class ComponentRegistry(
         foreach (var renderable in component.Renderables)
         {
             foreach (var item in renderItems)
-                item.AddInstances(renderable.Id, renderable);
+                item.AddInstances(renderable);
         }
 
         _components[component.Id] = new ComponentRegistration(component, renderItems);
@@ -471,7 +471,7 @@ public class ComponentRegistry(
 
         foreach (var item in registration.RenderItems)
         foreach (var renderable in registration.Component.Renderables)
-            item.RemoveInstance(renderable.Id);
+            item.RemoveInstances(renderable.Id);
 
         // Safe no-op when componentId does not identify a registered camera.
         _cameraRegistry.Remove(componentId);
@@ -587,7 +587,7 @@ public class ComponentRegistry(
 
         foreach (var renderable in component.Renderables)
         foreach (var item in registration.RenderItems)
-            item.UpdateInstances(renderable.Id, renderable);
+            item.UpdateInstances(renderable);
     }
 
     /// <summary>Updates the contract-driven uniform buffers for a renderable component.</summary>
@@ -645,13 +645,13 @@ public class ComponentRegistry(
 
         foreach (var item in registration.RenderItems)
         foreach (var renderable in component.Renderables)
-            item.RemoveInstance(renderable.Id);
+            item.RemoveInstances(renderable.Id);
 
         var renderItems = GetOrCreateRenderItems(component);
 
         foreach (var renderable in component.Renderables)
         foreach (var item in renderItems)
-            item.AddInstances(renderable.Id, renderable);
+            item.AddInstances(renderable);
 
         _components[component.Id] = registration with { RenderItems = renderItems };
 

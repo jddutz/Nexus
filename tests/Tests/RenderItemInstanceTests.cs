@@ -91,7 +91,7 @@ public class RenderItemInstanceTests
         item.AddInstances(removed);
         item.AddInstances(new TestRenderable(10, 20));
 
-        item.RemoveInstance(removed.Id);
+        item.RemoveInstances(removed.Id);
 
         Assert.Equal(2u, item.InstanceCount);
         Assert.Equal([10, 20], ReadValues(item));
@@ -105,7 +105,7 @@ public class RenderItemInstanceTests
         var component = new TestRenderable(1, 2, 3);
         oldItem.AddInstances(component);
 
-        oldItem.RemoveInstance(component.Id);
+        oldItem.RemoveInstances(component.Id);
         newItem.AddInstances(component);
 
         Assert.Equal(0u, oldItem.InstanceCount);

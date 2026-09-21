@@ -6,7 +6,7 @@ namespace Nexus.Graphics.Vulkan.Rendering;
 /// </summary>
 public class RenderItem : IRenderItem
 {
-    private readonly Dictionary<RenderableId, byte[]> _componentInstanceData = [];
+    private readonly Dictionary<RenderableId, byte[]> _instanceDataByRenderable = [];
     private readonly List<RenderableId> _renderOrder = [];
     private byte[] _instanceData = [];
     private int _instanceStride;
@@ -58,98 +58,81 @@ public class RenderItem : IRenderItem
     public ReadOnlySpan<byte> InstanceData => _instanceData;
 
     /// <summary>
-    /// Adds all instance records produced by the specified component.
+    /// Adds all instance records produced by the specified renderable.
     /// </summary>
     /// <param name="renderableId">The renderable identifier.</param>
-    /// <param name="component">The renderable that writes its packed instance record.</param>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="component"/> is <see langword="null"/>.</exception>
-    /// <exception cref="ArgumentException">Thrown when the component already has a record or writes an invalid record size.</exception>
-    public void AddInstances(RenderableId renderableId, IRenderable component)
+    /// <param name="renderable">The renderable that writes its packed instance record.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="renderable"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentException">Thrown when the renderable already has a record or writes an invalid record size.</exception>
+    public void AddInstances(IRenderable renderable)
     {
-        ArgumentNullException.ThrowIfNull(component);
+        ArgumentNullException.ThrowIfNull(renderable);
+        AddInstances(renderable.Id, renderable);
+    }
 
-        if (_componentInstanceData.ContainsKey(renderableId))
+    /// <summary>
+    /// Adds all instance records produced by the specified renderable under its identity.
+    /// </summary>
+    /// <param name="renderableId">The renderable identifier.</param>
+    /// <param name="renderable">The renderable that writes its packed instance record.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="renderable"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentException">Thrown when the renderable already has a record or writes an invalid record size.</exception>
+    private void AddInstances(RenderableId renderableId, IRenderable renderable)
+    {
+        ArgumentNullException.ThrowIfNull(renderable);
+
+        if (_instanceDataByRenderable.ContainsKey(renderableId))
             throw new ArgumentException(
                 "Instance records already exist for this renderable.",
                 nameof(renderableId)
             );
 
-        var packedData = PackInstances(component);
-        _componentInstanceData.Add(renderableId, packedData);
+        var packedData = PackInstances(renderable);
+        _instanceDataByRenderable.Add(renderableId, packedData);
         _renderOrder.Add(renderableId);
         RebuildFlattenedData();
     }
 
     /// <summary>
-    /// Adds all instance records produced by a renderable component using its component identity.
+    /// Replaces all existing instance records owned by the specified renderable.
     /// </summary>
-    /// <param name="component">The component that writes its packed instance records.</param>
-    /// <exception cref="ArgumentException">Thrown when the renderable does not also implement <see cref="IComponent"/>.</exception>
-    public void AddInstances(IRenderable component)
+    /// <param name="renderableId">The renderable identifier.</param>
+    /// <param name="renderable">The renderable that writes its replacement instance record.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="renderable"/> is <see langword="null"/>.</exception>
+    /// <exception cref="KeyNotFoundException">Thrown when the renderable has no record.</exception>
+    /// <exception cref="ArgumentException">Thrown when the renderable writes a record whose size differs from <see cref="InstanceStride"/>.</exception>
+    public void UpdateInstances(IRenderable renderable)
     {
-        ArgumentNullException.ThrowIfNull(component);
-
-        AddInstances(component.Id, component);
+        ArgumentNullException.ThrowIfNull(renderable);
+        UpdateInstances(renderable.Id, renderable);
     }
 
     /// <summary>
-    /// Adds all instance records produced by the specified component.
-    /// </summary>
-    /// <remarks>
-    /// Retained for source compatibility; despite the singular name, component ownership now
-    /// applies to the component's complete instance contribution.
-    /// </remarks>
-    public void AddInstance(RenderableId renderableId, IRenderable component) =>
-        AddInstances(renderableId, component);
-
-    /// <summary>
-    /// Replaces all existing instance records owned by the specified component.
+    /// Replaces all existing instance records owned by the specified renderable.
     /// </summary>
     /// <param name="renderableId">The renderable identifier.</param>
-    /// <param name="component">The renderable that writes its replacement instance record.</param>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="component"/> is <see langword="null"/>.</exception>
-    /// <exception cref="KeyNotFoundException">Thrown when the component has no record.</exception>
-    /// <exception cref="ArgumentException">Thrown when the component writes a record whose size differs from <see cref="InstanceStride"/>.</exception>
-    public void UpdateInstances(RenderableId renderableId, IRenderable component)
+    /// <param name="renderable">The renderable that writes its replacement instance record.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="renderable"/> is <see langword="null"/>.</exception>
+    /// <exception cref="KeyNotFoundException">Thrown when the renderable has no record.</exception>
+    /// <exception cref="ArgumentException">Thrown when the renderable writes a record whose size differs from <see cref="InstanceStride"/>.</exception>
+    private void UpdateInstances(RenderableId renderableId, IRenderable renderable)
     {
-        ArgumentNullException.ThrowIfNull(component);
+        ArgumentNullException.ThrowIfNull(renderable);
 
-        if (!_componentInstanceData.ContainsKey(renderableId))
+        if (!_instanceDataByRenderable.ContainsKey(renderableId))
             throw new KeyNotFoundException("The renderable has no instance records.");
 
-        _componentInstanceData[renderableId] = PackInstances(component);
+        _instanceDataByRenderable[renderableId] = PackInstances(renderable);
         RebuildFlattenedData();
     }
 
     /// <summary>
-    /// Replaces all instance records produced by a renderable component using its component identity.
-    /// </summary>
-    /// <param name="component">The component that writes its replacement instance records.</param>
-    /// <exception cref="ArgumentException">Thrown when the renderable does not also implement <see cref="IComponent"/>.</exception>
-    public void UpdateInstances(IRenderable component)
-    {
-        ArgumentNullException.ThrowIfNull(component);
-
-        UpdateInstances(component.Id, component);
-    }
-
-    /// <summary>
-    /// Replaces all instance records owned by the specified component.
-    /// </summary>
-    /// <remarks>
-    /// Retained for source compatibility; despite the singular name, the complete contribution
-    /// is regenerated and may change size.
-    /// </remarks>
-    public void UpdateInstance(RenderableId renderableId, IRenderable component) =>
-        UpdateInstances(renderableId, component);
-
-    /// <summary>
-    /// Removes every instance record owned by the specified component.
+    /// Removes every instance record owned by the specified renderable.
     /// </summary>
     /// <param name="renderableId">The identifier of the renderable whose records are removed.</param>
-    public void RemoveInstance(RenderableId renderableId)
+    public void RemoveInstances(RenderableId renderableId)
     {
-        if (!_componentInstanceData.Remove(renderableId))
+        if (!_instanceDataByRenderable.Remove(renderableId))
             return;
 
         _renderOrder.Remove(renderableId);
@@ -157,23 +140,20 @@ public class RenderItem : IRenderItem
     }
 
     /// <summary>
-    /// Packs every instance currently produced by a component into one contribution.
+    /// Packs every instance currently produced by a renderable into one contribution.
     /// </summary>
-    private byte[] PackInstances(IRenderable component)
+    private byte[] PackInstances(IRenderable renderable)
     {
-        var source = component.Instances;
+        var source = renderable.Instances;
         var count = checked((int)source.Count);
         if (count <= 0)
-            throw new ArgumentException(
-                "A renderable component must contribute at least one instance.",
-                nameof(component)
-            );
+            return [];
 
-        var packedData = source.GetInstanceData(component.VertexShader.InstanceLayout).ToArray();
+        var packedData = source.GetInstanceData(renderable.VertexShader.InstanceLayout).ToArray();
         if (packedData.Length == 0 || packedData.Length % count != 0)
             throw new ArgumentException(
                 "Instance data must contain a complete record for every instance.",
-                nameof(component)
+                nameof(renderable)
             );
 
         InitializeOrValidateStride(packedData.Length / count);
@@ -182,17 +162,17 @@ public class RenderItem : IRenderItem
     }
 
     /// <summary>
-    /// Rebuilds the GPU-facing sequence while retaining component contribution order.
+    /// Rebuilds the GPU-facing sequence while retaining renderable contribution order.
     /// </summary>
     private void RebuildFlattenedData()
     {
-        var totalLength = _renderOrder.Sum(id => _componentInstanceData[id].Length);
+        var totalLength = _renderOrder.Sum(id => _instanceDataByRenderable[id].Length);
         var flattenedData = new byte[totalLength];
         var offset = 0;
 
-        foreach (var componentId in _renderOrder)
+        foreach (var renderableId in _renderOrder)
         {
-            var contribution = _componentInstanceData[componentId];
+            var contribution = _instanceDataByRenderable[renderableId];
             contribution.CopyTo(flattenedData, offset);
             offset += contribution.Length;
         }
@@ -223,7 +203,7 @@ public class RenderItem : IRenderItem
     /// <summary>
     /// Validates that a record has the configured instance stride.
     /// </summary>
-    /// <param name="stride">The byte size written by a component.</param>
+    /// <param name="stride">The byte size written by a renderable.</param>
     /// <exception cref="ArgumentException">Thrown when the record has an unexpected size.</exception>
     private void ValidateStride(int stride)
     {
@@ -258,7 +238,7 @@ public class RenderItem : IRenderItem
     /// Distance from camera for depth sorting (typically for transparency).
     /// Higher values render first (back-to-front for correct alpha blending).
     /// Only used when batch strategy performs depth sorting.
-    /// Components calculate this using RenderContext.Camera.Position in GetDrawCommands().
+    /// Renderables calculate this using RenderContext.Camera.Position in GetDrawCommands().
     /// Example: DepthSortKey = Vector3D.DistanceSquared(myPosition, context.Camera.Position)
     /// </summary>
     public float DepthSortKey { get; init; }
