@@ -215,6 +215,8 @@ public unsafe class VertexBufferRegistry(Context context, ILogger<VertexBufferRe
         _buffers.Remove(id);
 
         _context.VulkanApi.DestroyBuffer(_context.Device, buffer, null);
+        if (_memory.Remove(buffer, out var memory))
+            _context.VulkanApi.FreeMemory(_context.Device, memory, null);
 
         if (_logger.IsEnabled(LogLevel.Debug))
             _logger.LogDebug(
@@ -229,6 +231,8 @@ public unsafe class VertexBufferRegistry(Context context, ILogger<VertexBufferRe
         foreach (var (id, buffer) in _buffers)
         {
             _context.VulkanApi.DestroyBuffer(_context.Device, buffer, null);
+            if (_memory.Remove(buffer, out var memory))
+                _context.VulkanApi.FreeMemory(_context.Device, memory, null);
 
             if (_logger.IsEnabled(LogLevel.Debug))
                 _logger.LogDebug(
@@ -239,6 +243,7 @@ public unsafe class VertexBufferRegistry(Context context, ILogger<VertexBufferRe
         }
 
         _buffers.Clear();
+        _memory.Clear();
         _refs.Clear();
     }
 
