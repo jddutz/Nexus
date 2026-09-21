@@ -208,7 +208,7 @@ public unsafe class VulkanGraphicsSystem(
             if (imageViewAcquired)
                 _imageViewRegistry.Release(imageViewId);
             if (imageAcquired)
-                _imageRegistry.Release(imageId);
+                _imageRegistry.Release(texture.Id);
 
             throw;
         }
@@ -399,7 +399,7 @@ public unsafe class VulkanGraphicsSystem(
 
             _imageViewRegistry.Release(imageViewId);
             _samplerRegistry.Release(samplerId);
-            _imageRegistry.Release(imageId);
+            _imageRegistry.Release(texture.Id);
         }
 
         _logger.LogDebug(

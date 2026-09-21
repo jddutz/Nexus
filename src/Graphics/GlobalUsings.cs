@@ -5,7 +5,6 @@ global using Microsoft.Extensions.Logging;
 global using Microsoft.Extensions.Options;
 global using Nexus.Core;
 global using Nexus.Graphics;
-global using Nexus.Graphics.Components;
 global using Nexus.Graphics.Geometry;
 global using Nexus.Graphics.Shaders;
 global using Nexus.Graphics.Textures;

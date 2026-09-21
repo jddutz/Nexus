@@ -5,7 +5,7 @@ namespace Nexus.Graphics.Cameras;
 /// graphics system but contribute no render items; their responsibility ends at exposing camera
 /// state, particularly <see cref="ViewProjectionMatrix"/>.
 /// </summary>
-public interface ICameraComponent : IGraphicsComponent
+public interface ICameraComponent
 {
     /// <summary>
     /// Gets the view matrix representing the camera's transformation in world space.

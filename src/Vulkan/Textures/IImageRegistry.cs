@@ -4,9 +4,9 @@ public interface IImageRegistry : IDisposable
 {
     VkImage Acquire(ITexture texture, ColorFormatEnum format);
 
-    VkImage Get(RenderableId id);
+    VkImage Get(TextureId id);
 
-    void Release(RenderableId id);
+    void Release(TextureId id);
 
     void Reset();
 }

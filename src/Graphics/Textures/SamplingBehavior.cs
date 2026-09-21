@@ -25,7 +25,7 @@ public enum WrapModeEnum
 
 public interface ISamplingBehavior
 {
-    RenderableId Id { get; }
+    SamplingBehaviorId Id { get; }
 
     MinFilterEnum MinFilter { get; }
 
@@ -38,7 +38,7 @@ public interface ISamplingBehavior
 
 public sealed class SamplingBehavior : ISamplingBehavior
 {
-    public RenderableId Id { get; }
+    public SamplingBehaviorId Id { get; }
 
     public MinFilterEnum MinFilter { get; }
 

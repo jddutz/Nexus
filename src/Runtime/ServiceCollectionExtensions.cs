@@ -25,14 +25,10 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IGraphicsSystem, VulkanGraphicsSystem>();
 
         // Don't try to override these, add a new registry / factory combination instead
-        services.AddSingleton<IComponentRegistry, ComponentRegistry>();
-        services.AddSingleton<ICameraRegistry, CameraRegistry>();
         services.AddSingleton<IShaderFactory, ShaderFactory>();
-        services.AddSingleton<IMeshFactory, MeshFactory>();
         services.AddSingleton<IImageRegistry, ImageRegistry>();
         services.AddSingleton<IImageViewRegistry, ImageViewRegistry>();
         services.AddSingleton<ISamplerRegistry, SamplerRegistry>();
-        services.AddSingleton<ITextureRegistry, TextureRegistry>();
 
         services.AddVkValidation();
 

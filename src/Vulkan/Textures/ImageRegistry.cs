@@ -4,7 +4,7 @@ public unsafe class ImageRegistry(Context context, ILogger<ImageRegistry> logger
 {
     private readonly Context _context = context;
     private readonly ILogger<ImageRegistry> _logger = logger;
-    private readonly Dictionary<RenderableId, VkImage> _images = [];
+    private readonly Dictionary<TextureId, VkImage> _images = [];
     private readonly Dictionary<VkImage, DeviceMemory> _memory = [];
     private readonly Dictionary<VkImage, int> _refs = [];
 
@@ -67,7 +67,7 @@ public unsafe class ImageRegistry(Context context, ILogger<ImageRegistry> logger
         throw new NotImplementedException();
     }
 
-    public VkImage Get(RenderableId id)
+    public VkImage Get(TextureId id)
     {
         if (!_images.TryGetValue(id, out var image))
             throw new KeyNotFoundException($"Image '{id}' is not registered.");
@@ -75,7 +75,7 @@ public unsafe class ImageRegistry(Context context, ILogger<ImageRegistry> logger
         return image;
     }
 
-    public void Release(RenderableId id)
+    public void Release(TextureId id)
     {
         if (!_images.Remove(id, out var image))
             return;
@@ -86,7 +86,7 @@ public unsafe class ImageRegistry(Context context, ILogger<ImageRegistry> logger
         {
             if (_logger.IsEnabled(LogLevel.Debug))
                 _logger.LogDebug(
-                    "Released image reference. GraphicsId={GraphicsId}, ImageHandle={ImageHandle}, ReferenceCount={ReferenceCount}",
+                    "Released image reference. TextureId={TextureId}, ImageHandle={ImageHandle}, ReferenceCount={ReferenceCount}",
                     id,
                     image.Handle,
                     referenceCount
@@ -104,7 +104,7 @@ public unsafe class ImageRegistry(Context context, ILogger<ImageRegistry> logger
 
         if (_logger.IsEnabled(LogLevel.Debug))
             _logger.LogDebug(
-                "Destroyed image. GraphicsId={GraphicsId}, ImageHandle={ImageHandle}",
+                "Destroyed image. TextureId={TextureId}, ImageHandle={ImageHandle}",
                 id,
                 image.Handle
             );
@@ -121,7 +121,7 @@ public unsafe class ImageRegistry(Context context, ILogger<ImageRegistry> logger
 
             if (_logger.IsEnabled(LogLevel.Debug))
                 _logger.LogDebug(
-                    "Reset image. GraphicsId={GraphicsId}, ImageHandle={ImageHandle}",
+                    "Reset image. TextureId={TextureId}, ImageHandle={ImageHandle}",
                     id,
                     image.Handle
                 );

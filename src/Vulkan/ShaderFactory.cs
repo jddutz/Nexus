@@ -1,6 +1,5 @@
-namespace Nexus.Graphics.Vulkan.Components;
+namespace Nexus.Graphics.Vulkan;
 
-[Obsolete("Use the newer Vulkan shader resource registry.")]
 public unsafe class ShaderFactory(Context context) : IShaderFactory
 {
     private readonly Context _context = context;

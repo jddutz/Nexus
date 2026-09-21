@@ -1,4 +1,4 @@
-namespace Nexus.Graphics.Vulkan.Components;
+namespace Nexus.Graphics.Vulkan;
 
 public interface IShaderFactory
 {

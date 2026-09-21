@@ -92,7 +92,7 @@ public class RenderItemInstanceTests
         item.AddInstances(removed);
         item.AddInstances(new TestRenderable(10, 20));
 
-        item.RemoveInstances(removed.Id);
+        item.RemoveInstances(((IRenderable)removed).Id);
 
         Assert.Equal(2u, item.InstanceCount);
         Assert.Equal([10, 20], ReadValues(item));
@@ -106,7 +106,7 @@ public class RenderItemInstanceTests
         var component = new TestRenderable(1, 2, 3);
         oldItem.AddInstances(component);
 
-        oldItem.RemoveInstances(component.Id);
+        oldItem.RemoveInstances(((IRenderable)component).Id);
         newItem.AddInstances(component);
 
         Assert.Equal(0u, oldItem.InstanceCount);
@@ -153,11 +153,13 @@ public class RenderItemInstanceTests
     {
         public int[] Values { get; set; } = values;
 
-        RenderableId IRenderable.Id => Id;
+        RenderableId IRenderable.Id => new(Id.Value);
 
         IVertexDataSource IRenderable.Vertices => BuiltInMesh.Empty.Source;
 
         ITexture IRenderable.Texture => Texture.Uniform;
+
+        ISamplingBehavior IRenderable.SamplingBehavior => SamplingBehaviors.Smooth;
 
         ReadOnlyMemory<byte> IRenderable.GetUniformData(ShaderInput[] layout) =>
             Array.Empty<byte>();
