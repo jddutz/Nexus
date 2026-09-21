@@ -1,6 +1,6 @@
 namespace Nexus.Core.Events;
 
-public class GameObjectDeletedEvent(IGameObject gameObject) : IEvent
+public class GameObjectDeactivatedEvent(IGameObject gameObject) : IEvent
 {
     public IGameObject GameObject { get; } = gameObject;
 }

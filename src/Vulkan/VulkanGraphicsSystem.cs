@@ -44,13 +44,44 @@ public unsafe class VulkanGraphicsSystem(
         );
     }
 
-    /// <inheritdoc />
-    public bool CanActivate<TComponent>(TComponent component)
-        where TComponent : class, IGraphicsComponent
+    private void Activate(IRenderable renderable)
     {
-        ArgumentNullException.ThrowIfNull(component);
+        // Resolve Vulkan resources from the renderable.
+    }
 
-        return _registries.Any(registry => registry.CanLoad(component));
+    private void OnComponentPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (sender is not IGraphicsComponent component)
+            return;
+
+        // synchronize renderables
+    }
+
+    private void Deactivate(IRenderable renderable)
+    {
+        // Release Vulkan resources allocated to the renderable.
+    }
+
+    public void Handle(ComponentActivatedEvent e)
+    {
+        if (e.Component is not IGraphicsComponent component)
+            return;
+
+        foreach (var renderable in component.Renderables)
+            Activate(renderable);
+
+        component.PropertyChanged += OnComponentPropertyChanged;
+    }
+
+    public void Handle(ComponentDeactivatedEvent e)
+    {
+        if (e.Component is not IGraphicsComponent component)
+            return;
+
+        component.PropertyChanged -= OnComponentPropertyChanged;
+
+        foreach (var renderable in component.Renderables)
+            Deactivate(renderable);
     }
 
     /// <summary>

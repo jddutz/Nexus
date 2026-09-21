@@ -1,4 +1,4 @@
-namespace Nexus.Graphics;
+namespace Nexus.Graphics.Vulkan;
 
 public readonly record struct ResourceId(ulong Value) : IEquatable<ResourceId>, IUniqueId
 {

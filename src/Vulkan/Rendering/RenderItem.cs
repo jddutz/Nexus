@@ -6,8 +6,8 @@ namespace Nexus.Graphics.Vulkan.Rendering;
 /// </summary>
 public class RenderItem : IRenderItem
 {
-    private readonly Dictionary<ComponentId, byte[]> _componentInstanceData = [];
-    private readonly List<ComponentId> _componentOrder = [];
+    private readonly Dictionary<RenderableId, byte[]> _componentInstanceData = [];
+    private readonly List<RenderableId> _renderOrder = [];
     private byte[] _instanceData = [];
     private int _instanceStride;
     private int _instanceCount;
@@ -60,23 +60,23 @@ public class RenderItem : IRenderItem
     /// <summary>
     /// Adds all instance records produced by the specified component.
     /// </summary>
-    /// <param name="componentId">The owning component identifier.</param>
+    /// <param name="renderableId">The renderable identifier.</param>
     /// <param name="component">The renderable that writes its packed instance record.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="component"/> is <see langword="null"/>.</exception>
     /// <exception cref="ArgumentException">Thrown when the component already has a record or writes an invalid record size.</exception>
-    public void AddInstances(ComponentId componentId, IRenderable component)
+    public void AddInstances(RenderableId renderableId, IRenderable component)
     {
         ArgumentNullException.ThrowIfNull(component);
 
-        if (_componentInstanceData.ContainsKey(componentId))
+        if (_componentInstanceData.ContainsKey(renderableId))
             throw new ArgumentException(
-                "Instance records already exist for this component.",
-                nameof(componentId)
+                "Instance records already exist for this renderable.",
+                nameof(renderableId)
             );
 
         var packedData = PackInstances(component);
-        _componentInstanceData.Add(componentId, packedData);
-        _componentOrder.Add(componentId);
+        _componentInstanceData.Add(renderableId, packedData);
+        _renderOrder.Add(renderableId);
         RebuildFlattenedData();
     }
 
@@ -89,13 +89,7 @@ public class RenderItem : IRenderItem
     {
         ArgumentNullException.ThrowIfNull(component);
 
-        if (component is not Nexus.Core.IComponent owner)
-            throw new ArgumentException(
-                "The renderable must implement IComponent to provide an instance owner.",
-                nameof(component)
-            );
-
-        AddInstances(owner.Id, component);
+        AddInstances(component.Id, component);
     }
 
     /// <summary>
@@ -105,25 +99,25 @@ public class RenderItem : IRenderItem
     /// Retained for source compatibility; despite the singular name, component ownership now
     /// applies to the component's complete instance contribution.
     /// </remarks>
-    public void AddInstance(ComponentId componentId, IRenderable component) =>
-        AddInstances(componentId, component);
+    public void AddInstance(RenderableId renderableId, IRenderable component) =>
+        AddInstances(renderableId, component);
 
     /// <summary>
     /// Replaces all existing instance records owned by the specified component.
     /// </summary>
-    /// <param name="componentId">The owning component identifier.</param>
+    /// <param name="renderableId">The renderable identifier.</param>
     /// <param name="component">The renderable that writes its replacement instance record.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="component"/> is <see langword="null"/>.</exception>
     /// <exception cref="KeyNotFoundException">Thrown when the component has no record.</exception>
     /// <exception cref="ArgumentException">Thrown when the component writes a record whose size differs from <see cref="InstanceStride"/>.</exception>
-    public void UpdateInstances(ComponentId componentId, IRenderable component)
+    public void UpdateInstances(RenderableId renderableId, IRenderable component)
     {
         ArgumentNullException.ThrowIfNull(component);
 
-        if (!_componentInstanceData.ContainsKey(componentId))
-            throw new KeyNotFoundException("The component has no instance records.");
+        if (!_componentInstanceData.ContainsKey(renderableId))
+            throw new KeyNotFoundException("The renderable has no instance records.");
 
-        _componentInstanceData[componentId] = PackInstances(component);
+        _componentInstanceData[renderableId] = PackInstances(component);
         RebuildFlattenedData();
     }
 
@@ -136,13 +130,7 @@ public class RenderItem : IRenderItem
     {
         ArgumentNullException.ThrowIfNull(component);
 
-        if (component is not Nexus.Core.IComponent owner)
-            throw new ArgumentException(
-                "The renderable must implement IComponent to provide an instance owner.",
-                nameof(component)
-            );
-
-        UpdateInstances(owner.Id, component);
+        UpdateInstances(component.Id, component);
     }
 
     /// <summary>
@@ -152,19 +140,19 @@ public class RenderItem : IRenderItem
     /// Retained for source compatibility; despite the singular name, the complete contribution
     /// is regenerated and may change size.
     /// </remarks>
-    public void UpdateInstance(ComponentId componentId, IRenderable component) =>
-        UpdateInstances(componentId, component);
+    public void UpdateInstance(RenderableId renderableId, IRenderable component) =>
+        UpdateInstances(renderableId, component);
 
     /// <summary>
     /// Removes every instance record owned by the specified component.
     /// </summary>
-    /// <param name="componentId">The identifier of the component that owns the record.</param>
-    public void RemoveInstance(ComponentId componentId)
+    /// <param name="renderableId">The identifier of the renderable whose records are removed.</param>
+    public void RemoveInstance(RenderableId renderableId)
     {
-        if (!_componentInstanceData.Remove(componentId))
+        if (!_componentInstanceData.Remove(renderableId))
             return;
 
-        _componentOrder.Remove(componentId);
+        _renderOrder.Remove(renderableId);
         RebuildFlattenedData();
     }
 
@@ -198,11 +186,11 @@ public class RenderItem : IRenderItem
     /// </summary>
     private void RebuildFlattenedData()
     {
-        var totalLength = _componentOrder.Sum(id => _componentInstanceData[id].Length);
+        var totalLength = _renderOrder.Sum(id => _componentInstanceData[id].Length);
         var flattenedData = new byte[totalLength];
         var offset = 0;
 
-        foreach (var componentId in _componentOrder)
+        foreach (var componentId in _renderOrder)
         {
             var contribution = _componentInstanceData[componentId];
             contribution.CopyTo(flattenedData, offset);

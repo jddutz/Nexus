@@ -6,6 +6,7 @@ global using System.Runtime.CompilerServices;
 global using System.Runtime.InteropServices;
 global using Microsoft.Extensions.Logging;
 global using Nexus.Core;
+global using Nexus.Core.Events;
 global using Nexus.Core.Performance;
 global using Nexus.Graphics;
 global using Nexus.Graphics.Cameras;

@@ -1,9 +1,26 @@
+/// <summary>
+/// Defines the geometry, resource, instance, and shader data required to render an object.
+/// </summary>
 public interface IRenderable
 {
+    /// <summary>
+    /// Gets the unique identifier of the renderable.
+    /// </summary>
+    RenderableId Id { get; }
+
+    /// <summary>
+    /// Gets the vertex data used to define the renderable's geometry.
+    /// </summary>
     IVertexDataSource Vertices { get; }
 
+    /// <summary>
+    /// Gets the texture resource used by the renderable.
+    /// </summary>
     ITexture Texture { get; }
 
+    /// <summary>
+    /// Gets the per-instance data used when rendering the renderable.
+    /// </summary>
     IInstanceDataSource Instances { get; }
 
     /// <summary>
@@ -13,7 +30,13 @@ public interface IRenderable
     /// <returns>The packed uniform-buffer data.</returns>
     ReadOnlyMemory<byte> GetUniformData(ShaderInput[] layout);
 
+    /// <summary>
+    /// Gets the vertex shader used to render the renderable.
+    /// </summary>
     VertexShader VertexShader { get; }
 
+    /// <summary>
+    /// Gets the fragment shader used to render the renderable.
+    /// </summary>
     FragmentShader FragmentShader { get; }
 }
