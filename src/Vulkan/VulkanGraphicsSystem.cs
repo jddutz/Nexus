@@ -7,28 +7,16 @@ public unsafe class VulkanGraphicsSystem(
     Context context,
     ISwapChain swapChain,
     IRenderer renderer,
-    IEnumerable<IComponentRegistry> registries,
-    IPipelineRegistry pipelineRegistry,
     IEventHub eventHub,
     ILogger<VulkanGraphicsSystem> logger
 ) : IGraphicsSystem, IDisposable
 {
-    private const string DEFAULT_PIPELINE_NAME = "DefaultPipeline";
-
     private readonly Context _context = context;
     private readonly ISwapChain _swapChain = swapChain;
     private readonly IRenderer _renderer = renderer;
-    private readonly IPipelineRegistry _pipelineManager = pipelineRegistry;
     private readonly ILogger<VulkanGraphicsSystem> _logger = logger;
-    private IEnumerable<IComponentRegistry> _registries = registries;
-    private VkBuffer _vertexBuffer;
 
     private bool disposedValue;
-
-    /// <summary>
-    /// Gets the render layers prepared by this graphics system.
-    /// </summary>
-    public RenderLayers RenderLayers { get; } = new();
 
     /// <summary>
     /// Initializes the graphics system and records the current Vulkan state.
@@ -39,11 +27,10 @@ public unsafe class VulkanGraphicsSystem(
 
         _logger.LogInformation(
             "Vulkan graphics system initialized. DeviceHandle={DeviceHandle}, "
-                + "SwapchainExtent={Width}x{Height}, ComponentRegistryCount={RegistryCount}",
+                + "SwapchainExtent={Width}x{Height}",
             _context.Device.Handle,
             _swapChain.SwapchainExtent.Width,
-            _swapChain.SwapchainExtent.Height,
-            _registries.Count()
+            _swapChain.SwapchainExtent.Height
         );
     }
 
@@ -85,98 +72,6 @@ public unsafe class VulkanGraphicsSystem(
 
         foreach (var renderable in component.Renderables)
             Deactivate(renderable);
-    }
-
-    /// <summary>
-    /// Activates a component by routing it to the first registry that can load it. Cameras
-    /// activate successfully with no render items; all other components must contribute at
-    /// least one.
-    /// </summary>
-    /// <typeparam name="TComponent">The type of component to activate.</typeparam>
-    /// <param name="component">The component to activate.</param>
-    /// <returns><see langword="true"/> when the component was activated successfully; otherwise, <see langword="false"/>.</returns>
-    public bool Activate<TComponent>(TComponent component)
-        where TComponent : class, IGraphicsComponent
-    {
-        _logger.LogDebug(
-            "Activating graphics component. "
-                + "ComponentId={ComponentId}, ComponentType={ComponentType}",
-            component.Id,
-            component.GetType().Name
-        );
-
-        foreach (var registry in _registries)
-        {
-            if (!registry.CanLoad(component))
-                continue;
-
-            RenderItem[] renderItems;
-            try
-            {
-                renderItems = registry.Load(component);
-            }
-            catch (Exception exception)
-            {
-                _logger.LogError(
-                    exception,
-                    "Failed to activate graphics component. "
-                        + "ComponentId={ComponentId}, ComponentType={ComponentType}, "
-                        + "RegistryType={RegistryType}",
-                    component.Id,
-                    component.GetType().Name,
-                    registry.GetType().Name
-                );
-                throw;
-            }
-
-            EnsureDefaultRenderLayer();
-
-            if (renderItems.Length == 0)
-            {
-                // Cameras activate successfully with no render items; they supply shared
-                // rendering state (e.g. a view-projection UBO) rather than drawable geometry.
-                if (component is ICameraComponent)
-                {
-                    _logger.LogDebug(
-                        "Camera component activated with no render items. ComponentId={ComponentId}",
-                        component.Id
-                    );
-                    return true;
-                }
-
-                _logger.LogDebug(
-                    "No RenderItems were added to Vulkan render layer. "
-                        + "ComponentId={ComponentId}",
-                    component.Id
-                );
-                return false;
-            }
-
-            var layer = _renderer.Layers[0];
-
-            layer.Items = [.. layer.Items, .. renderItems];
-
-            _logger.LogDebug(
-                "Graphics component activated. "
-                    + "ComponentId={ComponentId}, ComponentType={ComponentType}, "
-                    + "RegistryType={RegistryType}, RenderItemCount={RenderItemCount}",
-                component.Id,
-                component.GetType().Name,
-                registry.GetType().Name,
-                renderItems.Length
-            );
-
-            return true;
-        }
-
-        _logger.LogWarning(
-            "Graphics component activation skipped because no registry can load it. "
-                + "ComponentId={ComponentId}, ComponentType={ComponentType}",
-            component.Id,
-            component.GetType().Name
-        );
-
-        return false;
     }
 
     /// <summary>
@@ -233,36 +128,6 @@ public unsafe class VulkanGraphicsSystem(
     }
 
     /// <summary>
-    /// Deactivates a component in the graphics system.
-    /// </summary>
-    /// <typeparam name="TComponent">The component type to deactivate.</typeparam>
-    /// <param name="component">The component to deactivate.</param>
-    /// <returns><see langword="false"/> because deactivation is not implemented yet.</returns>
-    public void Deactivate<TComponent>(TComponent component)
-        where TComponent : class, IGraphicsComponent
-    {
-        var componentType = component.GetType().Name;
-        var unloadedRegistryCount = 0;
-
-        foreach (var registry in _registries)
-        {
-            if (registry.CanUnload(component.Id))
-            {
-                registry.Unload(component.Id);
-                unloadedRegistryCount++;
-            }
-        }
-
-        _logger.LogDebug(
-            "Graphics component deactivation completed. ComponentType={ComponentType}, "
-                + "ComponentId={ComponentId}, UnloadedRegistryCount={UnloadedRegistryCount}",
-            componentType,
-            component.Id,
-            unloadedRegistryCount
-        );
-    }
-
-    /// <summary>
     /// Renders the current frame through the Vulkan renderer.
     /// </summary>
     public void Render()
@@ -284,31 +149,21 @@ public unsafe class VulkanGraphicsSystem(
     /// <param name="disposing">Whether managed resources should also be released.</param>
     protected virtual void Dispose(bool disposing)
     {
-        _context.VulkanApi.DeviceWaitIdle(_context.Device);
-        if (!disposedValue)
-        {
-            if (disposing)
-            {
-                // TODO: dispose managed state (managed objects)
-            }
-
-            if (_vertexBuffer.Handle != 0 && _context.Device.Handle != 0)
-            {
-                _logger.LogDebug(
-                    "Destroying Vulkan graphics system vertex buffer. BufferHandle={BufferHandle}",
-                    _vertexBuffer.Handle
-                );
-                _context.VulkanApi.DestroyBuffer(_context.Device, _vertexBuffer, null);
-                _vertexBuffer = default;
-            }
-
-            disposedValue = true;
-            _logger.LogInformation("Vulkan graphics system disposed.");
-        }
-        else
+        if (disposedValue)
         {
             _logger.LogDebug("Vulkan graphics system disposal requested more than once.");
+            return;
         }
+
+        _context.VulkanApi.DeviceWaitIdle(_context.Device);
+
+        if (disposing)
+        {
+            // TODO: dispose managed state (managed objects)
+        }
+
+        disposedValue = true;
+        _logger.LogInformation("Vulkan graphics system disposed.");
     }
 
     /// <summary>

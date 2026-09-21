@@ -21,8 +21,4 @@ public interface IGraphicsSystem
     /// </summary>
     void Render();
 
-    /// <summary>
-    /// Gets the render layers prepared by the graphics system.
-    /// </summary>
-    RenderLayers RenderLayers { get; }
 }
