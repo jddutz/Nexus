@@ -3,9 +3,9 @@ namespace Nexus.Graphics.Vulkan.Components;
 public unsafe class ShaderFactory(Context context) : IShaderFactory
 {
     private readonly Context _context = context;
-    private readonly Dictionary<ResourceId, ShaderModule> _modules = [];
+    private readonly Dictionary<GraphicsId, ShaderModule> _modules = [];
 
-    public ResourceId Create(IShaderContract description)
+    public GraphicsId Create(IShaderContract description)
     {
         var id = description.Id;
 
@@ -19,7 +19,7 @@ public unsafe class ShaderFactory(Context context) : IShaderFactory
         return id;
     }
 
-    public ShaderModule Read(ResourceId id)
+    public ShaderModule Read(GraphicsId id)
     {
         if (!_modules.TryGetValue(id, out var module))
             throw new KeyNotFoundException($"Shader resource '{id}' does not exist.");
@@ -27,7 +27,7 @@ public unsafe class ShaderFactory(Context context) : IShaderFactory
         return module;
     }
 
-    public void Update(ResourceId id, IShaderContract description)
+    public void Update(GraphicsId id, IShaderContract description)
     {
         if (!_modules.TryGetValue(id, out var existing))
             throw new KeyNotFoundException($"Shader resource '{id}' does not exist.");
@@ -40,7 +40,7 @@ public unsafe class ShaderFactory(Context context) : IShaderFactory
         _context.VulkanApi.DestroyShaderModule(_context.Device, existing, null);
     }
 
-    public void Delete(ResourceId id)
+    public void Delete(GraphicsId id)
     {
         if (!_modules.Remove(id, out var module))
             return;

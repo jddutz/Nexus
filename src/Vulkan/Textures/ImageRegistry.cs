@@ -2,11 +2,11 @@ namespace Nexus.Graphics.Vulkan.Textures;
 
 public class ImageRegistry : IImageRegistry
 {
-    private readonly Dictionary<ResourceId, ImageEntry> _images = [];
+    private readonly Dictionary<GraphicsId, ImageEntry> _images = [];
 
     private readonly record struct ImageEntry(Image Image, DeviceMemory Memory);
 
-    public VkImage Get(ResourceId id)
+    public VkImage Get(GraphicsId id)
     {
         throw new NotImplementedException();
     }
@@ -16,7 +16,7 @@ public class ImageRegistry : IImageRegistry
         throw new NotImplementedException();
     }
 
-    public void Release(ResourceId id)
+    public void Release(GraphicsId id)
     {
         throw new NotImplementedException();
     }

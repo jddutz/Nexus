@@ -6,8 +6,8 @@ namespace Nexus.Graphics.Vulkan.Rendering;
 /// </summary>
 public class RenderItem : IRenderItem
 {
-    private readonly Dictionary<RenderableId, byte[]> _instanceDataByRenderable = [];
-    private readonly List<RenderableId> _renderOrder = [];
+    private readonly Dictionary<GraphicsId, byte[]> _instanceDataByRenderable = [];
+    private readonly List<GraphicsId> _renderOrder = [];
     private byte[] _instanceData = [];
     private int _instanceStride;
     private int _instanceCount;
@@ -15,7 +15,7 @@ public class RenderItem : IRenderItem
     /// <summary>
     /// Gets the resource identifier for this render item.
     /// </summary>
-    public ResourceId Id { get; init; }
+    public GraphicsId Id { get; init; }
 
     /// <summary>
     /// Gets the render passes in which this item participates.
@@ -60,7 +60,7 @@ public class RenderItem : IRenderItem
     /// <summary>
     /// Adds all instance records produced by the specified renderable.
     /// </summary>
-    /// <param name="renderableId">The renderable identifier.</param>
+    /// <param name="graphicsId">The graphics identifier.</param>
     /// <param name="renderable">The renderable that writes its packed instance record.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="renderable"/> is <see langword="null"/>.</exception>
     /// <exception cref="ArgumentException">Thrown when the renderable already has a record or writes an invalid record size.</exception>
@@ -73,30 +73,30 @@ public class RenderItem : IRenderItem
     /// <summary>
     /// Adds all instance records produced by the specified renderable under its identity.
     /// </summary>
-    /// <param name="renderableId">The renderable identifier.</param>
+    /// <param name="graphicsId">The graphics identifier.</param>
     /// <param name="renderable">The renderable that writes its packed instance record.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="renderable"/> is <see langword="null"/>.</exception>
     /// <exception cref="ArgumentException">Thrown when the renderable already has a record or writes an invalid record size.</exception>
-    private void AddInstances(RenderableId renderableId, IRenderable renderable)
+    private void AddInstances(GraphicsId graphicsId, IRenderable renderable)
     {
         ArgumentNullException.ThrowIfNull(renderable);
 
-        if (_instanceDataByRenderable.ContainsKey(renderableId))
+        if (_instanceDataByRenderable.ContainsKey(graphicsId))
             throw new ArgumentException(
                 "Instance records already exist for this renderable.",
-                nameof(renderableId)
+                nameof(graphicsId)
             );
 
         var packedData = PackInstances(renderable);
-        _instanceDataByRenderable.Add(renderableId, packedData);
-        _renderOrder.Add(renderableId);
+        _instanceDataByRenderable.Add(graphicsId, packedData);
+        _renderOrder.Add(graphicsId);
         RebuildFlattenedData();
     }
 
     /// <summary>
     /// Replaces all existing instance records owned by the specified renderable.
     /// </summary>
-    /// <param name="renderableId">The renderable identifier.</param>
+    /// <param name="graphicsId">The graphics identifier.</param>
     /// <param name="renderable">The renderable that writes its replacement instance record.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="renderable"/> is <see langword="null"/>.</exception>
     /// <exception cref="KeyNotFoundException">Thrown when the renderable has no record.</exception>
@@ -110,32 +110,32 @@ public class RenderItem : IRenderItem
     /// <summary>
     /// Replaces all existing instance records owned by the specified renderable.
     /// </summary>
-    /// <param name="renderableId">The renderable identifier.</param>
+    /// <param name="graphicsId">The graphics identifier.</param>
     /// <param name="renderable">The renderable that writes its replacement instance record.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="renderable"/> is <see langword="null"/>.</exception>
     /// <exception cref="KeyNotFoundException">Thrown when the renderable has no record.</exception>
     /// <exception cref="ArgumentException">Thrown when the renderable writes a record whose size differs from <see cref="InstanceStride"/>.</exception>
-    private void UpdateInstances(RenderableId renderableId, IRenderable renderable)
+    private void UpdateInstances(GraphicsId graphicsId, IRenderable renderable)
     {
         ArgumentNullException.ThrowIfNull(renderable);
 
-        if (!_instanceDataByRenderable.ContainsKey(renderableId))
+        if (!_instanceDataByRenderable.ContainsKey(graphicsId))
             throw new KeyNotFoundException("The renderable has no instance records.");
 
-        _instanceDataByRenderable[renderableId] = PackInstances(renderable);
+        _instanceDataByRenderable[graphicsId] = PackInstances(renderable);
         RebuildFlattenedData();
     }
 
     /// <summary>
     /// Removes every instance record owned by the specified renderable.
     /// </summary>
-    /// <param name="renderableId">The identifier of the renderable whose records are removed.</param>
-    public void RemoveInstances(RenderableId renderableId)
+    /// <param name="graphicsId">The graphics identifier whose records are removed.</param>
+    public void RemoveInstances(GraphicsId graphicsId)
     {
-        if (!_instanceDataByRenderable.Remove(renderableId))
+        if (!_instanceDataByRenderable.Remove(graphicsId))
             return;
 
-        _renderOrder.Remove(renderableId);
+        _renderOrder.Remove(graphicsId);
         RebuildFlattenedData();
     }
 
@@ -170,9 +170,9 @@ public class RenderItem : IRenderItem
         var flattenedData = new byte[totalLength];
         var offset = 0;
 
-        foreach (var renderableId in _renderOrder)
+        foreach (var graphicsId in _renderOrder)
         {
-            var contribution = _instanceDataByRenderable[renderableId];
+            var contribution = _instanceDataByRenderable[graphicsId];
             contribution.CopyTo(flattenedData, offset);
             offset += contribution.Length;
         }

@@ -29,13 +29,16 @@ public class UniformColorMeshRenderer()
     /// </summary>
     public IReadOnlyList<IRenderable> Renderables => [this];
 
+    /// <inheritdoc/>
+    GraphicsId IRenderable.Id => Id;
+
     IVertexDataSource IRenderable.Vertices => Mesh.Source;
 
     ITexture IRenderable.Texture => global::Nexus.Graphics.Textures.Texture.Uniform;
 
     IInstanceDataSource IRenderable.Instances => this;
 
-    ResourceId IInstanceDataSource.Id =>
+    GraphicsId IInstanceDataSource.Id =>
         new IdentityHashBuilder(nameof(UniformColorMeshRenderer)).Add(Id).Compute();
 
     ulong IInstanceDataSource.Count => 1;

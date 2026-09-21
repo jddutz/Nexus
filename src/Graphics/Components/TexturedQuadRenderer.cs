@@ -51,13 +51,16 @@ public class TexturedQuadRenderer
     /// </summary>
     public IReadOnlyList<IRenderable> Renderables => [this];
 
+    /// <inheritdoc/>
+    GraphicsId IRenderable.Id => Id;
+
     IVertexDataSource IRenderable.Vertices => Mesh.Source;
 
     ITexture IRenderable.Texture => _texture ?? global::Nexus.Graphics.Textures.Texture.Invalid;
 
     IInstanceDataSource IRenderable.Instances => this;
 
-    ResourceId IInstanceDataSource.Id =>
+    GraphicsId IInstanceDataSource.Id =>
         new IdentityHashBuilder(nameof(TexturedQuadRenderer)).Add(Id).Compute();
 
     ulong IInstanceDataSource.Count => 1;

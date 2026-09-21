@@ -6,7 +6,7 @@ public interface IRenderable
     /// <summary>
     /// Gets the unique identifier of the renderable.
     /// </summary>
-    RenderableId Id { get; }
+    GraphicsId Id { get; }
 
     /// <summary>
     /// Gets the vertex data used to define the renderable's geometry.

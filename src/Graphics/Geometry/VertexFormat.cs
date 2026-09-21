@@ -16,7 +16,7 @@ public sealed class VertexFormat
     public uint Stride { get; }
 
     /// <summary>Gets the identity of this vertex buffer layout.</summary>
-    public ResourceId Id { get; }
+    public GraphicsId Id { get; }
 
     /// <summary>Initializes a vertex buffer layout.</summary>
     /// <param name="inputs">The vertex attributes in their buffer order.</param>

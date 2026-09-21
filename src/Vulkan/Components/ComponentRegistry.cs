@@ -33,8 +33,8 @@ public class ComponentRegistry(
     private const string UNIFORM_COLOR_PIPELINE_NAME = "UniformColorMesh";
     private const string TEXTURED_QUAD_PIPELINE_NAME = "TexturedQuad";
     private readonly Dictionary<ComponentId, ComponentRegistration> _components = [];
-    private readonly Dictionary<ResourceId, RenderItem> _renderItems = [];
-    private readonly Dictionary<ResourceId, VkBuffer[]> _uniformBuffers = [];
+    private readonly Dictionary<GraphicsId, RenderItem> _renderItems = [];
+    private readonly Dictionary<GraphicsId, VkBuffer[]> _uniformBuffers = [];
 
     private readonly IMeshFactory _meshFactory = meshFactory;
     private readonly IBufferManager _bufferManager = bufferManager;
@@ -162,7 +162,7 @@ public class ComponentRegistry(
     /// <param name="component">The mesh renderer that defines the item geometry.</param>
     /// <param name="id">The identifier of the render item to create.</param>
     /// <returns>A configured render item.</returns>
-    private RenderItem Create(UniformColorMeshRenderer component, ResourceId id)
+    private RenderItem Create(UniformColorMeshRenderer component, GraphicsId id)
     {
         var mesh = component.Mesh;
         var vertexShader = BuiltInShaders.UniformColorVertexShader;
@@ -253,7 +253,7 @@ public class ComponentRegistry(
     /// <param name="component">The textured quad renderer that defines the item geometry and texture.</param>
     /// <param name="id">The identifier of the render item to create.</param>
     /// <returns>A configured render item.</returns>
-    private RenderItem Create(TexturedQuadRenderer component, ResourceId id)
+    private RenderItem Create(TexturedQuadRenderer component, GraphicsId id)
     {
         var texture =
             component.Texture

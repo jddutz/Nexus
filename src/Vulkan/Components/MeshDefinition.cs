@@ -8,7 +8,7 @@ public sealed class MeshDefinition : IResourceDefinition
     /// <summary>
     /// Gets the identity of the source mesh data and vertex format.
     /// </summary>
-    public ResourceId Id { get; }
+    public GraphicsId Id { get; }
 
     /// <summary>
     /// Gets the packed vertex bytes.
@@ -33,7 +33,7 @@ public sealed class MeshDefinition : IResourceDefinition
     /// <param name="vertexData">The packed vertex bytes.</param>
     /// <param name="vertexCount">The number of packed vertices.</param>
     public MeshDefinition(
-        ResourceId sourceId,
+        GraphicsId sourceId,
         VertexFormat format,
         ReadOnlyMemory<byte> vertexData,
         ulong vertexCount
@@ -50,10 +50,7 @@ public sealed class MeshDefinition : IResourceDefinition
             );
         }
 
-        Id = new IdentityHashBuilder(nameof(MeshDefinition))
-            .Add(sourceId)
-            .Add(format.Id)
-            .Compute();
+        Id = new IdentityHashBuilder(nameof(MeshDefinition)).Add(sourceId).Add(format.Id).Compute();
         VertexData = vertexData;
         VertexCount = vertexCount;
         VertexStride = format.Stride;

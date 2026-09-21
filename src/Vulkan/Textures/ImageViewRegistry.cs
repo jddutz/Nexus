@@ -7,17 +7,17 @@ public class ImageViewRegistry : IImageViewRegistry
         throw new NotImplementedException();
     }
 
-    public ImageView Get(ResourceId id)
+    public ImageView Get(GraphicsId id)
     {
         throw new NotImplementedException();
     }
 
-    public ImageView GetOrCreate(ResourceId id, Image image, Format format)
+    public ImageView GetOrCreate(GraphicsId id, Image image, Format format)
     {
         throw new NotImplementedException();
     }
 
-    public void Release(ResourceId id)
+    public void Release(GraphicsId id)
     {
         throw new NotImplementedException();
     }

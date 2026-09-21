@@ -4,7 +4,7 @@ namespace Nexus.Graphics.Shaders;
 public sealed record VertexShader : IShaderContract
 {
     /// <summary>Gets the stable identifier derived from the shader contract.</summary>
-    public ResourceId Id { get; }
+    public GraphicsId Id { get; }
 
     /// <summary>Gets the display name of the shader.</summary>
     public string Name { get; }

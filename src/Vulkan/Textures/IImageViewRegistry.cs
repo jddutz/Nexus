@@ -2,9 +2,9 @@ namespace Nexus.Graphics.Vulkan.Textures;
 
 public interface IImageViewRegistry : IDisposable
 {
-    ImageView GetOrCreate(ResourceId id, Image image, Format format);
+    ImageView GetOrCreate(GraphicsId id, Image image, Format format);
 
-    ImageView Get(ResourceId id);
+    ImageView Get(GraphicsId id);
 
-    void Release(ResourceId id);
+    void Release(GraphicsId id);
 }

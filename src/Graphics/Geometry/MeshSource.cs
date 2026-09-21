@@ -4,7 +4,7 @@ public sealed class MeshSource : IVertexDataSource
 {
     private readonly Vertex[] _vertices;
 
-    public ResourceId Id { get; }
+    public GraphicsId Id { get; }
     public ulong Count => (ulong)_vertices.Length;
 
     public MeshSource(Vertex[] vertices)

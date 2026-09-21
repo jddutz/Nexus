@@ -10,26 +10,26 @@ public interface IMeshFactory
     /// </summary>
     /// <param name="definition">The packed mesh data to upload.</param>
     /// <returns>The identifier of the created mesh resource.</returns>
-    ResourceId Create(MeshDefinition definition);
+    GraphicsId Create(MeshDefinition definition);
 
     /// <summary>
     /// Gets the Vulkan vertex buffer for a mesh resource.
     /// </summary>
     /// <param name="id">The mesh resource identifier.</param>
     /// <returns>The Vulkan vertex buffer.</returns>
-    VkBuffer ReadBuffer(ResourceId id);
+    VkBuffer ReadBuffer(GraphicsId id);
 
     /// <summary>
     /// Gets the vertex count for a mesh resource.
     /// </summary>
     /// <param name="id">The mesh resource identifier.</param>
     /// <returns>The vertex count.</returns>
-    uint ReadVertexCount(ResourceId id);
+    uint ReadVertexCount(GraphicsId id);
 
     /// <summary>
     /// Deletes a mesh resource when it exists.
     /// </summary>
     /// <param name="id">The mesh resource identifier.</param>
     /// <returns>The deleted mesh resource identifier.</returns>
-    ResourceId Delete(ResourceId id);
+    GraphicsId Delete(GraphicsId id);
 }
