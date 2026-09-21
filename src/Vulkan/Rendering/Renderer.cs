@@ -57,23 +57,15 @@ public unsafe class Renderer(
     /// <returns><see langword="true"/> when recording can begin; otherwise, <see langword="false"/>.</returns>
     public bool Begin()
     {
-        try
-        {
-            if (!CanRender())
-                return false;
-
-            if (!PrepareFrame())
-                return false;
-
-            BeforeRendering?.Invoke(this, new RenderEventArgs(_imageIndex));
-
-            return BeginCommandBuffer();
-        }
-        catch (Exception exception)
-        {
-            HandleRenderFailure(exception);
+        if (!CanRender())
             return false;
-        }
+
+        if (!PrepareFrame())
+            return false;
+
+        BeforeRendering?.Invoke(this, new RenderEventArgs(_imageIndex));
+
+        return BeginCommandBuffer();
     }
 
     /// <summary>Records a render batch into the current command buffer.</summary>
@@ -82,75 +74,54 @@ public unsafe class Renderer(
     {
         ArgumentNullException.ThrowIfNull(batch);
 
-        try
+        _imageRegistry.TransitionToShaderReadOnly(_commandBuffer);
+        ValidateRenderPasses(batch);
+
+        var viewport = batch.Viewport;
+        _context.VulkanApi.CmdSetViewport(_commandBuffer, 0, 1, &viewport);
+
+        var scissor = batch.Scissor;
+        _context.VulkanApi.CmdSetScissor(_commandBuffer, 0, 1, &scissor);
+
+        foreach (var pass in batch.RenderPasses)
         {
-            _imageRegistry.TransitionToShaderReadOnly(_commandBuffer);
-            ValidateRenderPasses(batch);
+            if (!pass.ShouldRender)
+                continue;
 
-            var viewport = batch.Viewport;
-            _context.VulkanApi.CmdSetViewport(_commandBuffer, 0, 1, &viewport);
+            var clearValues = pass.ClearValues;
 
-            var scissor = batch.Scissor;
-            _context.VulkanApi.CmdSetScissor(_commandBuffer, 0, 1, &scissor);
-
-            foreach (var pass in batch.RenderPasses)
+            fixed (ClearValue* clearValuesPointer = clearValues)
             {
-                if (!pass.ShouldRender)
-                    continue;
-
-                var clearValues = pass.ClearValues;
-
-                fixed (ClearValue* clearValuesPointer = clearValues)
-                {
-                    BeginRenderPass(
-                        RenderPasses.GetIndex(pass.RenderPass),
-                        (uint)clearValues.Length,
-                        clearValuesPointer
-                    );
-                }
-
-                ulong lastPipelineId = 0;
-
-                foreach (var command in batch.Items)
-                {
-                    if ((command.RenderPassMask & pass.RenderPass) != 0)
-                        Draw(command, RenderPasses.GetIndex(pass.RenderPass), ref lastPipelineId);
-                }
-
-                _context.VulkanApi.CmdEndRenderPass(_commandBuffer);
+                BeginRenderPass(
+                    RenderPasses.GetIndex(pass.RenderPass),
+                    (uint)clearValues.Length,
+                    clearValuesPointer
+                );
             }
-        }
-        catch (Exception exception)
-        {
-            HandleRenderFailure(exception);
+
+            ulong lastPipelineId = 0;
+
+            foreach (var command in batch.Items)
+            {
+                if ((command.RenderPassMask & pass.RenderPass) != 0)
+                    Draw(command, RenderPasses.GetIndex(pass.RenderPass), ref lastPipelineId);
+            }
+
+            _context.VulkanApi.CmdEndRenderPass(_commandBuffer);
         }
     }
 
     /// <summary>Ends command recording, submits the frame, and presents the rendered image.</summary>
     public void Submit()
     {
-        try
-        {
-            if (_context.VulkanApi.EndCommandBuffer(_commandBuffer) != Result.Success)
-                throw new InvalidOperationException("Failed to end command buffer recording.");
+        if (_context.VulkanApi.EndCommandBuffer(_commandBuffer) != Result.Success)
+            throw new InvalidOperationException("Failed to end command buffer recording.");
 
-            SubmitFrame();
-            PresentFrame();
-            AfterRendering?.Invoke(this, new RenderEventArgs(_imageIndex));
+        SubmitFrame();
+        PresentFrame();
+        AfterRendering?.Invoke(this, new RenderEventArgs(_imageIndex));
 
-            _currentFrameIndex = (_currentFrameIndex + 1) % _syncManager.MaxFramesInFlight;
-        }
-        catch (Exception exception)
-        {
-            HandleRenderFailure(exception);
-        }
-    }
-
-    private void HandleRenderFailure(Exception exception)
-    {
-        _logger.LogError(exception, "Vulkan rendering failed; closing the window.");
-        _context.Window.Close();
-        throw exception;
+        _currentFrameIndex = (_currentFrameIndex + 1) % _syncManager.MaxFramesInFlight;
     }
 
     /// <summary>
@@ -245,8 +216,12 @@ public unsafe class Renderer(
         };
 
         var result = _context.VulkanApi.BeginCommandBuffer(_commandBuffer, &beginInfo);
+        if (result != Result.Success)
+            throw new InvalidOperationException(
+                $"Failed to begin command buffer recording: {result}"
+            );
 
-        return result == Result.Success;
+        return true;
     }
 
     /// <summary>Begins the selected swap-chain render pass.</summary>
