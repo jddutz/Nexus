@@ -143,7 +143,7 @@ public unsafe class VertexBufferRegistry(Context context, ILogger<VertexBufferRe
         return buffer;
     }
 
-    public VkBuffer Acquire(IRenderable renderable)
+    public VkBuffer Acquire(IDrawable renderable)
     {
         ArgumentNullException.ThrowIfNull(renderable);
 

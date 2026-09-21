@@ -8,7 +8,7 @@ namespace Nexus.Graphics.Components;
 public class TexturedQuadRenderer
     : Component,
         IGraphicsComponent,
-        IRenderable,
+        IDrawable,
         IInstanceDataSource,
         IMeshInstance
 {
@@ -50,31 +50,31 @@ public class TexturedQuadRenderer
     /// <summary>
     /// Gets the single renderable contribution produced by this component.
     /// </summary>
-    public IReadOnlyList<IRenderable> Renderables => [this];
+    public IReadOnlyList<IDrawable> Renderables => [this];
 
     /// <inheritdoc/>
-    RenderableId IRenderable.Id => new(Id.Value);
+    DrawableId IDrawable.Id => new(Id.Value);
 
-    Mesh IRenderable.Mesh => Mesh;
+    Mesh IDrawable.Mesh => Mesh;
 
-    ITexture IRenderable.Texture => _texture ?? global::Nexus.Graphics.Textures.Texture.Invalid;
+    ITexture IDrawable.Texture => _texture ?? global::Nexus.Graphics.Textures.Texture.Invalid;
 
-    IInstanceDataSource IRenderable.Instances => this;
+    IInstanceDataSource IDrawable.Instances => this;
 
-    RenderableId IInstanceDataSource.Id =>
+    DrawableId IInstanceDataSource.Id =>
         new IdentityHashBuilder(nameof(TexturedQuadRenderer)).Add(Id).Compute();
 
     ulong IInstanceDataSource.Count => 1;
 
-    VertexShader? IRenderable.VertexShader => BuiltInShaders.TexturedQuadVertexShader;
+    VertexShader? IDrawable.VertexShader => BuiltInShaders.TexturedQuadVertexShader;
 
-    IShaderContract? IRenderable.TessellationControlShader => null;
+    IShaderContract? IDrawable.TessellationControlShader => null;
 
-    IShaderContract? IRenderable.TessellationEvalShader => null;
+    IShaderContract? IDrawable.TessellationEvalShader => null;
 
-    IShaderContract? IRenderable.GeometryShader => null;
+    IShaderContract? IDrawable.GeometryShader => null;
 
-    FragmentShader? IRenderable.FragmentShader => BuiltInShaders.TexturedQuadFragmentShader;
+    FragmentShader? IDrawable.FragmentShader => BuiltInShaders.TexturedQuadFragmentShader;
 
     /// <summary>Gets the number of packed instance records contributed by this component.</summary>
     public int InstanceCount => 1;
@@ -137,7 +137,7 @@ public class TexturedQuadRenderer
         set => SetProperty(ref _view, value);
     }
 
-    ReadOnlyMemory<byte> IRenderable.GetUniformData(ShaderInput[] layout)
+    ReadOnlyMemory<byte> IDrawable.GetUniformData(ShaderInput[] layout)
     {
         ArgumentNullException.ThrowIfNull(layout);
         if (layout.Length != 1 || layout[0] is not { Semantic: InputSemantics.View, Size: 64 })

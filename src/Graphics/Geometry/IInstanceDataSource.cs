@@ -2,7 +2,7 @@ namespace Nexus.Graphics.Geometry;
 
 public interface IInstanceDataSource
 {
-    RenderableId Id { get; }
+    DrawableId Id { get; }
     ulong Count { get; }
 
     ReadOnlyMemory<byte> GetInstanceData(ShaderInput[] layout);

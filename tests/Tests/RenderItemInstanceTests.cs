@@ -92,7 +92,7 @@ public class RenderItemInstanceTests
         item.AddInstances(removed);
         item.AddInstances(new TestRenderable(10, 20));
 
-        item.RemoveInstances(((IRenderable)removed).Id);
+        item.RemoveInstances(((IDrawable)removed).Id);
 
         Assert.Equal(2u, item.InstanceCount);
         Assert.Equal([10, 20], ReadValues(item));
@@ -106,7 +106,7 @@ public class RenderItemInstanceTests
         var component = new TestRenderable(1, 2, 3);
         oldItem.AddInstances(component);
 
-        oldItem.RemoveInstances(((IRenderable)component).Id);
+        oldItem.RemoveInstances(((IDrawable)component).Id);
         newItem.AddInstances(component);
 
         Assert.Equal(0u, oldItem.InstanceCount);
@@ -148,35 +148,34 @@ public class RenderItemInstanceTests
 
     private sealed class TestRenderable(params int[] values)
         : Component,
-            IRenderable,
+            IDrawable,
             IInstanceDataSource
     {
         public int[] Values { get; set; } = values;
 
-        RenderableId IRenderable.Id => new(Id.Value);
+        DrawableId IDrawable.Id => new(Id.Value);
 
-        Mesh IRenderable.Mesh => BuiltInMesh.Empty;
+        Mesh IDrawable.Mesh => BuiltInMesh.Empty;
 
-        ITexture IRenderable.Texture => Texture.Uniform;
+        ITexture IDrawable.Texture => Texture.Uniform;
 
-        ISamplingBehavior IRenderable.SamplingBehavior => SamplingBehaviors.Smooth;
+        ISamplingBehavior IDrawable.SamplingBehavior => SamplingBehaviors.Smooth;
 
-        ReadOnlyMemory<byte> IRenderable.GetUniformData(ShaderInput[] layout) =>
-            Array.Empty<byte>();
+        ReadOnlyMemory<byte> IDrawable.GetUniformData(ShaderInput[] layout) => Array.Empty<byte>();
 
-        IInstanceDataSource IRenderable.Instances => this;
+        IInstanceDataSource IDrawable.Instances => this;
 
-        VertexShader? IRenderable.VertexShader => BuiltInShaders.UniformColorVertexShader;
+        VertexShader? IDrawable.VertexShader => BuiltInShaders.UniformColorVertexShader;
 
-        IShaderContract? IRenderable.TessellationControlShader => null;
+        IShaderContract? IDrawable.TessellationControlShader => null;
 
-        IShaderContract? IRenderable.TessellationEvalShader => null;
+        IShaderContract? IDrawable.TessellationEvalShader => null;
 
-        IShaderContract? IRenderable.GeometryShader => null;
+        IShaderContract? IDrawable.GeometryShader => null;
 
-        FragmentShader? IRenderable.FragmentShader => BuiltInShaders.UniformColorFragmentShader;
+        FragmentShader? IDrawable.FragmentShader => BuiltInShaders.UniformColorFragmentShader;
 
-        RenderableId IInstanceDataSource.Id =>
+        DrawableId IInstanceDataSource.Id =>
             new IdentityHashBuilder(nameof(TestRenderable)).Add(Id).Compute();
 
         ulong IInstanceDataSource.Count => (ulong)Values.Length;

@@ -19,7 +19,7 @@ public class StaticCamera : Component, ICameraComponent
     private bool _visibleRectDirty = true;
 
     /// <summary>Gets the renderable contributions produced by this camera.</summary>
-    public IReadOnlyList<IRenderable> Renderables => [];
+    public IReadOnlyList<IDrawable> Renderables => [];
 
     /// <summary>
     /// Initializes a new instance of the <see cref="StaticCamera"/> class with a default 1x1

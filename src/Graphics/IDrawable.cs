@@ -1,12 +1,14 @@
+namespace Nexus.Graphics;
+
 /// <summary>
 /// Defines the geometry, resource, instance, and shader data required to render an object.
 /// </summary>
-public interface IRenderable
+public interface IDrawable
 {
     /// <summary>
     /// Gets the unique identifier of the renderable.
     /// </summary>
-    RenderableId Id { get; }
+    DrawableId Id { get; }
 
     /// <summary>
     /// Gets the mesh rendered by the renderable.

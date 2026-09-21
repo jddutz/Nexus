@@ -2,7 +2,7 @@ namespace Nexus.Graphics.Vulkan.Geometry;
 
 public interface IVertexBufferRegistry : IDisposable
 {
-    VkBuffer Acquire(IRenderable renderable);
+    VkBuffer Acquire(IDrawable renderable);
 
     VkBuffer Get(MeshId meshId, VertexFormatId formatId);
 

@@ -19,7 +19,7 @@ public class OrthoCamera : Component, ICameraComponent
     private bool _viewProjectionDirty = true;
 
     /// <summary>Gets the renderable contributions produced by this camera.</summary>
-    public IReadOnlyList<IRenderable> Renderables => [];
+    public IReadOnlyList<IDrawable> Renderables => [];
 
     /// <summary>
     /// Initializes a new instance of the <see cref="OrthoCamera"/> class and computes its initial matrices.

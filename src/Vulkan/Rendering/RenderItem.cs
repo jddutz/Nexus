@@ -6,8 +6,8 @@ namespace Nexus.Graphics.Vulkan.Rendering;
 /// </summary>
 public class RenderItem : IRenderItem
 {
-    private readonly Dictionary<RenderableId, byte[]> _instanceDataByRenderable = [];
-    private readonly List<RenderableId> _renderOrder = [];
+    private readonly Dictionary<DrawableId, byte[]> _instanceDataByRenderable = [];
+    private readonly List<DrawableId> _renderOrder = [];
     private byte[] _instanceData = [];
     private int _instanceStride;
     private int _instanceCount;
@@ -15,7 +15,7 @@ public class RenderItem : IRenderItem
     /// <summary>
     /// Gets the resource identifier for this render item.
     /// </summary>
-    public RenderableId Id { get; init; }
+    public DrawableId Id { get; init; }
 
     /// <summary>
     /// Gets the render passes in which this item participates.
@@ -64,7 +64,7 @@ public class RenderItem : IRenderItem
     /// <param name="renderable">The renderable that writes its packed instance record.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="renderable"/> is <see langword="null"/>.</exception>
     /// <exception cref="ArgumentException">Thrown when the renderable already has a record or writes an invalid record size.</exception>
-    public void AddInstances(IRenderable renderable)
+    public void AddInstances(IDrawable renderable)
     {
         ArgumentNullException.ThrowIfNull(renderable);
         AddInstances(renderable.Id, renderable);
@@ -77,7 +77,7 @@ public class RenderItem : IRenderItem
     /// <param name="renderable">The renderable that writes its packed instance record.</param>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="renderable"/> is <see langword="null"/>.</exception>
     /// <exception cref="ArgumentException">Thrown when the renderable already has a record or writes an invalid record size.</exception>
-    private void AddInstances(RenderableId graphicsId, IRenderable renderable)
+    private void AddInstances(DrawableId graphicsId, IDrawable renderable)
     {
         ArgumentNullException.ThrowIfNull(renderable);
 
@@ -101,7 +101,7 @@ public class RenderItem : IRenderItem
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="renderable"/> is <see langword="null"/>.</exception>
     /// <exception cref="KeyNotFoundException">Thrown when the renderable has no record.</exception>
     /// <exception cref="ArgumentException">Thrown when the renderable writes a record whose size differs from <see cref="InstanceStride"/>.</exception>
-    public void UpdateInstances(IRenderable renderable)
+    public void UpdateInstances(IDrawable renderable)
     {
         ArgumentNullException.ThrowIfNull(renderable);
         UpdateInstances(renderable.Id, renderable);
@@ -115,7 +115,7 @@ public class RenderItem : IRenderItem
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="renderable"/> is <see langword="null"/>.</exception>
     /// <exception cref="KeyNotFoundException">Thrown when the renderable has no record.</exception>
     /// <exception cref="ArgumentException">Thrown when the renderable writes a record whose size differs from <see cref="InstanceStride"/>.</exception>
-    private void UpdateInstances(RenderableId graphicsId, IRenderable renderable)
+    private void UpdateInstances(DrawableId graphicsId, IDrawable renderable)
     {
         ArgumentNullException.ThrowIfNull(renderable);
 
@@ -130,7 +130,7 @@ public class RenderItem : IRenderItem
     /// Removes every instance record owned by the specified renderable.
     /// </summary>
     /// <param name="graphicsId">The graphics identifier whose records are removed.</param>
-    public void RemoveInstances(RenderableId graphicsId)
+    public void RemoveInstances(DrawableId graphicsId)
     {
         if (!_instanceDataByRenderable.Remove(graphicsId))
             return;
@@ -142,7 +142,7 @@ public class RenderItem : IRenderItem
     /// <summary>
     /// Packs every instance currently produced by a renderable into one contribution.
     /// </summary>
-    private byte[] PackInstances(IRenderable renderable)
+    private byte[] PackInstances(IDrawable renderable)
     {
         var source = renderable.Instances;
         var count = checked((int)source.Count);
