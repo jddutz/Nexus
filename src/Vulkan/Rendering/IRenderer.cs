@@ -6,20 +6,22 @@ namespace Nexus.Graphics.Vulkan.Rendering;
 public interface IRenderer
 {
     /// <summary>
-    /// Gets or sets the current set of RenderDefinitions for rendering.
+    /// Prepares the renderer to record a new frame.
     /// </summary>
-    VulkanRenderLayer[] Layers { get; set; }
+    /// <returns>
+    /// <see langword="true"/> if the frame was acquired and command recording can begin;
+    /// otherwise, <see langword="false"/>.
+    /// </returns>
+    bool Begin();
 
     /// <summary>
-    /// Determines whether the renderer is configured and able to execute rendering.
+    /// Records the commands required to render a batch into the current command buffer.
     /// </summary>
-    /// <returns><see langword="true"/> if the renderer can execute rendering; otherwise, <see langword="false"/>.</returns>
-    bool CanRender();
+    /// <param name="batch">The batch of render state, passes, and items to record.</param>
+    void Record(IRenderBatch batch);
 
     /// <summary>
-    /// Executes the rendering pipeline for the current frame.
+    /// Ends command recording and submits the current frame to the graphics queue.
     /// </summary>
-    /// <returns><see langword="true"/> if the rendering pipeline was successfully executed;
-    /// otherwise, <see langword="false"/>.</returns>
-    bool Render();
+    void Submit();
 }

@@ -10,14 +10,15 @@ namespace Nexus.Graphics.Vulkan.Rendering;
 /// <param name="syncManager">The synchronization manager for frames and swap-chain images.</param>
 /// <param name="pipelineManager">The pipeline registry used to resolve pipeline state.</param>
 /// <param name="logger">The logger used to record rendering failures.</param>
-public unsafe class Renderer(
+[Obsolete("To be replaced by a new Renderer")]
+public unsafe class Renderer_old(
     Context context,
     ISwapChain swapChain,
     ISyncManager syncManager,
     IPipelineRegistry pipelineManager,
     IImageRegistry imageRegistry,
     ILogger<Renderer> logger
-) : IRenderer, IDisposable
+) : IDisposable
 {
     private const string VK_CONTEXT_NULL = "Vulkan _context has not been initialized yet.";
 
@@ -53,10 +54,13 @@ public unsafe class Renderer(
         && _swapChain.SwapchainExtent.Width > 0
         && _swapChain.SwapchainExtent.Height > 0;
 
-    /// <summary>Acquires the next swap-chain image and begins command recording.</summary>
-    /// <returns><see langword="true"/> when recording can begin; otherwise, <see langword="false"/>.</returns>
-    public bool Begin()
+    /// <summary>Acquires, records, submits, and presents one frame.</summary>
+    /// <param name="batch">The render batch to execute.</param>
+    /// <returns><see langword="true"/> when the frame was rendered; otherwise, <see langword="false"/>.</returns>
+    public bool Render(IRenderBatch batch)
     {
+        ArgumentNullException.ThrowIfNull(batch);
+
         try
         {
             if (!CanRender())
@@ -67,33 +71,21 @@ public unsafe class Renderer(
 
             BeforeRendering?.Invoke(this, new RenderEventArgs(_imageIndex));
 
-            return BeginCommandBuffer();
-        }
-        catch (Exception exception)
-        {
-            HandleRenderFailure(exception);
-            return false;
-        }
-    }
+            if (!BeginCommandBuffer())
+                return false;
 
-    /// <summary>Records a render batch into the current command buffer.</summary>
-    /// <param name="batch">The render batch to record.</param>
-    public void Record(IRenderBatch batch)
-    {
-        ArgumentNullException.ThrowIfNull(batch);
-
-        try
-        {
             _imageRegistry.TransitionToShaderReadOnly(_commandBuffer);
-            ValidateRenderPasses(batch);
 
-            var viewport = batch.Viewport;
+            var layer = batch;
+            ValidateRenderPasses(layer);
+
+            var viewport = layer.Viewport;
             _context.VulkanApi.CmdSetViewport(_commandBuffer, 0, 1, &viewport);
 
-            var scissor = batch.Scissor;
+            var scissor = layer.Scissor;
             _context.VulkanApi.CmdSetScissor(_commandBuffer, 0, 1, &scissor);
 
-            foreach (var pass in batch.RenderPasses)
+            foreach (var pass in layer.RenderPasses)
             {
                 if (!pass.ShouldRender)
                     continue;
@@ -111,7 +103,7 @@ public unsafe class Renderer(
 
                 ulong lastPipelineId = 0;
 
-                foreach (var command in batch.Items)
+                foreach (var command in layer.Items)
                 {
                     if ((command.RenderPassMask & pass.RenderPass) != 0)
                         Draw(command, RenderPasses.GetIndex(pass.RenderPass), ref lastPipelineId);
@@ -119,20 +111,13 @@ public unsafe class Renderer(
 
                 _context.VulkanApi.CmdEndRenderPass(_commandBuffer);
             }
-        }
-        catch (Exception exception)
-        {
-            HandleRenderFailure(exception);
-        }
-    }
 
-    /// <summary>Ends command recording, submits the frame, and presents the rendered image.</summary>
-    public void Submit()
-    {
-        try
-        {
             if (_context.VulkanApi.EndCommandBuffer(_commandBuffer) != Result.Success)
-                throw new InvalidOperationException("Failed to end command buffer recording.");
+            {
+                // TODO: Clean up allocated resources before exiting
+                // so the CommandBuffer and sync fence can be released
+                return false;
+            }
 
             SubmitFrame();
             PresentFrame();
@@ -142,15 +127,12 @@ public unsafe class Renderer(
         }
         catch (Exception exception)
         {
-            HandleRenderFailure(exception);
+            _logger.LogError(exception, "Vulkan rendering failed; closing the window.");
+            _context.Window.Close();
+            throw;
         }
-    }
 
-    private void HandleRenderFailure(Exception exception)
-    {
-        _logger.LogError(exception, "Vulkan rendering failed; closing the window.");
-        _context.Window.Close();
-        throw exception;
+        return true;
     }
 
     /// <summary>

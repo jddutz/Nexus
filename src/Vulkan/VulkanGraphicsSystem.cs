@@ -41,6 +41,8 @@ public unsafe class VulkanGraphicsSystem(
 
     private readonly record struct SampledImage(ImageView ImageView, Sampler Sampler);
 
+    private RenderBatch[] _batches = [];
+
     /// <summary>
     /// Initializes the graphics system and records the current Vulkan state.
     /// </summary>
@@ -50,7 +52,7 @@ public unsafe class VulkanGraphicsSystem(
 
         _logger.LogDebug(
             "Initializing Vulkan graphics system. ExistingRenderLayerCount={RenderLayerCount}",
-            _renderer.Layers.Count()
+            _batches.Length
         );
 
         _logger.LogInformation(
@@ -345,7 +347,7 @@ public unsafe class VulkanGraphicsSystem(
     private void AddRenderItem(RenderItem renderItem)
     {
         EnsureDefaultRenderLayer();
-        var layer = _renderer.Layers[0];
+        var layer = _batches[0];
         if (!layer.Items.Contains(renderItem))
             layer.Items.Add(renderItem);
     }
@@ -384,7 +386,7 @@ public unsafe class VulkanGraphicsSystem(
             return;
 
         _renderItems.Remove(renderItem.Id);
-        foreach (var layer in _renderer.Layers)
+        foreach (var layer in _batches)
             layer.Items.Remove(renderItem);
 
         _vertexBufferRegistry.Release(renderable.Mesh.Id);
@@ -464,7 +466,7 @@ public unsafe class VulkanGraphicsSystem(
     /// </summary>
     private void EnsureDefaultRenderLayer()
     {
-        if (_renderer.Layers.Any())
+        if (_batches.Any())
             return;
 
         var extent = _swapChain.SwapchainExtent;
@@ -477,7 +479,7 @@ public unsafe class VulkanGraphicsSystem(
             RenderPasses.GetName(RenderPasses.Main)
         );
 
-        var layer = new VulkanRenderLayer
+        var layer = new RenderBatch
         {
             LoadOp = AttachmentLoadOp.Load,
             Viewport = new()
@@ -502,11 +504,11 @@ public unsafe class VulkanGraphicsSystem(
             Items = [],
         };
 
-        _renderer.Layers = [layer];
+        _batches = [layer];
 
         _logger.LogInformation(
             $"Default Vulkan render layer created. "
-                + $"LayerCount={_renderer.Layers.Count()}, "
+                + $"LayerCount={_batches.Length}, "
                 + $"RenderPassCount={layer.RenderPasses.Length}, "
                 + $"RenderItemCount={layer.Items.Count}"
         );
@@ -519,11 +521,17 @@ public unsafe class VulkanGraphicsSystem(
     {
         try
         {
-            _renderer.Render();
+            if (!_renderer.Begin())
+                return;
+
+            foreach (var batch in _batches)
+                _renderer.Record(batch);
+
+            _renderer.Submit();
         }
         catch (Exception exception)
         {
-            _logger.LogError(exception, "Vulkan graphics system failed to render a frame.");
+            _logger.LogError(exception, "Vulkan graphics system rendering failed.");
             throw;
         }
     }

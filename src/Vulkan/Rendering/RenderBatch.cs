@@ -1,12 +1,16 @@
-using VkViewport = Silk.NET.Vulkan.Viewport;
-
-namespace Nexus.Graphics.Vulkan;
+namespace Nexus.Graphics.Vulkan.Rendering;
 
 /// <summary>
 /// Defines the render state and active passes for a rendering operation.
 /// </summary>
-public class VulkanRenderLayer
+public class RenderBatch : IRenderBatch
 {
+    /// </inheritdocs>
+    public RenderItemId Add(RenderItem renderItem)
+    {
+        return RenderItemId.Invalid;
+    }
+
     /// <summary>
     /// Gets or sets the load operation for the render target.
     /// </summary>
