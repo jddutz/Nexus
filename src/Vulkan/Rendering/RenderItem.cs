@@ -149,7 +149,10 @@ public class RenderItem : IRenderItem
         if (count <= 0)
             return [];
 
-        var packedData = source.GetInstanceData(renderable.VertexShader.InstanceLayout).ToArray();
+        if (renderable.VertexShader is not { } vertexShader)
+            return [];
+
+        var packedData = source.GetInstanceData(vertexShader.InstanceLayout).ToArray();
         if (packedData.Length == 0 || packedData.Length % count != 0)
             throw new ArgumentException(
                 "Instance data must contain a complete record for every instance.",

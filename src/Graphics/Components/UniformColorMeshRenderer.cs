@@ -43,9 +43,17 @@ public class UniformColorMeshRenderer()
 
     ulong IInstanceDataSource.Count => 1;
 
-    VertexShader IRenderable.VertexShader => BuiltInShaders.UniformColorVertexShader;
+    VertexShader? IRenderable.VertexShader => BuiltInShaders.UniformColorVertexShader;
 
-    FragmentShader IRenderable.FragmentShader => BuiltInShaders.UniformColorFragmentShader;
+    IShaderContract? IRenderable.TessellationControlShader => null;
+
+    IShaderContract? IRenderable.TessellationEvalShader => null;
+
+    IShaderContract? IRenderable.GeometryShader => null;
+
+    FragmentShader? IRenderable.FragmentShader => BuiltInShaders.UniformColorFragmentShader;
+
+    IShaderContract? IRenderable.ComputeShader => null;
 
     /// <summary>Gets the number of packed instance records contributed by this component.</summary>
     public int InstanceCount => 1;

@@ -31,12 +31,32 @@ public interface IRenderable
     ReadOnlyMemory<byte> GetUniformData(ShaderInput[] layout);
 
     /// <summary>
-    /// Gets the vertex shader used to render the renderable.
+    /// Gets the vertex shader contract used to render the renderable.
     /// </summary>
-    VertexShader VertexShader { get; }
+    VertexShader? VertexShader { get; }
 
     /// <summary>
-    /// Gets the fragment shader used to render the renderable.
+    /// Gets the tessellation-control shader contract used to render the renderable.
     /// </summary>
-    FragmentShader FragmentShader { get; }
+    IShaderContract? TessellationControlShader { get; }
+
+    /// <summary>
+    /// Gets the tessellation-evaluation shader contract used to render the renderable.
+    /// </summary>
+    IShaderContract? TessellationEvalShader { get; }
+
+    /// <summary>
+    /// Gets the geometry shader contract used to render the renderable.
+    /// </summary>
+    IShaderContract? GeometryShader { get; }
+
+    /// <summary>
+    /// Gets the fragment shader contract used to render the renderable.
+    /// </summary>
+    FragmentShader? FragmentShader { get; }
+
+    /// <summary>
+    /// Gets the compute shader contract used by the renderable.
+    /// </summary>
+    IShaderContract? ComputeShader { get; }
 }

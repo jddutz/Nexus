@@ -65,9 +65,17 @@ public class TexturedQuadRenderer
 
     ulong IInstanceDataSource.Count => 1;
 
-    VertexShader IRenderable.VertexShader => BuiltInShaders.TexturedQuadVertexShader;
+    VertexShader? IRenderable.VertexShader => BuiltInShaders.TexturedQuadVertexShader;
 
-    FragmentShader IRenderable.FragmentShader => BuiltInShaders.TexturedQuadFragmentShader;
+    IShaderContract? IRenderable.TessellationControlShader => null;
+
+    IShaderContract? IRenderable.TessellationEvalShader => null;
+
+    IShaderContract? IRenderable.GeometryShader => null;
+
+    FragmentShader? IRenderable.FragmentShader => BuiltInShaders.TexturedQuadFragmentShader;
+
+    IShaderContract? IRenderable.ComputeShader => null;
 
     /// <summary>Gets the number of packed instance records contributed by this component.</summary>
     public int InstanceCount => 1;

@@ -602,13 +602,14 @@ public class ComponentRegistry(
         {
             if (!_uniformBuffers.TryGetValue(item.Id, out var buffers))
                 continue;
-            var contracts = new IShaderContract[]
+            var contracts = new IShaderContract?[]
             {
                 renderable.VertexShader,
                 renderable.FragmentShader,
             };
             var uniformContracts = contracts
-                .Where(shader => shader.UniformLayout.Length > 0)
+                .Where(shader => shader?.UniformLayout.Length > 0)
+                .Select(shader => shader!)
                 .ToArray();
             if (buffers.Length != uniformContracts.Length)
                 throw new InvalidOperationException(
