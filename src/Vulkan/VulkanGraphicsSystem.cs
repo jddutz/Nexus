@@ -9,6 +9,7 @@ public unsafe class VulkanGraphicsSystem(
     IRenderer renderer,
     IEnumerable<IComponentRegistry> registries,
     IPipelineRegistry pipelineRegistry,
+    IEventHub eventHub,
     ILogger<VulkanGraphicsSystem> logger
 ) : IGraphicsSystem, IDisposable
 {
@@ -34,6 +35,8 @@ public unsafe class VulkanGraphicsSystem(
     /// </summary>
     public void Initialize()
     {
+        eventHub.Register(this);
+
         _logger.LogInformation(
             "Vulkan graphics system initialized. DeviceHandle={DeviceHandle}, "
                 + "SwapchainExtent={Width}x{Height}, ComponentRegistryCount={RegistryCount}",

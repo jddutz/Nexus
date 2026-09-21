@@ -1,6 +1,6 @@
 namespace Nexus.Core.Events;
 
-public class ComponentDeactivatedEvent(Component component) : IEvent
+public class ComponentDeactivatedEvent(IComponent component) : IEvent
 {
-    public Component Component { get; } = component;
+    public IComponent Component { get; } = component;
 }

@@ -3,9 +3,12 @@ namespace Nexus.Input;
 /// <summary>
 /// Provides the default input system implementation.
 /// </summary>
-public sealed class InputSystem : IInputSystem
+public sealed class InputSystem(IEventHub eventHub) : IInputSystem
 {
-    public void Initialize() { }
+    public void Initialize()
+    {
+        eventHub.Register(this);
+    }
 
     /// <inheritdoc />
     public void Update(double deltaTime) { }

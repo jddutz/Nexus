@@ -27,7 +27,6 @@ public sealed class NexusRuntime(
         if (_initialized)
             return;
 
-        // Runtime initialization and subsystem orchestration will live here.
         if (window is not null)
         {
             window.Update += OnUpdate;

@@ -4,14 +4,12 @@ namespace Nexus.GameModel;
 /// Provides the default implementation of the game system lifecycle.
 /// </summary>
 public class GameSystem(
-    IGraphicsSystem graphics,
-    IPhysicsSystem physics,
-    IAudioSystem audio,
-    IInputSystem input,
+    IEventHub eventHub,
     IContentProvider<Texture> textureProvider,
     ILogger<GameSystem> logger
 ) : IGameSystem, IGameModel
 {
+    private readonly IEventHub _eventHub = eventHub;
     private readonly ILogger<GameSystem> _logger = logger;
     private readonly Dictionary<GameObjectId, IGameObject> _gameObjects = [];
 
@@ -184,9 +182,7 @@ public class GameSystem(
         CurrentScene?.Update(deltaTime);
     }
 
-    /// <summary>
-    /// Activates a component across the graphics, physics, and audio systems.
-    /// </summary>
+    /// <summary>Publishes a component activation event.</summary>
     /// <param name="component">The component to activate.</param>
     public void ActivateComponent(IComponent component)
     {
@@ -195,23 +191,10 @@ public class GameSystem(
             component.GetType().Name
         );
 
-        switch (component)
-        {
-            case IGraphicsComponent graphicsComponent:
-                graphics.Activate(graphicsComponent);
-                return;
-            case IAudioComponent audioComponent:
-                audio.Activate(audioComponent);
-                return;
-            case IPhysicsComponent physicsComponent:
-                physics.Activate(physicsComponent);
-                return;
-        }
+        _eventHub.Publish(new ComponentActivatedEvent(component));
     }
 
-    /// <summary>
-    /// Deactivates a component across the graphics, physics, and audio systems.
-    /// </summary>
+    /// <summary>Publishes a component deactivation event.</summary>
     /// <param name="component">The component to deactivate.</param>
     public void DeactivateComponent(IComponent component)
     {
@@ -220,26 +203,10 @@ public class GameSystem(
             component.GetType().Name
         );
 
-        switch (component)
-        {
-            case IGraphicsComponent graphicsComponent:
-                graphics.Deactivate(graphicsComponent);
-                return;
-            case IAudioComponent audioComponent:
-                audio.Deactivate(audioComponent);
-                return;
-            case IPhysicsComponent physicsComponent:
-                physics.Deactivate(physicsComponent);
-                return;
-            case IInputComponent inputComponent:
-                input.Deactivate(inputComponent);
-                return;
-        }
+        _eventHub.Publish(new ComponentDeactivatedEvent(component));
     }
 
-    /// <summary>
-    /// Activates every component belonging to a game object.
-    /// </summary>
+    /// <summary>Publishes activation events for a game object and its components.</summary>
     /// <param name="gameObject">The game object to activate.</param>
     public void ActivateGameObject(IGameObject gameObject)
     {
@@ -249,15 +216,13 @@ public class GameSystem(
             gameObject.Components.Count()
         );
 
+        _eventHub.Publish(new GameObjectActivatedEvent(gameObject));
+
         foreach (var component in gameObject.Components)
-        {
             ActivateComponent(component);
-        }
     }
 
-    /// <summary>
-    /// Deactivates every component belonging to a game object.
-    /// </summary>
+    /// <summary>Publishes deactivation events for a game object and its components.</summary>
     /// <param name="gameObject">The game object to deactivate.</param>
     public void DeactivateGameObject(IGameObject gameObject)
     {
@@ -268,8 +233,8 @@ public class GameSystem(
         );
 
         foreach (var component in gameObject.Components)
-        {
             DeactivateComponent(component);
-        }
+
+        _eventHub.Publish(new GameObjectDeactivatedEvent(gameObject));
     }
 }

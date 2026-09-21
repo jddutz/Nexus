@@ -3,9 +3,12 @@ namespace Nexus.Physics;
 /// <summary>
 /// Provides the default physics system implementation.
 /// </summary>
-public sealed class PhysicsSystem : IPhysicsSystem
+public sealed class PhysicsSystem(IEventHub eventHub) : IPhysicsSystem
 {
-    public void Initialize() { }
+    public void Initialize()
+    {
+        eventHub.Register(this);
+    }
 
     /// <inheritdoc />
     public void Update(double deltaTime) { }

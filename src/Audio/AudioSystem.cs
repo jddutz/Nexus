@@ -3,9 +3,12 @@ namespace Nexus.Audio;
 /// <summary>
 /// Provides the default audio system implementation.
 /// </summary>
-public sealed class AudioSystem : IAudioSystem
+public sealed class AudioSystem(IEventHub eventHub) : IAudioSystem
 {
-    public void Initialize() { }
+    public void Initialize()
+    {
+        eventHub.Register(this);
+    }
 
     /// <inheritdoc />
     public void Update(double deltaTime) { }
