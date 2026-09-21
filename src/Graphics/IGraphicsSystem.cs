@@ -20,5 +20,4 @@ public interface IGraphicsSystem
     /// Renders the current frame.
     /// </summary>
     void Render();
-
 }
