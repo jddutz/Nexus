@@ -3,6 +3,7 @@ namespace Nexus.Graphics.Vulkan.Components;
 /// <summary>
 /// Defines packed mesh data ready for upload to a Vulkan vertex buffer.
 /// </summary>
+[Obsolete("Use the newer Vulkan vertex buffer registry.")]
 public sealed class MeshDefinition : IResourceDefinition
 {
     /// <summary>

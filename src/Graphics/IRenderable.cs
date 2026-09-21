@@ -54,9 +54,4 @@ public interface IRenderable
     /// Gets the fragment shader contract used to render the renderable.
     /// </summary>
     FragmentShader? FragmentShader { get; }
-
-    /// <summary>
-    /// Gets the compute shader contract used by the renderable.
-    /// </summary>
-    IShaderContract? ComputeShader { get; }
 }

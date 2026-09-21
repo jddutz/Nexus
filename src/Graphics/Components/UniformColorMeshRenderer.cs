@@ -53,8 +53,6 @@ public class UniformColorMeshRenderer()
 
     FragmentShader? IRenderable.FragmentShader => BuiltInShaders.UniformColorFragmentShader;
 
-    IShaderContract? IRenderable.ComputeShader => null;
-
     /// <summary>Gets the number of packed instance records contributed by this component.</summary>
     public int InstanceCount => 1;
 

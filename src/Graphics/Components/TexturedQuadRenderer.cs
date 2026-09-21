@@ -75,8 +75,6 @@ public class TexturedQuadRenderer
 
     FragmentShader? IRenderable.FragmentShader => BuiltInShaders.TexturedQuadFragmentShader;
 
-    IShaderContract? IRenderable.ComputeShader => null;
-
     /// <summary>Gets the number of packed instance records contributed by this component.</summary>
     public int InstanceCount => 1;
 

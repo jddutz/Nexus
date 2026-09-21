@@ -174,8 +174,6 @@ public class RenderItemInstanceTests
 
         FragmentShader? IRenderable.FragmentShader => BuiltInShaders.UniformColorFragmentShader;
 
-        IShaderContract? IRenderable.ComputeShader => null;
-
         GraphicsId IInstanceDataSource.Id =>
             new IdentityHashBuilder(nameof(TestRenderable)).Add(Id).Compute();
 

@@ -15,9 +15,10 @@ internal sealed record ComponentRegistration(
 /// <summary>
 /// Creates and maintains Vulkan render-item registrations for supported graphics components.
 /// </summary>
+[Obsolete("Use the newer Vulkan graphics resource registries.")]
 public class ComponentRegistry(
     Context context,
-    IMeshFactory meshFactory,
+    IVertexBufferRegistry vertexBufferRegistry,
     IBufferManager bufferManager,
     IShaderFactory shaderFactory,
     IPipelineRegistry pipelineRegistry,
@@ -25,8 +26,7 @@ public class ComponentRegistry(
     ICameraRegistry cameraRegistry,
     ITextureRegistry textureRegistry,
     ISwapChain swapChain,
-    IRenderer renderer,
-    ILogger<ComponentRegistry> logger
+    IRenderer renderer
 ) : IComponentRegistry
 {
     private readonly Context _context = context;
@@ -36,7 +36,7 @@ public class ComponentRegistry(
     private readonly Dictionary<GraphicsId, RenderItem> _renderItems = [];
     private readonly Dictionary<GraphicsId, VkBuffer[]> _uniformBuffers = [];
 
-    private readonly IMeshFactory _meshFactory = meshFactory;
+    private readonly IVertexBufferRegistry _vertexBufferRegistry = vertexBufferRegistry;
     private readonly IBufferManager _bufferManager = bufferManager;
     private readonly IShaderFactory _shaderFactory = shaderFactory;
     private readonly IPipelineRegistry _pipelineRegistry = pipelineRegistry;
@@ -45,7 +45,6 @@ public class ComponentRegistry(
     private readonly ITextureRegistry _textureRegistry = textureRegistry;
     private readonly ISwapChain _swapChain = swapChain;
     private readonly IRenderer _renderer = renderer;
-    private readonly ILogger<ComponentRegistry> _logger = logger;
 
     /// <summary>
     /// Determines whether this registry can create render items for the specified component.
@@ -167,14 +166,6 @@ public class ComponentRegistry(
         var mesh = component.Mesh;
         var vertexShader = BuiltInShaders.UniformColorVertexShader;
         var fragmentShader = BuiltInShaders.UniformColorFragmentShader;
-        var meshDefinition = new MeshDefinition(
-            mesh.Source.Id,
-            vertexShader.VertexFormat,
-            mesh.Source.GetVertexData(vertexShader.VertexFormat, mesh.Topology),
-            mesh.Source.Count
-        );
-        var meshId = _meshFactory.Create(meshDefinition);
-
         _shaderFactory.Create(vertexShader);
         _shaderFactory.Create(fragmentShader);
 
@@ -203,9 +194,9 @@ public class ComponentRegistry(
             RenderPassMask = RenderPasses.Main,
             Pipelines = CreatePassArray(pipeline, RenderPasses.Main),
             Layouts = CreatePassArray(layout, RenderPasses.Main),
-            VertexBuffers = CreatePassArray(_meshFactory.ReadBuffer(meshId), RenderPasses.Main),
+            VertexBuffers = CreatePassArray(_vertexBufferRegistry.Acquire(component), RenderPasses.Main),
             DescriptorSets = CreatePassArray(descriptorSets.Sets, RenderPasses.Main),
-            VertexCount = _meshFactory.ReadVertexCount(meshId),
+            VertexCount = checked((uint)mesh.Source.Count),
         };
     }
 
@@ -266,14 +257,6 @@ public class ComponentRegistry(
 
         var mesh = component.Mesh;
         var vertexShader = BuiltInShaders.TexturedQuadVertexShader;
-        var meshDefinition = new MeshDefinition(
-            mesh.Source.Id,
-            vertexShader.VertexFormat,
-            mesh.Source.GetVertexData(vertexShader.VertexFormat, mesh.Topology),
-            mesh.Source.Count
-        );
-        var meshId = _meshFactory.Create(meshDefinition);
-
         var (pipeline, layout, pipelineDefinition) = GetOrCreateTexturedQuadPipeline();
         var descriptorSets = CreateDescriptorSets(pipelineDefinition, component, texture);
         _uniformBuffers[id] = descriptorSets.UniformBuffers;
@@ -284,8 +267,8 @@ public class ComponentRegistry(
             RenderPassMask = RenderPasses.Main,
             Pipelines = CreatePassArray(pipeline, RenderPasses.Main),
             Layouts = CreatePassArray(layout, RenderPasses.Main),
-            VertexBuffers = CreatePassArray(_meshFactory.ReadBuffer(meshId), RenderPasses.Main),
-            VertexCount = _meshFactory.ReadVertexCount(meshId),
+            VertexBuffers = CreatePassArray(_vertexBufferRegistry.Acquire(component), RenderPasses.Main),
+            VertexCount = checked((uint)mesh.Source.Count),
             DescriptorSets = CreatePassArray(descriptorSets.Sets, RenderPasses.Main),
         };
     }
@@ -438,16 +421,7 @@ public class ComponentRegistry(
     /// <returns><see langword="true"/> when the component is loaded; otherwise, <see langword="false"/>.</returns>
     public bool CanUnload(ComponentId componentId)
     {
-        var canUnload = _components.ContainsKey(componentId);
-
-        _logger.LogDebug(
-            "Checked whether Vulkan component registry can unload a component. "
-                + "ComponentId={ComponentId}, CanUnload={CanUnload}",
-            componentId,
-            canUnload
-        );
-
-        return canUnload;
+        return _components.ContainsKey(componentId);
     }
 
     /// <summary>
@@ -458,14 +432,7 @@ public class ComponentRegistry(
     public void Unload(ComponentId componentId)
     {
         if (!_components.Remove(componentId, out var registration))
-        {
-            _logger.LogDebug(
-                "Vulkan graphics component unload skipped because the component is not loaded. "
-                    + "ComponentId={ComponentId}",
-                componentId
-            );
             return;
-        }
 
         registration.Component.PropertyChanged -= OnComponentPropertyChanged;
 
@@ -475,13 +442,6 @@ public class ComponentRegistry(
 
         // Safe no-op when componentId does not identify a registered camera.
         _cameraRegistry.Remove(componentId);
-
-        _logger.LogDebug(
-            "Unloaded Vulkan graphics component. ComponentId={ComponentId}, "
-                + "RemainingComponentCount={RemainingComponentCount}",
-            componentId,
-            _components.Count
-        );
 
         // Do not delete geometry/shaders/pipelines here yet.
         // They may be shared by other component realizations.

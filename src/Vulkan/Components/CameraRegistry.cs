@@ -11,6 +11,7 @@ internal readonly record struct CameraRegistration(
 );
 
 /// <inheritdoc cref="ICameraRegistry" />
+[Obsolete("Use the newer Vulkan camera resource registry.")]
 public class CameraRegistry(
     IBufferManager bufferManager,
     IDescriptorSetPool descriptorSetPool,

@@ -7,6 +7,12 @@ public unsafe class VulkanGraphicsSystem(
     Context context,
     ISwapChain swapChain,
     IRenderer renderer,
+    IVertexBufferRegistry vertexBufferRegistry,
+    IBufferManager bufferManager,
+    IShaderFactory shaderFactory,
+    IPipelineRegistry pipelineRegistry,
+    IDescriptorSetPool descriptorSetPool,
+    ITextureRegistry textureRegistry,
     IEventHub eventHub,
     ILogger<VulkanGraphicsSystem> logger
 ) : IGraphicsSystem, IDisposable
@@ -14,9 +20,20 @@ public unsafe class VulkanGraphicsSystem(
     private readonly Context _context = context;
     private readonly ISwapChain _swapChain = swapChain;
     private readonly IRenderer _renderer = renderer;
+    private readonly IVertexBufferRegistry _vertexBufferRegistry = vertexBufferRegistry;
+    private readonly IBufferManager _bufferManager = bufferManager;
+    private readonly IShaderFactory _shaderFactory = shaderFactory;
+    private readonly IPipelineRegistry _pipelineRegistry = pipelineRegistry;
+    private readonly IDescriptorSetPool _descriptorSetPool = descriptorSetPool;
+    private readonly ITextureRegistry _textureRegistry = textureRegistry;
     private readonly ILogger<VulkanGraphicsSystem> _logger = logger;
+    private readonly Dictionary<GraphicsId, RenderItem> _renderItems = [];
+    private readonly Dictionary<GraphicsId, RenderItem> _renderItemByRenderable = [];
 
     private bool disposedValue;
+
+    private const string UNIFORM_COLOR_PIPELINE_NAME = "UniformColorMesh";
+    private const string TEXTURED_QUAD_PIPELINE_NAME = "TexturedQuad";
 
     /// <summary>
     /// Initializes the graphics system and records the current Vulkan state.
@@ -24,6 +41,11 @@ public unsafe class VulkanGraphicsSystem(
     public void Initialize()
     {
         eventHub.Register(this);
+
+        _logger.LogDebug(
+            "Initializing Vulkan graphics system. ExistingRenderLayerCount={RenderLayerCount}",
+            _renderer.Layers.Count()
+        );
 
         _logger.LogInformation(
             "Vulkan graphics system initialized. DeviceHandle={DeviceHandle}, "
@@ -36,7 +58,245 @@ public unsafe class VulkanGraphicsSystem(
 
     private void Activate(IRenderable renderable)
     {
-        // Resolve Vulkan resources from the renderable.
+        ArgumentNullException.ThrowIfNull(renderable);
+
+        var renderItemId = GetRenderItemId(renderable);
+        if (!_renderItems.TryGetValue(renderItemId, out var renderItem))
+        {
+            renderItem = CreateRenderItem(renderable, renderItemId);
+            _renderItems.Add(renderItemId, renderItem);
+            AddRenderItem(renderItem);
+        }
+
+        renderItem.AddInstances(renderable);
+        _renderItemByRenderable[renderable.Id] = renderItem;
+
+        _logger.LogDebug(
+            "Activated renderable. RenderableType={RenderableType}, RenderItemId={RenderItemId}",
+            renderable.GetType().Name,
+            renderItemId
+        );
+    }
+
+    private static GraphicsId GetRenderItemId(IRenderable renderable)
+    {
+        var builder = new IdentityHashBuilder(renderable.GetType().Name)
+            .Add(renderable.Vertices.Id)
+            .Add(RenderPasses.Main);
+
+        if (renderable.Texture is { } texture)
+            builder.Add(texture.Id);
+
+        return builder.Compute();
+    }
+
+    private RenderItem CreateRenderItem(IRenderable renderable, GraphicsId id)
+    {
+        return renderable switch
+        {
+            UniformColorMeshRenderer uniformColor => CreateRenderItem(uniformColor, id),
+            TexturedQuadRenderer texturedQuad => CreateRenderItem(texturedQuad, id),
+            _ => throw new NotSupportedException(
+                $"Unsupported renderable: {renderable.GetType().Name}"
+            ),
+        };
+    }
+
+    private RenderItem CreateRenderItem(UniformColorMeshRenderer renderable, GraphicsId id)
+    {
+        var vertexShader = BuiltInShaders.UniformColorVertexShader;
+        var fragmentShader = BuiltInShaders.UniformColorFragmentShader;
+        _shaderFactory.Create(vertexShader);
+        _shaderFactory.Create(fragmentShader);
+
+        var pipelineDefinition = new PipelineDefinitionBuilder(
+            UNIFORM_COLOR_PIPELINE_NAME,
+            _context
+        )
+            .WithShader(vertexShader)
+            .WithShader(fragmentShader)
+            .WithRenderPass(_swapChain.Passes[RenderPasses.GetIndex(RenderPasses.Main)])
+            .WithTopology(vertexShader.Topology)
+            .WithDepthTest(false)
+            .WithDepthWrite(false)
+            .WithCullMode(CullModeFlags.None)
+            .Build();
+
+        var (pipeline, layout) = _pipelineRegistry.GetOrCreate(pipelineDefinition);
+        var descriptorSets = CreateDescriptorSets(pipelineDefinition, renderable, null);
+
+        return new RenderItem
+        {
+            Id = id,
+            RenderPassMask = RenderPasses.Main,
+            Pipelines = CreatePassArray(pipeline, RenderPasses.Main),
+            Layouts = CreatePassArray(layout, RenderPasses.Main),
+            VertexBuffers = CreatePassArray(
+                _vertexBufferRegistry.Acquire(renderable),
+                RenderPasses.Main
+            ),
+            DescriptorSets = CreatePassArray(descriptorSets.Sets, RenderPasses.Main),
+            VertexCount = checked((uint)renderable.Mesh.Source.Count),
+        };
+    }
+
+    private RenderItem CreateRenderItem(TexturedQuadRenderer renderable, GraphicsId id)
+    {
+        var texture =
+            renderable.Texture
+            ?? throw new InvalidOperationException(
+                $"{nameof(TexturedQuadRenderer)} requires a texture."
+            );
+
+        if (!_textureRegistry.IsRegistered(texture.Id))
+            _textureRegistry.Register(texture, texture);
+
+        var (pipeline, layout, definition) = GetOrCreateTexturedQuadPipeline();
+        var descriptorSets = CreateDescriptorSets(definition, renderable, texture);
+
+        return new RenderItem
+        {
+            Id = id,
+            RenderPassMask = RenderPasses.Main,
+            Pipelines = CreatePassArray(pipeline, RenderPasses.Main),
+            Layouts = CreatePassArray(layout, RenderPasses.Main),
+            VertexBuffers = CreatePassArray(
+                _vertexBufferRegistry.Acquire(renderable),
+                RenderPasses.Main
+            ),
+            DescriptorSets = CreatePassArray(descriptorSets.Sets, RenderPasses.Main),
+            VertexCount = checked((uint)renderable.Mesh.Source.Count),
+        };
+    }
+
+    private (
+        Pipeline Pipeline,
+        PipelineLayout Layout,
+        PipelineDefinition Definition
+    ) GetOrCreateTexturedQuadPipeline()
+    {
+        var vertexShader = BuiltInShaders.TexturedQuadVertexShader;
+        var fragmentShader = BuiltInShaders.TexturedQuadFragmentShader;
+        _shaderFactory.Create(vertexShader);
+        _shaderFactory.Create(fragmentShader);
+
+        var definition = new PipelineDefinitionBuilder(TEXTURED_QUAD_PIPELINE_NAME, _context)
+            .WithShader(vertexShader)
+            .WithShader(fragmentShader)
+            .WithRenderPass(_swapChain.Passes[RenderPasses.GetIndex(RenderPasses.Main)])
+            .WithTopology(vertexShader.Topology)
+            .WithDepthTest(false)
+            .WithDepthWrite(false)
+            .WithCullMode(CullModeFlags.None)
+            .WithDescriptorSchema(DescriptorSchemas.Textured)
+            .Build();
+
+        var (pipeline, layout) = _pipelineRegistry.GetOrCreate(definition);
+        return (pipeline, layout, definition);
+    }
+
+    private (DescriptorSet[] Sets, VkBuffer[] UniformBuffers) CreateDescriptorSets(
+        PipelineDefinition definition,
+        IRenderable renderable,
+        Texture? texture
+    )
+    {
+        if (definition.DescriptorSchema is not { } schema)
+            return ([], []);
+
+        var contracts = new IShaderContract?[]
+        {
+            definition.VertexShader,
+            definition.TessellationControlShader,
+            definition.TessellationEvalShader,
+            definition.GeometryShader,
+            definition.FragmentShader,
+        };
+        var uniformContracts = contracts
+            .Where(shader => shader?.UniformLayout.Length > 0)
+            .ToArray();
+        var uniformIndex = 0;
+        var sets = new DescriptorSet[schema.Sets.Length];
+        var uniformBuffers = new List<VkBuffer>();
+
+        for (var setIndex = 0; setIndex < schema.Sets.Length; setIndex++)
+        {
+            var setSchema = schema.Sets[setIndex];
+            sets[setIndex] = _descriptorSetPool.Allocate(
+                _pipelineRegistry.GetDescriptorSetLayout(definition.Id, (uint)setIndex)
+            );
+
+            foreach (var binding in setSchema.Bindings)
+            {
+                switch (binding.DescriptorType)
+                {
+                    case DescriptorType.UniformBuffer:
+                        if (uniformIndex >= uniformContracts.Length)
+                            throw new InvalidOperationException(
+                                $"Pipeline '{definition.Name}' declares a uniform descriptor without a shader contract."
+                            );
+
+                        var shader = uniformContracts[uniformIndex++]!;
+                        var data = renderable.GetUniformData(shader.UniformLayout).ToArray();
+                        var expectedSize = checked(
+                            (ulong)shader.UniformLayout.Sum(input => input.Size)
+                        );
+                        if ((ulong)data.Length != expectedSize)
+                            throw new InvalidOperationException(
+                                $"Renderable '{renderable.GetType().Name}' supplied {data.Length} uniform bytes for shader '{shader.Name}', expected {expectedSize}."
+                            );
+
+                        var buffer = _bufferManager.CreateUniformBuffer(expectedSize);
+                        _bufferManager.UpdateBuffer(buffer, data);
+                        _descriptorSetPool.WriteUniformBuffer(
+                            sets[setIndex],
+                            binding.Binding,
+                            buffer,
+                            0,
+                            expectedSize
+                        );
+                        uniformBuffers.Add(buffer);
+                        break;
+
+                    case DescriptorType.CombinedImageSampler:
+                        if (texture is null)
+                            throw new InvalidOperationException(
+                                $"Pipeline '{definition.Name}' requires a sampled texture."
+                            );
+
+                        if (
+                            !_textureRegistry.TryGetImageView(texture.Id, out var imageView)
+                            || !_textureRegistry.TryGetSampler(texture.Id, out var sampler)
+                        )
+                            throw new InvalidOperationException(
+                                $"Texture '{texture.Id}' has no realized Vulkan image view and sampler."
+                            );
+
+                        _descriptorSetPool.WriteCombinedImageSampler(
+                            sets[setIndex],
+                            binding.Binding,
+                            imageView,
+                            sampler
+                        );
+                        break;
+                }
+            }
+        }
+
+        if (uniformIndex != uniformContracts.Length)
+            throw new InvalidOperationException(
+                $"Pipeline '{definition.Name}' has {uniformContracts.Length} uniform shader contracts but only {uniformIndex} uniform descriptor bindings."
+            );
+
+        return (sets, [.. uniformBuffers]);
+    }
+
+    private void AddRenderItem(RenderItem renderItem)
+    {
+        EnsureDefaultRenderLayer();
+        var layer = _renderer.Layers[0];
+        if (!layer.Items.Contains(renderItem))
+            layer.Items.Add(renderItem);
     }
 
     private void OnComponentPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -44,12 +304,67 @@ public unsafe class VulkanGraphicsSystem(
         if (sender is not IGraphicsComponent component)
             return;
 
-        // synchronize renderables
+        foreach (var renderable in component.Renderables)
+        {
+            if (!_renderItemByRenderable.TryGetValue(renderable.Id, out var renderItem))
+                continue;
+
+            var renderItemId = GetRenderItemId(renderable);
+            if (renderItem.Id == renderItemId)
+            {
+                renderItem.UpdateInstances(renderable);
+                continue;
+            }
+
+            Deactivate(renderable);
+            Activate(renderable);
+        }
     }
 
     private void Deactivate(IRenderable renderable)
     {
-        // Release Vulkan resources allocated to the renderable.
+        ArgumentNullException.ThrowIfNull(renderable);
+
+        if (!_renderItemByRenderable.Remove(renderable.Id, out var renderItem))
+            return;
+
+        renderItem.RemoveInstances(renderable.Id);
+        if (renderItem.InstanceCount != 0)
+            return;
+
+        _renderItems.Remove(renderItem.Id);
+        foreach (var layer in _renderer.Layers)
+            layer.Items.Remove(renderItem);
+
+        _vertexBufferRegistry.Release(GetVertexBufferResourceId(renderable));
+
+        _logger.LogDebug(
+            "Deactivated renderable. RenderableType={RenderableType}, RenderItemId={RenderItemId}",
+            renderable.GetType().Name,
+            renderItem.Id
+        );
+    }
+
+    private static GraphicsId GetVertexBufferResourceId(IRenderable renderable) =>
+        new IdentityHashBuilder(nameof(VertexBufferRegistry))
+            .Add(renderable.Vertices.Id)
+            .Add(
+                (
+                    renderable.VertexShader
+                    ?? throw new InvalidOperationException(
+                        $"Renderable '{renderable.Id}' requires a vertex shader."
+                    )
+                )
+                    .VertexFormat
+                    .Id
+            )
+            .Compute();
+
+    private static T[] CreatePassArray<T>(T value, uint passMask)
+    {
+        var values = new T[RenderPasses.Count];
+        values[RenderPasses.GetIndex(passMask)] = value;
+        return values;
     }
 
     public void Handle(ComponentActivatedEvent e)
@@ -67,6 +382,12 @@ public unsafe class VulkanGraphicsSystem(
     {
         if (e.Component is not IGraphicsComponent component)
             return;
+
+        _logger.LogDebug(
+            "Graphics component deactivated. ComponentType={ComponentType}, RenderableCount={RenderableCount}",
+            component.GetType().Name,
+            component.Renderables.Count()
+        );
 
         component.PropertyChanged -= OnComponentPropertyChanged;
 

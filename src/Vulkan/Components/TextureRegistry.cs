@@ -7,6 +7,7 @@ namespace Nexus.Graphics.Vulkan.Components;
 /// </summary>
 /// <remarks>
 /// This registry does not perform reference counting, usage tracking, or automatic eviction.
+[Obsolete("Use the newer Vulkan texture resource registry.")]
 /// Callers are responsible for calling <see cref="Remove"/> when a texture is no longer needed,
 /// and for disposing the registry to release all remaining textures.
 /// </remarks>

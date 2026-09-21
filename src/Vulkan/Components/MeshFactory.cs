@@ -3,6 +3,7 @@ namespace Nexus.Graphics.Vulkan.Components;
 /// <summary>
 /// Creates Vulkan vertex buffers from general packed mesh data.
 /// </summary>
+[Obsolete("Use the newer Vulkan vertex buffer registry.")]
 public unsafe class MeshFactory(Context context, ILogger<MeshFactory> logger) : IMeshFactory
 {
     private readonly Context _context = context;
