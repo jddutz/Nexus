@@ -194,7 +194,10 @@ public class ComponentRegistry(
             RenderPassMask = RenderPasses.Main,
             Pipelines = CreatePassArray(pipeline, RenderPasses.Main),
             Layouts = CreatePassArray(layout, RenderPasses.Main),
-            VertexBuffers = CreatePassArray(_vertexBufferRegistry.Acquire(component), RenderPasses.Main),
+            VertexBuffers = CreatePassArray(
+                _vertexBufferRegistry.Acquire(component),
+                RenderPasses.Main
+            ),
             DescriptorSets = CreatePassArray(descriptorSets.Sets, RenderPasses.Main),
             VertexCount = checked((uint)mesh.Source.Count),
         };
@@ -267,7 +270,10 @@ public class ComponentRegistry(
             RenderPassMask = RenderPasses.Main,
             Pipelines = CreatePassArray(pipeline, RenderPasses.Main),
             Layouts = CreatePassArray(layout, RenderPasses.Main),
-            VertexBuffers = CreatePassArray(_vertexBufferRegistry.Acquire(component), RenderPasses.Main),
+            VertexBuffers = CreatePassArray(
+                _vertexBufferRegistry.Acquire(component),
+                RenderPasses.Main
+            ),
             VertexCount = checked((uint)mesh.Source.Count),
             DescriptorSets = CreatePassArray(descriptorSets.Sets, RenderPasses.Main),
         };
