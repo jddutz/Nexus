@@ -409,7 +409,7 @@ public unsafe class VulkanGraphicsSystem(
         );
     }
 
-    private static RenderableId GetVertexBufferResourceId(IRenderable renderable) =>
+    private static MeshId GetVertexBufferResourceId(IRenderable renderable) =>
         new IdentityHashBuilder(nameof(VertexBufferRegistry))
             .Add(renderable.Vertices.Id)
             .Add(

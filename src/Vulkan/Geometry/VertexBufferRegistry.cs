@@ -5,7 +5,7 @@ public unsafe class VertexBufferRegistry(Context context, ILogger<VertexBufferRe
 {
     private readonly Context _context = context;
     private readonly ILogger<VertexBufferRegistry> _logger = logger;
-    private readonly Dictionary<RenderableId, VkBuffer> _buffers = [];
+    private readonly Dictionary<MeshId, VkBuffer> _buffers = [];
     private readonly Dictionary<VkBuffer, DeviceMemory> _memory = [];
     private readonly Dictionary<VkBuffer, int> _refs = [];
 
@@ -132,7 +132,7 @@ public unsafe class VertexBufferRegistry(Context context, ILogger<VertexBufferRe
         }
     }
 
-    public VkBuffer Get(RenderableId id)
+    public VkBuffer Get(MeshId id)
     {
         if (!_buffers.TryGetValue(id, out var buffer))
             throw new KeyNotFoundException($"Vertex buffer '{id}' is not registered.");
@@ -153,7 +153,7 @@ public unsafe class VertexBufferRegistry(Context context, ILogger<VertexBufferRe
         var source = renderable.Vertices;
         var format = shader.VertexFormat;
 
-        var id = new IdentityHashBuilder(nameof(VertexBufferRegistry))
+        MeshId id = new IdentityHashBuilder(nameof(VertexBufferRegistry))
             .Add(source.Id)
             .Add(format.Id)
             .Compute();
@@ -193,7 +193,7 @@ public unsafe class VertexBufferRegistry(Context context, ILogger<VertexBufferRe
         return buffer;
     }
 
-    public void Release(RenderableId id)
+    public void Release(MeshId id)
     {
         if (!_buffers.TryGetValue(id, out var buffer))
             return;
