@@ -53,7 +53,7 @@ public class TexturedQuadRenderer
     public IReadOnlyList<IRenderable> Renderables => [this];
 
     /// <inheritdoc/>
-    RenderableId IRenderable.Id => Id;
+    RenderableId IRenderable.Id => new(Id.Value);
 
     IVertexDataSource IRenderable.Vertices => Mesh.Source;
 

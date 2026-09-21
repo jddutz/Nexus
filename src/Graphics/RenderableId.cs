@@ -1,8 +1,9 @@
 namespace Nexus.Graphics;
 
 /// <summary>
-/// Identifies a graphics resource or contribution.
+/// Identifies a renderable graphics contribution.
 /// </summary>
+/// <param name="Value">The underlying unsigned integer value of the identifier.</param>
 public readonly record struct RenderableId(ulong Value) : IEquatable<RenderableId>, IUniqueId
 {
     /// <summary>
@@ -14,11 +15,6 @@ public readonly record struct RenderableId(ulong Value) : IEquatable<RenderableI
     /// Converts a graphics identifier to its underlying unsigned integer value.
     /// </summary>
     public static implicit operator ulong(RenderableId id) => id.Value;
-
-    /// <summary>
-    /// Converts an existing component identity to its graphics identity without generating a new value.
-    /// </summary>
-    public static implicit operator RenderableId(ComponentId id) => new(id.Value);
 
     /// <inheritdoc/>
     public override string ToString() => Value.ToString();

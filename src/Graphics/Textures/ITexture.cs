@@ -6,11 +6,11 @@ namespace Nexus.Graphics.Textures;
 /// </summary>
 public interface ITexture
 {
-    public ContentId Id { get; }
+    TextureId Id { get; }
+    public ContentId ContentId { get; }
     public uint Width { get; }
     public uint Height { get; }
 
-    RenderableId GraphicsId { get; }
     ulong Count { get; }
     ReadOnlyMemory<byte> GetPixelData(ColorFormatEnum format);
 }

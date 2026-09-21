@@ -91,7 +91,7 @@ public unsafe class VulkanGraphicsSystem(
             .Add(RenderPasses.Main);
 
         if (renderable.Texture is { } texture)
-            builder.Add(texture.Id);
+            builder.Add(texture.ContentId);
 
         builder.Add(renderable.SamplingBehavior.Id);
 
@@ -425,7 +425,10 @@ public unsafe class VulkanGraphicsSystem(
             .Compute();
 
     private static RenderableId GetImageResourceId(ITexture texture, ColorFormatEnum format) =>
-        new IdentityHashBuilder(nameof(ImageRegistry)).Add(texture.Id).Add((ulong)format).Compute();
+        new IdentityHashBuilder(nameof(ImageRegistry))
+            .Add(texture.ContentId)
+            .Add((ulong)format)
+            .Compute();
 
     private static RenderableId GetImageViewResourceId(RenderableId imageId, Format format) =>
         new IdentityHashBuilder(nameof(ImageViewRegistry))

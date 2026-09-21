@@ -4,16 +4,16 @@ public sealed class Texture : ITexture
 {
     private readonly Color[] _colorData;
 
-    public ContentId Id { get; }
+    public TextureId Id { get; }
+    public ContentId ContentId { get; }
     public uint Width { get; }
     public uint Height { get; }
 
-    public RenderableId GraphicsId { get; }
     public ulong Count { get; }
 
     public Texture(ContentId contentId, uint width, uint height, Color[] colorData)
     {
-        Id = contentId;
+        ContentId = contentId;
         Width = width;
         Height = height;
 
@@ -27,7 +27,7 @@ public sealed class Texture : ITexture
             hash.Add(color.R).Add(color.G).Add(color.B).Add(color.A);
         }
 
-        GraphicsId = hash.Compute();
+        Id = hash.Compute();
     }
 
     /// <inheritdoc/>
