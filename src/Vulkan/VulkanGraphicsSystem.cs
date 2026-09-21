@@ -12,7 +12,9 @@ public unsafe class VulkanGraphicsSystem(
     IShaderFactory shaderFactory,
     IPipelineRegistry pipelineRegistry,
     IDescriptorSetPool descriptorSetPool,
-    ITextureRegistry textureRegistry,
+    IImageRegistry imageRegistry,
+    IImageViewRegistry imageViewRegistry,
+    ISamplerRegistry samplerRegistry,
     IEventHub eventHub,
     ILogger<VulkanGraphicsSystem> logger
 ) : IGraphicsSystem, IDisposable
@@ -25,7 +27,9 @@ public unsafe class VulkanGraphicsSystem(
     private readonly IShaderFactory _shaderFactory = shaderFactory;
     private readonly IPipelineRegistry _pipelineRegistry = pipelineRegistry;
     private readonly IDescriptorSetPool _descriptorSetPool = descriptorSetPool;
-    private readonly ITextureRegistry _textureRegistry = textureRegistry;
+    private readonly IImageRegistry _imageRegistry = imageRegistry;
+    private readonly IImageViewRegistry _imageViewRegistry = imageViewRegistry;
+    private readonly ISamplerRegistry _samplerRegistry = samplerRegistry;
     private readonly ILogger<VulkanGraphicsSystem> _logger = logger;
     private readonly Dictionary<GraphicsId, RenderItem> _renderItems = [];
     private readonly Dictionary<GraphicsId, RenderItem> _renderItemByRenderable = [];
@@ -34,6 +38,8 @@ public unsafe class VulkanGraphicsSystem(
 
     private const string UNIFORM_COLOR_PIPELINE_NAME = "UniformColorMesh";
     private const string TEXTURED_QUAD_PIPELINE_NAME = "TexturedQuad";
+
+    private readonly record struct SampledImage(ImageView ImageView, Sampler Sampler);
 
     /// <summary>
     /// Initializes the graphics system and records the current Vulkan state.
@@ -148,25 +154,62 @@ public unsafe class VulkanGraphicsSystem(
                 $"{nameof(TexturedQuadRenderer)} requires a texture."
             );
 
-        if (!_textureRegistry.IsRegistered(texture.Id))
-            _textureRegistry.Register(texture, texture);
+        const ColorFormatEnum colorFormat = ColorFormatEnum.RGBA8UNorm;
+        var format = colorFormat.ToVulkanFormat();
+        var imageId = GetImageResourceId(texture, colorFormat);
+        var imageViewId = GetImageViewResourceId(imageId, format);
+        var samplingBehavior = SamplingBehaviors.Smooth;
+        var samplerId = GetSamplerResourceId(samplingBehavior);
+        var imageAcquired = false;
+        var imageViewAcquired = false;
+        var samplerAcquired = false;
+        var vertexBufferAcquired = false;
 
-        var (pipeline, layout, definition) = GetOrCreateTexturedQuadPipeline();
-        var descriptorSets = CreateDescriptorSets(definition, renderable, texture);
-
-        return new RenderItem
+        try
         {
-            Id = id,
-            RenderPassMask = RenderPasses.Main,
-            Pipelines = CreatePassArray(pipeline, RenderPasses.Main),
-            Layouts = CreatePassArray(layout, RenderPasses.Main),
-            VertexBuffers = CreatePassArray(
-                _vertexBufferRegistry.Acquire(renderable),
-                RenderPasses.Main
-            ),
-            DescriptorSets = CreatePassArray(descriptorSets.Sets, RenderPasses.Main),
-            VertexCount = checked((uint)renderable.Mesh.Source.Count),
-        };
+            var image = _imageRegistry.Acquire(texture, colorFormat);
+            imageAcquired = true;
+
+            var imageView = _imageViewRegistry.Acquire(imageId, image, format);
+            imageViewAcquired = true;
+
+            var sampler = _samplerRegistry.Acquire(samplingBehavior);
+            samplerAcquired = true;
+
+            var vertexBuffer = _vertexBufferRegistry.Acquire(renderable);
+            vertexBufferAcquired = true;
+
+            var (pipeline, layout, definition) = GetOrCreateTexturedQuadPipeline();
+            var descriptorSets = CreateDescriptorSets(
+                definition,
+                renderable,
+                new SampledImage(imageView, sampler)
+            );
+
+            return new RenderItem
+            {
+                Id = id,
+                RenderPassMask = RenderPasses.Main,
+                Pipelines = CreatePassArray(pipeline, RenderPasses.Main),
+                Layouts = CreatePassArray(layout, RenderPasses.Main),
+                VertexBuffers = CreatePassArray(vertexBuffer, RenderPasses.Main),
+                DescriptorSets = CreatePassArray(descriptorSets.Sets, RenderPasses.Main),
+                VertexCount = checked((uint)renderable.Mesh.Source.Count),
+            };
+        }
+        catch
+        {
+            if (vertexBufferAcquired)
+                _vertexBufferRegistry.Release(GetVertexBufferResourceId(renderable));
+            if (samplerAcquired)
+                _samplerRegistry.Release(samplerId);
+            if (imageViewAcquired)
+                _imageViewRegistry.Release(imageViewId);
+            if (imageAcquired)
+                _imageRegistry.Release(imageId);
+
+            throw;
+        }
     }
 
     private (
@@ -198,7 +241,7 @@ public unsafe class VulkanGraphicsSystem(
     private (DescriptorSet[] Sets, VkBuffer[] UniformBuffers) CreateDescriptorSets(
         PipelineDefinition definition,
         IRenderable renderable,
-        Texture? texture
+        SampledImage? sampledImage
     )
     {
         if (definition.DescriptorSchema is not { } schema)
@@ -217,78 +260,84 @@ public unsafe class VulkanGraphicsSystem(
             .ToArray();
         var uniformIndex = 0;
         var sets = new DescriptorSet[schema.Sets.Length];
+        var allocatedSets = new List<DescriptorSet>();
         var uniformBuffers = new List<VkBuffer>();
 
-        for (var setIndex = 0; setIndex < schema.Sets.Length; setIndex++)
+        try
         {
-            var setSchema = schema.Sets[setIndex];
-            sets[setIndex] = _descriptorSetPool.Allocate(
-                _pipelineRegistry.GetDescriptorSetLayout(definition.Id, (uint)setIndex)
-            );
-
-            foreach (var binding in setSchema.Bindings)
+            for (var setIndex = 0; setIndex < schema.Sets.Length; setIndex++)
             {
-                switch (binding.DescriptorType)
+                var setSchema = schema.Sets[setIndex];
+                sets[setIndex] = _descriptorSetPool.Allocate(
+                    _pipelineRegistry.GetDescriptorSetLayout(definition.Id, (uint)setIndex)
+                );
+                allocatedSets.Add(sets[setIndex]);
+
+                foreach (var binding in setSchema.Bindings)
                 {
-                    case DescriptorType.UniformBuffer:
-                        if (uniformIndex >= uniformContracts.Length)
-                            throw new InvalidOperationException(
-                                $"Pipeline '{definition.Name}' declares a uniform descriptor without a shader contract."
+                    switch (binding.DescriptorType)
+                    {
+                        case DescriptorType.UniformBuffer:
+                            if (uniformIndex >= uniformContracts.Length)
+                                throw new InvalidOperationException(
+                                    $"Pipeline '{definition.Name}' declares a uniform descriptor without a shader contract."
+                                );
+
+                            var shader = uniformContracts[uniformIndex++]!;
+                            var data = renderable.GetUniformData(shader.UniformLayout).ToArray();
+                            var expectedSize = checked(
+                                (ulong)shader.UniformLayout.Sum(input => input.Size)
                             );
+                            if ((ulong)data.Length != expectedSize)
+                                throw new InvalidOperationException(
+                                    $"Renderable '{renderable.GetType().Name}' supplied {data.Length} uniform bytes for shader '{shader.Name}', expected {expectedSize}."
+                                );
 
-                        var shader = uniformContracts[uniformIndex++]!;
-                        var data = renderable.GetUniformData(shader.UniformLayout).ToArray();
-                        var expectedSize = checked(
-                            (ulong)shader.UniformLayout.Sum(input => input.Size)
-                        );
-                        if ((ulong)data.Length != expectedSize)
-                            throw new InvalidOperationException(
-                                $"Renderable '{renderable.GetType().Name}' supplied {data.Length} uniform bytes for shader '{shader.Name}', expected {expectedSize}."
+                            var buffer = _bufferManager.CreateUniformBuffer(expectedSize);
+                            _bufferManager.UpdateBuffer(buffer, data);
+                            _descriptorSetPool.WriteUniformBuffer(
+                                sets[setIndex],
+                                binding.Binding,
+                                buffer,
+                                0,
+                                expectedSize
                             );
+                            uniformBuffers.Add(buffer);
+                            break;
 
-                        var buffer = _bufferManager.CreateUniformBuffer(expectedSize);
-                        _bufferManager.UpdateBuffer(buffer, data);
-                        _descriptorSetPool.WriteUniformBuffer(
-                            sets[setIndex],
-                            binding.Binding,
-                            buffer,
-                            0,
-                            expectedSize
-                        );
-                        uniformBuffers.Add(buffer);
-                        break;
+                        case DescriptorType.CombinedImageSampler:
+                            if (sampledImage is not { } sampled)
+                                throw new InvalidOperationException(
+                                    $"Pipeline '{definition.Name}' requires a sampled texture."
+                                );
 
-                    case DescriptorType.CombinedImageSampler:
-                        if (texture is null)
-                            throw new InvalidOperationException(
-                                $"Pipeline '{definition.Name}' requires a sampled texture."
+                            _descriptorSetPool.WriteCombinedImageSampler(
+                                sets[setIndex],
+                                binding.Binding,
+                                sampled.ImageView,
+                                sampled.Sampler
                             );
-
-                        if (
-                            !_textureRegistry.TryGetImageView(texture.Id, out var imageView)
-                            || !_textureRegistry.TryGetSampler(texture.Id, out var sampler)
-                        )
-                            throw new InvalidOperationException(
-                                $"Texture '{texture.Id}' has no realized Vulkan image view and sampler."
-                            );
-
-                        _descriptorSetPool.WriteCombinedImageSampler(
-                            sets[setIndex],
-                            binding.Binding,
-                            imageView,
-                            sampler
-                        );
-                        break;
+                            break;
+                    }
                 }
             }
+
+            if (uniformIndex != uniformContracts.Length)
+                throw new InvalidOperationException(
+                    $"Pipeline '{definition.Name}' has {uniformContracts.Length} uniform shader contracts but only {uniformIndex} uniform descriptor bindings."
+                );
+
+            return (sets, [.. uniformBuffers]);
         }
+        catch
+        {
+            foreach (var set in allocatedSets)
+                _descriptorSetPool.Release(set);
+            foreach (var buffer in uniformBuffers)
+                _bufferManager.DestroyBuffer(buffer);
 
-        if (uniformIndex != uniformContracts.Length)
-            throw new InvalidOperationException(
-                $"Pipeline '{definition.Name}' has {uniformContracts.Length} uniform shader contracts but only {uniformIndex} uniform descriptor bindings."
-            );
-
-        return (sets, [.. uniformBuffers]);
+            throw;
+        }
     }
 
     private void AddRenderItem(RenderItem renderItem)
@@ -338,6 +387,19 @@ public unsafe class VulkanGraphicsSystem(
 
         _vertexBufferRegistry.Release(GetVertexBufferResourceId(renderable));
 
+        if (renderable is TexturedQuadRenderer textured && textured.Texture is { } texture)
+        {
+            const ColorFormatEnum colorFormat = ColorFormatEnum.RGBA8UNorm;
+            var format = colorFormat.ToVulkanFormat();
+            var imageId = GetImageResourceId(texture, colorFormat);
+            var imageViewId = GetImageViewResourceId(imageId, format);
+            var samplerId = GetSamplerResourceId(SamplingBehaviors.Smooth);
+
+            _imageViewRegistry.Release(imageViewId);
+            _samplerRegistry.Release(samplerId);
+            _imageRegistry.Release(imageId);
+        }
+
         _logger.LogDebug(
             "Deactivated renderable. RenderableType={RenderableType}, RenderItemId={RenderItemId}",
             renderable.GetType().Name,
@@ -359,6 +421,18 @@ public unsafe class VulkanGraphicsSystem(
                     .Id
             )
             .Compute();
+
+    private static GraphicsId GetImageResourceId(ITexture texture, ColorFormatEnum format) =>
+        new IdentityHashBuilder(nameof(ImageRegistry)).Add(texture.Id).Add((ulong)format).Compute();
+
+    private static GraphicsId GetImageViewResourceId(GraphicsId imageId, Format format) =>
+        new IdentityHashBuilder(nameof(ImageViewRegistry))
+            .Add(imageId)
+            .Add((ulong)format)
+            .Compute();
+
+    private static GraphicsId GetSamplerResourceId(ISamplingBehavior samplingBehavior) =>
+        new IdentityHashBuilder(nameof(SamplerRegistry)).Add(samplingBehavior.Id).Compute();
 
     private static T[] CreatePassArray<T>(T value, uint passMask)
     {

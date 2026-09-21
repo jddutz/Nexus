@@ -22,6 +22,7 @@ global using Nexus.Graphics.Vulkan.Geometry;
 global using Nexus.Graphics.Vulkan.Pipelines;
 global using Nexus.Graphics.Vulkan.Rendering;
 global using Nexus.Graphics.Vulkan.Synchronization;
+global using Nexus.Graphics.Vulkan.Textures;
 global using Silk.NET.Core.Native;
 global using Silk.NET.Maths;
 global using Silk.NET.Vulkan;
