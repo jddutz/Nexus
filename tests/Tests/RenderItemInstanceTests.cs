@@ -7,6 +7,7 @@ using Nexus.Graphics.Shaders;
 using Nexus.Graphics.Textures;
 using Nexus.Graphics.Vulkan;
 using Nexus.Graphics.Vulkan.Pipelines;
+using Nexus.Graphics.Vulkan.Rendering;
 using Silk.NET.Vulkan;
 using VkBuffer = Silk.NET.Vulkan.Buffer;
 
@@ -152,7 +153,7 @@ public class RenderItemInstanceTests
     {
         public int[] Values { get; set; } = values;
 
-        GraphicsIdTemporary IRenderable.Id => Id;
+        GraphicsId IRenderable.Id => Id;
 
         IVertexDataSource IRenderable.Vertices => BuiltInMesh.Empty.Source;
 
@@ -163,9 +164,17 @@ public class RenderItemInstanceTests
 
         IInstanceDataSource IRenderable.Instances => this;
 
-        VertexShader IRenderable.VertexShader => BuiltInShaders.UniformColorVertexShader;
+        VertexShader? IRenderable.VertexShader => BuiltInShaders.UniformColorVertexShader;
 
-        FragmentShader IRenderable.FragmentShader => BuiltInShaders.UniformColorFragmentShader;
+        IShaderContract? IRenderable.TessellationControlShader => null;
+
+        IShaderContract? IRenderable.TessellationEvalShader => null;
+
+        IShaderContract? IRenderable.GeometryShader => null;
+
+        FragmentShader? IRenderable.FragmentShader => BuiltInShaders.UniformColorFragmentShader;
+
+        IShaderContract? IRenderable.ComputeShader => null;
 
         GraphicsId IInstanceDataSource.Id =>
             new IdentityHashBuilder(nameof(TestRenderable)).Add(Id).Compute();
