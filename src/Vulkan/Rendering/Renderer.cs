@@ -96,7 +96,6 @@ public unsafe class Renderer(
 
         _imageSync = _syncManager.GetImageSync(_imageIndex);
 
-        _syncManager.ResetFence(_frameSync.InFlightFence);
         return true;
     }
 
@@ -154,6 +153,8 @@ public unsafe class Renderer(
             SignalSemaphoreCount = 1,
             PSignalSemaphores = &renderFinishedSemaphore,
         };
+
+        _syncManager.ResetFence(_frameSync.InFlightFence);
 
         var result = _context.VulkanApi.QueueSubmit(
             _context.GraphicsQueue,
