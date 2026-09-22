@@ -12,6 +12,7 @@ public sealed class SyncManager : ISyncManager
 {
     private readonly Context _context;
     private readonly FrameSync[] _frameSyncs;
+    private readonly bool[] _submitted;
     private readonly Dictionary<uint, ImageSync> _imageSyncs = [];
     private readonly object _imageSyncLock = new();
     private readonly Stopwatch _waitStopwatch = new();
@@ -45,6 +46,7 @@ public sealed class SyncManager : ISyncManager
         MaxFramesInFlight = maxFramesInFlight;
 
         _frameSyncs = new FrameSync[MaxFramesInFlight];
+        _submitted = new bool[MaxFramesInFlight];
 
         try
         {
@@ -89,7 +91,12 @@ public sealed class SyncManager : ISyncManager
         if (!WaitForFence(frameSync.InFlightFence))
             throw new TimeoutException($"Timed out waiting for frame {frameIndex}.");
 
-        FrameCompleted?.Invoke(this, new FrameCompletedEventArgs(frameIndex));
+        if (_submitted[frameIndex])
+        {
+            _submitted[frameIndex] = false;
+            FrameCompleted?.Invoke(this, new FrameCompletedEventArgs(frameIndex));
+        }
+
         return frameSync;
     }
 
@@ -305,6 +312,7 @@ public sealed class SyncManager : ISyncManager
     public void IncrementFrameCounter()
     {
         _totalFramesRendered++;
+        _submitted[CurrentFrameIndex] = true;
         CurrentFrameIndex = (CurrentFrameIndex + 1) % MaxFramesInFlight;
     }
 
