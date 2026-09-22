@@ -32,6 +32,11 @@ public unsafe class VulkanGraphicsSystem(
     private IRenderBatch[] _batches = [];
 
     /// <summary>
+    /// Gets or sets the render layers used to create render batches during initialization.
+    /// </summary>
+    public RenderLayers RenderLayers { get; set; } = new();
+
+    /// <summary>
     /// Initializes the graphics system and records the current Vulkan state.
     /// </summary>
     public void Initialize()
@@ -51,10 +56,6 @@ public unsafe class VulkanGraphicsSystem(
             _swapChain.Extent.Height
         );
 
-        var batchStrategy = new RenderItemBatchStrategy();
-
-        var batch = new RenderBatch(batchStrategy);
-
         var viewport = new VkViewport
         {
             X = 0,
@@ -67,13 +68,22 @@ public unsafe class VulkanGraphicsSystem(
 
         var scissor = new Rect2D { Offset = new Offset2D(0, 0), Extent = _swapChain.Extent };
 
-        foreach (var renderPass in _renderPassConfigurations.Configurations)
+        var batches = new IRenderBatch[RenderLayers.Count];
+        for (var index = 0; index < RenderLayers.Count; index++)
         {
-            batch.Add(new SetViewportCommand(viewport));
-            batch.Add(new SetScissorCommand(scissor));
+            var batchStrategy = new DefaultBatchStrategy();
+            var batch = new RenderBatch(batchStrategy);
+
+            foreach (var renderPass in _renderPassConfigurations.Configurations)
+            {
+                batch.Add(new SetViewportCommand(viewport));
+                batch.Add(new SetScissorCommand(scissor));
+            }
+
+            batches[index] = batch;
         }
 
-        _batches = [batch];
+        _batches = batches;
     }
 
     private void Activate(IDrawable drawable)
