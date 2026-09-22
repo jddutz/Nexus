@@ -6,6 +6,8 @@
 # Local assets folder
 .assets/
 .content/
+TestResults/
+TestCoverage/
 
 # User-specific files
 *.rsuser

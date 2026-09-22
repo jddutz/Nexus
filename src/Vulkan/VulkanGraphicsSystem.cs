@@ -87,10 +87,10 @@ public unsafe class VulkanGraphicsSystem(
 
         var batch = _batches[0];
 
-        foreach (var cmd in geometryRegistry.Create(drawable.Mesh))
-        {
-            batch.Add(cmd);
-        }
+        var vertexShader =
+            drawable.VertexShader
+            ?? throw new InvalidOperationException("Drawables must define a vertex shader.");
+        geometryRegistry.Create(drawable.Mesh, vertexShader.VertexFormat);
 
         foreach (var cmd in textureRegistry.Create(drawable.Texture))
         {
@@ -135,10 +135,10 @@ public unsafe class VulkanGraphicsSystem(
 
         var batch = _batches[0];
 
-        foreach (var cmd in geometryRegistry.Release(drawable.Mesh))
-        {
-            batch.Add(cmd);
-        }
+        var vertexShader =
+            drawable.VertexShader
+            ?? throw new InvalidOperationException("Drawables must define a vertex shader.");
+        geometryRegistry.Release(drawable.Mesh, vertexShader.VertexFormat);
 
         foreach (var cmd in textureRegistry.Release(drawable.Texture))
         {

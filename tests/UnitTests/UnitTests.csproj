@@ -12,10 +12,12 @@
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />
-    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="xunit.runner.visualstudio" />    <PackageReference Include="YamlDotNet" />
+
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\AssetPipeline\Nexus.AssetPipeline.csproj" />
     <ProjectReference Include="..\..\src\Testing\Nexus.Testing.csproj" />
     <ProjectReference Include="..\..\src\Vulkan\Nexus.Graphics.Vulkan.csproj" />
   </ItemGroup>

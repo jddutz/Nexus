@@ -16,8 +16,7 @@
     <Project Path="src/Testing/Nexus.Testing.csproj" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests/AssetPipeline.Tests/AssetPipeline.Tests.csproj" />
-    <Project Path="tests/Tests/Tests.csproj" />
     <Project Path="tests/HelloNexus/HelloNexus.csproj" />
+    <Project Path="tests/UnitTests/UnitTests.csproj" />
   </Folder>
 </Solution>

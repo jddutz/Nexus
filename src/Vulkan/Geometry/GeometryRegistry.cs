@@ -1,33 +1,144 @@
 namespace Nexus.Graphics.Vulkan.Geometry;
 
-public unsafe class VertexBufferRegistry(Context context, ILogger<VertexBufferRegistry> logger)
+/// <summary>
+/// Manages Vulkan vertex buffers keyed by geometry and vertex-format identities.
+/// </summary>
+/// <param name="context">The Vulkan context that owns the buffers.</param>
+/// <param name="logger">The logger used to record buffer lifecycle events.</param>
+public unsafe class GeometryRegistry(Context context, ILogger<GeometryRegistry> logger)
     : IGeometryRegistry
 {
     private readonly Context _context = context;
-    private readonly ILogger<VertexBufferRegistry> _logger = logger;
+    private readonly ILogger<GeometryRegistry> _logger = logger;
+
     private readonly Dictionary<(MeshId MeshId, VertexFormatId FormatId), VkBuffer> _buffers = [];
     private readonly Dictionary<VkBuffer, DeviceMemory> _memory = [];
     private readonly Dictionary<VkBuffer, int> _refs = [];
 
-    public IEnumerable<IVulkanCommand> Create(IGeometry geometry)
+    /// <inheritdoc/>
+    public void Create(IGeometry geometry, VertexFormat format)
     {
         ArgumentNullException.ThrowIfNull(geometry);
-        yield break;
+        ArgumentNullException.ThrowIfNull(format);
+
+        var key = (MeshId: geometry.Id, FormatId: format.Id);
+
+        if (_buffers.TryGetValue(key, out var buffer))
+        {
+            var referenceCount = ++_refs[buffer];
+
+            if (_logger.IsEnabled(LogLevel.Debug))
+                _logger.LogDebug(
+                    "Reusing vertex buffer. MeshId={MeshId}, VertexFormatId={VertexFormatId}, BufferHandle={BufferHandle}, ReferenceCount={ReferenceCount}",
+                    geometry.Id,
+                    format.Id,
+                    buffer.Handle,
+                    referenceCount
+                );
+        }
+        else
+        {
+            var data = new byte[checked((int)geometry.Count * (int)format.Stride)];
+            geometry.WriteTo(0, checked((int)geometry.Count), format, data);
+
+            buffer = CreateBuffer(data);
+
+            _buffers.Add(key, buffer);
+            _refs.Add(buffer, 1);
+
+            if (_logger.IsEnabled(LogLevel.Debug))
+                _logger.LogDebug(
+                    "Created vertex buffer. MeshId={MeshId}, VertexFormatId={VertexFormatId}, BufferHandle={BufferHandle}, Size={Size}",
+                    geometry.Id,
+                    format.Id,
+                    buffer.Handle,
+                    data.Length
+                );
+        }
     }
 
-    public IEnumerable<IVulkanCommand> Update(IGeometry geometry)
+    /// <inheritdoc/>
+    public void Update(IGeometry geometry, VertexFormat format)
     {
         ArgumentNullException.ThrowIfNull(geometry);
-        yield break;
+        ArgumentNullException.ThrowIfNull(format);
+
+        // Geometry changes invalidate the existing vertex data.
+        //
+        // For now, rebuild the buffer. Later this can be optimized into an
+        // in-place upload when the allocation is large enough.
+        Release(geometry, format);
+        Create(geometry, format);
     }
 
-    public IEnumerable<IVulkanCommand> Release(IGeometry geometry)
+    /// <inheritdoc/>
+    public void Release(IGeometry geometry, VertexFormat format)
     {
         ArgumentNullException.ThrowIfNull(geometry);
-        Release(geometry.Id);
-        yield break;
+        ArgumentNullException.ThrowIfNull(format);
+
+        var key = (MeshId: geometry.Id, FormatId: format.Id);
+
+        if (!_buffers.TryGetValue(key, out var buffer))
+            return;
+
+        var referenceCount = --_refs[buffer];
+
+        if (referenceCount > 0)
+        {
+            if (_logger.IsEnabled(LogLevel.Debug))
+                _logger.LogDebug(
+                    "Released vertex buffer reference. MeshId={MeshId}, VertexFormatId={VertexFormatId}, BufferHandle={BufferHandle}, ReferenceCount={ReferenceCount}",
+                    key.MeshId,
+                    key.FormatId,
+                    buffer.Handle,
+                    referenceCount
+                );
+
+            return;
+        }
+
+        _refs.Remove(buffer);
+        _buffers.Remove(key);
+
+        _context.VulkanApi.DestroyBuffer(_context.Device, buffer, null);
+
+        if (_memory.Remove(buffer, out var memory))
+            _context.VulkanApi.FreeMemory(_context.Device, memory, null);
+
+        if (_logger.IsEnabled(LogLevel.Debug))
+            _logger.LogDebug(
+                "Destroyed vertex buffer. MeshId={MeshId}, VertexFormatId={VertexFormatId}, BufferHandle={BufferHandle}",
+                key.MeshId,
+                key.FormatId,
+                buffer.Handle
+            );
     }
 
+    /// <summary>
+    /// Gets the Vulkan vertex buffer for a geometry and vertex-format identity.
+    /// </summary>
+    /// <param name="meshId">The geometry identifier.</param>
+    /// <param name="formatId">The vertex-format identifier.</param>
+    /// <returns>The registered Vulkan vertex buffer.</returns>
+    public VkBuffer Get(MeshId meshId, VertexFormatId formatId)
+    {
+        var key = (MeshId: meshId, FormatId: formatId);
+
+        if (!_buffers.TryGetValue(key, out var buffer))
+            throw new KeyNotFoundException(
+                $"Vertex buffer for mesh '{meshId}' and vertex format '{formatId}' is not registered."
+            );
+
+        return buffer;
+    }
+
+    /// <summary>
+    /// Finds a physical-device memory type that satisfies the requested properties.
+    /// </summary>
+    /// <param name="typeFilter">The bitmask of compatible memory-type indices.</param>
+    /// <param name="properties">The required memory properties.</param>
+    /// <returns>The selected memory-type index.</returns>
     private uint FindMemoryType(uint typeFilter, MemoryPropertyFlags properties)
     {
         _context.VulkanApi.GetPhysicalDeviceMemoryProperties(
@@ -52,6 +163,11 @@ public unsafe class VertexBufferRegistry(Context context, ILogger<VertexBufferRe
         );
     }
 
+    /// <summary>
+    /// Creates a host-visible Vulkan vertex buffer and uploads serialized geometry data.
+    /// </summary>
+    /// <param name="data">The serialized vertex data.</param>
+    /// <returns>The created Vulkan buffer.</returns>
     private VkBuffer CreateBuffer(ReadOnlyMemory<byte> data)
     {
         if (data.IsEmpty)
@@ -151,115 +267,23 @@ public unsafe class VertexBufferRegistry(Context context, ILogger<VertexBufferRe
         }
     }
 
-    public VkBuffer Get(MeshId meshId, VertexFormatId formatId)
-    {
-        var key = (meshId, formatId);
-        if (!_buffers.TryGetValue(key, out var buffer))
-            throw new KeyNotFoundException(
-                $"Vertex buffer for mesh '{meshId}' and vertex format '{formatId}' is not registered."
-            );
-
-        return buffer;
-    }
-
-    public VkBuffer Acquire(IDrawable renderable)
-    {
-        ArgumentNullException.ThrowIfNull(renderable);
-
-        var shader =
-            renderable.VertexShader
-            ?? throw new InvalidOperationException(
-                $"Renderable '{renderable.Id}' requires a vertex shader."
-            );
-
-        var mesh = renderable.Mesh;
-        var format = shader.VertexFormat;
-        var key = (mesh.Id, format.Id);
-
-        if (_buffers.TryGetValue(key, out var buffer))
-        {
-            var referenceCount = ++_refs[buffer];
-            if (_logger.IsEnabled(LogLevel.Debug))
-                _logger.LogDebug(
-                    "Reusing vertex buffer. ResourceId={ResourceId}, SourceId={SourceId}, VertexFormatId={VertexFormatId}, BufferHandle={BufferHandle}, ReferenceCount={ReferenceCount}",
-                    mesh.Id,
-                    mesh.Id,
-                    format.Id,
-                    buffer.Handle,
-                    referenceCount
-                );
-            return buffer;
-        }
-
-        var data = new byte[checked((int)mesh.Count * (int)format.Stride)];
-        mesh.WriteTo(0, checked((int)mesh.Count), format, data);
-
-        buffer = CreateBuffer(data);
-
-        _buffers.Add(key, buffer);
-        _refs.Add(buffer, 1);
-
-        if (_logger.IsEnabled(LogLevel.Debug))
-            _logger.LogDebug(
-                "Created vertex buffer. ResourceId={ResourceId}, SourceId={SourceId}, VertexFormatId={VertexFormatId}, BufferHandle={BufferHandle}, Size={Size}",
-                mesh.Id,
-                mesh.Id,
-                format.Id,
-                buffer.Handle,
-                data.Length
-            );
-
-        return buffer;
-    }
-
-    public void Release(MeshId meshId)
-    {
-        foreach (var key in _buffers.Keys.Where(key => key.MeshId == meshId).ToArray())
-        {
-            var buffer = _buffers[key];
-            var referenceCount = --_refs[buffer];
-            if (referenceCount > 0)
-            {
-                if (_logger.IsEnabled(LogLevel.Debug))
-                    _logger.LogDebug(
-                        "Released vertex buffer reference. MeshId={MeshId}, VertexFormatId={VertexFormatId}, BufferHandle={BufferHandle}, ReferenceCount={ReferenceCount}",
-                        meshId,
-                        key.FormatId,
-                        buffer.Handle,
-                        referenceCount
-                    );
-                continue;
-            }
-
-            _refs.Remove(buffer);
-            _buffers.Remove(key);
-
-            _context.VulkanApi.DestroyBuffer(_context.Device, buffer, null);
-            if (_memory.Remove(buffer, out var memory))
-                _context.VulkanApi.FreeMemory(_context.Device, memory, null);
-
-            if (_logger.IsEnabled(LogLevel.Debug))
-                _logger.LogDebug(
-                    "Destroyed vertex buffer. MeshId={MeshId}, VertexFormatId={VertexFormatId}, BufferHandle={BufferHandle}",
-                    meshId,
-                    key.FormatId,
-                    buffer.Handle
-                );
-        }
-    }
-
+    /// <summary>
+    /// Destroys every managed Vulkan vertex buffer and its backing memory.
+    /// </summary>
     private void ResetBuffers()
     {
         foreach (var (key, buffer) in _buffers)
         {
             _context.VulkanApi.DestroyBuffer(_context.Device, buffer, null);
+
             if (_memory.Remove(buffer, out var memory))
                 _context.VulkanApi.FreeMemory(_context.Device, memory, null);
 
             if (_logger.IsEnabled(LogLevel.Debug))
                 _logger.LogDebug(
-                    "Reset vertex buffer. ResourceId={ResourceId}, BufferHandle={BufferHandle}",
+                    "Reset vertex buffer. MeshId={MeshId}, VertexFormatId={VertexFormatId}, BufferHandle={BufferHandle}",
                     key.MeshId,
+                    key.FormatId,
                     buffer.Handle
                 );
         }
@@ -269,16 +293,16 @@ public unsafe class VertexBufferRegistry(Context context, ILogger<VertexBufferRe
         _refs.Clear();
     }
 
+    /// <inheritdoc/>
+    public void Reset()
+    {
+        ResetBuffers();
+    }
+
+    /// <inheritdoc/>
     public void Dispose()
     {
         ResetBuffers();
-
         GC.SuppressFinalize(this);
-    }
-
-    public IEnumerable<IVulkanCommand> Reset()
-    {
-        ResetBuffers();
-        yield break;
     }
 }
