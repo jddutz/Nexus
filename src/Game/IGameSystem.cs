@@ -1,4 +1,4 @@
-namespace Nexus.GameModel;
+namespace Nexus.Game;
 
 /// <summary>
 /// Defines the lifecycle and update operations for the game system.

@@ -1,12 +1,12 @@
-namespace Nexus.GameModel;
+namespace Nexus.Game;
 
 public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddGameSystemServices(this IServiceCollection services)
     {
-        services.TryAddSingleton<IGameSystem, GameSystem>();
-        services.TryAddSingleton<IGameModel>(serviceProvider =>
-            (GameSystem)serviceProvider.GetRequiredService<IGameSystem>()
+        services.TryAddSingleton<IGameModel, GameSystem>();
+        services.TryAddSingleton(serviceProvider =>
+            (Core.IGameModel)(GameSystem)serviceProvider.GetRequiredService<IGameModel>()
         );
         services.TryAddSingleton<ISceneRegistry, SceneRegistry>();
 

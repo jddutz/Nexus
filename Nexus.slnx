@@ -2,6 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/AssetPipeline/Nexus.AssetPipeline.csproj" />
     <Project Path="src/Core/Nexus.Core.csproj" />
+    <Project Path="src/Game/Nexus.Game.csproj" />
     <Project Path="src/Graphics/Nexus.Graphics.csproj" />
     <Project Path="src/OpenGL/Nexus.Graphics.OpenGL.csproj" />
     <Project Path="src/Vulkan/Nexus.Graphics.Vulkan.csproj" />
@@ -10,7 +11,6 @@
     <Project Path="src/Physics/Nexus.Physics.csproj" />
     <Project Path="src/Network/Nexus.Network.csproj" />
     <Project Path="src/GUI/Nexus.GUI.csproj" />
-    <Project Path="src/GameModel/Nexus.GameModel.csproj" />
     <Project Path="src/Platform/Nexus.Platform.csproj" />
     <Project Path="src/Runtime/Nexus.Runtime.csproj" />
     <Project Path="src/Testing/Nexus.Testing.csproj" />

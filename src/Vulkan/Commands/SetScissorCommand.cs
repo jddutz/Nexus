@@ -5,6 +5,16 @@ namespace Nexus.Graphics.Vulkan.Commands;
 /// </summary>
 public sealed class SetScissorCommand(Rect2D scissor) : IVulkanCommand
 {
+    /// <summary>
+    /// Gets the render-pass ordering value for this command.
+    /// </summary>
+    public uint RenderPass => 0;
+
+    /// <summary>
+    /// Gets the pipeline ordering value for this command.
+    /// </summary>
+    public PipelineId? PipelineId => null;
+
     public Guid Id { get; } = Guid.NewGuid();
 
     public bool IsSticky => false;

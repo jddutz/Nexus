@@ -21,7 +21,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Audio\Nexus.Audio.csproj" />
     <ProjectReference Include="..\Core\Nexus.Core.csproj" />
-    <ProjectReference Include="..\GameModel\Nexus.GameModel.csproj" />
+    <ProjectReference Include="..\Game\Nexus.Game.csproj" />
     <ProjectReference Include="..\Graphics\Nexus.Graphics.csproj" />
     <ProjectReference Include="..\OpenGL\Nexus.Graphics.OpenGL.csproj" />
     <ProjectReference Include="..\Vulkan\Nexus.Graphics.Vulkan.csproj" />

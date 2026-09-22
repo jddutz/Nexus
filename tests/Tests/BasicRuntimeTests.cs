@@ -2,7 +2,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Nexus.Audio;
 using Nexus.Core;
-using Nexus.GameModel;
+using Nexus.Game;
 using Nexus.Graphics;
 using Nexus.Graphics.Vulkan;
 using Nexus.Input;

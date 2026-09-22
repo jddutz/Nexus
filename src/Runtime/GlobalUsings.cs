@@ -8,7 +8,7 @@ global using Microsoft.Extensions.Options;
 global using Nexus.Audio;
 global using Nexus.Core;
 global using Nexus.Core.Events;
-global using Nexus.GameModel;
+global using Nexus.Game;
 global using Nexus.Graphics;
 global using Nexus.Graphics.OpenGL;
 global using Nexus.Graphics.Textures;

@@ -1,4 +1,4 @@
-namespace Nexus.GameModel;
+namespace Nexus.Game;
 
 /// <summary>
 /// Provides the default implementation of the game system lifecycle.

@@ -1,5 +1,5 @@
-using Nexus.Graphics.Vulkan.Textures;
 using Nexus.Graphics.Vulkan.Drawables;
+using Nexus.Graphics.Vulkan.Textures;
 
 namespace Nexus.Graphics.Vulkan;
 
