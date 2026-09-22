@@ -27,6 +27,9 @@ public sealed class SyncManager : ISyncManager
 
     private bool _disposed;
 
+    /// <inheritdoc/>
+    public event EventHandler<FrameCompletedEventArgs>? FrameCompleted;
+
     /// <summary>
     /// Creates a new synchronization manager with the specified number of frames in flight.
     /// </summary>
@@ -62,6 +65,9 @@ public sealed class SyncManager : ISyncManager
     public uint MaxFramesInFlight { get; }
 
     /// <inheritdoc/>
+    public uint CurrentFrameIndex { get; private set; }
+
+    /// <inheritdoc/>
     public FrameSync GetFrameSync(uint frameIndex)
     {
         if (frameIndex < 0 || frameIndex >= MaxFramesInFlight)
@@ -73,6 +79,18 @@ public sealed class SyncManager : ISyncManager
         }
 
         return _frameSyncs[frameIndex];
+    }
+
+    /// <inheritdoc/>
+    public FrameSync WaitForFrame(uint frameIndex)
+    {
+        var frameSync = GetFrameSync(frameIndex);
+
+        if (!WaitForFence(frameSync.InFlightFence))
+            throw new TimeoutException($"Timed out waiting for frame {frameIndex}.");
+
+        FrameCompleted?.Invoke(this, new FrameCompletedEventArgs(frameIndex));
+        return frameSync;
     }
 
     /// <inheritdoc/>
@@ -273,7 +291,7 @@ public sealed class SyncManager : ISyncManager
             TotalFenceWaitTimeMs = _totalFenceWaitTimeMs,
             DeviceWaitIdleCalls = _deviceWaitIdleCalls,
             QueueWaitIdleCalls = _queueWaitIdleCalls,
-            CurrentFrameIndex = (uint)(_totalFramesRendered % MaxFramesInFlight),
+            CurrentFrameIndex = CurrentFrameIndex,
             TotalFramesRendered = _totalFramesRendered,
             ActiveSemaphoreCount = MaxFramesInFlight * 2,
             ActiveFenceCount = MaxFramesInFlight,
@@ -287,6 +305,7 @@ public sealed class SyncManager : ISyncManager
     public void IncrementFrameCounter()
     {
         _totalFramesRendered++;
+        CurrentFrameIndex = (CurrentFrameIndex + 1) % MaxFramesInFlight;
     }
 
     private ImageSync CreateImageSync(uint imageIndex)

@@ -12,14 +12,16 @@ namespace Nexus.Graphics.Vulkan;
 /// <param name="renderPassConfig">The shared render-pass configurations.</param>
 /// <param name="eventHub">The event hub used to register this graphics system.</param>
 /// <param name="logger">The logger used to record graphics system activity.</param>
+/// <param name="syncManager">The synchronization manager used to establish device-idle shutdown.</param>
 public unsafe class VulkanGraphicsSystem(
     Context context,
     ISwapChain swapChain,
     IRenderer renderer,
+    ISyncManager syncManager,
     RenderPassConfigurations renderPassConfig,
     IEventHub eventHub,
-    IGeometryRegistry geometryRegistry,
-    ITextureRegistry textureRegistry,
+    IVertexBufferRegistry geometryRegistry,
+    IImageRegistry textureRegistry,
     ILogger<VulkanGraphicsSystem> logger
 ) : IGraphicsSystem, IDisposable
 {
@@ -215,7 +217,8 @@ public unsafe class VulkanGraphicsSystem(
             return;
         }
 
-        context.VulkanApi.DeviceWaitIdle(context.Device);
+        syncManager.DeviceWaitIdle();
+        geometryRegistry.Reset();
 
         if (disposing)
         {

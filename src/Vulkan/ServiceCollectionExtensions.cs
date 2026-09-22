@@ -22,14 +22,14 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<ISyncManager, SyncManager>();
         services.TryAddSingleton<IPipelineFactory, PipelineFactory>();
         services.TryAddSingleton<IPipelineRegistry, PipelineRegistry>();
-        services.TryAddSingleton<IGeometryRegistry, GeometryRegistry>();
+        services.TryAddSingleton<IVertexBufferRegistry, VertexBufferRegistry>();
         services.TryAddSingleton<IDescriptorSetLayoutFactory, DescriptorSetLayoutFactory>();
         services.TryAddSingleton<IBufferManager, BufferManager>();
         services.TryAddSingleton<IDescriptorSetPool, DescriptorSetPool>();
         services.TryAddSingleton<IRenderer, Renderer>();
         services.TryAddSingleton<ISwapChain, SwapChain>();
         services.TryAddSingleton<IGraphicsSystem, VulkanGraphicsSystem>();
-        services.TryAddSingleton<ITextureRegistry, TextureRegistry>();
+        services.TryAddSingleton<IImageRegistry, ImageRegistry>();
         services.AddSingleton<IShaderFactory, ShaderFactory>();
         services.AddVkValidation();
 

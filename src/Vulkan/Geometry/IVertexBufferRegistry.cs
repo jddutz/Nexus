@@ -1,7 +1,9 @@
+namespace Nexus.Graphics.Vulkan.Geometry;
+
 /// <summary>
 /// Manages Vulkan vertex buffers for serialized geometry resources.
 /// </summary>
-public interface IGeometryRegistry : IDisposable
+public interface IVertexBufferRegistry : IDisposable
 {
     /// <summary>
     /// Creates or references the buffer for a geometry resource in the specified vertex format.

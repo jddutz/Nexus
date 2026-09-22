@@ -3,17 +3,39 @@ namespace Nexus.Graphics.Vulkan.Geometry;
 /// <summary>
 /// Manages Vulkan vertex buffers keyed by geometry and vertex-format identities.
 /// </summary>
-/// <param name="context">The Vulkan context that owns the buffers.</param>
-/// <param name="logger">The logger used to record buffer lifecycle events.</param>
-public unsafe class GeometryRegistry(Context context, ILogger<GeometryRegistry> logger)
-    : IGeometryRegistry
+public unsafe class VertexBufferRegistry : IVertexBufferRegistry
 {
-    private readonly Context _context = context;
-    private readonly ILogger<GeometryRegistry> _logger = logger;
+    private readonly Context _context;
+    private readonly ILogger<VertexBufferRegistry> _logger;
+    private readonly ISyncManager _syncManager;
 
     private readonly Dictionary<(MeshId MeshId, VertexFormatId FormatId), VkBuffer> _buffers = [];
     private readonly Dictionary<VkBuffer, DeviceMemory> _memory = [];
     private readonly Dictionary<VkBuffer, int> _refs = [];
+    private readonly Queue<VkBuffer>[] _released;
+
+    /// <summary>
+    /// Creates a geometry registry with frame-slot deferred-release queues.
+    /// </summary>
+    /// <param name="context">The Vulkan context that owns the buffers.</param>
+    /// <param name="logger">The logger used to record buffer lifecycle events.</param>
+    /// <param name="syncManager">The synchronization manager used to defer buffer destruction.</param>
+    public VertexBufferRegistry(
+        Context context,
+        ILogger<VertexBufferRegistry> logger,
+        ISyncManager syncManager
+    )
+    {
+        _context = context ?? throw new ArgumentNullException(nameof(context));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _syncManager = syncManager ?? throw new ArgumentNullException(nameof(syncManager));
+        _released = new Queue<VkBuffer>[checked((int)syncManager.MaxFramesInFlight)];
+
+        for (var index = 0; index < _released.Length; index++)
+            _released[index] = new Queue<VkBuffer>();
+
+        _syncManager.FrameCompleted += OnFrameCompleted;
+    }
 
     /// <inheritdoc/>
     public IEnumerable<IVulkanCommand> Create(IGeometry geometry, VertexFormat format)
@@ -68,10 +90,7 @@ public unsafe class GeometryRegistry(Context context, ILogger<GeometryRegistry> 
         var key = (MeshId: geometry.Id, FormatId: format.Id);
 
         if (!_buffers.TryGetValue(key, out var oldBuffer))
-        {
-            Create(geometry, format);
-            return [];
-        }
+            return Create(geometry, format);
 
         var data = new byte[checked((int)geometry.Count * (int)format.Stride)];
         geometry.WriteTo(0, checked((int)geometry.Count), format, data);
@@ -82,11 +101,7 @@ public unsafe class GeometryRegistry(Context context, ILogger<GeometryRegistry> 
         _buffers[key] = newBuffer;
         _refs.Remove(oldBuffer);
         _refs.Add(newBuffer, referenceCount);
-
-        _context.VulkanApi.DestroyBuffer(_context.Device, oldBuffer, null);
-
-        if (_memory.Remove(oldBuffer, out var memory))
-            _context.VulkanApi.FreeMemory(_context.Device, memory, null);
+        QueueRelease(oldBuffer);
 
         if (_logger.IsEnabled(LogLevel.Debug))
             _logger.LogDebug(
@@ -131,15 +146,11 @@ public unsafe class GeometryRegistry(Context context, ILogger<GeometryRegistry> 
 
         _refs.Remove(buffer);
         _buffers.Remove(key);
-
-        _context.VulkanApi.DestroyBuffer(_context.Device, buffer, null);
-
-        if (_memory.Remove(buffer, out var memory))
-            _context.VulkanApi.FreeMemory(_context.Device, memory, null);
+        QueueRelease(buffer);
 
         if (_logger.IsEnabled(LogLevel.Debug))
             _logger.LogDebug(
-                "Destroyed vertex buffer. MeshId={MeshId}, VertexFormatId={VertexFormatId}, BufferHandle={BufferHandle}",
+                "Queued vertex buffer release. MeshId={MeshId}, VertexFormatId={VertexFormatId}, BufferHandle={BufferHandle}",
                 key.MeshId,
                 key.FormatId,
                 buffer.Handle
@@ -164,6 +175,45 @@ public unsafe class GeometryRegistry(Context context, ILogger<GeometryRegistry> 
             );
 
         return buffer;
+    }
+
+    /// <summary>
+    /// Queues a buffer for destruction when the selected frame slot completes.
+    /// </summary>
+    /// <param name="buffer">The buffer to release.</param>
+    private void QueueRelease(VkBuffer buffer)
+    {
+        var releaseFrameIndex = checked(
+            (int)(
+                (_syncManager.CurrentFrameIndex + _syncManager.MaxFramesInFlight - 1)
+                % _syncManager.MaxFramesInFlight
+            )
+        );
+
+        _released[releaseFrameIndex].Enqueue(buffer);
+    }
+
+    /// <summary>
+    /// Destroys buffers queued for the completed frame slot.
+    /// </summary>
+    /// <param name="sender">The synchronization manager.</param>
+    /// <param name="e">The completed frame event data.</param>
+    private void OnFrameCompleted(object? sender, FrameCompletedEventArgs e)
+    {
+        var releaseFrameIndex = checked((int)e.FrameIndex);
+        if (releaseFrameIndex >= _released.Length)
+            throw new ArgumentOutOfRangeException(nameof(e), e.FrameIndex, "Invalid frame index.");
+
+        var queue = _released[releaseFrameIndex];
+        while (queue.TryDequeue(out var buffer))
+        {
+            _context.VulkanApi.DestroyBuffer(_context.Device, buffer, null);
+
+            if (_memory.Remove(buffer, out var memory))
+            {
+                _context.VulkanApi.FreeMemory(_context.Device, memory, null);
+            }
+        }
     }
 
     /// <summary>
@@ -305,24 +355,24 @@ public unsafe class GeometryRegistry(Context context, ILogger<GeometryRegistry> 
     /// </summary>
     public void Reset()
     {
-        foreach (var buffer in _buffers.Values)
+        foreach (var memoryEntry in _memory)
         {
-            _context.VulkanApi.DestroyBuffer(_context.Device, buffer, null);
-
-            if (_memory.Remove(buffer, out var memory))
-            {
-                _context.VulkanApi.FreeMemory(_context.Device, memory, null);
-            }
+            _context.VulkanApi.DestroyBuffer(_context.Device, memoryEntry.Key, null);
+            _context.VulkanApi.FreeMemory(_context.Device, memoryEntry.Value, null);
         }
 
         _buffers.Clear();
         _memory.Clear();
         _refs.Clear();
+
+        foreach (var queue in _released)
+            queue.Clear();
     }
 
     /// <inheritdoc/>
     public void Dispose()
     {
+        _syncManager.FrameCompleted -= OnFrameCompleted;
         Reset();
         GC.SuppressFinalize(this);
     }

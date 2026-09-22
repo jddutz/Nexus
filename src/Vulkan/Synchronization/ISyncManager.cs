@@ -62,6 +62,16 @@ public interface ISyncManager : IDisposable
     uint MaxFramesInFlight { get; }
 
     /// <summary>
+    /// Gets the frame slot that will be used for the next frame submission.
+    /// </summary>
+    uint CurrentFrameIndex { get; }
+
+    /// <summary>
+    /// Occurs after a frame slot's fence has completed successfully.
+    /// </summary>
+    event EventHandler<FrameCompletedEventArgs>? FrameCompleted;
+
+    /// <summary>
     /// Gets synchronization primitives for the specified frame index.
     /// Frame index must be in range [0, MaxFramesInFlight).
     /// </summary>
@@ -73,6 +83,13 @@ public interface ISyncManager : IDisposable
     /// This allows the calling code to cycle through frame indices and reuse sync objects.
     /// </remarks>
     FrameSync GetFrameSync(uint frameIndex);
+
+    /// <summary>
+    /// Waits for the specified frame slot to complete and announces its completion.
+    /// </summary>
+    /// <param name="frameIndex">The frame slot to wait for.</param>
+    /// <returns>The completed frame synchronization primitives.</returns>
+    FrameSync WaitForFrame(uint frameIndex);
 
     /// <summary>
     /// Gets semaphores for a specific swapchain image.

@@ -24,7 +24,6 @@ public unsafe class Renderer(
     private ImageSync? _imageSync;
     private uint _imageIndex;
     private CommandBuffer _commandBuffer;
-    private uint _currentFrameIndex = 0;
     private bool _disposed;
 
     /// <summary>Occurs after a frame is acquired and before command recording begins.</summary>
@@ -78,10 +77,7 @@ public unsafe class Renderer(
     /// <returns>Frame sync, image index, and image sync objects.</returns>
     private bool PrepareFrame()
     {
-        _frameSync = _syncManager.GetFrameSync(_currentFrameIndex);
-
-        // This frame slot is no longer being used by the GPU.
-        _syncManager.WaitForFence(_frameSync.InFlightFence);
+        _frameSync = _syncManager.WaitForFrame(_syncManager.CurrentFrameIndex);
         if (!_commandPool.TryGetCommandBuffer(_frameSync.InFlightFence, out _commandBuffer))
             return false;
 
@@ -132,8 +128,6 @@ public unsafe class Renderer(
         SubmitFrame();
         PresentFrame();
         AfterRendering?.Invoke(this, new RenderEventArgs(_imageIndex));
-
-        _currentFrameIndex = (_currentFrameIndex + 1) % _syncManager.MaxFramesInFlight;
     }
 
     /// <summary>
