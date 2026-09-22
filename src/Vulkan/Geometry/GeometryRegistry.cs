@@ -55,6 +55,8 @@ public unsafe class GeometryRegistry(Context context, ILogger<GeometryRegistry> 
                     data.Length
                 );
         }
+
+        return [];
     }
 
     /// <inheritdoc/>
@@ -68,7 +70,7 @@ public unsafe class GeometryRegistry(Context context, ILogger<GeometryRegistry> 
         if (!_buffers.TryGetValue(key, out var oldBuffer))
         {
             Create(geometry, format);
-            return;
+            return [];
         }
 
         var data = new byte[checked((int)geometry.Count * (int)format.Stride)];
@@ -96,6 +98,8 @@ public unsafe class GeometryRegistry(Context context, ILogger<GeometryRegistry> 
                 data.Length,
                 referenceCount
             );
+
+        return [];
     }
 
     /// <inheritdoc/>
@@ -107,7 +111,7 @@ public unsafe class GeometryRegistry(Context context, ILogger<GeometryRegistry> 
         var key = (MeshId: geometry.Id, FormatId: format.Id);
 
         if (!_buffers.TryGetValue(key, out var buffer))
-            return;
+            return [];
 
         var referenceCount = --_refs[buffer];
 
@@ -122,7 +126,7 @@ public unsafe class GeometryRegistry(Context context, ILogger<GeometryRegistry> 
                     referenceCount
                 );
 
-            return;
+            return [];
         }
 
         _refs.Remove(buffer);
@@ -140,6 +144,8 @@ public unsafe class GeometryRegistry(Context context, ILogger<GeometryRegistry> 
                 key.FormatId,
                 buffer.Handle
             );
+
+        return [];
     }
 
     /// <summary>
