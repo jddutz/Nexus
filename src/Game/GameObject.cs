@@ -1,5 +1,8 @@
-namespace Nexus.Core;
+namespace Nexus.Game;
 
+/// <summary>
+/// Provides the default implementation of a game object.
+/// </summary>
 public class GameObject : ObservableObject, IGameObject
 {
     private readonly List<IGameObject> _children = [];
@@ -86,9 +89,7 @@ public class GameObject : ObservableObject, IGameObject
         where TComponent : class, IComponent
     {
         var component = Activator.CreateInstance<TComponent>();
-
         AddComponent(component);
-
         return component;
     }
 
@@ -96,7 +97,6 @@ public class GameObject : ObservableObject, IGameObject
     public void AddComponent(IComponent component)
     {
         ArgumentNullException.ThrowIfNull(component);
-
         if (_components.Contains(component))
             return;
 
@@ -108,7 +108,6 @@ public class GameObject : ObservableObject, IGameObject
 
         _components.Add(component);
         component.SetGameObject(this);
-
         if (IsActive)
             ComponentAdded?.Invoke(component);
     }
@@ -119,10 +118,7 @@ public class GameObject : ObservableObject, IGameObject
     /// <typeparam name="TComponent">The type of component to get.</typeparam>
     /// <returns>The component, or <see langword="null"/> when no matching component is attached.</returns>
     public TComponent? GetComponent<TComponent>()
-        where TComponent : class, IComponent
-    {
-        return _components.OfType<TComponent>().FirstOrDefault();
-    }
+        where TComponent : class, IComponent => _components.OfType<TComponent>().FirstOrDefault();
 
     /// <summary>
     /// Removes the first component of the specified type.
@@ -133,15 +129,10 @@ public class GameObject : ObservableObject, IGameObject
         where TComponent : class, IComponent
     {
         var component = GetComponent<TComponent>();
-
         return component is not null && RemoveComponent(component);
     }
 
-    /// <summary>
-    /// Removes the specified component from this game object.
-    /// </summary>
-    /// <param name="component">The component to remove.</param>
-    /// <returns><see langword="true"/> when the component was removed; otherwise, <see langword="false"/>.</returns>
+    /// <inheritdoc/>
     public bool RemoveComponent(IComponent component)
     {
         if (!_components.Remove(component))
@@ -154,14 +145,10 @@ public class GameObject : ObservableObject, IGameObject
         return true;
     }
 
-    /// <summary>
-    /// Associates this game object with a game model and registers it for identifier-based lookup.
-    /// </summary>
-    /// <param name="gameModel">The game model that owns this game object.</param>
+    /// <inheritdoc/>
     public void SetGameModel(IGameModel gameModel)
     {
         ArgumentNullException.ThrowIfNull(gameModel);
-
         if (GameModel == gameModel)
             return;
 
@@ -173,15 +160,10 @@ public class GameObject : ObservableObject, IGameObject
             child.SetGameModel(gameModel);
     }
 
-    /// <summary>
-    /// Adds a child game object and listens for its changes.
-    /// </summary>
-    /// <param name="child">The game object to add as a child.</param>
-    /// <exception cref="InvalidOperationException">Thrown when the child already belongs to a parent.</exception>
+    /// <inheritdoc/>
     public void AddChild(IGameObject child)
     {
         ArgumentNullException.ThrowIfNull(child);
-
         if (child.Parent is not null)
             throw new InvalidOperationException("GameObject already belongs to a parent.");
 
@@ -196,64 +178,52 @@ public class GameObject : ObservableObject, IGameObject
         }
 
         if (IsActive)
+        {
             ChildAdded?.Invoke(child);
+            child.Activate();
+        }
     }
 
-    /// <summary>
-    /// Removes a child game object and stops listening for its changes.
-    /// </summary>
-    /// <param name="child">The game object to remove.</param>
-    /// <returns><see langword="true"/> when the child was removed; otherwise, <see langword="false"/>.</returns>
+    /// <inheritdoc/>
     public bool RemoveChild(IGameObject child)
     {
         ArgumentNullException.ThrowIfNull(child);
-
         if (!_children.Contains(child))
             return false;
 
         if (IsActive)
+        {
+            child.Deactivate();
             ChildRemoved?.Invoke(child);
+        }
 
         _children.Remove(child);
         StopListeningToChild(child);
-
         if (child is GameObject gameObject)
             gameObject.Parent = null;
 
         return true;
     }
 
-    /// <summary>
-    /// Creates a new child game object of the specified type and adds it to this game object.
-    /// </summary>
-    /// <typeparam name="TChild">The type of game object to create.</typeparam>
-    /// <returns>The created child game object.</returns>
+    /// <inheritdoc/>
     public TChild CreateChild<TChild>()
-        where TChild : GameObject, new()
+        where TChild : IGameObject, new()
     {
         var child = new TChild();
-
         AddChild(child);
-
         return child;
     }
 
-    /// <summary>
-    /// Updates this game object for the elapsed time since the previous frame.
-    /// </summary>
-    /// <param name="deltaTime">The elapsed time in seconds since the previous frame.</param>
+    /// <inheritdoc/>
     public void Update(double deltaTime) { }
 
-    /// <summary>
-    /// Activates this game object, its components, and its children.
-    /// </summary>
+    /// <inheritdoc/>
     public void Activate()
     {
         if (IsActive)
             return;
 
         IsActive = true;
-
         foreach (var component in _components)
             ComponentAdded?.Invoke(component);
 
@@ -261,9 +231,7 @@ public class GameObject : ObservableObject, IGameObject
             child.Activate();
     }
 
-    /// <summary>
-    /// Deactivates this game object, its children, and its components.
-    /// </summary>
+    /// <inheritdoc/>
     public void Deactivate()
     {
         if (!IsActive)

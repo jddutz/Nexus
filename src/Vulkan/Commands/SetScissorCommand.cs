@@ -3,17 +3,22 @@ namespace Nexus.Graphics.Vulkan.Commands;
 /// <summary>
 /// Sets the scissor rectangle used by subsequent rendering commands.
 /// </summary>
-public sealed class SetScissorCommand(Rect2D scissor) : IVulkanCommand
+public sealed class SetScissorCommand(uint renderPass, Rect2D scissor) : IVulkanCommand
 {
     /// <summary>
     /// Gets the render-pass ordering value for this command.
     /// </summary>
-    public uint RenderPass => 0;
+    public uint RenderPass { get; } = renderPass;
 
     /// <summary>
     /// Gets the pipeline ordering value for this command.
     /// </summary>
     public PipelineId? PipelineId => null;
+
+    /// <inheritdoc />
+    public IDrawable? Drawable => null;
+
+    public int RenderPriority { get; set; } = int.MaxValue;
 
     public Guid Id { get; } = Guid.NewGuid();
 

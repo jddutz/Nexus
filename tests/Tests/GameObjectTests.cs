@@ -1,4 +1,6 @@
 using Nexus.Core;
+using Nexus.Game;
+using Nexus.Graphics;
 
 namespace Tests;
 
@@ -7,6 +9,56 @@ namespace Tests;
 /// </summary>
 public class GameObjectTests
 {
+    /// <summary>
+    /// Verifies that a scene has its own identity and cannot be attached to a game object.
+    /// </summary>
+    [Fact]
+    public void Scene_isTopLevelEntityWithSceneId()
+    {
+        var scene = new Scene(42);
+
+        Assert.Equal(new SceneId(42), scene.Id);
+        Assert.IsNotAssignableFrom<IGameObject>(scene);
+        var view = new View();
+        Assert.Equal(1, view.ViewComponent.RenderLayers.Count);
+        var mainLayer = view.ViewComponent.RenderLayers[0];
+        Assert.Equal("Main", mainLayer.Name);
+        Assert.Equal(NexusRenderPasses.Main, mainLayer.RenderPassMask);
+        Assert.Contains(view.ViewComponent, view.Components);
+    }
+
+    /// <summary>
+    /// Verifies that scenes forward descendant component and game-object lifecycle notifications.
+    /// </summary>
+    [Fact]
+    public void Scene_forwardsDescendantLifecycleNotifications()
+    {
+        var scene = new Scene();
+        var parent = scene.CreateChild<GameObject>();
+        var child = parent.CreateChild<GameObject>();
+        var component = new TestComponent();
+        var addedGameObjects = new List<IGameObject>();
+        var removedGameObjects = new List<IGameObject>();
+        var addedComponents = new List<IComponent>();
+        var removedComponents = new List<IComponent>();
+
+        scene.GameObjectAdded += addedGameObjects.Add;
+        scene.GameObjectRemoved += removedGameObjects.Add;
+        scene.ComponentAdded += addedComponents.Add;
+        scene.ComponentRemoved += removedComponents.Add;
+
+        child.AddComponent(component);
+        scene.Activate();
+
+        Assert.Contains(parent, addedGameObjects);
+        Assert.Contains(component, addedComponents);
+
+        parent.RemoveChild(child);
+
+        Assert.Contains(child, removedGameObjects);
+        Assert.Contains(component, removedComponents);
+    }
+
     /// <summary>
     /// Verifies that components can resolve their owner through the assigned game model.
     /// </summary>

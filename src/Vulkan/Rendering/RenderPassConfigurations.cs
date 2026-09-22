@@ -14,9 +14,10 @@ public sealed class RenderPassConfigurations
         : this(
             new Dictionary<int, RenderPassConfiguration>
             {
-                [NexusRenderPasses.GetIndex(NexusRenderPasses.Main)] = new()
+                [RenderPasses.GetIndex(RenderPasses.Main)] = new()
                 {
-                    Name = nameof(NexusRenderPasses.Main),
+                    RenderPassBit = RenderPasses.Main,
+                    Name = nameof(RenderPasses.Main),
                     ColorFormat = Format.Undefined,
                     DepthFormat = Format.Undefined,
                     ColorLoadOp = AttachmentLoadOp.Clear,

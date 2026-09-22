@@ -34,12 +34,16 @@ public class RenderLayers
             _layers[i].Index = i;
     }
 
-    public RenderLayers(int layerCount = 1)
+    /// <summary>
+    /// Initializes a new instance of the <see cref="RenderLayers"/> class.
+    /// </summary>
+    /// <param name="layerCount">The number of default layers to create.</param>
+    public RenderLayers(int layerCount = 0)
     {
-        if (layerCount < 1)
+        if (layerCount < 0)
             throw new ArgumentOutOfRangeException(nameof(layerCount));
 
         for (var i = 0; i < layerCount; i++)
-            Add($"Layer {i}", NexusRenderPasses.Main);
+            Add($"Layer {i}", RenderPasses.Main);
     }
 }

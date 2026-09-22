@@ -2,28 +2,22 @@ namespace Nexus.Graphics.Vulkan.Rendering;
 
 /// <summary>
 /// Vulkan renderer implementation that orchestrates frame rendering.
-/// Manages image acquisition, command recording, and presentation.
-/// Binds the resources already resolved on each render item.
+/// Manages image acquisition, command recording, submission, and presentation.
 /// </summary>
 /// <param name="context">The Vulkan context used for device and command recording operations.</param>
 /// <param name="swapChain">The swap chain that supplies render targets and presentation.</param>
 /// <param name="syncManager">The synchronization manager for frames and swap-chain images.</param>
-/// <param name="pipelineManager">The pipeline registry used to resolve pipeline state.</param>
 /// <param name="logger">The logger used to record rendering failures.</param>
 public unsafe class Renderer(
     Context context,
     ISwapChain swapChain,
     ISyncManager syncManager,
-    IPipelineRegistry pipelineManager,
     ILogger<Renderer> logger
 ) : IRenderer, IDisposable
 {
-    private const string VK_CONTEXT_NULL = "Vulkan _context has not been initialized yet.";
-
     private Context _context = context;
     private ISwapChain _swapChain = swapChain;
     private ISyncManager _syncManager = syncManager;
-    private IPipelineRegistry _pipelineManager = pipelineManager;
     private readonly ILogger<Renderer> _logger = logger;
     private CommandBufferPool _commandPool = CommandBufferPool.ForGraphics(context, 2);
     private FrameSync? _frameSync;
@@ -32,10 +26,6 @@ public unsafe class Renderer(
     private CommandBuffer _commandBuffer;
     private uint _currentFrameIndex = 0;
     private bool _disposed;
-    private readonly InstanceBuffer[] _instanceBuffers = Enumerable
-        .Range(0, checked((int)syncManager.MaxFramesInFlight))
-        .Select(_ => new InstanceBuffer(context))
-        .ToArray();
 
     /// <summary>Occurs after a frame is acquired and before command recording begins.</summary>
     public event EventHandler<RenderEventArgs>? BeforeRendering;
@@ -81,9 +71,7 @@ public unsafe class Renderer(
         }
     }
 
-    /// <summary>
-    /// Prepares frame synchronization and acquires the next _swapChain image.
-    /// </summary>
+    /// <summary>Prepares frame synchronization and acquires the next swap-chain image.</summary>
     /// <returns>Frame sync, image index, and image sync objects.</returns>
     private bool PrepareFrame()
     {
@@ -91,8 +79,6 @@ public unsafe class Renderer(
 
         // This frame slot is no longer being used by the GPU.
         _syncManager.WaitForFence(_frameSync.InFlightFence);
-        _instanceBuffers[_currentFrameIndex].Reset();
-
         if (!_commandPool.TryGetCommandBuffer(_frameSync.InFlightFence, out _commandBuffer))
             return false;
 
@@ -132,109 +118,6 @@ public unsafe class Renderer(
             );
 
         return true;
-    }
-
-    /// <summary>Begins the selected swap-chain render pass.</summary>
-    /// <param name="index">The zero-based render-pass index.</param>
-    /// <param name="clearValueCount">The number of clear values supplied.</param>
-    /// <param name="passClearValues">A pointer to the pass clear values.</param>
-    private void BeginRenderPass(int index, uint clearValueCount, ClearValue* passClearValues)
-    {
-        var renderPassInfo = new RenderPassBeginInfo
-        {
-            SType = StructureType.RenderPassBeginInfo,
-            RenderPass = _swapChain.Passes[index],
-            Framebuffer = _swapChain.Framebuffers[index][_imageIndex],
-            RenderArea = new Rect2D { Offset = new Offset2D(0, 0), Extent = _swapChain.Extent },
-            ClearValueCount = clearValueCount,
-            PClearValues = passClearValues,
-        };
-
-        _context.VulkanApi.CmdBeginRenderPass(
-            _commandBuffer,
-            &renderPassInfo,
-            SubpassContents.Inline
-        );
-    }
-
-    /// <summary>Records the draw commands for one render item and pass.</summary>
-    /// <param name="cmd">The render item to draw.</param>
-    /// <param name="passIndex">The zero-based pass index used to select resources.</param>
-    /// <param name="lastPipelineId">The pipeline handle most recently bound in this pass.</param>
-    private void Draw(RenderItem cmd, int passIndex, ref ulong lastPipelineId)
-    {
-        if (cmd.InstanceCount == 0)
-            return;
-
-        var pipeline = cmd.Pipelines[passIndex];
-        var layout = cmd.Layouts[passIndex];
-        var descriptorSets = cmd.DescriptorSets[passIndex];
-        var vertexBuffer = cmd.VertexBuffers[passIndex];
-
-        if (pipeline.Handle != lastPipelineId)
-        {
-            _context.VulkanApi.CmdBindPipeline(
-                _commandBuffer,
-                PipelineBindPoint.Graphics,
-                pipeline
-            );
-
-            lastPipelineId = pipeline.Handle;
-        }
-
-        if (descriptorSets.Length > 0)
-        {
-            fixed (DescriptorSet* descriptorSetsPointer = descriptorSets)
-            {
-                _context.VulkanApi.CmdBindDescriptorSets(
-                    _commandBuffer,
-                    PipelineBindPoint.Graphics,
-                    layout,
-                    0,
-                    (uint)descriptorSets.Length,
-                    descriptorSetsPointer,
-                    0,
-                    null
-                );
-            }
-        }
-
-        if (cmd.PushConstants != null && layout.Handle != 0)
-        {
-            var handle = GCHandle.Alloc(cmd.PushConstants, GCHandleType.Pinned);
-
-            try
-            {
-                _context.VulkanApi.CmdPushConstants(
-                    _commandBuffer,
-                    layout,
-                    cmd.ShaderStageFlags,
-                    0,
-                    (uint)Marshal.SizeOf(cmd.PushConstants),
-                    handle.AddrOfPinnedObject().ToPointer()
-                );
-            }
-            finally
-            {
-                handle.Free();
-            }
-        }
-
-        var instanceBuffer = _instanceBuffers[_currentFrameIndex];
-        var instanceOffset = instanceBuffer.Write(cmd.InstanceData);
-
-        VkBuffer* buffers = stackalloc VkBuffer[2] { vertexBuffer, instanceBuffer.Buffer };
-        ulong* offsets = stackalloc ulong[2] { 0, instanceOffset };
-
-        _context.VulkanApi.CmdBindVertexBuffers(_commandBuffer, 0, 2, buffers, offsets);
-
-        _context.VulkanApi.CmdDraw(
-            _commandBuffer,
-            cmd.VertexCount,
-            cmd.InstanceCount,
-            cmd.FirstVertex,
-            0
-        );
     }
 
     /// <summary>Ends command recording, submits the frame, and presents the rendered image.</summary>
@@ -316,10 +199,7 @@ public unsafe class Renderer(
 
         _context.VulkanApi.DeviceWaitIdle(_context.Device);
 
-        foreach (var instanceBuffer in _instanceBuffers)
-        {
-            instanceBuffer.Dispose();
-        }
+        _commandPool.Dispose();
 
         _disposed = true;
     }

@@ -10,6 +10,10 @@ public interface IVulkanCommand
 
     PipelineId? PipelineId { get; }
 
+    IDrawable? Drawable { get; }
+
+    int RenderPriority { get; }
+
     void Record(Vk vk, CommandBuffer commandBuffer);
 
     bool IsRecorded { get; set; }

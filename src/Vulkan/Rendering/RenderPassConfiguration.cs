@@ -1,3 +1,5 @@
+using System.Formats.Asn1;
+
 namespace Nexus.Graphics.Vulkan.Rendering;
 
 /// <summary>
@@ -5,6 +7,11 @@ namespace Nexus.Graphics.Vulkan.Rendering;
 /// </summary>
 public class RenderPassConfiguration
 {
+    /// <summary>
+    /// Bit mask value used to identify each render pass.
+    /// </summary>
+    public uint RenderPassBit { get; set; } = RenderPasses.Main;
+
     /// <summary>
     /// Unique name for this render pass (e.g., "Main", "Shadow", "PostProcess").
     /// </summary>

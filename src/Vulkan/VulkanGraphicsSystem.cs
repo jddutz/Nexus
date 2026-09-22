@@ -32,21 +32,11 @@ public unsafe class VulkanGraphicsSystem(
     private IRenderBatch[] _batches = [];
 
     /// <summary>
-    /// Gets or sets the render layers used to create render batches during initialization.
-    /// </summary>
-    public RenderLayers RenderLayers { get; set; } = new();
-
-    /// <summary>
     /// Initializes the graphics system and records the current Vulkan state.
     /// </summary>
     public void Initialize()
     {
         eventHub.Register(this);
-
-        _logger.LogDebug(
-            "Initializing Vulkan graphics system. ExistingRenderLayerCount={RenderLayerCount}",
-            _batches.Length
-        );
 
         _logger.LogInformation(
             "Vulkan graphics system initialized. DeviceHandle={DeviceHandle}, "
@@ -55,7 +45,14 @@ public unsafe class VulkanGraphicsSystem(
             _swapChain.Extent.Width,
             _swapChain.Extent.Height
         );
+    }
 
+    /// <summary>
+    /// Creates render batches for the specified view configuration.
+    /// </summary>
+    /// <param name="view">The activated view configuration.</param>
+    private void Configure(ViewComponent view)
+    {
         var viewport = new VkViewport
         {
             X = 0,
@@ -65,30 +62,34 @@ public unsafe class VulkanGraphicsSystem(
             MinDepth = 0.0f,
             MaxDepth = 1.0f,
         };
-
         var scissor = new Rect2D { Offset = new Offset2D(0, 0), Extent = _swapChain.Extent };
+        var batches = new IRenderBatch[view.RenderLayers.Count];
 
-        var batches = new IRenderBatch[RenderLayers.Count];
-        for (var index = 0; index < RenderLayers.Count; index++)
+        for (var layerIndex = 0; layerIndex < view.RenderLayers.Count; layerIndex++)
         {
-            var batchStrategy = new DefaultBatchStrategy();
-            var batch = new RenderBatch(batchStrategy);
-
-            foreach (var renderPass in _renderPassConfigurations.Configurations)
+            var batch = new RenderBatch(new DefaultBatchStrategy());
+            foreach (var config in _renderPassConfigurations.Configurations.Values)
             {
-                batch.Add(new SetViewportCommand(viewport));
-                batch.Add(new SetScissorCommand(scissor));
+                batch.Add(new SetViewportCommand(config.RenderPassBit, viewport));
+                batch.Add(new SetScissorCommand(config.RenderPassBit, scissor));
             }
 
-            batches[index] = batch;
+            batches[layerIndex] = batch;
         }
 
         _batches = batches;
+        _logger.LogDebug(
+            "Configured Vulkan graphics view. RenderLayerCount={RenderLayerCount}",
+            view.RenderLayers.Count
+        );
     }
 
     private void Activate(IDrawable drawable)
     {
         ArgumentNullException.ThrowIfNull(drawable);
+
+        if (_batches.Length == 0)
+            return;
 
         var batch = _batches[0];
 
@@ -106,6 +107,12 @@ public unsafe class VulkanGraphicsSystem(
 
     public void Handle(ComponentActivatedEvent e)
     {
+        if (e.Component is ViewComponent view)
+        {
+            Configure(view);
+            return;
+        }
+
         if (e.Component is not IGraphicsComponent component)
             return;
 
@@ -124,6 +131,9 @@ public unsafe class VulkanGraphicsSystem(
     {
         ArgumentNullException.ThrowIfNull(drawable);
 
+        if (_batches.Length == 0)
+            return;
+
         var batch = _batches[0];
 
         foreach (var cmd in _drawables.Release(drawable))
@@ -140,6 +150,13 @@ public unsafe class VulkanGraphicsSystem(
 
     public void Handle(ComponentDeactivatedEvent e)
     {
+        if (e.Component is ViewComponent)
+        {
+            _batches = [];
+            _logger.LogDebug("Cleared Vulkan graphics view configuration.");
+            return;
+        }
+
         if (e.Component is not IGraphicsComponent component)
             return;
 

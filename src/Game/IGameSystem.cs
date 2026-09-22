@@ -6,9 +6,14 @@ namespace Nexus.Game;
 public interface IGameSystem
 {
     /// <summary>
-    /// Gets the identifier of the scene activated when the game starts.
+    /// Gets the scene activated when the game starts.
     /// </summary>
-    GameObjectId InitialSceneId { get; }
+    IScene InitialScene { get; }
+
+    /// <summary>
+    /// Gets the currently active scene.
+    /// </summary>
+    IScene? CurrentScene { get; }
 
     /// <summary>
     /// Initializes the game system before the update loop begins.

@@ -15,6 +15,12 @@ public sealed class BeginRenderPassCommand(
 
     public PipelineId? PipelineId => throw new NotImplementedException();
 
+    /// <inheritdoc />
+    public IDrawable? Drawable => null;
+
+    /// <inheritdoc />
+    public int RenderPriority { get; set; } = int.MinValue;
+
     public unsafe void Record(Vk vk, CommandBuffer commandBuffer)
     {
         var clear = clearValue;

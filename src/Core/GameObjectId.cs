@@ -17,7 +17,7 @@ public readonly record struct GameObjectId(ulong Value) : IEquatable<GameObjectI
     public bool Equals(IUniqueId? other) => other != null && Value == other.Value;
 
     public static GameObjectId New() =>
-        new IdentityHashBuilder(nameof(GameObject)).Add(Guid.NewGuid()).Compute();
+        new IdentityHashBuilder("GameObject").Add(Guid.NewGuid()).Compute();
 
     public static readonly GameObjectId Invalid = new(0ul);
 }

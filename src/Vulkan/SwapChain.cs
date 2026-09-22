@@ -62,7 +62,7 @@ public unsafe class SwapChain : ISwapChain
     private Format _depthFormat;
     private bool _hasDepthAttachment;
 
-    private const int PassCount = NexusRenderPasses.Count;
+    private const int PassCount = RenderPasses.Count;
     private readonly RenderPass[] _renderPasses = new RenderPass[PassCount];
     private readonly Framebuffer[][] _framebuffers = new Framebuffer[PassCount][];
 

@@ -36,8 +36,8 @@ public sealed class NexusRuntime(
         physics.Initialize();
         audio.Initialize();
         input.Initialize();
-        graphics.Initialize();
         gameSystem.Initialize();
+        graphics.Initialize();
 
         _initialized = true;
     }

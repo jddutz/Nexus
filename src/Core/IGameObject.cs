@@ -56,7 +56,7 @@ public interface IGameObject : INotifyPropertyChanged
     /// <typeparam name="TChild">The type of game object to create.</typeparam>
     /// <returns>The created child game object.</returns>
     TChild CreateChild<TChild>()
-        where TChild : GameObject, new();
+        where TChild : IGameObject, new();
 
     event Action<IGameObject>? ChildAdded;
     event Action<IGameObject>? ChildRemoved;

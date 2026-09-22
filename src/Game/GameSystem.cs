@@ -14,14 +14,18 @@ public class GameSystem(
     private readonly Dictionary<GameObjectId, IGameObject> _gameObjects = [];
 
     /// <summary>
-    /// Gets or sets the identifier of the scene activated when the game starts.
+    /// Gets or sets the scene activated when the game starts.
     /// </summary>
-    public GameObjectId InitialSceneId { get; set; } = new GameObjectId(1);
+    public IScene InitialScene { get; set; } = new Scene();
 
     /// <summary>
     /// Gets the currently active scene.
     /// </summary>
     private IScene? _currentScene;
+
+    /// <summary>
+    /// Gets the currently active scene.
+    /// </summary>
     public IScene? CurrentScene
     {
         get => _currentScene;
@@ -34,6 +38,9 @@ public class GameSystem(
             _currentScene?.GameObjectAdded -= ActivateGameObject;
             _currentScene?.GameObjectRemoved -= DeactivateGameObject;
 
+            if (previousScene is not null)
+                _eventHub.Publish(new SceneUnloadedEvent(previousScene));
+
             _currentScene = value;
 
             if (_currentScene != null)
@@ -42,6 +49,7 @@ public class GameSystem(
                 _currentScene.ComponentRemoved += DeactivateComponent;
                 _currentScene.GameObjectAdded += ActivateGameObject;
                 _currentScene.GameObjectRemoved += DeactivateGameObject;
+                _eventHub.Publish(new SceneLoadedEvent(_currentScene));
             }
 
             _logger.LogInformation(
@@ -78,20 +86,13 @@ public class GameSystem(
     public void Initialize()
     {
         _logger.LogInformation(
-            "Initializing game system. InitialSceneId={InitialSceneId}",
-            InitialSceneId
+            "Initializing game system. InitialSceneType={InitialSceneType}",
+            InitialScene.GetType().Name
         );
 
-        if (InitialSceneId == GameObjectId.Invalid)
-        {
-            _logger.LogError(
-                "Game system initialization failed because the initial scene is invalid."
-            );
-            throw new InvalidOperationException("Initial Scene is not defined.");
-        }
-
-        CurrentScene = new Scene();
-        CurrentScene.SetGameModel(this);
+        InitialScene.SetGameModel(this);
+        CurrentScene = InitialScene;
+        CurrentScene.CreateChild<View>();
 
         // Every renderable pipeline expects a bound set-0 camera descriptor. OrthoCamera (not
         // StaticCamera) because its symmetric [-1,1] extent matches this demo's NDC-sized world
@@ -206,7 +207,7 @@ public class GameSystem(
         _eventHub.Publish(new ComponentDeactivatedEvent(component));
     }
 
-    /// <summary>Publishes activation events for a game object and its components.</summary>
+    /// <summary>Publishes a game-object activation event.</summary>
     /// <param name="gameObject">The game object to activate.</param>
     public void ActivateGameObject(IGameObject gameObject)
     {
@@ -217,12 +218,9 @@ public class GameSystem(
         );
 
         _eventHub.Publish(new GameObjectActivatedEvent(gameObject));
-
-        foreach (var component in gameObject.Components)
-            ActivateComponent(component);
     }
 
-    /// <summary>Publishes deactivation events for a game object and its components.</summary>
+    /// <summary>Publishes a game-object deactivation event.</summary>
     /// <param name="gameObject">The game object to deactivate.</param>
     public void DeactivateGameObject(IGameObject gameObject)
     {
@@ -231,9 +229,6 @@ public class GameSystem(
             gameObject.GetType().Name,
             gameObject.Components.Count()
         );
-
-        foreach (var component in gameObject.Components)
-            DeactivateComponent(component);
 
         _eventHub.Publish(new GameObjectDeactivatedEvent(gameObject));
     }
