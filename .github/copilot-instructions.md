@@ -4,4 +4,4 @@ After making changes, use `dotnet test --collect:"Code Coverage"` to run and ver
 
 Export test coverage to reports using `dotnet-coverage merge "tests/UnitTests/TestResults/**/*.coverage" --output "tests/UnitTests/TestCoverage/coverage.cobertura.xml" --output-format cobertura`
 
-All services should target minimum 60% test coverage.
+All classes should target minimum 70% test coverage. Records and interfaces should not define actual business logic so they do not need test coverage.
