@@ -6,17 +6,22 @@ namespace Nexus.Graphics;
 public interface IDrawable
 {
     /// <summary>
-    /// Gets the unique identifier of the renderable.
+    /// Gets the unique identifier of the drawable.
     /// </summary>
     DrawableId Id { get; }
 
     /// <summary>
-    /// Gets the mesh rendered by the renderable.
+    /// Gets the RenderLayers on which the drawable is dreawn.
+    /// </summary>
+    IEnumerable<RenderLayer> RenderLayers { get; }
+
+    /// <summary>
+    /// Gets the mesh rendered by the drawable.
     /// </summary>
     Mesh Mesh { get; }
 
     /// <summary>
-    /// Gets the texture resource used by the renderable.
+    /// Gets the texture resource used by the drawable.
     /// </summary>
     ITexture Texture { get; }
 
@@ -26,7 +31,7 @@ public interface IDrawable
     public ISamplingBehavior SamplingBehavior { get; }
 
     /// <summary>
-    /// Gets the per-instance data used when rendering the renderable.
+    /// Gets the per-instance data used when rendering the drawable.
     /// </summary>
     IInstanceDataSource Instances { get; }
 
@@ -38,27 +43,27 @@ public interface IDrawable
     ReadOnlyMemory<byte> GetUniformData(ShaderInput[] layout);
 
     /// <summary>
-    /// Gets the vertex shader contract used to render the renderable.
+    /// Gets the vertex shader contract used to render the drawable.
     /// </summary>
     VertexShader? VertexShader { get; }
 
     /// <summary>
-    /// Gets the tessellation-control shader contract used to render the renderable.
+    /// Gets the tessellation-control shader contract used to render the drawable.
     /// </summary>
     IShaderContract? TessellationControlShader { get; }
 
     /// <summary>
-    /// Gets the tessellation-evaluation shader contract used to render the renderable.
+    /// Gets the tessellation-evaluation shader contract used to render the drawable.
     /// </summary>
     IShaderContract? TessellationEvalShader { get; }
 
     /// <summary>
-    /// Gets the geometry shader contract used to render the renderable.
+    /// Gets the geometry shader contract used to render the drawable.
     /// </summary>
     IShaderContract? GeometryShader { get; }
 
     /// <summary>
-    /// Gets the fragment shader contract used to render the renderable.
+    /// Gets the fragment shader contract used to render the drawable.
     /// </summary>
     FragmentShader? FragmentShader { get; }
 }

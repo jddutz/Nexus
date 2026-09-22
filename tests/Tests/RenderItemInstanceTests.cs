@@ -139,10 +139,10 @@ public class RenderItemInstanceTests
         new()
         {
             RenderPassMask = 1,
-            Pipelines = new Pipeline[RenderPasses.Count],
-            Layouts = new PipelineLayout[RenderPasses.Count],
-            VertexBuffers = new VkBuffer[RenderPasses.Count],
-            DescriptorSets = new DescriptorSet[RenderPasses.Count][],
+            Pipelines = new Pipeline[NexusRenderPasses.Count],
+            Layouts = new PipelineLayout[NexusRenderPasses.Count],
+            VertexBuffers = new VkBuffer[NexusRenderPasses.Count],
+            DescriptorSets = new DescriptorSet[NexusRenderPasses.Count][],
             VertexCount = 4,
         };
 
@@ -154,6 +154,8 @@ public class RenderItemInstanceTests
         public int[] Values { get; set; } = values;
 
         DrawableId IDrawable.Id => new(Id.Value);
+
+        IEnumerable<RenderLayer> IDrawable.RenderLayers => Array.Empty<RenderLayer>();
 
         Mesh IDrawable.Mesh => BuiltInMesh.Empty;
 

@@ -28,7 +28,7 @@ public class UniformColorMeshRenderer()
     /// <summary>
     /// Gets the single renderable contribution produced by this component.
     /// </summary>
-    public IReadOnlyList<IDrawable> Renderables => [this];
+    public IReadOnlyList<IDrawable> Drawables => [this];
 
     /// <inheritdoc/>
     DrawableId IDrawable.Id => new(Id.Value);

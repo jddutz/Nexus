@@ -1,38 +1,34 @@
 namespace Nexus.Graphics.Vulkan.Rendering;
 
 /// <summary>
-/// Defines the render state and active passes for a rendering operation.
+/// Defines an ordered collection of Vulkan commands for a rendering operation.
 /// </summary>
-public class RenderBatch : IRenderBatch
+public class RenderBatch(IBatchStrategy batchStrategy) : IRenderBatch
 {
-    /// </inheritdocs>
-    public RenderItemId Add(RenderItem renderItem)
+    private SortedSet<IVulkanCommand> _commands = new(batchStrategy);
+
+    /// <summary>
+    /// Gets the Vulkan commands in execution order.
+    /// </summary>
+    public IEnumerable<IVulkanCommand> Commands => _commands;
+
+    /// <summary>
+    /// Adds a Vulkan command to the batch.
+    /// </summary>
+    /// <param name="command">The command to add.</param>
+    /// <returns>
+    /// <see langword="true"/> if the command was added;
+    /// otherwise, <see langword="false"/>.
+    /// </returns>
+    public bool Add(IVulkanCommand command)
     {
-        return RenderItemId.Invalid;
+        ArgumentNullException.ThrowIfNull(command);
+
+        return _commands.Add(command);
     }
 
-    /// <summary>
-    /// Gets or sets the load operation for the render target.
-    /// </summary>
-    public AttachmentLoadOp LoadOp { get; set; }
-
-    /// <summary>
-    /// Gets or sets the viewport used for rendering.
-    /// </summary>
-    public VkViewport Viewport { get; set; }
-
-    /// <summary>
-    /// Gets or sets the scissor rectangle used for rendering.
-    /// </summary>
-    public Rect2D Scissor { get; set; }
-
-    /// <summary>
-    /// Gets or sets the active render-pass definitions in execution order.
-    /// </summary>
-    public RenderPassDefinition[] RenderPasses { get; set; } = [];
-
-    /// <summary>
-    /// Gets the draw commands associated with this render definition.
-    /// </summary>
-    public List<RenderItem> Items { get; set; } = [];
+    public void Clean()
+    {
+        _commands.RemoveWhere(cmd => !cmd.IsSticky && cmd.IsRecorded);
+    }
 }

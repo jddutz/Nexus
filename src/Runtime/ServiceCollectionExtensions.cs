@@ -1,4 +1,5 @@
 using Nexus.Graphics.Vulkan.Textures;
+using Nexus.Graphics.Vulkan.Drawables;
 
 namespace Nexus.Graphics.Vulkan;
 
@@ -16,7 +17,8 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<ISyncManager, SyncManager>();
         services.TryAddSingleton<IPipelineFactory, PipelineFactory>();
         services.TryAddSingleton<IPipelineRegistry, PipelineRegistry>();
-        services.TryAddSingleton<IVertexBufferRegistry, VertexBufferRegistry>();
+        services.TryAddSingleton<IGeometryRegistry, VertexBufferRegistry>();
+        services.TryAddSingleton<IDrawableRegistry, DrawableRegistry>();
         services.TryAddSingleton<IDescriptorSetLayoutFactory, DescriptorSetLayoutFactory>();
         services.TryAddSingleton<IBufferManager, BufferManager>();
         services.TryAddSingleton<IDescriptorSetPool, DescriptorSetPool>();
@@ -24,11 +26,10 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<ISwapChain, SwapChain>();
         services.TryAddSingleton<IGraphicsSystem, VulkanGraphicsSystem>();
 
+        services.TryAddSingleton<ITextureRegistry, TextureRegistry>();
+
         // Don't try to override these, add a new registry / factory combination instead
         services.AddSingleton<IShaderFactory, ShaderFactory>();
-        services.AddSingleton<IImageRegistry, ImageRegistry>();
-        services.AddSingleton<IImageViewRegistry, ImageViewRegistry>();
-        services.AddSingleton<ISamplerRegistry, SamplerRegistry>();
 
         services.AddVkValidation();
 

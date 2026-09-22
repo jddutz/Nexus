@@ -68,9 +68,12 @@ public class RenderPassConfiguration
     public SampleCountFlags SampleCount { get; set; } = SampleCountFlags.Count1Bit;
 
     /// <summary>
-    /// Batch strategy for sorting draw commands in this render pass.
-    /// Controls how draw commands are ordered for performance optimization and correctness.
-    /// Default uses standard batching without depth sorting.
+    /// Gets or sets a value indicating whether this pass should be rendered.
     /// </summary>
-    public IBatchStrategy BatchStrategy { get; set; } = new DefaultBatchStrategy();
+    public bool ShouldRender { get; set; }
+
+    /// <summary>
+    /// Gets or sets the clear values supplied when beginning the pass.
+    /// </summary>
+    public ClearValue[] ClearValues { get; set; } = [];
 }

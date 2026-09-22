@@ -1,6 +1,6 @@
 namespace Nexus.Graphics.Geometry;
 
-public class Mesh
+public class Mesh : IGeometry
 {
     private readonly Vertex[] _vertices;
 

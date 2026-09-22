@@ -7,5 +7,5 @@ namespace Nexus.Graphics.Components;
 /// </summary>
 public interface IGraphicsComponent : IComponent
 {
-    IReadOnlyList<IDrawable> Renderables { get; }
+    IReadOnlyList<IDrawable> Drawables { get; }
 }

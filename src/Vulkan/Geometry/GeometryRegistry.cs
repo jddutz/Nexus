@@ -1,13 +1,32 @@
 namespace Nexus.Graphics.Vulkan.Geometry;
 
 public unsafe class VertexBufferRegistry(Context context, ILogger<VertexBufferRegistry> logger)
-    : IVertexBufferRegistry
+    : IGeometryRegistry
 {
     private readonly Context _context = context;
     private readonly ILogger<VertexBufferRegistry> _logger = logger;
     private readonly Dictionary<(MeshId MeshId, VertexFormatId FormatId), VkBuffer> _buffers = [];
     private readonly Dictionary<VkBuffer, DeviceMemory> _memory = [];
     private readonly Dictionary<VkBuffer, int> _refs = [];
+
+    public IEnumerable<IVulkanCommand> Create(IGeometry geometry)
+    {
+        ArgumentNullException.ThrowIfNull(geometry);
+        yield break;
+    }
+
+    public IEnumerable<IVulkanCommand> Update(IGeometry geometry)
+    {
+        ArgumentNullException.ThrowIfNull(geometry);
+        yield break;
+    }
+
+    public IEnumerable<IVulkanCommand> Release(IGeometry geometry)
+    {
+        ArgumentNullException.ThrowIfNull(geometry);
+        Release(geometry.Id);
+        yield break;
+    }
 
     private uint FindMemoryType(uint typeFilter, MemoryPropertyFlags properties)
     {
@@ -229,7 +248,7 @@ public unsafe class VertexBufferRegistry(Context context, ILogger<VertexBufferRe
         }
     }
 
-    public void Reset()
+    private void ResetBuffers()
     {
         foreach (var (key, buffer) in _buffers)
         {
@@ -252,8 +271,14 @@ public unsafe class VertexBufferRegistry(Context context, ILogger<VertexBufferRe
 
     public void Dispose()
     {
-        Reset();
+        ResetBuffers();
 
         GC.SuppressFinalize(this);
+    }
+
+    public IEnumerable<IVulkanCommand> Reset()
+    {
+        ResetBuffers();
+        yield break;
     }
 }

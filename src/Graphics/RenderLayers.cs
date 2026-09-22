@@ -40,6 +40,6 @@ public class RenderLayers
             throw new ArgumentOutOfRangeException(nameof(layerCount));
 
         for (var i = 0; i < layerCount; i++)
-            Add($"Layer {i}", RenderPasses.Main);
+            Add($"Layer {i}", NexusRenderPasses.Main);
     }
 }

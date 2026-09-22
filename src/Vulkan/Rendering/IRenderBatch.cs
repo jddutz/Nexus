@@ -1,37 +1,27 @@
 namespace Nexus.Graphics.Vulkan.Rendering;
 
 /// <summary>
-/// Defines the render state and active passes for a rendering operation.
+/// Defines an ordered collection of Vulkan commands for a rendering operation.
 /// </summary>
 public interface IRenderBatch
 {
+    /// <summary>
+    /// Adds a Vulkan command to the batch.
+    /// </summary>
+    /// <param name="command">The command to add.</param>
+    /// <returns>
+    /// <see langword="true"/> if the command was added;
+    /// otherwise, <see langword="false"/> if an equivalent command already exists.
+    /// </returns>
+    bool Add(IVulkanCommand command);
+
+    /// <summary>
+    /// Gets the Vulkan commands in execution order.
+    /// </summary>
+    IEnumerable<IVulkanCommand> Commands { get; }
+
     /// <summary
-    /// Adds a RenderItem to the current batch.
+    /// Removes commands that are no longer needed from the batch.
     /// </summary>
-    RenderItemId Add(RenderItem renderItem);
-
-    /// <summary>
-    /// Gets or sets the load operation for the render target.
-    /// </summary>
-    AttachmentLoadOp LoadOp { get; set; }
-
-    /// <summary>
-    /// Gets or sets the viewport used for rendering.
-    /// </summary>
-    VkViewport Viewport { get; set; }
-
-    /// <summary>
-    /// Gets or sets the scissor rectangle used for rendering.
-    /// </summary>
-    Rect2D Scissor { get; set; }
-
-    /// <summary>
-    /// Gets or sets the active render-pass definitions in execution order.
-    /// </summary>
-    RenderPassDefinition[] RenderPasses { get; set; }
-
-    /// <summary>
-    /// Gets the draw commands associated with this render definition.
-    /// </summary>
-    List<RenderItem> Items { get; set; }
+    void Clean();
 }

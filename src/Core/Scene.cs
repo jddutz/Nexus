@@ -1,4 +1,4 @@
-namespace Nexus.GameModel;
+namespace Nexus.Core;
 
 public class Scene : GameObject, IScene
 {

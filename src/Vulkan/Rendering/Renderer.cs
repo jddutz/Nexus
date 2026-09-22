@@ -15,7 +15,6 @@ public unsafe class Renderer(
     ISwapChain swapChain,
     ISyncManager syncManager,
     IPipelineRegistry pipelineManager,
-    IImageRegistry imageRegistry,
     ILogger<Renderer> logger
 ) : IRenderer, IDisposable
 {
@@ -25,7 +24,6 @@ public unsafe class Renderer(
     private ISwapChain _swapChain = swapChain;
     private ISyncManager _syncManager = syncManager;
     private IPipelineRegistry _pipelineManager = pipelineManager;
-    private IImageRegistry _imageRegistry = imageRegistry;
     private readonly ILogger<Renderer> _logger = logger;
     private CommandBufferPool _commandPool = CommandBufferPool.ForGraphics(context, 2);
     private FrameSync? _frameSync;
@@ -50,8 +48,8 @@ public unsafe class Renderer(
     public bool CanRender() =>
         _context != null
         && _swapChain != null
-        && _swapChain.SwapchainExtent.Width > 0
-        && _swapChain.SwapchainExtent.Height > 0;
+        && _swapChain.Extent.Width > 0
+        && _swapChain.Extent.Height > 0;
 
     /// <summary>Acquires the next swap-chain image and begins command recording.</summary>
     /// <returns><see langword="true"/> when recording can begin; otherwise, <see langword="false"/>.</returns>
@@ -74,69 +72,12 @@ public unsafe class Renderer(
     {
         ArgumentNullException.ThrowIfNull(batch);
 
-        _imageRegistry.TransitionToShaderReadOnly(_commandBuffer);
-        ValidateRenderPasses(batch);
-
-        var viewport = batch.Viewport;
-        _context.VulkanApi.CmdSetViewport(_commandBuffer, 0, 1, &viewport);
-
-        var scissor = batch.Scissor;
-        _context.VulkanApi.CmdSetScissor(_commandBuffer, 0, 1, &scissor);
-
-        foreach (var pass in batch.RenderPasses)
+        foreach (var command in batch.Commands)
         {
-            if (!pass.ShouldRender)
-                continue;
+            if (command.IsSticky || !command.IsRecorded)
+                command.Record(_context.VulkanApi, _commandBuffer);
 
-            var clearValues = pass.ClearValues;
-
-            fixed (ClearValue* clearValuesPointer = clearValues)
-            {
-                BeginRenderPass(
-                    RenderPasses.GetIndex(pass.RenderPass),
-                    (uint)clearValues.Length,
-                    clearValuesPointer
-                );
-            }
-
-            ulong lastPipelineId = 0;
-
-            foreach (var command in batch.Items)
-            {
-                if ((command.RenderPassMask & pass.RenderPass) != 0)
-                    Draw(command, RenderPasses.GetIndex(pass.RenderPass), ref lastPipelineId);
-            }
-
-            _context.VulkanApi.CmdEndRenderPass(_commandBuffer);
-        }
-    }
-
-    /// <summary>Validates the render-pass definitions associated with a layer.</summary>
-    /// <param name="definition">The layer whose passes are validated.</param>
-    /// <exception cref="InvalidOperationException">Thrown when the layer or one of its passes is invalid.</exception>
-    private void ValidateRenderPasses(IRenderBatch definition)
-    {
-        if (definition.RenderPasses.Length == 0)
-            throw new InvalidOperationException(
-                "A render layer must define at least one render pass."
-            );
-
-        foreach (var pass in definition.RenderPasses)
-        {
-            if (pass.RenderPass == 0)
-                throw new InvalidOperationException(
-                    "A render pass definition must specify a render pass."
-                );
-
-            if (RenderPasses.GetIndex(pass.RenderPass) < 0)
-                throw new InvalidOperationException(
-                    $"Render pass mask 0x{pass.RenderPass:X} must specify exactly one render pass."
-                );
-
-            if (pass.ClearValues.Length == 0)
-                throw new InvalidOperationException(
-                    $"Render pass {RenderPasses.GetName(pass.RenderPass)} must define clear values."
-                );
+            command.IsRecorded = true;
         }
     }
 
@@ -204,11 +145,7 @@ public unsafe class Renderer(
             SType = StructureType.RenderPassBeginInfo,
             RenderPass = _swapChain.Passes[index],
             Framebuffer = _swapChain.Framebuffers[index][_imageIndex],
-            RenderArea = new Rect2D
-            {
-                Offset = new Offset2D(0, 0),
-                Extent = _swapChain.SwapchainExtent,
-            },
+            RenderArea = new Rect2D { Offset = new Offset2D(0, 0), Extent = _swapChain.Extent },
             ClearValueCount = clearValueCount,
             PClearValues = passClearValues,
         };

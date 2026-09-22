@@ -26,16 +26,16 @@ public interface ISwapChain : IDisposable
     SwapchainKHR Swapchain { get; }
 
     /// <summary>Gets the format of swapchain images (e.g., B8G8R8A8Srgb).</summary>
-    Format SwapchainFormat { get; }
+    Format Format { get; }
 
     /// <summary>Gets the dimensions of swapchain images (width x height in pixels).</summary>
-    Extent2D SwapchainExtent { get; }
+    Extent2D Extent { get; }
 
     /// <summary>Gets the swapchain images (owned by Vulkan, destroyed with swapchain).</summary>
-    Image[] SwapchainImages { get; }
+    Image[] Images { get; }
 
     /// <summary>Gets the image views for swapchain images (recreated on resize).</summary>
-    ImageView[] SwapchainImageViews { get; }
+    ImageView[] ImageViews { get; }
 
     /// <summary>
     /// Gets all render passes indexed by bit position (0-10 corresponding to RenderPasses constants).

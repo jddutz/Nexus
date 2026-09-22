@@ -7,7 +7,7 @@ namespace Nexus.Graphics;
 /// Render passes execute in bit order, from the lowest set bit to the highest set bit.
 /// Multiple passes can be combined with bitwise OR.
 /// </remarks>
-public static class RenderPasses
+public static class NexusRenderPasses
 {
     /// <summary>Shadow map generation pass.</summary>
     public const uint Shadow = 1u << 0;

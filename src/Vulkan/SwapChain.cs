@@ -61,7 +61,7 @@ public unsafe class SwapChain : ISwapChain
     private Format _depthFormat;
     private bool _hasDepthAttachment;
 
-    private const int PassCount = RenderPasses.Count;
+    private const int PassCount = NexusRenderPasses.Count;
     private readonly RenderPass[] _renderPasses = new RenderPass[PassCount];
     private readonly Framebuffer[][] _framebuffers = new Framebuffer[PassCount][];
 
@@ -109,22 +109,22 @@ public unsafe class SwapChain : ISwapChain
     /// <summary>
     /// Gets the format used by swapchain images.
     /// </summary>
-    public Format SwapchainFormat => _swapchainFormat;
+    public Format Format => _swapchainFormat;
 
     /// <summary>
     /// Gets the dimensions of swapchain images in pixels.
     /// </summary>
-    public Extent2D SwapchainExtent => _swapchainExtent;
+    public Extent2D Extent => _swapchainExtent;
 
     /// <summary>
     /// Gets the images owned by the Vulkan swapchain.
     /// </summary>
-    public Image[] SwapchainImages => _swapchainImages;
+    public Image[] Images => _swapchainImages;
 
     /// <summary>
     /// Gets the image views created for the swapchain images.
     /// </summary>
-    public ImageView[] SwapchainImageViews => _swapchainImageViews;
+    public ImageView[] ImageViews => _swapchainImageViews;
 
     /// <summary>
     /// Gets the render passes used by the swapchain, indexed by render-pass bit position.
