@@ -92,9 +92,12 @@ public unsafe class VulkanGraphicsSystem(
         var vertexShader =
             drawable.VertexShader
             ?? throw new InvalidOperationException("Drawables must define a vertex shader.");
+        var colorFormat =
+            drawable.FragmentShader?.ColorFormat
+            ?? throw new InvalidOperationException("Drawables must define a fragment shader.");
         geometryRegistry.Create(drawable.Mesh, vertexShader.VertexFormat);
 
-        foreach (var cmd in textureRegistry.Create(drawable.Texture))
+        foreach (var cmd in textureRegistry.Create(drawable.Texture, colorFormat))
         {
             batch.Add(cmd);
         }
@@ -140,9 +143,12 @@ public unsafe class VulkanGraphicsSystem(
         var vertexShader =
             drawable.VertexShader
             ?? throw new InvalidOperationException("Drawables must define a vertex shader.");
+        var colorFormat =
+            drawable.FragmentShader?.ColorFormat
+            ?? throw new InvalidOperationException("Drawables must define a fragment shader.");
         geometryRegistry.Release(drawable.Mesh, vertexShader.VertexFormat);
 
-        foreach (var cmd in textureRegistry.Release(drawable.Texture))
+        foreach (var cmd in textureRegistry.Release(drawable.Texture, colorFormat))
         {
             batch.Add(cmd);
         }

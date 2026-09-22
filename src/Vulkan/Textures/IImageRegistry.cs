@@ -2,9 +2,9 @@ namespace Nexus.Graphics.Vulkan.Textures;
 
 public interface IImageRegistry : IDisposable
 {
-    IEnumerable<IVulkanCommand> Create(ITexture texture);
-    IEnumerable<IVulkanCommand> Update(ITexture texture);
-    IEnumerable<IVulkanCommand> Release(ITexture texture);
+    IEnumerable<IVulkanCommand> Create(ITexture texture, ColorFormatEnum format);
+    IEnumerable<IVulkanCommand> Update(ITexture texture, ColorFormatEnum format);
+    IEnumerable<IVulkanCommand> Release(ITexture texture, ColorFormatEnum format);
 
     void Reset();
 }

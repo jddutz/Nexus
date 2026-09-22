@@ -9,7 +9,7 @@ public unsafe class VertexBufferRegistry : IVertexBufferRegistry
     private readonly ILogger<VertexBufferRegistry> _logger;
     private readonly ISyncManager _syncManager;
 
-    private readonly Dictionary<(MeshId MeshId, VertexFormatId FormatId), VkBuffer> _buffers = [];
+    private readonly Dictionary<ulong, VkBuffer> _buffers = [];
     private readonly Dictionary<VkBuffer, DeviceMemory> _memory = [];
     private readonly Dictionary<VkBuffer, int> _refs = [];
     private readonly Queue<VkBuffer>[] _released;
@@ -43,7 +43,7 @@ public unsafe class VertexBufferRegistry : IVertexBufferRegistry
         ArgumentNullException.ThrowIfNull(geometry);
         ArgumentNullException.ThrowIfNull(format);
 
-        var key = (MeshId: geometry.Id, FormatId: format.Id);
+        var key = ComputeVertexBufferId(geometry.Id, format.Id);
 
         if (_buffers.TryGetValue(key, out var buffer))
         {
@@ -87,7 +87,7 @@ public unsafe class VertexBufferRegistry : IVertexBufferRegistry
         ArgumentNullException.ThrowIfNull(geometry);
         ArgumentNullException.ThrowIfNull(format);
 
-        var key = (MeshId: geometry.Id, FormatId: format.Id);
+        var key = ComputeVertexBufferId(geometry.Id, format.Id);
 
         if (!_buffers.TryGetValue(key, out var oldBuffer))
             return Create(geometry, format);
@@ -123,7 +123,7 @@ public unsafe class VertexBufferRegistry : IVertexBufferRegistry
         ArgumentNullException.ThrowIfNull(geometry);
         ArgumentNullException.ThrowIfNull(format);
 
-        var key = (MeshId: geometry.Id, FormatId: format.Id);
+        var key = ComputeVertexBufferId(geometry.Id, format.Id);
 
         if (!_buffers.TryGetValue(key, out var buffer))
             return [];
@@ -135,8 +135,8 @@ public unsafe class VertexBufferRegistry : IVertexBufferRegistry
             if (_logger.IsEnabled(LogLevel.Debug))
                 _logger.LogDebug(
                     "Released vertex buffer reference. MeshId={MeshId}, VertexFormatId={VertexFormatId}, BufferHandle={BufferHandle}, ReferenceCount={ReferenceCount}",
-                    key.MeshId,
-                    key.FormatId,
+                    geometry.Id,
+                    format.Id,
                     buffer.Handle,
                     referenceCount
                 );
@@ -151,8 +151,8 @@ public unsafe class VertexBufferRegistry : IVertexBufferRegistry
         if (_logger.IsEnabled(LogLevel.Debug))
             _logger.LogDebug(
                 "Queued vertex buffer release. MeshId={MeshId}, VertexFormatId={VertexFormatId}, BufferHandle={BufferHandle}",
-                key.MeshId,
-                key.FormatId,
+                geometry.Id,
+                format.Id,
                 buffer.Handle
             );
 
@@ -167,7 +167,7 @@ public unsafe class VertexBufferRegistry : IVertexBufferRegistry
     /// <returns>The registered Vulkan vertex buffer.</returns>
     public VkBuffer Get(MeshId meshId, VertexFormatId formatId)
     {
-        var key = (MeshId: meshId, FormatId: formatId);
+        var key = ComputeVertexBufferId(meshId, formatId);
 
         if (!_buffers.TryGetValue(key, out var buffer))
             throw new KeyNotFoundException(
@@ -176,6 +176,15 @@ public unsafe class VertexBufferRegistry : IVertexBufferRegistry
 
         return buffer;
     }
+
+    /// <summary>
+    /// Computes the identity of a vertex buffer from its mesh and vertex format.
+    /// </summary>
+    /// <param name="meshId">The mesh identity.</param>
+    /// <param name="formatId">The vertex format identity.</param>
+    /// <returns>The computed vertex-buffer identity.</returns>
+    private static ulong ComputeVertexBufferId(MeshId meshId, VertexFormatId formatId) =>
+        new IdentityHashBuilder("VertexBufferId").Add(meshId).Add(formatId).Compute();
 
     /// <summary>
     /// Queues a buffer for destruction when the selected frame slot completes.
