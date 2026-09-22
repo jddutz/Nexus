@@ -8,7 +8,8 @@ namespace Nexus.Graphics.Vulkan;
 /// <param name="context">The Vulkan context that owns graphics resources.</param>
 /// <param name="swapChain">The swap chain used for presentation.</param>
 /// <param name="renderer">The renderer used to record and submit render batches.</param>
-/// <param name="geometryRegistry">The registry that creates commands for drawables.</param>
+/// <param name="geometryRegistry">The registry that manages vertex buffers.</param>
+/// <param name="textureRegistry">The registry that manages images.</param>
 /// <param name="renderPassConfig">The shared render-pass configurations.</param>
 /// <param name="eventHub">The event hub used to register this graphics system.</param>
 /// <param name="logger">The logger used to record graphics system activity.</param>
@@ -20,7 +21,8 @@ public unsafe class VulkanGraphicsSystem(
     ISyncManager syncManager,
     RenderPassConfigurations renderPassConfig,
     IEventHub eventHub,
-    IDrawableRegistry registry,
+    IVertexBufferRegistry geometryRegistry,
+    IImageRegistry textureRegistry,
     ILogger<VulkanGraphicsSystem> logger
 ) : IGraphicsSystem, IDisposable
 {
@@ -86,7 +88,15 @@ public unsafe class VulkanGraphicsSystem(
 
         var batch = _batches[0];
 
-        foreach (var command in registry.Create(drawable))
+        var vertexShader =
+            drawable.VertexShader
+            ?? throw new InvalidOperationException("Drawables must define a vertex shader.");
+        var colorFormat =
+            drawable.FragmentShader?.ColorFormat
+            ?? throw new InvalidOperationException("Drawables must define a fragment shader.");
+        geometryRegistry.Create(drawable.Mesh, vertexShader.VertexFormat);
+
+        foreach (var command in textureRegistry.Create(drawable.Texture, colorFormat))
             batch.Add(command);
 
         logger.LogDebug(
@@ -127,9 +137,17 @@ public unsafe class VulkanGraphicsSystem(
 
         var batch = _batches[0];
 
-        batch.Remove(drawable);
+        batch.Remove(drawable.Id);
 
-        foreach (var command in registry.Release(drawable))
+        var vertexShader =
+            drawable.VertexShader
+            ?? throw new InvalidOperationException("Drawables must define a vertex shader.");
+        var colorFormat =
+            drawable.FragmentShader?.ColorFormat
+            ?? throw new InvalidOperationException("Drawables must define a fragment shader.");
+        geometryRegistry.Release(drawable.Mesh, vertexShader.VertexFormat);
+
+        foreach (var command in textureRegistry.Release(drawable.Texture, colorFormat))
             batch.Add(command);
 
         logger.LogDebug(
@@ -213,7 +231,8 @@ public unsafe class VulkanGraphicsSystem(
         }
 
         syncManager.DeviceWaitIdle();
-        registry.Reset();
+        geometryRegistry.Reset();
+        textureRegistry.Reset();
 
         if (disposing)
         {
