@@ -47,6 +47,7 @@ namespace Nexus.Graphics.Vulkan;
 public unsafe class SwapChain : ISwapChain
 {
     private readonly Context _context;
+    private readonly RenderPassConfigurations _renderPassConfigurations;
 
     private SwapchainKHR _swapchain;
     private Format _swapchainFormat;
@@ -76,11 +77,11 @@ public unsafe class SwapChain : ISwapChain
     /// Initializes a new instance of the <see cref="SwapChain"/> class and creates its presentation resources.
     /// </summary>
     /// <param name="context">The Vulkan context used to create and manage resources.</param>
-    /// <param name="settings">The Vulkan settings used to select swapchain options.</param>
-    /// <param name="window">The window whose surface dimensions determine the swapchain extent.</param>
-    public SwapChain(Context context)
+    /// <param name="renderPassConfigurations">The configurations used to create render passes and framebuffers.</param>
+    public SwapChain(Context context, RenderPassConfigurations renderPassConfigurations)
     {
         _context = context;
+        _renderPassConfigurations = renderPassConfigurations;
 
         // Get the swap chain extension
         if (
@@ -429,7 +430,7 @@ public unsafe class SwapChain : ISwapChain
     }
 
     /// <summary>
-    /// Creates all render passes from RenderPassConfigurations.Configurations array.
+    /// Creates all render passes from the injected render-pass configurations.
     /// Each render pass survives window resize since format doesn't change.
     /// </summary>
     /// <remarks>
@@ -441,7 +442,7 @@ public unsafe class SwapChain : ISwapChain
     /// </remarks>
     private void CreateRenderPasses()
     {
-        var configs = RenderPassConfigurations.Configurations;
+        var configs = _renderPassConfigurations.Configurations;
 
         foreach (var (passIndex, config) in configs)
         {
@@ -718,7 +719,7 @@ public unsafe class SwapChain : ISwapChain
     /// </remarks>
     private void CreateAllFramebuffers()
     {
-        var configs = RenderPassConfigurations.Configurations;
+        var configs = _renderPassConfigurations.Configurations;
 
         foreach (var (passIndex, config) in configs)
         {

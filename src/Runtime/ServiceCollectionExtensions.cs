@@ -13,6 +13,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton(sp => sp.GetRequiredService<IWindowService>().GetWindow());
 
         services.TryAddSingleton<Context>();
+        services.TryAddSingleton<RenderPassConfigurations>();
         services.TryAddSingleton<SwapChain>();
         services.TryAddSingleton<ISyncManager, SyncManager>();
         services.TryAddSingleton<IPipelineFactory, PipelineFactory>();

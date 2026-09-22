@@ -5,11 +5,19 @@ namespace Nexus.Graphics.Vulkan;
 /// <summary>
 /// Coordinates Vulkan resource loading, render-layer preparation, and frame rendering.
 /// </summary>
+/// <param name="context">The Vulkan context that owns graphics resources.</param>
+/// <param name="swapChain">The swap chain used for presentation.</param>
+/// <param name="renderer">The renderer used to record and submit render batches.</param>
+/// <param name="drawableRegistry">The registry that creates commands for drawables.</param>
+/// <param name="renderPassConfigurations">The shared render-pass configurations.</param>
+/// <param name="eventHub">The event hub used to register this graphics system.</param>
+/// <param name="logger">The logger used to record graphics system activity.</param>
 public unsafe class VulkanGraphicsSystem(
     Context context,
     ISwapChain swapChain,
     IRenderer renderer,
     IDrawableRegistry drawableRegistry,
+    RenderPassConfigurations renderPassConfigurations,
     IEventHub eventHub,
     ILogger<VulkanGraphicsSystem> logger
 ) : IGraphicsSystem, IDisposable
@@ -18,14 +26,10 @@ public unsafe class VulkanGraphicsSystem(
     private readonly ISwapChain _swapChain = swapChain;
     private readonly IRenderer _renderer = renderer;
     private readonly IDrawableRegistry _drawables = drawableRegistry;
+    private readonly RenderPassConfigurations _renderPassConfigurations = renderPassConfigurations;
     private readonly ILogger<VulkanGraphicsSystem> _logger = logger;
 
     private IRenderBatch[] _batches = [];
-
-    /// <summary>
-    /// Gets the standard configuration for the currently supported render pass, indexed by bit position.
-    /// </summary>
-    public Dictionary<int, RenderPassConfiguration> _renderPasses = [];
 
     /// <summary>
     /// Initializes the graphics system and records the current Vulkan state.
@@ -51,22 +55,6 @@ public unsafe class VulkanGraphicsSystem(
 
         var batch = new RenderBatch(batchStrategy);
 
-        _renderPasses[NexusRenderPasses.GetIndex(NexusRenderPasses.Main)] = new()
-        {
-            Name = nameof(NexusRenderPasses.Main),
-            ColorFormat = Format.Undefined,
-            DepthFormat = Format.Undefined,
-            ColorLoadOp = AttachmentLoadOp.Clear,
-            ColorStoreOp = AttachmentStoreOp.Store,
-            DepthLoadOp = AttachmentLoadOp.DontCare,
-            DepthStoreOp = AttachmentStoreOp.DontCare,
-            ColorInitialLayout = ImageLayout.Undefined,
-            ColorFinalLayout = ImageLayout.PresentSrcKhr,
-            DepthInitialLayout = ImageLayout.Undefined,
-            DepthFinalLayout = ImageLayout.DepthStencilAttachmentOptimal,
-            SampleCount = SampleCountFlags.Count1Bit,
-        };
-
         var viewport = new VkViewport
         {
             X = 0,
@@ -79,7 +67,7 @@ public unsafe class VulkanGraphicsSystem(
 
         var scissor = new Rect2D { Offset = new Offset2D(0, 0), Extent = _swapChain.Extent };
 
-        foreach (var renderPass in _renderPasses)
+        foreach (var renderPass in _renderPassConfigurations.Configurations)
         {
             batch.Add(new SetViewportCommand(viewport));
             batch.Add(new SetScissorCommand(scissor));
