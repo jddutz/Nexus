@@ -72,7 +72,7 @@ public sealed class SyncManager : ISyncManager
     /// <inheritdoc/>
     public FrameSync GetFrameSync(uint frameIndex)
     {
-        if (frameIndex < 0 || frameIndex >= MaxFramesInFlight)
+        if (frameIndex >= MaxFramesInFlight)
         {
             throw new ArgumentOutOfRangeException(
                 nameof(frameIndex),
