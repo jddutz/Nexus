@@ -42,8 +42,14 @@ public class RenderBatch(IBatchStrategy batchStrategy) : IRenderBatch
         return _commands.Add(command);
     }
 
-    public void Clear()
+    /// </inheritdoc>
+    public void Remove(DrawableId drawableId)
     {
-        _commands.Clear();
+        _commands.RemoveWhere(command => command.Drawable?.Id == drawableId);
+    }
+
+    public void Clean()
+    {
+        _commands.RemoveWhere(cmd => !cmd.IsSticky);
     }
 }

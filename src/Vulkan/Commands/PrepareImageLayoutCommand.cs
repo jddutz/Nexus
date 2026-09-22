@@ -6,8 +6,6 @@ public sealed unsafe class PrepareImageLayoutCommand(VkImage image) : IVulkanCom
 
     public bool IsSticky => false;
 
-    public uint RefCount => 1;
-
     public RenderPhase Phase => RenderPhase.AfterBeginCommandBuffer;
 
     public uint RenderPass => 0;
@@ -17,8 +15,6 @@ public sealed unsafe class PrepareImageLayoutCommand(VkImage image) : IVulkanCom
     public IDrawable? Drawable => null;
 
     public int RenderPriority => 0;
-
-    public bool IsRecorded { get; set; }
 
     public void Record(Vk vk, CommandBuffer commandBuffer)
     {

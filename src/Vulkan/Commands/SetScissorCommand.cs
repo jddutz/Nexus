@@ -22,11 +22,9 @@ public sealed class SetScissorCommand(uint renderPass, Rect2D scissor) : IVulkan
 
     public int RenderPriority { get; set; } = int.MaxValue;
 
-    public uint RefCount { get; set; } = 1;
-
     public Guid Id { get; } = Guid.NewGuid();
 
-    public bool IsSticky => false;
+    public bool IsSticky => true;
 
     /// <summary>
     /// Gets the scissor rectangle to set.
@@ -40,6 +38,4 @@ public sealed class SetScissorCommand(uint renderPass, Rect2D scissor) : IVulkan
 
         vk.CmdSetScissor(commandBuffer, 0, 1, &scissor);
     }
-
-    public bool IsRecorded { get; set; } = false;
 }

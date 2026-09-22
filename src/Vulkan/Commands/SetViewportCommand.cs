@@ -23,11 +23,9 @@ public sealed class SetViewportCommand(uint renderPass, VkViewport viewport) : I
     /// <inheritdoc />
     public int RenderPriority { get; set; } = int.MaxValue;
 
-    public uint RefCount { get; set; } = 1;
-
     public Guid Id { get; } = Guid.NewGuid();
 
-    public bool IsSticky => false;
+    public bool IsSticky => true;
 
     /// <summary>
     /// Gets the viewport to set.
@@ -41,6 +39,4 @@ public sealed class SetViewportCommand(uint renderPass, VkViewport viewport) : I
 
         vk.CmdSetViewport(commandBuffer, 0, 1, &viewport);
     }
-
-    public bool IsRecorded { get; set; } = false;
 }

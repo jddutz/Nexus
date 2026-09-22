@@ -6,8 +6,6 @@ public interface IVulkanCommand
 
     bool IsSticky { get; }
 
-    uint RefCount { get; }
-
     RenderPhase Phase { get; }
 
     uint RenderPass { get; }
@@ -19,6 +17,4 @@ public interface IVulkanCommand
     int RenderPriority { get; }
 
     void Record(Vk vk, CommandBuffer commandBuffer);
-
-    bool IsRecorded { get; set; }
 }

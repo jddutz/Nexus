@@ -36,7 +36,12 @@ public interface IRenderBatch
     IEnumerable<IVulkanCommand> Commands { get; }
 
     /// <summary
-    /// Removes all commands from the batch.
+    /// Removes all commands associated with a given Drawable.
     /// </summary>
-    void Clear();
+    void Remove(DrawableId drawableId);
+
+    /// <summary
+    /// Removes all transient (IsSticky == false) commands from the batch.
+    /// </summary>
+    void Clean();
 }

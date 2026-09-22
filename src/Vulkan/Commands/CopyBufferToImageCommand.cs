@@ -6,8 +6,6 @@ public sealed class CopyBufferToImageCommand : IVulkanCommand
 
     public bool IsSticky => false;
 
-    public uint RefCount => 1;
-
     public RenderPhase Phase => RenderPhase.AfterBeginCommandBuffer;
 
     public uint RenderPass => 0;
@@ -17,8 +15,6 @@ public sealed class CopyBufferToImageCommand : IVulkanCommand
     public IDrawable? Drawable => null;
 
     public int RenderPriority => 1;
-
-    public bool IsRecorded { get; set; }
 
     private readonly VkBuffer _source;
     private readonly VkImage _destination;

@@ -20,8 +20,7 @@ public unsafe class VulkanGraphicsSystem(
     ISyncManager syncManager,
     RenderPassConfigurations renderPassConfig,
     IEventHub eventHub,
-    IVertexBufferRegistry geometryRegistry,
-    IImageRegistry textureRegistry,
+    IDrawableRegistry registry,
     ILogger<VulkanGraphicsSystem> logger
 ) : IGraphicsSystem, IDisposable
 {
@@ -87,18 +86,8 @@ public unsafe class VulkanGraphicsSystem(
 
         var batch = _batches[0];
 
-        var vertexShader =
-            drawable.VertexShader
-            ?? throw new InvalidOperationException("Drawables must define a vertex shader.");
-        var colorFormat =
-            drawable.FragmentShader?.ColorFormat
-            ?? throw new InvalidOperationException("Drawables must define a fragment shader.");
-        geometryRegistry.Create(drawable.Mesh, vertexShader.VertexFormat);
-
-        foreach (var cmd in textureRegistry.Create(drawable.Texture, colorFormat))
-        {
-            batch.Add(cmd);
-        }
+        foreach (var command in registry.Create(drawable))
+            batch.Add(command);
 
         logger.LogDebug(
             "Activated drawable. DrawableType={DrawableType}, DrawableId={DrawableId}",
@@ -138,18 +127,10 @@ public unsafe class VulkanGraphicsSystem(
 
         var batch = _batches[0];
 
-        var vertexShader =
-            drawable.VertexShader
-            ?? throw new InvalidOperationException("Drawables must define a vertex shader.");
-        var colorFormat =
-            drawable.FragmentShader?.ColorFormat
-            ?? throw new InvalidOperationException("Drawables must define a fragment shader.");
-        geometryRegistry.Release(drawable.Mesh, vertexShader.VertexFormat);
+        batch.Remove(drawable);
 
-        foreach (var cmd in textureRegistry.Release(drawable.Texture, colorFormat))
-        {
-            batch.Add(cmd);
-        }
+        foreach (var command in registry.Release(drawable))
+            batch.Add(command);
 
         logger.LogDebug(
             "Deactivated drawable. DrawableType={DrawableType}, DrawableId={DrawableId}",
@@ -208,7 +189,7 @@ public unsafe class VulkanGraphicsSystem(
             renderer.Submit();
 
             foreach (var batch in _batches)
-                batch.Clear();
+                batch.Clean();
         }
         catch (Exception exception)
         {
@@ -232,7 +213,7 @@ public unsafe class VulkanGraphicsSystem(
         }
 
         syncManager.DeviceWaitIdle();
-        geometryRegistry.Reset();
+        registry.Reset();
 
         if (disposing)
         {

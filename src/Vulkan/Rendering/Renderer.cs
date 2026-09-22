@@ -68,13 +68,7 @@ public unsafe class Renderer(Context context, ISwapChain swapChain, ISyncManager
 
         foreach (var command in batch.Commands)
         {
-            if (command.RefCount <= 0)
-                continue;
-
-            if (command.IsSticky || !command.IsRecorded)
-                command.Record(_context.VulkanApi, _commandBuffer);
-
-            command.IsRecorded = true;
+            command.Record(_context.VulkanApi, _commandBuffer);
         }
     }
 
@@ -126,12 +120,51 @@ public unsafe class Renderer(Context context, ISwapChain swapChain, ISyncManager
     /// <summary>Ends command recording, submits the frame, and presents the rendered image.</summary>
     public void Submit()
     {
+        TransitionToPresent();
+
         if (_context.VulkanApi.EndCommandBuffer(_commandBuffer) != Result.Success)
             throw new InvalidOperationException("Failed to end command buffer recording.");
 
         SubmitFrame();
         PresentFrame();
         AfterRendering?.Invoke(this, new RenderEventArgs(_imageIndex));
+    }
+
+    /// <summary>Records the swap-chain image transition required before presentation.</summary>
+    private void TransitionToPresent()
+    {
+        var barrier = new ImageMemoryBarrier
+        {
+            SType = StructureType.ImageMemoryBarrier,
+            OldLayout = ImageLayout.ColorAttachmentOptimal,
+            NewLayout = ImageLayout.PresentSrcKhr,
+            SrcQueueFamilyIndex = Vk.QueueFamilyIgnored,
+            DstQueueFamilyIndex = Vk.QueueFamilyIgnored,
+            Image = _swapChain.Images[_imageIndex],
+            SubresourceRange = new ImageSubresourceRange
+            {
+                AspectMask = ImageAspectFlags.ColorBit,
+                BaseMipLevel = 0,
+                LevelCount = 1,
+                BaseArrayLayer = 0,
+                LayerCount = 1,
+            },
+            SrcAccessMask = AccessFlags.ColorAttachmentWriteBit,
+            DstAccessMask = 0,
+        };
+
+        _context.VulkanApi.CmdPipelineBarrier(
+            _commandBuffer,
+            PipelineStageFlags.ColorAttachmentOutputBit,
+            PipelineStageFlags.BottomOfPipeBit,
+            0,
+            0,
+            null,
+            0,
+            null,
+            1,
+            in barrier
+        );
     }
 
     /// <summary>

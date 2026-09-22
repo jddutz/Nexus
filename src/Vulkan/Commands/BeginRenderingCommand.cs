@@ -49,10 +49,6 @@ public sealed unsafe class BeginRenderingCommand : IVulkanCommand
 
     public int RenderPriority => int.MinValue + 1;
 
-    public bool IsRecorded { get; set; }
-
-    public uint RefCount { get; set; } = 1;
-
     public void Record(Vk vk, CommandBuffer commandBuffer)
     {
         fixed (RenderingAttachmentInfo* colorAttachments = _colorAttachments)
@@ -76,7 +72,5 @@ public sealed unsafe class BeginRenderingCommand : IVulkanCommand
 
             vk.CmdBeginRendering(commandBuffer, &renderingInfo);
         }
-
-        IsRecorded = true;
     }
 }

@@ -22,14 +22,8 @@ public sealed class EndRenderingCommand : IVulkanCommand
 
     public int RenderPriority => int.MinValue;
 
-    public bool IsRecorded { get; set; }
-
-    public uint RefCount { get; set; } = 1;
-
     public void Record(Vk vk, CommandBuffer commandBuffer)
     {
         vk.CmdEndRendering(commandBuffer);
-
-        IsRecorded = true;
     }
 }
