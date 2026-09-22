@@ -16,7 +16,7 @@ public unsafe class GeometryRegistry(Context context, ILogger<GeometryRegistry> 
     private readonly Dictionary<VkBuffer, int> _refs = [];
 
     /// <inheritdoc/>
-    public void Create(IGeometry geometry, VertexFormat format)
+    public IEnumerable<IVulkanCommand> Create(IGeometry geometry, VertexFormat format)
     {
         ArgumentNullException.ThrowIfNull(geometry);
         ArgumentNullException.ThrowIfNull(format);
@@ -58,21 +58,48 @@ public unsafe class GeometryRegistry(Context context, ILogger<GeometryRegistry> 
     }
 
     /// <inheritdoc/>
-    public void Update(IGeometry geometry, VertexFormat format)
+    public IEnumerable<IVulkanCommand> Update(IGeometry geometry, VertexFormat format)
     {
         ArgumentNullException.ThrowIfNull(geometry);
         ArgumentNullException.ThrowIfNull(format);
 
-        // Geometry changes invalidate the existing vertex data.
-        //
-        // For now, rebuild the buffer. Later this can be optimized into an
-        // in-place upload when the allocation is large enough.
-        Release(geometry, format);
-        Create(geometry, format);
+        var key = (MeshId: geometry.Id, FormatId: format.Id);
+
+        if (!_buffers.TryGetValue(key, out var oldBuffer))
+        {
+            Create(geometry, format);
+            return;
+        }
+
+        var data = new byte[checked((int)geometry.Count * (int)format.Stride)];
+        geometry.WriteTo(0, checked((int)geometry.Count), format, data);
+
+        var newBuffer = CreateBuffer(data);
+        var referenceCount = _refs[oldBuffer];
+
+        _buffers[key] = newBuffer;
+        _refs.Remove(oldBuffer);
+        _refs.Add(newBuffer, referenceCount);
+
+        _context.VulkanApi.DestroyBuffer(_context.Device, oldBuffer, null);
+
+        if (_memory.Remove(oldBuffer, out var memory))
+            _context.VulkanApi.FreeMemory(_context.Device, memory, null);
+
+        if (_logger.IsEnabled(LogLevel.Debug))
+            _logger.LogDebug(
+                "Updated vertex buffer. MeshId={MeshId}, VertexFormatId={VertexFormatId}, OldBufferHandle={OldBufferHandle}, NewBufferHandle={NewBufferHandle}, Size={Size}, ReferenceCount={ReferenceCount}",
+                geometry.Id,
+                format.Id,
+                oldBuffer.Handle,
+                newBuffer.Handle,
+                data.Length,
+                referenceCount
+            );
     }
 
     /// <inheritdoc/>
-    public void Release(IGeometry geometry, VertexFormat format)
+    public IEnumerable<IVulkanCommand> Release(IGeometry geometry, VertexFormat format)
     {
         ArgumentNullException.ThrowIfNull(geometry);
         ArgumentNullException.ThrowIfNull(format);
@@ -270,22 +297,16 @@ public unsafe class GeometryRegistry(Context context, ILogger<GeometryRegistry> 
     /// <summary>
     /// Destroys every managed Vulkan vertex buffer and its backing memory.
     /// </summary>
-    private void ResetBuffers()
+    public void Reset()
     {
-        foreach (var (key, buffer) in _buffers)
+        foreach (var buffer in _buffers.Values)
         {
             _context.VulkanApi.DestroyBuffer(_context.Device, buffer, null);
 
             if (_memory.Remove(buffer, out var memory))
+            {
                 _context.VulkanApi.FreeMemory(_context.Device, memory, null);
-
-            if (_logger.IsEnabled(LogLevel.Debug))
-                _logger.LogDebug(
-                    "Reset vertex buffer. MeshId={MeshId}, VertexFormatId={VertexFormatId}, BufferHandle={BufferHandle}",
-                    key.MeshId,
-                    key.FormatId,
-                    buffer.Handle
-                );
+            }
         }
 
         _buffers.Clear();
@@ -294,15 +315,9 @@ public unsafe class GeometryRegistry(Context context, ILogger<GeometryRegistry> 
     }
 
     /// <inheritdoc/>
-    public void Reset()
-    {
-        ResetBuffers();
-    }
-
-    /// <inheritdoc/>
     public void Dispose()
     {
-        ResetBuffers();
+        Reset();
         GC.SuppressFinalize(this);
     }
 }
