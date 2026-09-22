@@ -8,17 +8,14 @@ namespace Nexus.Graphics.Vulkan.Rendering;
 /// <param name="swapChain">The swap chain that supplies render targets and presentation.</param>
 /// <param name="syncManager">The synchronization manager for frames and swap-chain images.</param>
 /// <param name="logger">The logger used to record rendering failures.</param>
-public unsafe class Renderer(
-    Context context,
-    ISwapChain swapChain,
-    ISyncManager syncManager,
-    ILogger<Renderer> logger
-) : IRenderer, IDisposable
+public unsafe class Renderer(Context context, ISwapChain swapChain, ISyncManager syncManager)
+    : IRenderer,
+        IDisposable
 {
     private Context _context = context;
     private ISwapChain _swapChain = swapChain;
     private ISyncManager _syncManager = syncManager;
-    private readonly ILogger<Renderer> _logger = logger;
+
     private CommandBufferPool _commandPool = CommandBufferPool.ForGraphics(context, 2);
     private FrameSync? _frameSync;
     private ImageSync? _imageSync;
