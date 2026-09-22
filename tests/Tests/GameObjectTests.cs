@@ -23,7 +23,7 @@ public class GameObjectTests
         Assert.Equal(1, view.ViewComponent.RenderLayers.Count);
         var mainLayer = view.ViewComponent.RenderLayers[0];
         Assert.Equal("Main", mainLayer.Name);
-        Assert.Equal(NexusRenderPasses.Main, mainLayer.RenderPassMask);
+        Assert.Equal(RenderPasses.Main, mainLayer.RenderPassMask);
         Assert.Contains(view.ViewComponent, view.Components);
     }
 
