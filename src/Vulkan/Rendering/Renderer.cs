@@ -38,18 +38,20 @@ public unsafe class Renderer(Context context, ISwapChain swapChain, ISyncManager
         && _swapChain.Extent.Height > 0;
 
     /// <summary>Acquires the next swap-chain image and begins command recording.</summary>
-    /// <returns><see langword="true"/> when recording can begin; otherwise, <see langword="false"/>.</returns>
-    public bool Begin()
+    /// <returns>The acquired frame and image index, or <see langword="null"/> when recording cannot begin.</returns>
+    public RenderFrameResult? Begin()
     {
         if (!CanRender())
-            return false;
+            return null;
 
         if (!PrepareFrame())
-            return false;
+            return null;
 
         BeforeRendering?.Invoke(this, new RenderEventArgs(_imageIndex));
 
-        return BeginCommandBuffer();
+        return BeginCommandBuffer()
+            ? new RenderFrameResult(_frameSync!.FrameIndex, _imageIndex)
+            : null;
     }
 
     /// <summary>Records a render batch into the current command buffer.</summary>
@@ -57,6 +59,12 @@ public unsafe class Renderer(Context context, ISwapChain swapChain, ISyncManager
     public void Record(IRenderBatch batch)
     {
         ArgumentNullException.ThrowIfNull(batch);
+
+        if (_frameSync == null || batch.FrameIndex != _frameSync.FrameIndex)
+            throw new InvalidOperationException(
+                $"Render batch belongs to frame {batch.FrameIndex}, "
+                    + $"but the active frame is {_frameSync?.FrameIndex}."
+            );
 
         foreach (var command in batch.Commands)
         {

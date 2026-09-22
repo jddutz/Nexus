@@ -63,14 +63,12 @@ public unsafe class VulkanGraphicsSystem(
 
         for (var layerIndex = 0; layerIndex < view.RenderLayers.Count; layerIndex++)
         {
-            var batch = new RenderBatch(new DefaultBatchStrategy());
+            batches[layerIndex] = new RenderBatch(new DefaultBatchStrategy());
             foreach (var config in renderPassConfig.Configurations.Values)
             {
-                batch.Add(new SetViewportCommand(config.RenderPassBit, viewport));
-                batch.Add(new SetScissorCommand(config.RenderPassBit, scissor));
+                batches[layerIndex].Add(new SetViewportCommand(config.RenderPassBit, viewport));
+                batches[layerIndex].Add(new SetScissorCommand(config.RenderPassBit, scissor));
             }
-
-            batches[layerIndex] = batch;
         }
 
         _batches = batches;
@@ -191,16 +189,26 @@ public unsafe class VulkanGraphicsSystem(
     {
         try
         {
-            if (!renderer.Begin())
+            var frameId = renderer.Begin();
+
+            if (frameId is null)
                 return;
 
+            var imageIndex = frameId.Value.ImageIndex;
+            var image = swapChain.Images[imageIndex];
+            var imageView = swapChain.ImageViews[imageIndex];
             foreach (var batch in _batches)
+            {
+                batch.FrameIndex = frameId.Value.FrameIndex;
+                batch.Image = image;
+                batch.ImageView = imageView;
                 renderer.Record(batch);
+            }
 
             renderer.Submit();
 
             foreach (var batch in _batches)
-                batch.Clean();
+                batch.Clear();
         }
         catch (Exception exception)
         {

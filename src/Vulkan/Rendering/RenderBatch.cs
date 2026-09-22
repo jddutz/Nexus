@@ -8,6 +8,21 @@ public class RenderBatch(IBatchStrategy batchStrategy) : IRenderBatch
     private SortedSet<IVulkanCommand> _commands = new(batchStrategy);
 
     /// <summary>
+    /// Gets or sets the frame synchronization slot for which this batch was prepared.
+    /// </summary>
+    public int FrameIndex { get; set; }
+
+    /// <summary>
+    /// Gets or sets the swap-chain image associated with this batch.
+    /// </summary>
+    public VkImage Image { get; set; }
+
+    /// <summary>
+    /// Gets or sets the image view associated with the swap-chain image.
+    /// </summary>
+    public VkImageView ImageView { get; set; }
+
+    /// <summary>
     /// Gets the Vulkan commands in execution order.
     /// </summary>
     public IEnumerable<IVulkanCommand> Commands => _commands;
@@ -27,8 +42,8 @@ public class RenderBatch(IBatchStrategy batchStrategy) : IRenderBatch
         return _commands.Add(command);
     }
 
-    public void Clean()
+    public void Clear()
     {
-        _commands.RemoveWhere(cmd => cmd.RefCount <= 0 || (!cmd.IsSticky && cmd.IsRecorded));
+        _commands.Clear();
     }
 }

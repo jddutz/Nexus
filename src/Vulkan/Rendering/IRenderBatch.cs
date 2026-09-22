@@ -6,6 +6,21 @@ namespace Nexus.Graphics.Vulkan.Rendering;
 public interface IRenderBatch
 {
     /// <summary>
+    /// Gets or sets the frame synchronization slot for which this batch was prepared.
+    /// </summary>
+    int FrameIndex { get; set; }
+
+    /// <summary>
+    /// Gets or sets the swap-chain image associated with this batch.
+    /// </summary>
+    VkImage Image { get; set; }
+
+    /// <summary>
+    /// Gets or sets the image view associated with the swap-chain image.
+    /// </summary>
+    VkImageView ImageView { get; set; }
+
+    /// <summary>
     /// Adds a Vulkan command to the batch.
     /// </summary>
     /// <param name="command">The command to add.</param>
@@ -21,7 +36,7 @@ public interface IRenderBatch
     IEnumerable<IVulkanCommand> Commands { get; }
 
     /// <summary
-    /// Removes commands that are no longer needed from the batch.
+    /// Removes all commands from the batch.
     /// </summary>
-    void Clean();
+    void Clear();
 }

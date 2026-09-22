@@ -9,10 +9,10 @@ public interface IRenderer
     /// Prepares the renderer to record a new frame.
     /// </summary>
     /// <returns>
-    /// <see langword="true"/> if the frame was acquired and command recording can begin;
-    /// otherwise, <see langword="false"/>.
+    /// The acquired frame and its swap-chain image index, or <see langword="null"/> if
+    /// rendering cannot begin.
     /// </returns>
-    bool Begin();
+    RenderFrameResult? Begin();
 
     /// <summary>
     /// Records the commands required to render a batch into the current command buffer.
