@@ -23,6 +23,7 @@ public unsafe class VulkanGraphicsSystem(
     IEventHub eventHub,
     IVertexBufferRegistry geometryRegistry,
     IImageRegistry textureRegistry,
+    IPipelineRegistry pipelineRegistry,
     ILogger<VulkanGraphicsSystem> logger
 ) : IGraphicsSystem, IDisposable
 {
@@ -95,6 +96,40 @@ public unsafe class VulkanGraphicsSystem(
             drawable.FragmentShader?.ColorFormat
             ?? throw new InvalidOperationException("Drawables must define a fragment shader.");
         geometryRegistry.Create(drawable.Mesh, vertexShader.VertexFormat);
+
+        var renderPass = RenderPasses.Main;
+        var pipelineDefinitionBuilder = new PipelineDefinitionBuilder(
+            drawable.GetType().Name,
+            context
+        )
+            .WithShader(vertexShader)
+            .WithRenderPass(swapChain.Passes[RenderPasses.GetIndex(renderPass)]);
+
+        if (drawable.TessellationControlShader is not null)
+            pipelineDefinitionBuilder.WithShader(drawable.TessellationControlShader);
+        if (drawable.TessellationEvalShader is not null)
+            pipelineDefinitionBuilder.WithShader(drawable.TessellationEvalShader);
+        if (drawable.GeometryShader is not null)
+            pipelineDefinitionBuilder.WithShader(drawable.GeometryShader);
+        if (drawable.FragmentShader is not null)
+            pipelineDefinitionBuilder.WithShader(drawable.FragmentShader);
+
+        var pipelineDefinition = pipelineDefinitionBuilder.Build();
+        var (pipeline, _) = pipelineRegistry.GetOrCreate(pipelineDefinition);
+        var vertexBuffer = geometryRegistry.Get(drawable.Mesh.Id, vertexShader.VertexFormat.Id);
+
+        batch.Add(new BindPipelineCommand(renderPass, pipelineDefinition.Id, drawable, pipeline));
+        batch.Add(
+            new BindVertexBufferCommand(renderPass, pipelineDefinition.Id, drawable, vertexBuffer)
+        );
+        batch.Add(
+            new DrawCommand(
+                renderPass,
+                pipelineDefinition.Id,
+                drawable,
+                checked((uint)drawable.Mesh.Count)
+            )
+        );
 
         foreach (var command in textureRegistry.Create(drawable.Texture, colorFormat))
             batch.Add(command);

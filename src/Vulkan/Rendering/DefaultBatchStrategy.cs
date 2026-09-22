@@ -45,6 +45,10 @@ public sealed class DefaultBatchStrategy : IBatchStrategy
                 result = ComparePipeline(x.PipelineId, y.PipelineId);
                 if (result != 0)
                     return result;
+
+                result = CompareDrawable(x.Drawable, y.Drawable);
+                if (result != 0)
+                    return result;
             }
         }
 
@@ -91,5 +95,16 @@ public sealed class DefaultBatchStrategy : IBatchStrategy
             return 1;
 
         return x.Value.Value.CompareTo(y.Value.Value);
+    }
+
+    private static int CompareDrawable(IDrawable? x, IDrawable? y)
+    {
+        if (x is null)
+            return y is null ? 0 : -1;
+
+        if (y is null)
+            return 1;
+
+        return x.Id.Value.CompareTo(y.Id.Value);
     }
 }

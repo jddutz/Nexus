@@ -20,6 +20,17 @@ public interface IVertexBufferRegistry : IDisposable
     IEnumerable<IVulkanCommand> Update(IGeometry geometry, VertexFormat format);
 
     /// <summary>
+    /// Gets the registered Vulkan vertex buffer for a geometry and vertex format.
+    /// </summary>
+    /// <param name="meshId">The geometry identifier.</param>
+    /// <param name="formatId">The vertex-format identifier.</param>
+    /// <returns>The registered Vulkan vertex buffer.</returns>
+    /// <exception cref="KeyNotFoundException">
+    /// The geometry and vertex format do not identify a registered buffer.
+    /// </exception>
+    VkBuffer Get(MeshId meshId, VertexFormatId formatId);
+
+    /// <summary>
     /// Releases a reference to the buffer for a geometry resource in the specified vertex format.
     /// </summary>
     /// <param name="geometry">The geometry resource whose buffer reference is released.</param>
