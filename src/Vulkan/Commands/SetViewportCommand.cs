@@ -10,6 +10,8 @@ public sealed class SetViewportCommand(uint renderPass, VkViewport viewport) : I
     /// </summary>
     public uint RenderPass { get; } = renderPass;
 
+    public RenderPhase Phase => RenderPhase.RenderPass;
+
     /// <summary>
     /// Gets the pipeline ordering value for this command.
     /// </summary>
@@ -20,6 +22,8 @@ public sealed class SetViewportCommand(uint renderPass, VkViewport viewport) : I
 
     /// <inheritdoc />
     public int RenderPriority { get; set; } = int.MaxValue;
+
+    public uint RefCount { get; set; } = 1;
 
     public Guid Id { get; } = Guid.NewGuid();
 

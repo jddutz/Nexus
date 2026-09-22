@@ -29,6 +29,6 @@ public class RenderBatch(IBatchStrategy batchStrategy) : IRenderBatch
 
     public void Clean()
     {
-        _commands.RemoveWhere(cmd => !cmd.IsSticky && cmd.IsRecorded);
+        _commands.RemoveWhere(cmd => cmd.RefCount <= 0 || (!cmd.IsSticky && cmd.IsRecorded));
     }
 }

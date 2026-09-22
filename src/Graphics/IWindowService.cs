@@ -1,4 +1,4 @@
-namespace Nexus.Runtime;
+namespace Nexus.Graphics;
 
 /// <summary>
 /// Provides access to the primary application window and manages its lifecycle.
@@ -6,17 +6,14 @@ namespace Nexus.Runtime;
 public interface IWindowService
 {
     /// <summary>
-    /// Gets the application window, if it exists. This method will throw if the
-    /// window has not been created yet.
+    /// Gets the application window, if it exists, throwing if it has not been created yet.
     /// </summary>
-    /// <param name="options">The Silk.NET window options to use for creation.</param>
     /// <returns>The Silk.NET <see cref="IWindow"/> instance.</returns>
     IWindow GetWindow();
 
     /// <summary>
     /// Gets the singleton application window, creating it if it does not already exist.
     /// </summary>
-    /// <param name="options">The Silk.NET window options to use for creation.</param>
     /// <returns>The Silk.NET <see cref="IWindow"/> instance.</returns>
     IWindow GetOrCreateWindow();
 

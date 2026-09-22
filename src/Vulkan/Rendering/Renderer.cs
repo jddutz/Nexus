@@ -64,6 +64,9 @@ public unsafe class Renderer(
 
         foreach (var command in batch.Commands)
         {
+            if (command.RefCount <= 0)
+                continue;
+
             if (command.IsSticky || !command.IsRecorded)
                 command.Record(_context.VulkanApi, _commandBuffer);
 

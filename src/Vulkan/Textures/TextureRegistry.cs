@@ -18,7 +18,7 @@ public class TextureRegistry : ITextureRegistry
         throw new NotImplementedException();
     }
 
-    public IEnumerable<IVulkanCommand> Delete(ITexture texture)
+    public IEnumerable<IVulkanCommand> Release(ITexture texture)
     {
         ArgumentNullException.ThrowIfNull(texture);
         throw new NotImplementedException();
