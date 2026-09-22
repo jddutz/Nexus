@@ -171,6 +171,8 @@ public unsafe class Renderer(
         {
             throw new InvalidOperationException($"Failed to submit queue: {result}");
         }
+
+        _syncManager.IncrementFrameCounter();
     }
 
     /// <summary>

@@ -88,6 +88,11 @@ public interface ISyncManager : IDisposable
     ImageSync GetImageSync(uint imageIndex);
 
     /// <summary>
+    /// Records a frame that was successfully submitted to the graphics queue.
+    /// </summary>
+    void IncrementFrameCounter();
+
+    /// <summary>
     /// Waits for a fence to be signaled, with optional timeout.
     /// Blocks the CPU until the GPU signals the fence.
     /// </summary>

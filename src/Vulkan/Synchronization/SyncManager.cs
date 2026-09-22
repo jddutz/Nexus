@@ -282,9 +282,9 @@ public sealed class SyncManager : ISyncManager
 
     /// <summary>
     /// Increments the total frames rendered counter.
-    /// Should be called once per frame after presentation.
+    /// Should be called once per frame after successful submission.
     /// </summary>
-    internal void IncrementFrameCounter()
+    public void IncrementFrameCounter()
     {
         _totalFramesRendered++;
     }
