@@ -9,7 +9,8 @@ namespace Nexus.Graphics.Vulkan.Pipelines;
 internal sealed record PipelineEntry(
     Pipeline Pipeline,
     PipelineLayout Layout,
-    DescriptorSetLayout[] DescriptorSetLayouts
+    DescriptorSetLayout[] DescriptorSetLayouts,
+    int References
 );
 
 /// <summary>
@@ -27,10 +28,16 @@ public unsafe class PipelineRegistry(Context context, IPipelineFactory pipelineF
     public (Pipeline pipeline, PipelineLayout layout) GetOrCreate(PipelineDefinition description)
     {
         if (_pipelines.TryGetValue(description.Id, out var existing))
+        {
+            _pipelines[description.Id] = existing with
+            {
+                References = checked(existing.References + 1),
+            };
             return (existing.Pipeline, existing.Layout);
+        }
 
         var (pipeline, layout, descriptorSetLayouts) = _pipelineFactory.Create(description);
-        var entry = new PipelineEntry(pipeline, layout, descriptorSetLayouts);
+        var entry = new PipelineEntry(pipeline, layout, descriptorSetLayouts, 1);
 
         _pipelines.Add(description.Id, entry);
         return (entry.Pipeline, entry.Layout);
@@ -81,7 +88,16 @@ public unsafe class PipelineRegistry(Context context, IPipelineFactory pipelineF
     /// <inheritdoc />
     public void Release(PipelineId id)
     {
-        if (_pipelines.Remove(id, out var entry))
+        if (!_pipelines.TryGetValue(id, out var entry))
+            return;
+
+        if (entry.References > 1)
+        {
+            _pipelines[id] = entry with { References = entry.References - 1 };
+            return;
+        }
+
+        if (_pipelines.Remove(id))
         {
             _context.VulkanApi.DestroyPipeline(_context.Device, entry.Pipeline, null);
             _context.VulkanApi.DestroyPipelineLayout(_context.Device, entry.Layout, null);

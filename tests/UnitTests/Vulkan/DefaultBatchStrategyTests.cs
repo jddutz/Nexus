@@ -32,7 +32,17 @@ public class DefaultBatchStrategyTests
         var ordered = commands.OrderBy(command => command, new DefaultBatchStrategy());
 
         Assert.Equal(
-            new[] { "null", "bind-1", "vertex-1", "descriptor-1", "draw-1", "vertex-2", "descriptor-2", "draw-2" },
+            new[]
+            {
+                "null",
+                "bind-1",
+                "vertex-1",
+                "descriptor-1",
+                "draw-1",
+                "vertex-2",
+                "descriptor-2",
+                "draw-2",
+            },
             ordered.Select(command => command.Name)
         );
     }
@@ -77,7 +87,8 @@ public class DefaultBatchStrategyTests
 
         public IInstanceDataSource Instances => null!;
 
-        public ReadOnlyMemory<byte> GetUniformData(ShaderInput[] layout) => ReadOnlyMemory<byte>.Empty;
+        public ReadOnlyMemory<byte> GetUniformData(ShaderInput[] layout) =>
+            ReadOnlyMemory<byte>.Empty;
 
         public VertexShader? VertexShader => null;
 

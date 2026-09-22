@@ -98,23 +98,7 @@ public unsafe class VulkanGraphicsSystem(
         geometryRegistry.Create(drawable.Mesh, vertexShader.VertexFormat);
 
         var renderPass = RenderPasses.Main;
-        var pipelineDefinitionBuilder = new PipelineDefinitionBuilder(
-            drawable.GetType().Name,
-            context
-        )
-            .WithShader(vertexShader)
-            .WithRenderPass(swapChain.Passes[RenderPasses.GetIndex(renderPass)]);
-
-        if (drawable.TessellationControlShader is not null)
-            pipelineDefinitionBuilder.WithShader(drawable.TessellationControlShader);
-        if (drawable.TessellationEvalShader is not null)
-            pipelineDefinitionBuilder.WithShader(drawable.TessellationEvalShader);
-        if (drawable.GeometryShader is not null)
-            pipelineDefinitionBuilder.WithShader(drawable.GeometryShader);
-        if (drawable.FragmentShader is not null)
-            pipelineDefinitionBuilder.WithShader(drawable.FragmentShader);
-
-        var pipelineDefinition = pipelineDefinitionBuilder.Build();
+        var pipelineDefinition = CreatePipelineDefinition(drawable, renderPass, vertexShader);
         var (pipeline, _) = pipelineRegistry.GetOrCreate(pipelineDefinition);
         var vertexBuffer = geometryRegistry.Get(drawable.Mesh.Id, vertexShader.VertexFormat.Id);
 
@@ -139,6 +123,38 @@ public unsafe class VulkanGraphicsSystem(
             drawable.GetType().Name,
             drawable.Id
         );
+    }
+
+    /// <summary>
+    /// Reconstructs the pipeline definition used by a drawable.
+    /// </summary>
+    /// <param name="drawable">The drawable whose shader state defines the pipeline.</param>
+    /// <param name="renderPass">The render pass used by the drawable.</param>
+    /// <param name="vertexShader">The drawable's required vertex shader.</param>
+    /// <returns>The pipeline definition for the drawable.</returns>
+    private PipelineDefinition CreatePipelineDefinition(
+        IDrawable drawable,
+        uint renderPass,
+        VertexShader vertexShader
+    )
+    {
+        var pipelineDefinitionBuilder = new PipelineDefinitionBuilder(
+            drawable.GetType().Name,
+            context
+        )
+            .WithShader(vertexShader)
+            .WithRenderPass(swapChain.Passes[RenderPasses.GetIndex(renderPass)]);
+
+        if (drawable.TessellationControlShader is not null)
+            pipelineDefinitionBuilder.WithShader(drawable.TessellationControlShader);
+        if (drawable.TessellationEvalShader is not null)
+            pipelineDefinitionBuilder.WithShader(drawable.TessellationEvalShader);
+        if (drawable.GeometryShader is not null)
+            pipelineDefinitionBuilder.WithShader(drawable.GeometryShader);
+        if (drawable.FragmentShader is not null)
+            pipelineDefinitionBuilder.WithShader(drawable.FragmentShader);
+
+        return pipelineDefinitionBuilder.Build();
     }
 
     public void Handle(ComponentActivatedEvent e)
@@ -180,6 +196,9 @@ public unsafe class VulkanGraphicsSystem(
         var colorFormat =
             drawable.FragmentShader?.ColorFormat
             ?? throw new InvalidOperationException("Drawables must define a fragment shader.");
+        var pipelineDefinition = CreatePipelineDefinition(drawable, RenderPasses.Main, vertexShader);
+
+        pipelineRegistry.Release(pipelineDefinition.Id);
         geometryRegistry.Release(drawable.Mesh, vertexShader.VertexFormat);
 
         foreach (var command in textureRegistry.Release(drawable.Texture, colorFormat))
