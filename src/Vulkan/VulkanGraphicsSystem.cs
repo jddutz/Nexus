@@ -196,7 +196,11 @@ public unsafe class VulkanGraphicsSystem(
         var colorFormat =
             drawable.FragmentShader?.ColorFormat
             ?? throw new InvalidOperationException("Drawables must define a fragment shader.");
-        var pipelineDefinition = CreatePipelineDefinition(drawable, RenderPasses.Main, vertexShader);
+        var pipelineDefinition = CreatePipelineDefinition(
+            drawable,
+            RenderPasses.Main,
+            vertexShader
+        );
 
         pipelineRegistry.Release(pipelineDefinition.Id);
         geometryRegistry.Release(drawable.Mesh, vertexShader.VertexFormat);
