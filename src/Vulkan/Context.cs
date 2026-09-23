@@ -58,7 +58,7 @@ public unsafe class Context
             ApplicationVersion = new Version32(1, 0, 0),
             PEngineName = (byte*)Marshal.StringToHGlobalAnsi(GRAPHICS_ENGINE_NAME),
             EngineVersion = new Version32(1, 0, 0),
-            ApiVersion = Vk.Version12,
+            ApiVersion = Vk.Version13,
         };
 
         InstanceCreateInfo createInfo = new()
@@ -535,25 +535,44 @@ public unsafe class Context
         }
 
         var deviceFeatures = new PhysicalDeviceFeatures();
+        var dynamicRenderingFeatures = new PhysicalDeviceDynamicRenderingFeatures
+        {
+            SType = StructureType.PhysicalDeviceDynamicRenderingFeatures,
+            DynamicRendering = true,
+        };
 
-        var extensionName = stackalloc byte*[1];
-        extensionName[0] = (byte*)SilkMarshal.StringToPtr(KhrSwapchain.ExtensionName);
+        var extensionNames = stackalloc byte*[Settings.RequiredDeviceExtensions.Length];
+        for (int i = 0; i < Settings.RequiredDeviceExtensions.Length; i++)
+        {
+            extensionNames[i] = (byte*)
+                SilkMarshal.StringToPtr(Settings.RequiredDeviceExtensions[i]);
+        }
 
         var createInfo = new DeviceCreateInfo
         {
             SType = StructureType.DeviceCreateInfo,
+            PNext = &dynamicRenderingFeatures,
             QueueCreateInfoCount = (uint)uniqueQueueFamilies.Length,
             PQueueCreateInfos = queueCreateInfos,
             PEnabledFeatures = &deviceFeatures,
-            EnabledExtensionCount = 1,
-            PpEnabledExtensionNames = extensionName,
+            EnabledExtensionCount = (uint)Settings.RequiredDeviceExtensions.Length,
+            PpEnabledExtensionNames = extensionNames,
         };
 
         // Creating the logical device using selected physical device and queues
         Device device;
-        var result = VulkanApi.CreateDevice(PhysicalDevice, &createInfo, null, &device);
-
-        SilkMarshal.Free((nint)extensionName[0]);
+        Result result;
+        try
+        {
+            result = VulkanApi.CreateDevice(PhysicalDevice, &createInfo, null, &device);
+        }
+        finally
+        {
+            for (int i = 0; i < Settings.RequiredDeviceExtensions.Length; i++)
+            {
+                SilkMarshal.Free((nint)extensionNames[i]);
+            }
+        }
 
         if (result != Result.Success)
         {
