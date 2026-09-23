@@ -50,7 +50,9 @@ public unsafe class SamplerRegistry : ISamplerRegistry
     public VkSampler Get(SamplingBehaviorId id)
     {
         if (!_samplers.TryGetValue(id, out var sampler))
-            throw new KeyNotFoundException($"Sampler for sampling behavior '{id}' is not registered.");
+            throw new KeyNotFoundException(
+                $"Sampler for sampling behavior '{id}' is not registered."
+            );
 
         return sampler;
     }
