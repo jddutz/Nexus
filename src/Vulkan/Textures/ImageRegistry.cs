@@ -522,7 +522,11 @@ public unsafe class ImageRegistry : IImageRegistry
     private void QueueStagedBuffer(VkBuffer buffer, uint frameIndex)
     {
         if (frameIndex >= _syncManager.MaxFramesInFlight)
-            throw new ArgumentOutOfRangeException(nameof(frameIndex), frameIndex, "Invalid frame index.");
+            throw new ArgumentOutOfRangeException(
+                nameof(frameIndex),
+                frameIndex,
+                "Invalid frame index."
+            );
 
         _stagedBuffers[checked((int)frameIndex)].Enqueue(buffer);
     }

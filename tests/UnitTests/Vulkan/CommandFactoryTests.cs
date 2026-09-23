@@ -259,11 +259,11 @@ public class CommandFactoryTests
 
         public VkBuffer Get(MeshId meshId, VertexFormatId formatId) => new(11);
 
-    public VkBuffer GetInstanceBuffer(DrawableId drawableId) => new(12);
+        public VkBuffer GetInstanceBuffer(DrawableId drawableId) => new(12);
 
         public IEnumerable<IVulkanCommand> Release(IGeometry geometry, VertexFormat format) => [];
 
-    public IEnumerable<IVulkanCommand> ReleaseInstanceBuffer(DrawableId drawableId) => [];
+        public IEnumerable<IVulkanCommand> ReleaseInstanceBuffer(DrawableId drawableId) => [];
 
         public void Reset() { }
 
@@ -436,7 +436,8 @@ public class CommandFactoryTests
         public ulong Count => 1;
 
         /// <inheritdoc/>
-        public ReadOnlyMemory<byte> GetInstanceData(ShaderInput[] layout) => ReadOnlyMemory<byte>.Empty;
+        public ReadOnlyMemory<byte> GetInstanceData(ShaderInput[] layout) =>
+            ReadOnlyMemory<byte>.Empty;
     }
 
     private sealed class TestShader(string name, ShaderStageEnum stage, VertexFormat vertexFormat)

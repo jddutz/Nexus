@@ -17,10 +17,7 @@ public interface IVertexBufferRegistry : IDisposable
     /// </summary>
     /// <param name="drawable">The drawable that owns the instance buffer.</param>
     /// <param name="layout">The shader inputs that define the instance-buffer layout.</param>
-    IEnumerable<IVulkanCommand> CreateInstanceBuffer(
-        IDrawable drawable,
-        ShaderInput[] layout
-    );
+    IEnumerable<IVulkanCommand> CreateInstanceBuffer(IDrawable drawable, ShaderInput[] layout);
 
     /// <summary>
     /// Recreates the buffer for a geometry resource in the specified vertex format.
