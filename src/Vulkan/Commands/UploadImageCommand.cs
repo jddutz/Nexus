@@ -6,14 +6,25 @@ public sealed unsafe class UploadImageCommand(
     BufferImageCopy region
 ) : IVulkanCommand
 {
+    /// <inheritdoc />
     public Guid Id { get; } = Guid.NewGuid();
 
+    /// <inheritdoc />
     public bool IsSticky => false;
+
+    /// <inheritdoc />
     public uint RenderPassMask => RenderPasses.Start;
+
+    /// <inheritdoc />
     public PipelineId? PipelineId => null;
+
+    /// <inheritdoc />
     public IDrawable? Drawable => null;
+
+    /// <inheritdoc />
     public int RenderPriority => 0;
 
+    /// <inheritdoc />
     public void Record(Vk vk, CommandBuffer commandBuffer)
     {
         var barrier = new ImageMemoryBarrier

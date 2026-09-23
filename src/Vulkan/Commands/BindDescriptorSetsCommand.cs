@@ -8,13 +8,13 @@ public sealed class BindDescriptorSetsCommand : IVulkanCommand
     /// <summary>
     /// Creates a descriptor-set binding command.
     /// </summary>
-    /// <param name="renderPass">The render-pass mask in which the sets are used.</param>
+    /// <param name="renderPassMask">The render-pass mask in which the sets are used.</param>
     /// <param name="pipelineId">The pipeline identity used for batch ordering.</param>
     /// <param name="drawable">The drawable that owns this command.</param>
     /// <param name="pipelineLayout">The layout used to validate the descriptor sets.</param>
     /// <param name="descriptorSets">The descriptor sets to bind, starting at set zero.</param>
     public BindDescriptorSetsCommand(
-        uint renderPass,
+        uint renderPassMask,
         PipelineId pipelineId,
         IDrawable drawable,
         PipelineLayout pipelineLayout,
@@ -31,7 +31,7 @@ public sealed class BindDescriptorSetsCommand : IVulkanCommand
             );
 
         Id = Guid.NewGuid();
-        RenderPassIndex = renderPass;
+        RenderPassMask = renderPassMask;
         PipelineId = pipelineId;
         Drawable = drawable;
         PipelineLayout = pipelineLayout;
@@ -44,7 +44,7 @@ public sealed class BindDescriptorSetsCommand : IVulkanCommand
     /// <inheritdoc />
     public bool IsSticky => true;
 
-    public uint RenderPassMask => RenderPasses.Before;
+    public uint RenderPassMask { get; }
 
     /// <inheritdoc />
     public PipelineId? PipelineId { get; }

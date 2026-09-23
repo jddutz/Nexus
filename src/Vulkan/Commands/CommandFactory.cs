@@ -43,20 +43,25 @@ public unsafe class CommandFactory(
             drawable.FragmentShader?.ColorFormat
             ?? throw new InvalidOperationException("Drawables must define a fragment shader.");
 
-        var renderPass = RenderPasses.Main;
+        var renderPassMask = RenderPasses.Main;
 
         geometryRegistry.Create(drawable.Mesh, vertexShader.VertexFormat);
 
         foreach (var command in textureRegistry.Create(drawable.Texture, colorFormat))
             yield return command;
 
-        var pipelineDefinition = CreatePipelineDefinition(drawable, renderPass, vertexShader);
+        var pipelineDefinition = CreatePipelineDefinition(drawable, renderPassMask, vertexShader);
 
         var (pipeline, pipelineLayout) = pipelineRegistry.GetOrCreate(pipelineDefinition);
 
         var vertexBuffer = geometryRegistry.Get(drawable.Mesh.Id, vertexShader.VertexFormat.Id);
 
-        yield return new BindPipelineCommand(renderPass, pipelineDefinition.Id, drawable, pipeline);
+        yield return new BindPipelineCommand(
+            renderPassMask,
+            pipelineDefinition.Id,
+            drawable,
+            pipeline
+        );
 
         var schema = pipelineDefinition.DescriptorSchema.GetValueOrDefault();
         var descriptorSets = new VkDescriptorSet[schema.Sets.Length];
@@ -109,7 +114,7 @@ public unsafe class CommandFactory(
         }
 
         yield return new BindDescriptorSetsCommand(
-            renderPass,
+            renderPassMask,
             pipelineDefinition.Id,
             drawable,
             pipelineLayout,
@@ -117,14 +122,14 @@ public unsafe class CommandFactory(
         );
 
         yield return new BindVertexBufferCommand(
-            renderPass,
+            renderPassMask,
             pipelineDefinition.Id,
             drawable,
             vertexBuffer
         );
 
         yield return new DrawCommand(
-            renderPass,
+            renderPassMask,
             pipelineDefinition.Id,
             drawable,
             checked((uint)drawable.Mesh.Count)
@@ -135,12 +140,12 @@ public unsafe class CommandFactory(
     /// Reconstructs the pipeline definition used by a drawable.
     /// </summary>
     /// <param name="drawable">The drawable whose shader state defines the pipeline.</param>
-    /// <param name="renderPass">The render pass used by the drawable.</param>
+    /// <param name="renderPassMask">The render-pass mask used by the drawable.</param>
     /// <param name="vertexShader">The drawable's required vertex shader.</param>
     /// <returns>The pipeline definition for the drawable.</returns>
     private PipelineDefinition CreatePipelineDefinition(
         IDrawable drawable,
-        uint renderPass,
+        uint renderPassMask,
         VertexShader vertexShader
     )
     {
@@ -150,7 +155,7 @@ public unsafe class CommandFactory(
         )
             .WithShader(vertexShader)
             .WithDescriptorSchema(DescriptorSchemas.Textured)
-            .WithRenderPass(swapChain.Passes[RenderPasses.GetIndex(renderPass)]);
+            .WithRenderPass(swapChain.Passes[RenderPasses.GetIndex(renderPassMask)]);
 
         if (drawable.TessellationControlShader is not null)
             pipelineDefinitionBuilder.WithShader(drawable.TessellationControlShader);

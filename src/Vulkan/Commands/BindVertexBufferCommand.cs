@@ -8,12 +8,12 @@ public sealed class BindVertexBufferCommand : IVulkanCommand
     /// <summary>
     /// Creates a vertex-buffer binding command.
     /// </summary>
-    /// <param name="renderPass">The render-pass mask in which the buffer is used.</param>
+    /// <param name="renderPassMask">The render-pass mask in which the buffer is used.</param>
     /// <param name="pipelineId">The pipeline identity used for batch ordering.</param>
     /// <param name="drawable">The drawable that owns this command.</param>
     /// <param name="buffer">The Vulkan vertex buffer to bind.</param>
     public BindVertexBufferCommand(
-        uint renderPass,
+        uint renderPassMask,
         PipelineId pipelineId,
         IDrawable drawable,
         VkBuffer buffer
@@ -22,7 +22,7 @@ public sealed class BindVertexBufferCommand : IVulkanCommand
         ArgumentNullException.ThrowIfNull(drawable);
 
         Id = Guid.NewGuid();
-        RenderPassIndex = renderPass;
+        RenderPassMask = renderPassMask;
         PipelineId = pipelineId;
         Drawable = drawable;
         Buffer = buffer;
@@ -35,10 +35,7 @@ public sealed class BindVertexBufferCommand : IVulkanCommand
     public bool IsSticky => true;
 
     /// <inheritdoc />
-    public int Phase => RenderPasses.RenderPass;
-
-    /// <inheritdoc />
-    public uint RenderPassIndex { get; }
+    public uint RenderPassMask { get; }
 
     /// <inheritdoc />
     public PipelineId? PipelineId { get; }

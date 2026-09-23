@@ -8,12 +8,12 @@ public sealed class BindPipelineCommand : IVulkanCommand
     /// <summary>
     /// Creates a pipeline-binding command.
     /// </summary>
-    /// <param name="renderPass">The render-pass mask in which the pipeline is used.</param>
+    /// <param name="renderPassMask">The render-pass mask in which the pipeline is used.</param>
     /// <param name="pipelineId">The pipeline identity used for batch ordering.</param>
     /// <param name="drawable">The drawable that owns this command.</param>
     /// <param name="pipeline">The Vulkan pipeline to bind.</param>
     public BindPipelineCommand(
-        uint renderPass,
+        uint renderPassMask,
         PipelineId pipelineId,
         IDrawable drawable,
         Pipeline pipeline
@@ -22,7 +22,7 @@ public sealed class BindPipelineCommand : IVulkanCommand
         ArgumentNullException.ThrowIfNull(drawable);
 
         Id = Guid.NewGuid();
-        RenderPassIndex = renderPass;
+        RenderPassMask = renderPassMask;
         PipelineId = pipelineId;
         Drawable = drawable;
         Pipeline = pipeline;
@@ -35,10 +35,7 @@ public sealed class BindPipelineCommand : IVulkanCommand
     public bool IsSticky => true;
 
     /// <inheritdoc />
-    public int Phase => RenderPasses.RenderPass;
-
-    /// <inheritdoc />
-    public uint RenderPassIndex { get; }
+    public uint RenderPassMask { get; }
 
     /// <inheritdoc />
     public PipelineId? PipelineId { get; }
