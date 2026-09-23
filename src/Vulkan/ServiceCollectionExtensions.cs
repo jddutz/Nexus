@@ -30,6 +30,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<ISwapChain, SwapChain>();
         services.TryAddSingleton<IGraphicsSystem, VulkanGraphicsSystem>();
         services.TryAddSingleton<IImageRegistry, ImageRegistry>();
+        services.TryAddSingleton<ISamplerRegistry, SamplerRegistry>();
         services.AddSingleton<IShaderFactory, ShaderFactory>();
         services.AddVkValidation();
 
