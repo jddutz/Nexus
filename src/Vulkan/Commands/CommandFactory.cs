@@ -1,5 +1,8 @@
 namespace Nexus.Graphics.Vulkan.Commands;
 
+/// <summary>
+/// Creates the Vulkan commands required to render a drawable.
+/// </summary>
 public unsafe class CommandFactory(
     Context context,
     ISwapChain swapChain,
@@ -54,6 +57,13 @@ public unsafe class CommandFactory(
 
         var (pipeline, pipelineLayout) = pipelineRegistry.GetOrCreate(pipelineDefinition);
 
+        if (logger is not null && logger.IsEnabled(LogLevel.Debug))
+            logger.LogDebug(
+                "Prepared Vulkan drawable resources. DrawableId={DrawableId}, PipelineId={PipelineId}",
+                drawable.Id,
+                pipelineDefinition.Id
+            );
+
         var vertexBuffer = geometryRegistry.Get(drawable.Mesh.Id, vertexShader.VertexFormat.Id);
 
         yield return new BindPipelineCommand(
@@ -75,6 +85,14 @@ public unsafe class CommandFactory(
 
             var descriptorSet = descriptorSetPool.Allocate(layout);
             descriptorSets[setSchema.Set] = descriptorSet;
+
+            if (logger is not null && logger.IsEnabled(LogLevel.Debug))
+                logger.LogDebug(
+                    "Allocated descriptor set. DrawableId={DrawableId}, PipelineId={PipelineId}, Set={Set}",
+                    drawable.Id,
+                    pipelineDefinition.Id,
+                    setSchema.Set
+                );
 
             foreach (var binding in setSchema.Bindings)
             {
@@ -134,16 +152,24 @@ public unsafe class CommandFactory(
             drawable,
             checked((uint)drawable.Mesh.Count)
         );
+
+        if (logger is not null && logger.IsEnabled(LogLevel.Debug))
+            logger.LogDebug(
+                "Created Vulkan commands. DrawableId={DrawableId}, PipelineId={PipelineId}, VertexCount={VertexCount}",
+                drawable.Id,
+                pipelineDefinition.Id,
+                drawable.Mesh.Count
+            );
     }
 
     /// <summary>
-    /// Reconstructs the pipeline definition used by a drawable.
+    /// Creates the pipeline definition used by a drawable.
     /// </summary>
     /// <param name="drawable">The drawable whose shader state defines the pipeline.</param>
     /// <param name="renderPassMask">The render-pass mask used by the drawable.</param>
     /// <param name="vertexShader">The drawable's required vertex shader.</param>
     /// <returns>The pipeline definition for the drawable.</returns>
-    private PipelineDefinition CreatePipelineDefinition(
+    protected virtual PipelineDefinition CreatePipelineDefinition(
         IDrawable drawable,
         uint renderPassMask,
         VertexShader vertexShader
@@ -166,6 +192,15 @@ public unsafe class CommandFactory(
         if (drawable.FragmentShader is not null)
             pipelineDefinitionBuilder.WithShader(drawable.FragmentShader);
 
-        return pipelineDefinitionBuilder.Build();
+        return BuildPipelineDefinition(pipelineDefinitionBuilder);
     }
+
+    /// <summary>
+    /// Builds a configured pipeline definition.
+    /// </summary>
+    /// <param name="builder">The configured pipeline definition builder.</param>
+    /// <returns>The immutable pipeline definition.</returns>
+    protected virtual PipelineDefinition BuildPipelineDefinition(
+        PipelineDefinitionBuilder builder
+    ) => builder.Build();
 }

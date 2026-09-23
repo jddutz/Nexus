@@ -8,12 +8,11 @@ public interface IRenderer : IDisposable
     /// <summary>
     /// Prepares the renderer to record a new frame.
     /// </summary>
-    /// <param name="batch">Commands to record before processing render layers.</param>
     /// <returns>
     /// The acquired frame and its swap-chain image index, or <see langword="null"/> if
     /// rendering cannot begin.
     /// </returns>
-    RenderFrameResult? PrepareFrame(IRenderBatch batch);
+    RenderFrameResult? PrepareFrame();
 
     /// <summary>
     /// Begins processing a render layer.

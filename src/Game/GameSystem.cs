@@ -170,7 +170,9 @@ public class GameSystem(
             }
         }
 
+        _logger.LogTrace("Activating scene...");
         CurrentScene.Activate();
+        _logger.LogTrace("Scene activation complete.");
         _logger.LogInformation("Game system initialized and initial scene activated.");
     }
 
@@ -187,7 +189,7 @@ public class GameSystem(
     /// <param name="component">The component to activate.</param>
     public void ActivateComponent(IComponent component)
     {
-        _logger.LogDebug(
+        _logger.LogTrace(
             "Activating component. ComponentType={ComponentType}",
             component.GetType().Name
         );
@@ -199,7 +201,7 @@ public class GameSystem(
     /// <param name="component">The component to deactivate.</param>
     public void DeactivateComponent(IComponent component)
     {
-        _logger.LogDebug(
+        _logger.LogTrace(
             "Deactivating component. ComponentType={ComponentType}",
             component.GetType().Name
         );
@@ -211,7 +213,7 @@ public class GameSystem(
     /// <param name="gameObject">The game object to activate.</param>
     public void ActivateGameObject(IGameObject gameObject)
     {
-        _logger.LogDebug(
+        _logger.LogTrace(
             "Activating game object. GameObjectType={GameObjectType}, ComponentCount={ComponentCount}",
             gameObject.GetType().Name,
             gameObject.Components.Count()
@@ -224,7 +226,7 @@ public class GameSystem(
     /// <param name="gameObject">The game object to deactivate.</param>
     public void DeactivateGameObject(IGameObject gameObject)
     {
-        _logger.LogDebug(
+        _logger.LogTrace(
             "Deactivating game object. GameObjectType={GameObjectType}, ComponentCount={ComponentCount}",
             gameObject.GetType().Name,
             gameObject.Components.Count()

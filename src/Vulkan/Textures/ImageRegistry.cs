@@ -357,9 +357,7 @@ public unsafe class ImageRegistry : IImageRegistry
 
             var commands = new IVulkanCommand[]
             {
-                new PrepareImageLayoutCommand(image),
-                new CopyBufferToImageCommand(stagingBuffer, image, region),
-                new FinalizeImageLayoutCommand(image),
+                new UploadImageCommand(stagingBuffer, image, region),
             };
 
             var imageRegistered = false;

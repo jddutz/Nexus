@@ -44,13 +44,10 @@ public unsafe class Renderer(
     public bool CanRender() => _swapChain.Extent.Width > 0 && _swapChain.Extent.Height > 0;
 
     /// <summary>
-    /// Acquires the next swap-chain image, begins command recording,
-    /// and records frame preparation commands.
+    /// Acquires the next swap-chain image and begins command recording.
     /// </summary>
-    public RenderFrameResult? PrepareFrame(IRenderBatch batch)
+    public RenderFrameResult? PrepareFrame()
     {
-        ArgumentNullException.ThrowIfNull(batch);
-
         if (!CanRender())
             return null;
 
@@ -63,8 +60,6 @@ public unsafe class Renderer(
         TransitionToColorAttachment();
 
         BeforeRendering?.Invoke(this, new RenderEventArgs(_imageIndex));
-
-        RecordCommands(batch);
 
         return new RenderFrameResult(_frameSync!.FrameIndex, _imageIndex);
     }
@@ -184,9 +179,7 @@ public unsafe class Renderer(
         _frameSync = _syncManager.WaitForFrame(_syncManager.CurrentFrameIndex);
 
         if (!_commandPool.TryGetCommandBuffer(_frameSync.InFlightFence, out _commandBuffer))
-        {
             return false;
-        }
 
         _imageIndex = _swapChain.AcquireNextImage(_frameSync.ImageAvailable, out var result);
 

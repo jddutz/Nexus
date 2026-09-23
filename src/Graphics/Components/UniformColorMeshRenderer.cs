@@ -13,7 +13,7 @@ public class UniformColorMeshRenderer()
     private static readonly int InstanceDataSize =
         System.Runtime.CompilerServices.Unsafe.SizeOf<Matrix4X4<float>>() + Marshal.SizeOf<Color>();
 
-    private HashSet<RenderLayer> _renderLayers = [];
+    private ulong _renderLayerMask;
     private Mesh _mesh = BuiltInMesh.Empty;
     private Matrix4X4<float> _transformationMatrix = Matrix4X4<float>.Identity;
     private Color _color = Colors.Black;
@@ -21,9 +21,13 @@ public class UniformColorMeshRenderer()
     private ISamplingBehavior _samplingBehavior = SamplingBehaviors.Smooth;
 
     /// <summary>
-    /// Gets the render layers in which this component participates.
+    /// Gets or sets the mask of render layers in which this component participates.
     /// </summary>
-    public IEnumerable<RenderLayer> RenderLayers => _renderLayers;
+    public ulong RenderLayerMask
+    {
+        get => _renderLayerMask;
+        set => SetProperty(ref _renderLayerMask, value);
+    }
 
     /// <summary>
     /// Gets the single renderable contribution produced by this component.
@@ -32,6 +36,9 @@ public class UniformColorMeshRenderer()
 
     /// <inheritdoc/>
     DrawableId IDrawable.Id => new(Id.Value);
+
+    /// <inheritdoc/>
+    ulong IDrawable.RenderLayerMask => RenderLayerMask;
 
     Mesh IDrawable.Mesh => Mesh;
 

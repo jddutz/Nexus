@@ -1,5 +1,7 @@
 ﻿namespace HelloNexus;
 
+using Microsoft.Extensions.Logging;
+
 /// <summary>
 /// Entry point for the Hello Nexus application.
 /// </summary>
@@ -22,6 +24,10 @@ internal static class Program
                 .Build();
 
             var services = new ServiceCollection();
+
+            services.AddSingleton<ILoggerProvider>(
+                new FileLoggerProvider(configuration["Logging:File:Path"] ?? "output.log")
+            );
 
             // Register game-specific services here.
             // services.AddMyGameServices();

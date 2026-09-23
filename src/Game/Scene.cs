@@ -15,6 +15,11 @@ public class Scene : IScene
     public SceneId Id { get; }
 
     /// <summary>
+    /// Gets the current set of render layers managed by the graphics system.
+    /// </summary>
+    RenderLayerCollection Layers { get; }
+
+    /// <summary>
     /// Gets the game objects directly contained by this scene.
     /// </summary>
     public IReadOnlyList<IGameObject> Children => _children.AsReadOnly();

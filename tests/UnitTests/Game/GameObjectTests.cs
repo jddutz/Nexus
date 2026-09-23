@@ -20,10 +20,8 @@ public class GameObjectTests
         Assert.Equal(new SceneId(42), scene.Id);
         Assert.IsNotAssignableFrom<IGameObject>(scene);
         var view = new View();
-        Assert.Equal(1, view.ViewComponent.RenderLayers.Count);
-        var mainLayer = view.ViewComponent.RenderLayers[0];
-        Assert.Equal("Main", mainLayer.Name);
-        Assert.Equal(RenderPasses.Main, mainLayer.RenderPassMask);
+        Assert.Equal(nameof(ViewComponent), view.ViewComponent.Name);
+        Assert.Equal(RenderPasses.Main, view.ViewComponent.RenderPassMask);
         Assert.Contains(view.ViewComponent, view.Components);
     }
 

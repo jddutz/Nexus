@@ -11,9 +11,9 @@ public interface IDrawable
     DrawableId Id { get; }
 
     /// <summary>
-    /// Gets the RenderLayers on which the drawable is dreawn.
+    /// Gets the mask identifying the render layers on which the drawable is visible.
     /// </summary>
-    IEnumerable<RenderLayer> RenderLayers { get; }
+    ulong RenderLayerMask { get; }
 
     /// <summary>
     /// Gets the mesh rendered by the drawable.

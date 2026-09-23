@@ -176,7 +176,7 @@ public class BasicRuntimeTests
 
     private sealed class NoOpGraphicsSystem : IGraphicsSystem
     {
-        public RenderLayers RenderLayers { get; } = new();
+        public RenderLayerCollection RenderLayers { get; } = new();
 
         public void Initialize() { }
 

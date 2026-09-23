@@ -42,6 +42,7 @@ public sealed class Application : IApplication, IDisposable
         {
             builder.AddConfiguration(configuration.GetSection("Logging"));
             builder.AddConsole();
+            builder.AddDebug();
 
             var vulkanSettings =
                 configuration.GetSection("Vulkan").Get<VulkanSettings>() ?? new VulkanSettings();

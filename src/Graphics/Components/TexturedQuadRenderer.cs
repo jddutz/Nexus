@@ -17,7 +17,7 @@ public class TexturedQuadRenderer
         + System.Runtime.CompilerServices.Unsafe.SizeOf<Vector4D<float>>()
         + Marshal.SizeOf<Color>();
 
-    private HashSet<RenderLayer> _renderLayers = [];
+    private ulong _renderLayerMask;
     private Texture? _texture;
     private Matrix4X4<float> _transformationMatrix = Matrix4X4<float>.Identity;
     private Vector4D<float> _textureRegion = new(0f, 0f, 1f, 1f);
@@ -43,9 +43,13 @@ public class TexturedQuadRenderer
     }
 
     /// <summary>
-    /// Gets the render layers in which this component participates.
+    /// Gets or sets the mask of render layers in which this component participates.
     /// </summary>
-    public IEnumerable<RenderLayer> RenderLayers => _renderLayers;
+    public ulong RenderLayerMask
+    {
+        get => _renderLayerMask;
+        set => SetProperty(ref _renderLayerMask, value);
+    }
 
     /// <summary>
     /// Gets the single renderable contribution produced by this component.
@@ -54,6 +58,9 @@ public class TexturedQuadRenderer
 
     /// <inheritdoc/>
     DrawableId IDrawable.Id => new(Id.Value);
+
+    /// <inheritdoc/>
+    ulong IDrawable.RenderLayerMask => RenderLayerMask;
 
     Mesh IDrawable.Mesh => Mesh;
 

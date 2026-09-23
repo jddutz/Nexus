@@ -17,6 +17,7 @@ public sealed class RenderPassConfigurations
                 [RenderPasses.GetIndex(RenderPasses.Main)] = new()
                 {
                     RenderPassBit = RenderPasses.Main,
+                    ShouldRender = true,
                     Name = nameof(RenderPasses.Main),
                     ColorFormat = Format.Undefined,
                     DepthFormat = Format.Undefined,

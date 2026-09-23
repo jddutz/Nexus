@@ -49,8 +49,8 @@ public unsafe class VertexBufferRegistry : IVertexBufferRegistry
         {
             var referenceCount = ++_refs[buffer];
 
-            if (_logger.IsEnabled(LogLevel.Debug))
-                _logger.LogDebug(
+            if (_logger.IsEnabled(LogLevel.Trace))
+                _logger.LogTrace(
                     "Reusing vertex buffer. MeshId={MeshId}, VertexFormatId={VertexFormatId}, BufferHandle={BufferHandle}, ReferenceCount={ReferenceCount}",
                     geometry.Id,
                     format.Id,

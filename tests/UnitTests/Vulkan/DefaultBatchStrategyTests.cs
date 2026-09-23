@@ -60,9 +60,7 @@ public class DefaultBatchStrategyTests
 
         public bool IsSticky => true;
 
-        public int Phase => RenderPasses.RenderPass;
-
-        public uint RenderPassIndex => 1;
+        public uint RenderPassMask => RenderPasses.Main;
 
         public PipelineId? PipelineId => pipelineId;
 
@@ -77,7 +75,7 @@ public class DefaultBatchStrategyTests
     {
         public DrawableId Id => id;
 
-        public IEnumerable<RenderLayer> RenderLayers => [];
+        public ulong RenderLayerMask => 0;
 
         public Mesh Mesh => null!;
 
