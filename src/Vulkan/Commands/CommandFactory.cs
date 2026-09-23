@@ -49,6 +49,8 @@ public unsafe class CommandFactory(
         var renderPassMask = RenderPasses.Main;
 
         geometryRegistry.Create(drawable.Mesh, vertexShader.VertexFormat);
+        if (vertexShader.InstanceLayout.Length > 0)
+            geometryRegistry.CreateInstanceBuffer(drawable, vertexShader.InstanceLayout);
 
         foreach (var command in imageRegistry.Create(drawable.Texture, colorFormat))
             yield return command;
@@ -143,14 +145,28 @@ public unsafe class CommandFactory(
             renderPassMask,
             pipelineDefinition.Id,
             drawable,
+            0,
             vertexBuffer
         );
+
+        if (vertexShader.InstanceLayout.Length > 0)
+        {
+            var instanceBuffer = geometryRegistry.GetInstanceBuffer(drawable.Id);
+            yield return new BindVertexBufferCommand(
+                renderPassMask,
+                pipelineDefinition.Id,
+                drawable,
+                1,
+                instanceBuffer
+            );
+        }
 
         yield return new DrawCommand(
             renderPassMask,
             pipelineDefinition.Id,
             drawable,
-            checked((uint)drawable.Mesh.Count)
+            checked((uint)drawable.Mesh.Count),
+            checked((uint)drawable.Instances.Count)
         );
 
         if (logger is not null && logger.IsEnabled(LogLevel.Debug))

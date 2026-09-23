@@ -47,6 +47,21 @@ public class DefaultBatchStrategyTests
         );
     }
 
+    [Fact]
+    public void RenderBatch_retainsCommandsWithMatchingSortKeysAndDistinctIds()
+    {
+        var drawable = new TestDrawable(1);
+        var pipelineId = new PipelineId(7);
+        var first = new TestCommand("first", drawable, pipelineId, int.MaxValue);
+        var second = new TestCommand("second", drawable, pipelineId, int.MaxValue);
+        var batch = new RenderBatch(new DefaultBatchStrategy());
+
+        Assert.True(batch.Add(first));
+        Assert.True(batch.Add(second));
+
+        Assert.Equal(2, batch.Commands.Count());
+    }
+
     private sealed class TestCommand(
         string name,
         IDrawable? drawable,

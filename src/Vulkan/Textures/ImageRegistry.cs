@@ -12,7 +12,7 @@ public unsafe class ImageRegistry : IImageRegistry
     private readonly Dictionary<VkImage, DeviceMemory> _memory = [];
 
     private readonly Dictionary<VkBuffer, DeviceMemory> _stagingMemory = [];
-    private readonly Queue<VkBuffer>[] _releasedStaging;
+    private readonly Queue<VkBuffer>[] _stagedBuffers;
 
     private readonly Dictionary<ulong, VkImageView> _views = [];
     private readonly Dictionary<VkImage, List<ulong>> _imageViews = [];
@@ -53,12 +53,12 @@ public unsafe class ImageRegistry : IImageRegistry
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _syncManager = syncManager ?? throw new ArgumentNullException(nameof(syncManager));
         _released = new Queue<VkImage>[checked((int)syncManager.MaxFramesInFlight)];
-        _releasedStaging = new Queue<VkBuffer>[checked((int)syncManager.MaxFramesInFlight)];
+        _stagedBuffers = new Queue<VkBuffer>[checked((int)syncManager.MaxFramesInFlight)];
 
         for (var index = 0; index < _released.Length; index++)
         {
             _released[index] = new Queue<VkImage>();
-            _releasedStaging[index] = new Queue<VkBuffer>();
+            _stagedBuffers[index] = new Queue<VkBuffer>();
         }
 
         _syncManager.FrameCompleted += OnFrameCompleted;
@@ -325,6 +325,7 @@ public unsafe class ImageRegistry : IImageRegistry
         texture.WriteTo(0, texture.Count, format, data);
 
         var stagingBuffer = CreateStagingBuffer(data);
+        var stagingFrameIndex = _syncManager.CurrentFrameIndex;
 
         try
         {
@@ -371,7 +372,7 @@ public unsafe class ImageRegistry : IImageRegistry
                 _refs.Add(image, 1);
                 referenceRegistered = true;
 
-                QueueStagingRelease(stagingBuffer);
+                QueueStagedBuffer(stagingBuffer, stagingFrameIndex);
             }
             catch
             {
@@ -513,11 +514,17 @@ public unsafe class ImageRegistry : IImageRegistry
         _released[releaseFrameIndex].Enqueue(image);
     }
 
-    private void QueueStagingRelease(VkBuffer buffer)
+    /// <summary>
+    /// Associates a staging buffer with the frame slot that submits its upload command.
+    /// </summary>
+    /// <param name="buffer">The staging buffer used by the upload command.</param>
+    /// <param name="frameIndex">The frame slot that owns the upload.</param>
+    private void QueueStagedBuffer(VkBuffer buffer, uint frameIndex)
     {
-        var releaseFrameIndex = checked((int)_syncManager.CurrentFrameIndex);
+        if (frameIndex >= _syncManager.MaxFramesInFlight)
+            throw new ArgumentOutOfRangeException(nameof(frameIndex), frameIndex, "Invalid frame index.");
 
-        _releasedStaging[releaseFrameIndex].Enqueue(buffer);
+        _stagedBuffers[checked((int)frameIndex)].Enqueue(buffer);
     }
 
     /// <summary>
@@ -537,7 +544,7 @@ public unsafe class ImageRegistry : IImageRegistry
         while (images.TryDequeue(out var image))
             Destroy(image);
 
-        var stagingBuffers = _releasedStaging[releaseFrameIndex];
+        var stagingBuffers = _stagedBuffers[releaseFrameIndex];
 
         while (stagingBuffers.TryDequeue(out var buffer))
             DestroyStagingBuffer(buffer);
@@ -561,7 +568,7 @@ public unsafe class ImageRegistry : IImageRegistry
         foreach (var queue in _released)
             queue.Clear();
 
-        foreach (var queue in _releasedStaging)
+        foreach (var queue in _stagedBuffers)
             queue.Clear();
     }
 

@@ -5,12 +5,14 @@ namespace Nexus.Graphics.Vulkan.Pipelines;
 /// </summary>
 public unsafe class PipelineFactory(
     Context context,
-    IDescriptorSetLayoutFactory descriptorSetLayoutFactory
+    IDescriptorSetLayoutFactory descriptorSetLayoutFactory,
+    ISwapChain swapChain
 ) : IPipelineFactory
 {
     private readonly Context _context = context;
     private readonly IDescriptorSetLayoutFactory _descriptorSetLayoutFactory =
         descriptorSetLayoutFactory;
+    private readonly ISwapChain _swapChain = swapChain;
 
     /// <inheritdoc />
     public (
@@ -232,6 +234,14 @@ public unsafe class PipelineFactory(
         fixed (VertexInputBindingDescription* pVertexBindings = vertexBindings)
         fixed (VertexInputAttributeDescription* pVertexAttributes = vertexAttributes)
         {
+            var colorFormat = _swapChain.Format;
+            var renderingInfo = new PipelineRenderingCreateInfo
+            {
+                SType = StructureType.PipelineRenderingCreateInfo,
+                ColorAttachmentCount = 1,
+                PColorAttachmentFormats = &colorFormat,
+            };
+
             var vertexInput = new PipelineVertexInputStateCreateInfo
             {
                 SType = StructureType.PipelineVertexInputStateCreateInfo,
@@ -335,8 +345,9 @@ public unsafe class PipelineFactory(
                 PColorBlendState = &colorBlend,
                 PDynamicState = &dynamicState,
                 Layout = pipelineLayout,
-                RenderPass = definition.RenderPass,
-                Subpass = definition.Subpass,
+                RenderPass = default,
+                Subpass = 0,
+                PNext = &renderingInfo,
             };
 
             var result = _context.VulkanApi.CreateGraphicsPipelines(

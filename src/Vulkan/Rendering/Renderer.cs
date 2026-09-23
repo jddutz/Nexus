@@ -139,6 +139,20 @@ public unsafe class Renderer(
     /// </summary>
     private void BeginRendering(RenderPassConfiguration configuration)
     {
+        var viewport = new Viewport
+        {
+            X = 0,
+            Y = 0,
+            Width = _swapChain.Extent.Width,
+            Height = _swapChain.Extent.Height,
+            MinDepth = 0,
+            MaxDepth = 1,
+        };
+        var scissor = new Rect2D { Offset = new Offset2D(0, 0), Extent = _swapChain.Extent };
+
+        _context.VulkanApi.CmdSetViewport(_commandBuffer, 0, 1, &viewport);
+        _context.VulkanApi.CmdSetScissor(_commandBuffer, 0, 1, &scissor);
+
         var clearValue =
             configuration.ClearValues.Length > 0 ? configuration.ClearValues[0] : default;
 

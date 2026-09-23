@@ -29,20 +29,23 @@ public unsafe class VulkanGraphicsSystem(
     private RenderBatchCollection?[] _batches = new RenderBatchCollection?[
         RenderLayerCollection.MaxLayers
     ];
+    private readonly HashSet<IDrawable> _activatedDrawables = new(
+        ReferenceEqualityComparer.Instance
+    );
 
     private void OnLayerAdded(IRenderLayer layer)
     {
         var coll = new RenderBatchCollection();
         _batches[layer.Index] = coll;
 
-        coll.Set(RenderPasses.Start, new RenderBatch(new DefaultBatchStrategy()));
+        coll.Set(RenderPasses.Start, new RenderBatch(new DefaultBatchStrategy(), logger));
 
         foreach (var renderPass in RenderPasses.GetActivePasses(layer.RenderPassMask))
         {
-            coll.Set(renderPass, new RenderBatch(new DefaultBatchStrategy()));
+            coll.Set(renderPass, new RenderBatch(new DefaultBatchStrategy(), logger));
         }
 
-        coll.Set(RenderPasses.End, new RenderBatch(new DefaultBatchStrategy()));
+        coll.Set(RenderPasses.End, new RenderBatch(new DefaultBatchStrategy(), logger));
     }
 
     private void OnLayerRemoved(IRenderLayer layer)
@@ -82,6 +85,8 @@ public unsafe class VulkanGraphicsSystem(
     private void ActivateDrawable(IDrawable drawable)
     {
         ArgumentNullException.ThrowIfNull(drawable);
+
+        _activatedDrawables.Add(drawable);
 
         if (_batches.Length == 0)
             return;
@@ -164,6 +169,8 @@ public unsafe class VulkanGraphicsSystem(
     {
         ArgumentNullException.ThrowIfNull(drawable);
 
+        _activatedDrawables.Remove(drawable);
+
         if (_batches.Length == 0)
             return;
 
@@ -191,6 +198,7 @@ public unsafe class VulkanGraphicsSystem(
 
         pipelineRegistry.Release(pipelineDefinition.Id);
         geometryRegistry.Release(drawable.Mesh, vertexShader.VertexFormat);
+        geometryRegistry.ReleaseInstanceBuffer(drawable.Id);
 
         foreach (var command in textureRegistry.Release(drawable.Texture, colorFormat))
         {
@@ -261,6 +269,25 @@ public unsafe class VulkanGraphicsSystem(
                 {
                     if (!batches.TryGet(renderPass, out var batch))
                         continue;
+
+                    if (logger.IsEnabled(LogLevel.Debug))
+                    {
+                        var commands = batch!.Commands.ToArray();
+                        var drawCommands = commands.OfType<DrawCommand>().ToArray();
+                        logger.LogDebug(
+                            "Render batch diagnostics. LayerIndex={LayerIndex}, RenderPass={RenderPass}, "
+                                + "ActivatedDrawables={ActivatedDrawables}, DistinctDrawableIds={DistinctDrawableIds}, "
+                                + "BatchCommands={BatchCommands}, DrawCommands={DrawCommands}, "
+                                + "DistinctDrawCommandIds={DistinctDrawCommandIds}",
+                            layerIndex,
+                            renderPass,
+                            _activatedDrawables.Count,
+                            _activatedDrawables.Select(drawable => drawable.Id).Distinct().Count(),
+                            commands.Length,
+                            drawCommands.Length,
+                            drawCommands.Select(command => command.Id).Distinct().Count()
+                        );
+                    }
 
                     renderer.Record(RenderPasses.GetIndex(renderPass), batch!);
                 }

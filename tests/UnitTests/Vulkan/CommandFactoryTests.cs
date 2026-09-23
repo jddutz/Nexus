@@ -244,6 +244,11 @@ public class CommandFactoryTests
     {
         public int CreateCount { get; private set; }
 
+        public IEnumerable<IVulkanCommand> CreateInstanceBuffer(
+            IDrawable drawable,
+            ShaderInput[] layout
+        ) => [];
+
         public IEnumerable<IVulkanCommand> Create(IGeometry geometry, VertexFormat format)
         {
             CreateCount++;
@@ -254,7 +259,11 @@ public class CommandFactoryTests
 
         public VkBuffer Get(MeshId meshId, VertexFormatId formatId) => new(11);
 
+    public VkBuffer GetInstanceBuffer(DrawableId drawableId) => new(12);
+
         public IEnumerable<IVulkanCommand> Release(IGeometry geometry, VertexFormat format) => [];
+
+    public IEnumerable<IVulkanCommand> ReleaseInstanceBuffer(DrawableId drawableId) => [];
 
         public void Reset() { }
 
@@ -404,7 +413,7 @@ public class CommandFactoryTests
         public Mesh Mesh => mesh;
         public ITexture Texture => texture;
         public ISamplingBehavior SamplingBehavior => samplingBehavior;
-        public IInstanceDataSource Instances => null!;
+        public IInstanceDataSource Instances { get; } = new TestInstanceDataSource();
 
         public ReadOnlyMemory<byte> GetUniformData(ShaderInput[] layout) => new byte[16];
 
@@ -413,6 +422,21 @@ public class CommandFactoryTests
         public IShaderContract? TessellationEvalShader => tessellationEvalShader;
         public IShaderContract? GeometryShader => geometryShader;
         public FragmentShader? FragmentShader => fragmentShader;
+    }
+
+    /// <summary>
+    /// Supplies a single test instance for command-factory tests.
+    /// </summary>
+    private sealed class TestInstanceDataSource : IInstanceDataSource
+    {
+        /// <inheritdoc/>
+        public DrawableId Id => new(1);
+
+        /// <inheritdoc/>
+        public ulong Count => 1;
+
+        /// <inheritdoc/>
+        public ReadOnlyMemory<byte> GetInstanceData(ShaderInput[] layout) => ReadOnlyMemory<byte>.Empty;
     }
 
     private sealed class TestShader(string name, ShaderStageEnum stage, VertexFormat vertexFormat)

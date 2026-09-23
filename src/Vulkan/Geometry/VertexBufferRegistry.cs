@@ -10,6 +10,7 @@ public unsafe class VertexBufferRegistry : IVertexBufferRegistry
     private readonly ISyncManager _syncManager;
 
     private readonly Dictionary<ulong, VkBuffer> _buffers = [];
+    private readonly Dictionary<DrawableId, VkBuffer> _instanceBuffers = [];
     private readonly Dictionary<VkBuffer, DeviceMemory> _memory = [];
     private readonly Dictionary<VkBuffer, int> _refs = [];
     private readonly Queue<VkBuffer>[] _released;
@@ -82,6 +83,37 @@ public unsafe class VertexBufferRegistry : IVertexBufferRegistry
     }
 
     /// <inheritdoc/>
+    public IEnumerable<IVulkanCommand> CreateInstanceBuffer(
+        IDrawable drawable,
+        ShaderInput[] layout
+    )
+    {
+        ArgumentNullException.ThrowIfNull(drawable);
+        ArgumentNullException.ThrowIfNull(layout);
+
+        var data = drawable.Instances.GetInstanceData(layout);
+        if (data.IsEmpty)
+            throw new InvalidOperationException("Instance data cannot be empty.");
+
+        var newBuffer = CreateBuffer(data);
+
+        if (_instanceBuffers.Remove(drawable.Id, out var oldBuffer))
+            QueueRelease(oldBuffer);
+
+        _instanceBuffers.Add(drawable.Id, newBuffer);
+
+        if (_logger.IsEnabled(LogLevel.Debug))
+            _logger.LogDebug(
+                "Created instance buffer. DrawableId={DrawableId}, BufferHandle={BufferHandle}, Size={Size}",
+                drawable.Id,
+                newBuffer.Handle,
+                data.Length
+            );
+
+        return [];
+    }
+
+    /// <inheritdoc/>
     public IEnumerable<IVulkanCommand> Update(IGeometry geometry, VertexFormat format)
     {
         ArgumentNullException.ThrowIfNull(geometry);
@@ -112,6 +144,24 @@ public unsafe class VertexBufferRegistry : IVertexBufferRegistry
                 newBuffer.Handle,
                 data.Length,
                 referenceCount
+            );
+
+        return [];
+    }
+
+    /// <inheritdoc/>
+    public IEnumerable<IVulkanCommand> ReleaseInstanceBuffer(DrawableId drawableId)
+    {
+        if (!_instanceBuffers.Remove(drawableId, out var buffer))
+            return [];
+
+        QueueRelease(buffer);
+
+        if (_logger.IsEnabled(LogLevel.Debug))
+            _logger.LogDebug(
+                "Queued instance buffer release. DrawableId={DrawableId}, BufferHandle={BufferHandle}",
+                drawableId,
+                buffer.Handle
             );
 
         return [];
@@ -172,6 +222,17 @@ public unsafe class VertexBufferRegistry : IVertexBufferRegistry
         if (!_buffers.TryGetValue(key, out var buffer))
             throw new KeyNotFoundException(
                 $"Vertex buffer for mesh '{meshId}' and vertex format '{formatId}' is not registered."
+            );
+
+        return buffer;
+    }
+
+    /// <inheritdoc/>
+    public VkBuffer GetInstanceBuffer(DrawableId drawableId)
+    {
+        if (!_instanceBuffers.TryGetValue(drawableId, out var buffer))
+            throw new KeyNotFoundException(
+                $"Instance buffer for drawable '{drawableId}' is not registered."
             );
 
         return buffer;
@@ -371,6 +432,7 @@ public unsafe class VertexBufferRegistry : IVertexBufferRegistry
         }
 
         _buffers.Clear();
+        _instanceBuffers.Clear();
         _memory.Clear();
         _refs.Clear();
 
