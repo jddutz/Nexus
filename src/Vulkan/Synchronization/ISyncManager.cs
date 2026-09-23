@@ -120,7 +120,7 @@ public interface ISyncManager : IDisposable
     /// Typical usage: Wait for previous frame to finish before reusing its command buffers.
     /// Use UINT64_MAX for infinite timeout (recommended for frame synchronization).
     /// </remarks>
-    bool WaitForFence(Silk.NET.Vulkan.Fence fence, ulong timeoutNanoseconds = ulong.MaxValue);
+    bool WaitForFence(Fence fence, ulong timeoutNanoseconds = ulong.MaxValue);
 
     /// <summary>
     /// Waits for multiple fences to be signaled, with optional timeout.
@@ -130,7 +130,7 @@ public interface ISyncManager : IDisposable
     /// <param name="timeoutNanoseconds">Maximum time to wait (default: infinite)</param>
     /// <returns>True if condition was met, false if timeout occurred</returns>
     bool WaitForFences(
-        Silk.NET.Vulkan.Fence[] fences,
+        Fence[] fences,
         bool waitAll = true,
         ulong timeoutNanoseconds = ulong.MaxValue
     );

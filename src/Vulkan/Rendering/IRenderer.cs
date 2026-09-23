@@ -6,13 +6,14 @@ namespace Nexus.Graphics.Vulkan.Rendering;
 public interface IRenderer : IDisposable
 {
     /// <summary>
-    /// Prepares the renderer to record a new frame.
+    /// Prepares the renderer to record a new frame using an available frame synchronization slot.
     /// </summary>
+    /// <param name="frameSync">The frame synchronization slot that has completed and is ready for reuse.</param>
     /// <returns>
     /// The acquired frame and its swap-chain image index, or <see langword="null"/> if
     /// rendering cannot begin.
     /// </returns>
-    RenderFrameResult? PrepareFrame();
+    RenderFrameResult? PrepareFrame(FrameSync frameSync);
 
     /// <summary>
     /// Begins processing a render layer.

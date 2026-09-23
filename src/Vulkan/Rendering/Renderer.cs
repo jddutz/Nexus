@@ -44,14 +44,18 @@ public unsafe class Renderer(
     public bool CanRender() => _swapChain.Extent.Width > 0 && _swapChain.Extent.Height > 0;
 
     /// <summary>
-    /// Acquires the next swap-chain image and begins command recording.
+    /// Acquires the next swap-chain image and begins command recording using the available frame slot.
     /// </summary>
-    public RenderFrameResult? PrepareFrame()
+    /// <param name="frameSync">The completed frame synchronization slot to reuse for this submission.</param>
+    /// <returns>The acquired frame and image indices, or <see langword="null"/> when rendering cannot begin.</returns>
+    public RenderFrameResult? PrepareFrame(FrameSync frameSync)
     {
+        ArgumentNullException.ThrowIfNull(frameSync);
+
         if (!CanRender())
             return null;
 
-        if (!AcquireFrame())
+        if (!AcquireFrame(frameSync))
             return null;
 
         if (!BeginCommandBuffer())
@@ -174,9 +178,11 @@ public unsafe class Renderer(
     /// <summary>
     /// Prepares frame synchronization and acquires the next swap-chain image.
     /// </summary>
-    private bool AcquireFrame()
+    /// <param name="frameSync">The completed frame synchronization slot to reuse for this submission.</param>
+    /// <returns><see langword="true"/> when an image was acquired successfully; otherwise, <see langword="false"/>.</returns>
+    private bool AcquireFrame(FrameSync frameSync)
     {
-        _frameSync = _syncManager.WaitForFrame(_syncManager.CurrentFrameIndex);
+        _frameSync = frameSync;
 
         if (!_commandPool.TryGetCommandBuffer(_frameSync.InFlightFence, out _commandBuffer))
             return false;

@@ -7,7 +7,7 @@ public unsafe class CommandFactory(
     Context context,
     ISwapChain swapChain,
     IVertexBufferRegistry geometryRegistry,
-    IImageRegistry textureRegistry,
+    IImageRegistry imageRegistry,
     IPipelineRegistry pipelineRegistry,
     IDescriptorSetPool descriptorSetPool,
     IBufferManager bufferManager,
@@ -50,7 +50,7 @@ public unsafe class CommandFactory(
 
         geometryRegistry.Create(drawable.Mesh, vertexShader.VertexFormat);
 
-        foreach (var command in textureRegistry.Create(drawable.Texture, colorFormat))
+        foreach (var command in imageRegistry.Create(drawable.Texture, colorFormat))
             yield return command;
 
         var pipelineDefinition = CreatePipelineDefinition(drawable, renderPassMask, vertexShader);
@@ -118,7 +118,7 @@ public unsafe class CommandFactory(
                         descriptorSetPool.WriteCombinedImageSampler(
                             descriptorSet,
                             binding.Binding,
-                            textureRegistry.Get(drawable.Texture, colorFormat),
+                            imageRegistry.Get(drawable.Texture, colorFormat),
                             samplerRegistry.Get(drawable.SamplingBehavior.Id)
                         );
                         break;

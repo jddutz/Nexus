@@ -244,7 +244,9 @@ public unsafe class VulkanGraphicsSystem(
     {
         try
         {
-            if (renderer.PrepareFrame() is null)
+            var frameSync = syncManager.WaitForFrame(syncManager.CurrentFrameIndex);
+
+            if (renderer.PrepareFrame(frameSync) is null)
                 return;
 
             for (var layerIndex = 0; layerIndex < _batches.Length; layerIndex++)
@@ -267,10 +269,26 @@ public unsafe class VulkanGraphicsSystem(
             }
 
             renderer.Submit();
+            CleanTransientCommands();
         }
         catch
         {
             throw;
+        }
+    }
+
+    /// <summary>
+    /// Removes commands that have been successfully submitted and are not retained across frames.
+    /// </summary>
+    private void CleanTransientCommands()
+    {
+        foreach (var batches in _batches)
+        {
+            if (batches is null)
+                continue;
+
+            foreach (var batch in batches)
+                batch.Clean();
         }
     }
 
