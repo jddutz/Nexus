@@ -7,4 +7,6 @@ public static class InputSemantics
     public const int Projection = 2;
     public const int Color = 3;
     public const int TextureRegion = 4;
+
+    public static readonly int[] All = [Transform, View, Projection, Color, TextureRegion];
 }

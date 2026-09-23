@@ -24,6 +24,8 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IPipelineRegistry, PipelineRegistry>();
         services.TryAddSingleton<IVertexBufferRegistry, VertexBufferRegistry>();
         services.TryAddSingleton<IDescriptorSetLayoutFactory, DescriptorSetLayoutFactory>();
+        services.TryAddSingleton<IDescriptorSetFactory, DescriptorSetFactory>();
+        services.TryAddSingleton<ICommandFactory, CommandFactory>();
         services.TryAddSingleton<IBufferManager, BufferManager>();
         services.TryAddSingleton<IDescriptorSetPool, DescriptorSetPool>();
         services.TryAddSingleton<IRenderer, Renderer>();

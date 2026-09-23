@@ -32,6 +32,7 @@ global using Silk.NET.Vulkan.Extensions.KHR;
 global using Silk.NET.Windowing;
 global using VkBuffer = Silk.NET.Vulkan.Buffer;
 global using VkDescriptorPool = Silk.NET.Vulkan.DescriptorPool;
+global using VkDescriptorSet = Silk.NET.Vulkan.DescriptorSet;
 global using VkImage = Silk.NET.Vulkan.Image;
 global using VkImageView = Silk.NET.Vulkan.ImageView;
 global using VkSampler = Silk.NET.Vulkan.Sampler;

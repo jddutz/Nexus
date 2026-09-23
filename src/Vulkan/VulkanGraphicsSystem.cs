@@ -1,5 +1,3 @@
-using Nexus.Graphics.Vulkan;
-
 namespace Nexus.Graphics.Vulkan;
 
 /// <summary>
@@ -21,6 +19,7 @@ public unsafe class VulkanGraphicsSystem(
     ISyncManager syncManager,
     RenderPassConfigurations renderPassConfig,
     IEventHub eventHub,
+    ICommandFactory commandFactory,
     IVertexBufferRegistry geometryRegistry,
     IImageRegistry textureRegistry,
     IPipelineRegistry pipelineRegistry,
@@ -89,34 +88,8 @@ public unsafe class VulkanGraphicsSystem(
 
         var batch = _batches[0];
 
-        var vertexShader =
-            drawable.VertexShader
-            ?? throw new InvalidOperationException("Drawables must define a vertex shader.");
-        var colorFormat =
-            drawable.FragmentShader?.ColorFormat
-            ?? throw new InvalidOperationException("Drawables must define a fragment shader.");
-        geometryRegistry.Create(drawable.Mesh, vertexShader.VertexFormat);
-
-        var renderPass = RenderPasses.Main;
-        var pipelineDefinition = CreatePipelineDefinition(drawable, renderPass, vertexShader);
-        var (pipeline, _) = pipelineRegistry.GetOrCreate(pipelineDefinition);
-        var vertexBuffer = geometryRegistry.Get(drawable.Mesh.Id, vertexShader.VertexFormat.Id);
-
-        batch.Add(new BindPipelineCommand(renderPass, pipelineDefinition.Id, drawable, pipeline));
-        batch.Add(
-            new BindVertexBufferCommand(renderPass, pipelineDefinition.Id, drawable, vertexBuffer)
-        );
-        batch.Add(
-            new DrawCommand(
-                renderPass,
-                pipelineDefinition.Id,
-                drawable,
-                checked((uint)drawable.Mesh.Count)
-            )
-        );
-
-        foreach (var command in textureRegistry.Create(drawable.Texture, colorFormat))
-            batch.Add(command);
+        foreach (var cmd in commandFactory.Create(drawable))
+            batch.Add(cmd);
 
         logger.LogDebug(
             "Activated drawable. DrawableType={DrawableType}, DrawableId={DrawableId}",
