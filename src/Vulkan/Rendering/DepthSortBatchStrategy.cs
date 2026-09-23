@@ -20,7 +20,7 @@ public sealed class DepthSortBatchStrategy : IBatchStrategy
         if (y is null)
             return 1;
 
-        var result = x.RenderPass.CompareTo(y.RenderPass);
+        var result = x.RenderPassIndex.CompareTo(y.RenderPassIndex);
         if (result != 0)
             return result;
 

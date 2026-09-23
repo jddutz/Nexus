@@ -9,6 +9,9 @@ namespace Nexus.Graphics;
 /// </remarks>
 public static class RenderPasses
 {
+    public const uint Start = 0u;
+    public const uint End = uint.MaxValue;
+
     /// <summary>Shadow map generation pass.</summary>
     public const uint Shadow = 1u << 0;
 
@@ -34,7 +37,7 @@ public static class RenderPasses
     public const uint UI = 1u << 7;
 
     /// <summary>All render passes combined.</summary>
-    public const uint All = uint.MaxValue;
+    public const uint All = Shadow | Depth | Main | Lighting | Reflection | Transparent | Post | UI;
 
     /// <summary>All opaque passes: shadow, depth, and main.</summary>
     public const uint Opaque = Shadow | Depth | Main;

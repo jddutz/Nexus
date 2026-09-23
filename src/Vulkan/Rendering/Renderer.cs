@@ -7,78 +7,186 @@ namespace Nexus.Graphics.Vulkan.Rendering;
 /// <param name="context">The Vulkan context used for device and command recording operations.</param>
 /// <param name="swapChain">The swap chain that supplies render targets and presentation.</param>
 /// <param name="syncManager">The synchronization manager for frames and swap-chain images.</param>
-/// <param name="logger">The logger used to record rendering failures.</param>
-public unsafe class Renderer(Context context, ISwapChain swapChain, ISyncManager syncManager)
-    : IRenderer,
-        IDisposable
+/// <param name="renderPasses">The configured render passes.</param>
+public unsafe class Renderer(
+    Context context,
+    ISwapChain swapChain,
+    ISyncManager syncManager,
+    RenderPassConfigurations renderPasses
+) : IRenderer, IDisposable
 {
-    private Context _context = context;
-    private ISwapChain _swapChain = swapChain;
-    private ISyncManager _syncManager = syncManager;
+    private readonly Context _context = context;
+    private readonly ISwapChain _swapChain = swapChain;
+    private readonly ISyncManager _syncManager = syncManager;
+    private readonly RenderPassConfigurations _renderPasses = renderPasses;
 
-    private CommandBufferPool _commandPool = CommandBufferPool.ForGraphics(context, 2);
+    private readonly CommandBufferPool _commandPool = CommandBufferPool.ForGraphics(context, 2);
+
     private FrameSync? _frameSync;
     private ImageSync? _imageSync;
     private uint _imageIndex;
     private CommandBuffer _commandBuffer;
     private bool _disposed;
 
-    /// <summary>Occurs after a frame is acquired and before command recording begins.</summary>
+    /// <summary>
+    /// Occurs after a frame is acquired and before command recording begins.
+    /// </summary>
     public event EventHandler<RenderEventArgs>? BeforeRendering;
 
-    /// <summary>Occurs after the frame has been submitted and presented.</summary>
+    /// <summary>
+    /// Occurs after the frame has been submitted and presented.
+    /// </summary>
     public event EventHandler<RenderEventArgs>? AfterRendering;
 
-    /// <summary>Determines whether the renderer has a usable swap chain and render layer.</summary>
-    /// <returns><see langword="true"/> when rendering can begin; otherwise, <see langword="false"/>.</returns>
-    public bool CanRender() =>
-        _context != null
-        && _swapChain != null
-        && _swapChain.Extent.Width > 0
-        && _swapChain.Extent.Height > 0;
+    /// <summary>
+    /// Determines whether the renderer has a usable swap chain.
+    /// </summary>
+    public bool CanRender() => _swapChain.Extent.Width > 0 && _swapChain.Extent.Height > 0;
 
-    /// <summary>Acquires the next swap-chain image and begins command recording.</summary>
-    /// <returns>The acquired frame and image index, or <see langword="null"/> when recording cannot begin.</returns>
-    public RenderFrameResult? Begin()
-    {
-        if (!CanRender())
-            return null;
-
-        if (!PrepareFrame())
-            return null;
-
-        BeforeRendering?.Invoke(this, new RenderEventArgs(_imageIndex));
-
-        return BeginCommandBuffer()
-            ? new RenderFrameResult(_frameSync!.FrameIndex, _imageIndex)
-            : null;
-    }
-
-    /// <summary>Records a render batch into the current command buffer.</summary>
-    /// <param name="batch">The render batch to record.</param>
-    public void Record(IRenderBatch batch)
+    /// <summary>
+    /// Acquires the next swap-chain image, begins command recording,
+    /// and records frame preparation commands.
+    /// </summary>
+    public RenderFrameResult? PrepareFrame(IRenderBatch batch)
     {
         ArgumentNullException.ThrowIfNull(batch);
 
-        if (_frameSync == null || batch.FrameIndex != _frameSync.FrameIndex)
-            throw new InvalidOperationException(
-                $"Render batch belongs to frame {batch.FrameIndex}, "
-                    + $"but the active frame is {_frameSync?.FrameIndex}."
-            );
+        if (!CanRender())
+            return null;
 
+        if (!AcquireFrame())
+            return null;
+
+        if (!BeginCommandBuffer())
+            return null;
+
+        TransitionToColorAttachment();
+
+        BeforeRendering?.Invoke(this, new RenderEventArgs(_imageIndex));
+
+        RecordCommands(batch);
+
+        return new RenderFrameResult(_frameSync!.FrameIndex, _imageIndex);
+    }
+
+    /// <summary>
+    /// Begins processing a render layer.
+    /// </summary>
+    public void Begin(IRenderBatch batch)
+    {
+        ArgumentNullException.ThrowIfNull(batch);
+
+        RecordCommands(batch);
+    }
+
+    /// <summary>
+    /// Records a compute workload.
+    /// </summary>
+    public void Compute(IRenderBatch batch)
+    {
+        ArgumentNullException.ThrowIfNull(batch);
+
+        throw new NotImplementedException();
+    }
+
+    /// <summary>
+    /// Records a render pass.
+    /// </summary>
+    public void Record(int renderPassIndex, IRenderBatch batch)
+    {
+        ArgumentNullException.ThrowIfNull(batch);
+
+        if (!_renderPasses.Configurations.TryGetValue(renderPassIndex, out var configuration))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(renderPassIndex),
+                $"Render pass {renderPassIndex} is not configured."
+            );
+        }
+
+        if (!configuration.ShouldRender)
+            return;
+
+        BeginRendering(configuration);
+
+        RecordCommands(batch);
+
+        EndRendering();
+    }
+
+    /// <summary>
+    /// Finalizes processing of a render layer.
+    /// </summary>
+    public void Finalize(IRenderBatch batch)
+    {
+        ArgumentNullException.ThrowIfNull(batch);
+
+        RecordCommands(batch);
+    }
+
+    /// <summary>
+    /// Records all commands in a batch into the current command buffer.
+    /// </summary>
+    private void RecordCommands(IRenderBatch batch)
+    {
         foreach (var command in batch.Commands)
         {
             command.Record(_context.VulkanApi, _commandBuffer);
         }
     }
 
-    /// <summary>Prepares frame synchronization and acquires the next swap-chain image.</summary>
-    /// <returns>Frame sync, image index, and image sync objects.</returns>
-    private bool PrepareFrame()
+    /// <summary>
+    /// Begins dynamic rendering for the specified render pass.
+    /// </summary>
+    private void BeginRendering(RenderPassConfiguration configuration)
+    {
+        var clearValue =
+            configuration.ClearValues.Length > 0 ? configuration.ClearValues[0] : default;
+
+        var colorAttachment = new RenderingAttachmentInfo
+        {
+            SType = StructureType.RenderingAttachmentInfo,
+            ImageView = _swapChain.ImageViews[_imageIndex],
+            ImageLayout = ImageLayout.ColorAttachmentOptimal,
+            LoadOp = configuration.ColorLoadOp,
+            StoreOp = configuration.ColorStoreOp,
+            ClearValue = clearValue,
+        };
+
+        var renderingInfo = new RenderingInfo
+        {
+            SType = StructureType.RenderingInfo,
+            RenderArea = new Rect2D { Offset = new Offset2D(0, 0), Extent = _swapChain.Extent },
+            LayerCount = 1,
+            ViewMask = 0,
+            ColorAttachmentCount = 1,
+            PColorAttachments = &colorAttachment,
+            PDepthAttachment = null,
+            PStencilAttachment = null,
+        };
+
+        _context.VulkanApi.CmdBeginRendering(_commandBuffer, &renderingInfo);
+    }
+
+    /// <summary>
+    /// Ends the current dynamic rendering operation.
+    /// </summary>
+    private void EndRendering()
+    {
+        _context.VulkanApi.CmdEndRendering(_commandBuffer);
+    }
+
+    /// <summary>
+    /// Prepares frame synchronization and acquires the next swap-chain image.
+    /// </summary>
+    private bool AcquireFrame()
     {
         _frameSync = _syncManager.WaitForFrame(_syncManager.CurrentFrameIndex);
+
         if (!_commandPool.TryGetCommandBuffer(_frameSync.InFlightFence, out _commandBuffer))
+        {
             return false;
+        }
 
         _imageIndex = _swapChain.AcquireNextImage(_frameSync.ImageAvailable, out var result);
 
@@ -98,8 +206,9 @@ public unsafe class Renderer(Context context, ISwapChain swapChain, ISyncManager
         return true;
     }
 
-    /// <summary>Begins recording the command buffer for the current frame.</summary>
-    /// <returns><see langword="true"/> when command recording begins successfully.</returns>
+    /// <summary>
+    /// Begins recording the command buffer for the current frame.
+    /// </summary>
     private bool BeginCommandBuffer()
     {
         var beginInfo = new CommandBufferBeginInfo
@@ -109,35 +218,46 @@ public unsafe class Renderer(Context context, ISwapChain swapChain, ISyncManager
         };
 
         var result = _context.VulkanApi.BeginCommandBuffer(_commandBuffer, &beginInfo);
+
         if (result != Result.Success)
+        {
             throw new InvalidOperationException(
                 $"Failed to begin command buffer recording: {result}"
             );
+        }
 
         return true;
     }
 
-    /// <summary>Ends command recording, submits the frame, and presents the rendered image.</summary>
+    /// <summary>
+    /// Ends command recording, submits the frame, and presents the rendered image.
+    /// </summary>
     public void Submit()
     {
         TransitionToPresent();
 
-        if (_context.VulkanApi.EndCommandBuffer(_commandBuffer) != Result.Success)
-            throw new InvalidOperationException("Failed to end command buffer recording.");
+        var result = _context.VulkanApi.EndCommandBuffer(_commandBuffer);
+
+        if (result != Result.Success)
+        {
+            throw new InvalidOperationException(
+                $"Failed to end command buffer recording: {result}"
+            );
+        }
 
         SubmitFrame();
         PresentFrame();
+
         AfterRendering?.Invoke(this, new RenderEventArgs(_imageIndex));
     }
 
-    /// <summary>Records the swap-chain image transition required before presentation.</summary>
-    private void TransitionToPresent()
+    private void TransitionToColorAttachment()
     {
         var barrier = new ImageMemoryBarrier
         {
             SType = StructureType.ImageMemoryBarrier,
-            OldLayout = ImageLayout.ColorAttachmentOptimal,
-            NewLayout = ImageLayout.PresentSrcKhr,
+            OldLayout = ImageLayout.Undefined,
+            NewLayout = ImageLayout.ColorAttachmentOptimal,
             SrcQueueFamilyIndex = Vk.QueueFamilyIgnored,
             DstQueueFamilyIndex = Vk.QueueFamilyIgnored,
             Image = _swapChain.Images[_imageIndex],
@@ -149,7 +269,49 @@ public unsafe class Renderer(Context context, ISwapChain swapChain, ISyncManager
                 BaseArrayLayer = 0,
                 LayerCount = 1,
             },
+            SrcAccessMask = 0,
+            DstAccessMask = AccessFlags.ColorAttachmentWriteBit,
+        };
+
+        _context.VulkanApi.CmdPipelineBarrier(
+            _commandBuffer,
+            PipelineStageFlags.TopOfPipeBit,
+            PipelineStageFlags.ColorAttachmentOutputBit,
+            0,
+            0,
+            null,
+            0,
+            null,
+            1,
+            in barrier
+        );
+    }
+
+    /// <summary>
+    /// Records the swap-chain image transition required before presentation.
+    /// </summary>
+    private void TransitionToPresent()
+    {
+        var barrier = new ImageMemoryBarrier
+        {
+            SType = StructureType.ImageMemoryBarrier,
+            OldLayout = ImageLayout.ColorAttachmentOptimal,
+            NewLayout = ImageLayout.PresentSrcKhr,
+            SrcQueueFamilyIndex = Vk.QueueFamilyIgnored,
+            DstQueueFamilyIndex = Vk.QueueFamilyIgnored,
+            Image = _swapChain.Images[_imageIndex],
+
+            SubresourceRange = new ImageSubresourceRange
+            {
+                AspectMask = ImageAspectFlags.ColorBit,
+                BaseMipLevel = 0,
+                LevelCount = 1,
+                BaseArrayLayer = 0,
+                LayerCount = 1,
+            },
+
             SrcAccessMask = AccessFlags.ColorAttachmentWriteBit,
+
             DstAccessMask = 0,
         };
 
@@ -168,26 +330,34 @@ public unsafe class Renderer(Context context, ISwapChain swapChain, ISyncManager
     }
 
     /// <summary>
-    /// Submits the recorded command buffer to the GPU queue.
+    /// Submits the recorded command buffer to the graphics queue.
     /// </summary>
     private void SubmitFrame()
     {
         if (_frameSync == null || _imageSync == null || _commandBuffer.Handle == 0)
+        {
             return;
+        }
 
         var waitStages = PipelineStageFlags.ColorAttachmentOutputBit;
-        var imageAvailableSemaphore = _frameSync.ImageAvailable; // Per-frame acquire semaphore
-        var renderFinishedSemaphore = _imageSync.RenderFinished; // Per-image render semaphore
-        var cmdBuffer = (CommandBuffer)_commandBuffer;
+
+        var imageAvailableSemaphore = _frameSync.ImageAvailable;
+
+        var renderFinishedSemaphore = _imageSync.RenderFinished;
+
+        var commandBuffer = _commandBuffer;
 
         var submitInfo = new SubmitInfo
         {
             SType = StructureType.SubmitInfo,
+
             WaitSemaphoreCount = 1,
             PWaitSemaphores = &imageAvailableSemaphore,
             PWaitDstStageMask = &waitStages,
+
             CommandBufferCount = 1,
-            PCommandBuffers = &cmdBuffer,
+            PCommandBuffers = &commandBuffer,
+
             SignalSemaphoreCount = 1,
             PSignalSemaphores = &renderFinishedSemaphore,
         };
@@ -200,6 +370,7 @@ public unsafe class Renderer(Context context, ISwapChain swapChain, ISyncManager
             &submitInfo,
             _frameSync.InFlightFence
         );
+
         if (result != Result.Success)
         {
             throw new InvalidOperationException($"Failed to submit queue: {result}");
@@ -211,7 +382,7 @@ public unsafe class Renderer(Context context, ISwapChain swapChain, ISyncManager
     /// <summary>
     /// Presents the rendered image to the screen.
     /// </summary>
-    public void PresentFrame()
+    private void PresentFrame()
     {
         if (_imageSync == null)
             return;
@@ -227,9 +398,7 @@ public unsafe class Renderer(Context context, ISwapChain swapChain, ISyncManager
         }
     }
 
-    /// <summary>
-    /// Releases the persistently mapped instance upload buffers owned by this renderer.
-    /// </summary>
+    /// <inheritdoc />
     public void Dispose()
     {
         if (_disposed)

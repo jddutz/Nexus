@@ -1,27 +1,46 @@
 namespace Nexus.Graphics.Vulkan.Rendering;
 
 /// <summary>
-/// Defines the contract for a renderer that executes Vulkan rendering operations.
+/// Defines the contract for a renderer that records and submits Vulkan workloads.
 /// </summary>
-public interface IRenderer
+public interface IRenderer : IDisposable
 {
     /// <summary>
     /// Prepares the renderer to record a new frame.
     /// </summary>
+    /// <param name="batch">Commands to record before processing render layers.</param>
     /// <returns>
     /// The acquired frame and its swap-chain image index, or <see langword="null"/> if
     /// rendering cannot begin.
     /// </returns>
-    RenderFrameResult? Begin();
+    RenderFrameResult? PrepareFrame(IRenderBatch batch);
 
     /// <summary>
-    /// Records the commands required to render a batch into the current command buffer.
+    /// Begins processing a render layer.
     /// </summary>
-    /// <param name="batch">The batch of render state, passes, and items to record.</param>
-    void Record(IRenderBatch batch);
+    /// <param name="batch">Commands to record before processing the layer's workloads.</param>
+    void Begin(IRenderBatch batch);
 
     /// <summary>
-    /// Ends command recording and submits the current frame to the graphics queue.
+    /// Records a compute workload.
+    /// </summary>
+    /// <param name="batch">The compute commands to record.</param>
+    void Compute(IRenderBatch batch);
+
+    /// <summary>
+    /// Records a render pass.
+    /// </summary>
+    /// <param name="batch">The rendering commands to record within the render pass.</param>
+    void Record(int renderPassIndex, IRenderBatch batch);
+
+    /// <summary>
+    /// Finalizes processing of a render layer.
+    /// </summary>
+    /// <param name="batch">Commands to record after processing the layer's workloads.</param>
+    void Finalize(IRenderBatch batch);
+
+    /// <summary>
+    /// Ends command recording, submits the current frame, and presents it.
     /// </summary>
     void Submit();
 }

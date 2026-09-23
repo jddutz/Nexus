@@ -22,7 +22,7 @@ public sealed class BindVertexBufferCommand : IVulkanCommand
         ArgumentNullException.ThrowIfNull(drawable);
 
         Id = Guid.NewGuid();
-        RenderPass = renderPass;
+        RenderPassIndex = renderPass;
         PipelineId = pipelineId;
         Drawable = drawable;
         Buffer = buffer;
@@ -35,10 +35,10 @@ public sealed class BindVertexBufferCommand : IVulkanCommand
     public bool IsSticky => true;
 
     /// <inheritdoc />
-    public RenderPhase Phase => RenderPhase.RenderPass;
+    public int Phase => RenderPasses.RenderPass;
 
     /// <inheritdoc />
-    public uint RenderPass { get; }
+    public uint RenderPassIndex { get; }
 
     /// <inheritdoc />
     public PipelineId? PipelineId { get; }

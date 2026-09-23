@@ -1,25 +1,10 @@
 namespace Nexus.Graphics.Vulkan.Rendering;
 
 /// <summary>
-/// Defines an ordered collection of Vulkan commands for a rendering operation.
+/// Defines an ordered collection of Vulkan commands.
 /// </summary>
 public interface IRenderBatch
 {
-    /// <summary>
-    /// Gets or sets the frame synchronization slot for which this batch was prepared.
-    /// </summary>
-    int FrameIndex { get; set; }
-
-    /// <summary>
-    /// Gets or sets the swap-chain image associated with this batch.
-    /// </summary>
-    VkImage Image { get; set; }
-
-    /// <summary>
-    /// Gets or sets the image view associated with the swap-chain image.
-    /// </summary>
-    VkImageView ImageView { get; set; }
-
     /// <summary>
     /// Adds a Vulkan command to the batch.
     /// </summary>
@@ -35,13 +20,14 @@ public interface IRenderBatch
     /// </summary>
     IEnumerable<IVulkanCommand> Commands { get; }
 
-    /// <summary
-    /// Removes all commands associated with a given Drawable.
+    /// <summary>
+    /// Removes all commands associated with the specified drawable.
     /// </summary>
+    /// <param name="drawableId">The drawable identifier.</param>
     void Remove(DrawableId drawableId);
 
-    /// <summary
-    /// Removes all transient (IsSticky == false) commands from the batch.
+    /// <summary>
+    /// Removes all transient commands from the batch.
     /// </summary>
     void Clean();
 }

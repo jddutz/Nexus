@@ -41,7 +41,7 @@ public unsafe class DescriptorSetPool(
 ) : IDescriptorSetPool
 {
     /// <summary>Default maximum number of descriptor sets the native pool can allocate.</summary>
-    public const uint DefaultMaxSets = 256;
+    public const uint DefaultMaxSets = 512;
 
     /// <summary>Default number of uniform-buffer descriptors the native pool can allocate.</summary>
     public const uint DefaultUniformBufferCount = 256;

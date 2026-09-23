@@ -7,6 +7,8 @@ public unsafe class CommandFactory(
     IImageRegistry textureRegistry,
     IPipelineRegistry pipelineRegistry,
     IDescriptorSetPool descriptorSetPool,
+    IBufferManager bufferManager,
+    ISamplerRegistry samplerRegistry,
     ILogger<CommandFactory> logger
 ) : ICommandFactory
 {
@@ -66,7 +68,44 @@ public unsafe class CommandFactory(
                 setSchema.Set
             );
 
-            descriptorSets[setSchema.Set] = descriptorSetPool.Allocate(layout);
+            var descriptorSet = descriptorSetPool.Allocate(layout);
+            descriptorSets[setSchema.Set] = descriptorSet;
+
+            foreach (var binding in setSchema.Bindings)
+            {
+                switch (binding.DescriptorType)
+                {
+                    case DescriptorType.UniformBuffer:
+                        var uniformData = drawable.GetUniformData(vertexShader.UniformLayout);
+                        var uniformBuffer = bufferManager.CreateUniformBuffer(
+                            checked((ulong)uniformData.Length)
+                        );
+                        bufferManager.UpdateBuffer(uniformBuffer, uniformData.Span);
+                        descriptorSetPool.WriteUniformBuffer(
+                            descriptorSet,
+                            binding.Binding,
+                            uniformBuffer,
+                            0,
+                            checked((ulong)uniformData.Length)
+                        );
+                        break;
+
+                    case DescriptorType.CombinedImageSampler:
+                        samplerRegistry.Create(drawable.SamplingBehavior);
+                        descriptorSetPool.WriteCombinedImageSampler(
+                            descriptorSet,
+                            binding.Binding,
+                            textureRegistry.Get(drawable.Texture, colorFormat),
+                            samplerRegistry.Get(drawable.SamplingBehavior.Id)
+                        );
+                        break;
+
+                    default:
+                        throw new NotSupportedException(
+                            $"Descriptor type {binding.DescriptorType} is not supported."
+                        );
+                }
+            }
         }
 
         yield return new BindDescriptorSetsCommand(
@@ -110,6 +149,7 @@ public unsafe class CommandFactory(
             context
         )
             .WithShader(vertexShader)
+            .WithDescriptorSchema(DescriptorSchemas.Textured)
             .WithRenderPass(swapChain.Passes[RenderPasses.GetIndex(renderPass)]);
 
         if (drawable.TessellationControlShader is not null)

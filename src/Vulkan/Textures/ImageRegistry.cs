@@ -400,6 +400,46 @@ public unsafe class ImageRegistry : IImageRegistry
     }
 
     /// <inheritdoc/>
+    public VkImageView Get(ITexture texture, ColorFormatEnum format)
+    {
+        ArgumentNullException.ThrowIfNull(texture);
+
+        var imageId = ComputeImageId(texture.Id, format);
+
+        if (!_images.TryGetValue(imageId, out var image))
+            throw new KeyNotFoundException($"Image for texture '{texture.Id}' is not registered.");
+
+        var viewId = ComputeImageViewId(
+            new ImageViewCreateInfo
+            {
+                Image = image,
+                Format = format.ToVulkanFormat(),
+                ViewType = ImageViewType.Type2D,
+                Components = new ComponentMapping
+                {
+                    R = ComponentSwizzle.Identity,
+                    G = ComponentSwizzle.Identity,
+                    B = ComponentSwizzle.Identity,
+                    A = ComponentSwizzle.Identity,
+                },
+                SubresourceRange = new ImageSubresourceRange
+                {
+                    AspectMask = ImageAspectFlags.ColorBit,
+                    LevelCount = 1,
+                    LayerCount = 1,
+                },
+            }
+        );
+
+        if (!_views.TryGetValue(viewId, out var view))
+            throw new KeyNotFoundException(
+                $"Image view for texture '{texture.Id}' is not registered."
+            );
+
+        return view;
+    }
+
+    /// <inheritdoc/>
     public IEnumerable<IVulkanCommand> Update(ITexture texture, ColorFormatEnum format)
     {
         throw new NotImplementedException();

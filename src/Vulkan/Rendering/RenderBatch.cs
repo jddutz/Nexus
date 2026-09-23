@@ -1,26 +1,11 @@
 namespace Nexus.Graphics.Vulkan.Rendering;
 
 /// <summary>
-/// Defines an ordered collection of Vulkan commands for a rendering operation.
+/// Defines an ordered collection of Vulkan commands.
 /// </summary>
 public class RenderBatch(IBatchStrategy batchStrategy) : IRenderBatch
 {
-    private SortedSet<IVulkanCommand> _commands = new(batchStrategy);
-
-    /// <summary>
-    /// Gets or sets the frame synchronization slot for which this batch was prepared.
-    /// </summary>
-    public int FrameIndex { get; set; }
-
-    /// <summary>
-    /// Gets or sets the swap-chain image associated with this batch.
-    /// </summary>
-    public VkImage Image { get; set; }
-
-    /// <summary>
-    /// Gets or sets the image view associated with the swap-chain image.
-    /// </summary>
-    public VkImageView ImageView { get; set; }
+    private readonly SortedSet<IVulkanCommand> _commands = new(batchStrategy);
 
     /// <summary>
     /// Gets the Vulkan commands in execution order.
@@ -42,14 +27,15 @@ public class RenderBatch(IBatchStrategy batchStrategy) : IRenderBatch
         return _commands.Add(command);
     }
 
-    /// </inheritdoc>
+    /// <inheritdoc />
     public void Remove(DrawableId drawableId)
     {
         _commands.RemoveWhere(command => command.Drawable?.Id == drawableId);
     }
 
+    /// <inheritdoc />
     public void Clean()
     {
-        _commands.RemoveWhere(cmd => !cmd.IsSticky);
+        _commands.RemoveWhere(command => !command.IsSticky);
     }
 }

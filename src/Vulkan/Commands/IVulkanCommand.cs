@@ -6,9 +6,7 @@ public interface IVulkanCommand
 
     bool IsSticky { get; }
 
-    RenderPhase Phase { get; }
-
-    uint RenderPass { get; }
+    uint RenderPassMask { get; }
 
     PipelineId? PipelineId { get; }
 

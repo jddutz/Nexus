@@ -21,7 +21,7 @@ public sealed class DrawCommand : IVulkanCommand
             throw new ArgumentOutOfRangeException(nameof(instanceCount));
 
         Id = Guid.NewGuid();
-        RenderPass = renderPass;
+        RenderPassIndex = renderPass;
         PipelineId = pipelineId;
         Drawable = drawable;
         VertexCount = vertexCount;
@@ -34,9 +34,9 @@ public sealed class DrawCommand : IVulkanCommand
 
     public bool IsSticky => true;
 
-    public RenderPhase Phase => RenderPhase.RenderPass;
+    public int Phase => RenderPasses.RenderPass;
 
-    public uint RenderPass { get; }
+    public uint RenderPassIndex { get; }
 
     public PipelineId? PipelineId { get; }
 

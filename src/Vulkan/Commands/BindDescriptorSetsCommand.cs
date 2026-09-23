@@ -31,7 +31,7 @@ public sealed class BindDescriptorSetsCommand : IVulkanCommand
             );
 
         Id = Guid.NewGuid();
-        RenderPass = renderPass;
+        RenderPassIndex = renderPass;
         PipelineId = pipelineId;
         Drawable = drawable;
         PipelineLayout = pipelineLayout;
@@ -44,11 +44,7 @@ public sealed class BindDescriptorSetsCommand : IVulkanCommand
     /// <inheritdoc />
     public bool IsSticky => true;
 
-    /// <inheritdoc />
-    public RenderPhase Phase => RenderPhase.RenderPass;
-
-    /// <inheritdoc />
-    public uint RenderPass { get; }
+    public uint RenderPassMask => RenderPasses.Before;
 
     /// <inheritdoc />
     public PipelineId? PipelineId { get; }

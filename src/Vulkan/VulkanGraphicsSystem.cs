@@ -67,8 +67,23 @@ public unsafe class VulkanGraphicsSystem(
             batches[layerIndex] = new RenderBatch(new DefaultBatchStrategy());
             foreach (var config in renderPassConfig.Configurations.Values)
             {
-                batches[layerIndex].Add(new SetViewportCommand(config.RenderPassBit, viewport));
-                batches[layerIndex].Add(new SetScissorCommand(config.RenderPassBit, scissor));
+    batches[layerIndex].Add(
+        new BeginRenderingCommand(
+            config.RenderPassBit,
+        )
+    );
+
+    batches[layerIndex].Add(
+        new SetViewportCommand(config.RenderPassBit, viewport)
+    );
+
+    batches[layerIndex].Add(
+        new SetScissorCommand(config.RenderPassBit, scissor)
+    );
+
+    batches[layerIndex].Add(
+        new EndRenderingCommand(config.RenderPassBit)
+    );
             }
         }
 

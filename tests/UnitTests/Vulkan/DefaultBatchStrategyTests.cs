@@ -60,9 +60,9 @@ public class DefaultBatchStrategyTests
 
         public bool IsSticky => true;
 
-        public RenderPhase Phase => RenderPhase.RenderPass;
+        public int Phase => RenderPasses.RenderPass;
 
-        public uint RenderPass => 1;
+        public uint RenderPassIndex => 1;
 
         public PipelineId? PipelineId => pipelineId;
 
