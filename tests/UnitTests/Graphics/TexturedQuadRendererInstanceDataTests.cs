@@ -30,10 +30,7 @@ public sealed class TexturedQuadRendererInstanceDataTests
         );
         Assert.Equal(
             drawables.Length,
-            drawables
-                .Select(drawable => drawable.Id)
-                .Distinct()
-                .Count()
+            drawables.Select(drawable => drawable.Id).Distinct().Count()
         );
         Assert.All(records, record => Assert.Equal(96, record.Length));
         Assert.Equal(records.Length, records.Distinct(ByteArrayComparer.Instance).Count());
