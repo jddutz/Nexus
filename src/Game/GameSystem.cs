@@ -108,8 +108,6 @@ public class GameSystem(
         var cellWidth = 2.0f / columns;
         var cellHeight = 2.0f / rows;
 
-        var rng = new Random();
-
         var atlasColumns = 14;
         var atlasRows = 13;
 
@@ -166,7 +164,7 @@ public class GameSystem(
 
                 component.TransformationMatrix =
                     Matrix4X4.CreateScale(width, height, 1.0f)
-                    * Matrix4X4.CreateTranslation(centerX, centerY, rng.Next(4));
+                    * Matrix4X4.CreateTranslation(centerX, centerY, 0f);
             }
         }
 

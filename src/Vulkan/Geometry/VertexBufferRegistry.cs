@@ -407,6 +407,14 @@ public unsafe class VertexBufferRegistry : IVertexBufferRegistry
 
             _memory.Add(buffer, memory);
 
+            if (_logger.IsEnabled(LogLevel.Debug))
+                _logger.LogDebug(
+                    "Uploaded vertex buffer data. BufferHandle={BufferHandle}, Size={Size}, Data={Data}",
+                    buffer.Handle,
+                    size,
+                    Convert.ToHexString(data.Span)
+                );
+
             return buffer;
         }
         catch

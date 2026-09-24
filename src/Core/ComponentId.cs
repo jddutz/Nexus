@@ -16,8 +16,9 @@ public readonly record struct ComponentId(ulong Value) : IEquatable<ComponentId>
 
     public bool Equals(IUniqueId? other) => other != null && Value == other.Value;
 
-    public static ComponentId New() =>
-        new IdentityHashBuilder(nameof(Component)).Add(Guid.NewGuid()).Compute();
+    private static long _nextId;
+
+    public static ComponentId New() => new((ulong)Interlocked.Increment(ref _nextId));
 
     public static readonly ComponentId Invalid = new(0ul);
 }

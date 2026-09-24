@@ -29,9 +29,6 @@ public unsafe class VulkanGraphicsSystem(
     private RenderBatchCollection?[] _batches = new RenderBatchCollection?[
         RenderLayerCollection.MaxLayers
     ];
-    private readonly HashSet<IDrawable> _activatedDrawables = new(
-        ReferenceEqualityComparer.Instance
-    );
 
     private void OnLayerAdded(IRenderLayer layer)
     {
@@ -86,8 +83,6 @@ public unsafe class VulkanGraphicsSystem(
     {
         ArgumentNullException.ThrowIfNull(drawable);
 
-        _activatedDrawables.Add(drawable);
-
         if (_batches.Length == 0)
             return;
 
@@ -95,14 +90,8 @@ public unsafe class VulkanGraphicsSystem(
         if (batches is null)
             return;
 
-        foreach (var renderPass in RenderPasses.GetActivePasses(RenderPasses.All))
-        {
-            if (!batches.TryGet(renderPass, out var batch))
-                continue;
-
-            foreach (var cmd in commandFactory.Create(drawable))
-                batch!.Add(cmd);
-        }
+        foreach (var command in commandFactory.Create(drawable))
+            AddToBatches(batches, command);
 
         logger.LogTrace(
             "Activated drawable. DrawableType={DrawableType}, DrawableId={DrawableId}",
@@ -165,11 +154,34 @@ public unsafe class VulkanGraphicsSystem(
         // TODO: handle updates
     }
 
+    /// <summary>
+    /// Adds a command to each batch selected by its render-pass mask.
+    /// </summary>
+    /// <param name="batches">The render batches that own the command.</param>
+    /// <param name="command">The command to allocate to its execution phase.</param>
+    private static void AddToBatches(RenderBatchCollection batches, IVulkanCommand command)
+    {
+        ArgumentNullException.ThrowIfNull(batches);
+        ArgumentNullException.ThrowIfNull(command);
+
+        if (command.RenderPassMask is RenderPasses.Start or RenderPasses.End)
+        {
+            if (batches.TryGet(command.RenderPassMask, out var phaseBatch))
+                phaseBatch!.Add(command);
+
+            return;
+        }
+
+        foreach (var renderPass in RenderPasses.GetActivePasses(command.RenderPassMask))
+        {
+            if (batches.TryGet(renderPass, out var batch))
+                batch!.Add(command);
+        }
+    }
+
     private void Deactivate(IDrawable drawable)
     {
         ArgumentNullException.ThrowIfNull(drawable);
-
-        _activatedDrawables.Remove(drawable);
 
         if (_batches.Length == 0)
             return;
@@ -201,13 +213,7 @@ public unsafe class VulkanGraphicsSystem(
         geometryRegistry.ReleaseInstanceBuffer(drawable.Id);
 
         foreach (var command in textureRegistry.Release(drawable.Texture, colorFormat))
-        {
-            foreach (var renderPass in RenderPasses.GetActivePasses(RenderPasses.All))
-            {
-                if (batches.TryGet(renderPass, out var batch))
-                    batch!.Add(command);
-            }
-        }
+            AddToBatches(batches, command);
 
         logger.LogTrace(
             "Deactivated drawable. DrawableType={DrawableType}, DrawableId={DrawableId}",
@@ -269,25 +275,6 @@ public unsafe class VulkanGraphicsSystem(
                 {
                     if (!batches.TryGet(renderPass, out var batch))
                         continue;
-
-                    if (logger.IsEnabled(LogLevel.Debug))
-                    {
-                        var commands = batch!.Commands.ToArray();
-                        var drawCommands = commands.OfType<DrawCommand>().ToArray();
-                        logger.LogDebug(
-                            "Render batch diagnostics. LayerIndex={LayerIndex}, RenderPass={RenderPass}, "
-                                + "ActivatedDrawables={ActivatedDrawables}, DistinctDrawableIds={DistinctDrawableIds}, "
-                                + "BatchCommands={BatchCommands}, DrawCommands={DrawCommands}, "
-                                + "DistinctDrawCommandIds={DistinctDrawCommandIds}",
-                            layerIndex,
-                            renderPass,
-                            _activatedDrawables.Count,
-                            _activatedDrawables.Select(drawable => drawable.Id).Distinct().Count(),
-                            commands.Length,
-                            drawCommands.Length,
-                            drawCommands.Select(command => command.Id).Distinct().Count()
-                        );
-                    }
 
                     renderer.Record(RenderPasses.GetIndex(renderPass), batch!);
                 }
