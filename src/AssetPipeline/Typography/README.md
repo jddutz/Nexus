@@ -119,7 +119,11 @@ src/AssetPipeline/Typography/
 │           ├── MaxpTable.cs
 │           ├── LocaTable.cs
 │           ├── GlyfTable.cs
-│           └── KernTable.cs
+│           ├── Kern/
+│           │   └── KernTable.cs
+│           └── Gpos/
+│               ├── GposTable.cs
+│               └── PairPositioning.cs
 │
 ├── Geometry/
 │   ├── Contour.cs
@@ -197,7 +201,8 @@ SFNT
  ├─ maxp       glyph count
  ├─ loca       glyph locations
  ├─ glyf       outlines
- └─ kern       pair adjustments
+ ├─ kern       legacy pair adjustments
+ └─ GPOS       OpenType pair positioning
 ```
 
 That table list should be validated when we write the detailed TrueType-reader spec rather than treated as the final compatibility promise.
@@ -263,6 +268,50 @@ The important boundary is:
 The distance-field generator should not need to know whether its curves originally came from TrueType, synthetic test geometry, or some future font format.
 
 That gives us an independently testable MSDF implementation.
+
+### Stage 8: kerning
+
+Kerning follows working glyph geometry. It is required in the final `FontBuildResult`, but it does
+not block proving the reader, contour handling, or MSDF pipeline.
+
+NAP v1 reads legacy `kern` and OpenType GPOS Pair Adjustment data through independent parsers. The
+rest of Typography consumes one representation regardless of source:
+
+```text
+(left glyph index, right glyph index) → advance adjustment
+```
+
+The final output currently stores `TextKerningPair` values keyed by codepoint pairs. The reader
+translates selected glyph-index pairs through the requested repertoire and divides their
+font-unit adjustment by `unitsPerEm` to match the output's em-space advances. Neither `CmapTable`
+nor `GlyphReader` owns kerning parsing.
+
+The legacy parser accepts version-zero `kern` tables with horizontal format-zero pair subtables.
+Ordinary subtables add; override subtables replace earlier values for duplicate pairs. Vertical,
+minimum, and cross-stream subtables are ignored. Unsupported horizontal formats, malformed pairs,
+and unsupported table versions produce an explicit diagnostic.
+
+The GPOS parser is intentionally limited to the path needed for the `kern` feature:
+
+```text
+ScriptList / FeatureList / LookupList
+    → kern feature
+    → Pair Adjustment lookup
+        → PairPos Format 1 (explicit glyph pairs)
+        → PairPos Format 2 (class-based pairs)
+```
+
+This is not a general OpenType layout or shaping engine. NAP v1 supports GPOS 1.0 and 1.1 without
+FeatureVariations, lookup type 2 with zero lookup flags, and PairPos formats 1 and 2. It applies the
+sum of the two ValueRecords' `xAdvance` fields; placement and device adjustments are not represented
+by `TextKerningPair`. Other lookup types are ignored, while unsupported formats in a selected
+PairPos lookup and nonzero lookup flags produce an explicit diagnostic.
+
+The default script selection is `latn`, falling back to `DFLT` when absent. A supplied language tag
+selects that language system, falling back to the script's default LangSys; without a language tag,
+the default LangSys is used, or the first listed language system when no default exists. If the
+selected `kern` feature references supported PairPos data with `xAdvance`, use GPOS even when the
+requested repertoire has no matching pairs. Otherwise use legacy `kern`. Never sum the two sources.
 
 ---
 

@@ -1,5 +1,7 @@
 using Nexus.AssetPipeline.Typography.FontReader;
 using Nexus.AssetPipeline.Typography.FontReader.TrueType.Tables;
+using Nexus.AssetPipeline.Typography.FontReader.TrueType.Tables.Gpos;
+using Nexus.AssetPipeline.Typography.FontReader.TrueType.Tables.Kern;
 
 namespace Nexus.AssetPipeline.Typography.FontReader.TrueType;
 
@@ -13,6 +15,7 @@ public sealed class TrueTypeFontReader
     private CmapTable? _cmapTable;
     private HmtxTable? _hmtxTable;
     private LocaTable? _locaTable;
+    private KernTable? _kernTable;
 
     /// <summary>
     /// Initializes a font reader from in-memory font data.
@@ -63,6 +66,122 @@ public sealed class TrueTypeFontReader
             fontFace.NumberOfHorizontalMetrics
         );
         return _hmtxTable.GetMetrics(glyphIndex);
+    }
+
+    /// <summary>
+    /// Gets kerning adjustments for selected glyphs, preferring supported GPOS data over legacy `kern` data.
+    /// </summary>
+    /// <param name="glyphIndices">The glyph indices needed by the current font build.</param>
+    /// <param name="scriptTag">The four-character script tag used to select GPOS features.</param>
+    /// <param name="languageTag">An optional four-character GPOS language-system tag.</param>
+    /// <returns>Nonzero adjustments keyed by ordered glyph-index pairs.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="glyphIndices"/> is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">A glyph index is outside the font.</exception>
+    /// <exception cref="InvalidDataException">A selected kerning table is malformed or unsupported.</exception>
+    public IReadOnlyList<GlyphKerningPair> GetGlyphKerningPairs(
+        IEnumerable<ushort> glyphIndices,
+        string scriptTag = "latn",
+        string? languageTag = null
+    )
+    {
+        ArgumentNullException.ThrowIfNull(glyphIndices);
+        ArgumentException.ThrowIfNullOrWhiteSpace(scriptTag);
+        if (scriptTag.Length != 4)
+            throw new ArgumentException(
+                "A script tag must contain four characters.",
+                nameof(scriptTag)
+            );
+        if (languageTag is not null && languageTag.Length != 4)
+            throw new ArgumentException(
+                "A language tag must contain four characters.",
+                nameof(languageTag)
+            );
+        var glyphCount = FontFace.GlyphCount;
+        var candidates = glyphIndices.Distinct().ToArray();
+        if (candidates.Any(glyphIndex => glyphIndex >= glyphCount))
+            throw new ArgumentOutOfRangeException(nameof(glyphIndices));
+
+        if (TableDirectory.TryGetTable("GPOS", out _))
+        {
+            var gposTable = GposTable.Parse(
+                new TrueTypeReader(GetTable("GPOS")),
+                glyphCount,
+                candidates,
+                scriptTag,
+                languageTag
+            );
+            if (gposTable.HasSupportedKerning)
+                return gposTable.Pairs;
+        }
+
+        if (!TableDirectory.TryGetTable("kern", out _))
+            return [];
+
+        _kernTable ??= KernTable.Parse(new TrueTypeReader(GetTable("kern")), glyphCount);
+        var candidateSet = candidates.ToHashSet();
+        return _kernTable
+            .Pairs.Where(pair =>
+                candidateSet.Contains(pair.LeftGlyphIndex)
+                && candidateSet.Contains(pair.RightGlyphIndex)
+            )
+            .ToArray();
+    }
+
+    /// <summary>
+    /// Gets kerning pairs as codepoint adjustments for the selected repertoire.
+    /// </summary>
+    /// <param name="codepoints">The codepoints included in the current font build.</param>
+    /// <param name="scriptTag">The four-character script tag used to select GPOS features.</param>
+    /// <param name="languageTag">An optional four-character GPOS language-system tag.</param>
+    /// <returns>Kerning adjustments keyed by ordered codepoint pairs, in em units.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="codepoints"/> is null.</exception>
+    /// <exception cref="InvalidDataException">A selected kerning table is malformed or unsupported.</exception>
+    public IReadOnlyList<TextKerningPair> GetKerningPairs(
+        IEnumerable<int> codepoints,
+        string scriptTag = "latn",
+        string? languageTag = null
+    )
+    {
+        ArgumentNullException.ThrowIfNull(codepoints);
+        var codepointGlyphs = codepoints
+            .Distinct()
+            .Where(codepoint => codepoint is >= 0 and <= 0x10FFFF)
+            .Select(codepoint => (Codepoint: codepoint, GlyphIndex: GetGlyphIndex(codepoint)))
+            .ToArray();
+        var glyphPairs = GetGlyphKerningPairs(
+            codepointGlyphs.Select(mapping => mapping.GlyphIndex),
+            scriptTag,
+            languageTag
+        );
+        var unitsPerEm = FontFace.UnitsPerEm;
+        var codepointsByGlyph = codepointGlyphs
+            .GroupBy(mapping => mapping.GlyphIndex)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Select(mapping => mapping.Codepoint).Order().ToArray()
+            );
+        var result = new List<TextKerningPair>();
+        foreach (var pair in glyphPairs)
+        {
+            foreach (var leftCodepoint in codepointsByGlyph[pair.LeftGlyphIndex])
+            {
+                foreach (var rightCodepoint in codepointsByGlyph[pair.RightGlyphIndex])
+                {
+                    result.Add(
+                        new TextKerningPair(
+                            leftCodepoint,
+                            rightCodepoint,
+                            (double)pair.AdvanceAdjustment / unitsPerEm
+                        )
+                    );
+                }
+            }
+        }
+
+        return result
+            .OrderBy(pair => pair.LeftCodepoint)
+            .ThenBy(pair => pair.RightCodepoint)
+            .ToArray();
     }
 
     /// <summary>

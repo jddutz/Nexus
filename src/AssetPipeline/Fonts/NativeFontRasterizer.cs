@@ -1,10 +1,19 @@
 using System.Runtime.InteropServices;
+using Nexus.AssetPipeline.Typography.FontReader.TrueType;
 
 namespace Nexus.AssetPipeline.Fonts;
 
 /// <summary>Managed owner for the narrow Nexus font-generation C ABI.</summary>
 public sealed class NativeFontRasterizer : IFontRasterizer
 {
+    /// <summary>
+    /// Generates glyph imagery natively and attaches kerning parsed by the managed TrueType reader.
+    /// </summary>
+    /// <param name="sourcePath">The source TrueType or OpenType font path.</param>
+    /// <param name="codepoints">The Unicode codepoints required by the font build.</param>
+    /// <param name="settings">The atlas and distance-field generation settings.</param>
+    /// <returns>The atlas, glyph metadata, font metrics, and codepoint kerning pairs.</returns>
+    /// <exception cref="FontBuildException">The native rasterizer cannot generate the font result.</exception>
     public FontBuildResult Rasterize(
         string sourcePath,
         IReadOnlyList<int> codepoints,
@@ -20,6 +29,7 @@ public sealed class NativeFontRasterizer : IFontRasterizer
         IntPtr errorPointer = IntPtr.Zero;
         try
         {
+            var kerning = TrueTypeFontReader.Open(sourcePath).GetKerningPairs(requestedCodepoints);
             var status = NativeMethods.Generate(
                 sourcePath,
                 requestedCodepoints,
@@ -43,7 +53,10 @@ public sealed class NativeFontRasterizer : IFontRasterizer
                 throw new FontBuildException(message);
             }
 
-            var managedResult = CopyToManaged(Marshal.PtrToStructure<NativeResult>(resultPointer));
+            var managedResult = CopyToManaged(
+                Marshal.PtrToStructure<NativeResult>(resultPointer),
+                kerning
+            );
             PipelineLog.Info(
                 $"NativeFontRasterizer.Rasterize returned atlas {managedResult.Atlas.Width}x{managedResult.Atlas.Height}, "
                     + $"Pixels={managedResult.Atlas.Pixels.Length}, Glyphs={managedResult.Glyphs.Count}, Kerning={managedResult.Kerning.Count}."
@@ -73,11 +86,20 @@ public sealed class NativeFontRasterizer : IFontRasterizer
         }
     }
 
-    private static FontBuildResult CopyToManaged(NativeResult native)
+    /// <summary>
+    /// Copies native atlas and glyph data into managed values with reader-owned kerning.
+    /// </summary>
+    /// <param name="native">The native result structure.</param>
+    /// <param name="kerning">The managed codepoint kerning pairs.</param>
+    /// <returns>The fully managed font build result.</returns>
+    private static FontBuildResult CopyToManaged(
+        NativeResult native,
+        IReadOnlyList<TextKerningPair> kerning
+    )
     {
         PipelineLog.Info(
             $"NativeFontRasterizer.CopyToManaged called: NativeAtlas={native.Width}x{native.Height}, "
-                + $"GlyphCount={native.GlyphCount}, KerningCount={native.KerningCount}."
+                + $"GlyphCount={native.GlyphCount}, KerningCount={kerning.Count}."
         );
         var pixelCount = checked(native.Width * native.Height * 3);
         var pixels = new byte[pixelCount];
@@ -91,10 +113,6 @@ public sealed class NativeFontRasterizer : IFontRasterizer
                 glyph.AtlasBounds.ToManaged()
             ))
             .ToArray();
-        var kerning = CopyArray<NativeKerning>(native.Kerning, native.KerningCount)
-            .Select(pair => new TextKerningPair(pair.Left, pair.Right, pair.Adjustment))
-            .ToArray();
-
         var result = new FontBuildResult(
             new FontAtlas(native.Width, native.Height, pixels),
             new FontMetrics(native.EmSize, native.Ascender, native.Descender, native.LineHeight),
@@ -109,6 +127,13 @@ public sealed class NativeFontRasterizer : IFontRasterizer
         return result;
     }
 
+    /// <summary>
+    /// Copies a contiguous native array into managed values.
+    /// </summary>
+    /// <typeparam name="T">The blittable native structure type.</typeparam>
+    /// <param name="source">The first native array element.</param>
+    /// <param name="count">The number of elements to copy.</param>
+    /// <returns>The managed array.</returns>
     private static T[] CopyArray<T>(IntPtr source, int count)
         where T : struct
     {
@@ -129,6 +154,10 @@ public sealed class NativeFontRasterizer : IFontRasterizer
         public double Right;
         public double Top;
 
+        /// <summary>
+        /// Converts the native bounds to the managed font-bounds representation.
+        /// </summary>
+        /// <returns>The managed bounds.</returns>
         public readonly FontBounds ToManaged() => new(Left, Bottom, Right, Top);
     }
 
@@ -139,14 +168,6 @@ public sealed class NativeFontRasterizer : IFontRasterizer
         public double Advance;
         public NativeBounds PlaneBounds;
         public NativeBounds AtlasBounds;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct NativeKerning
-    {
-        public int Left;
-        public int Right;
-        public double Adjustment;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -171,6 +192,18 @@ public sealed class NativeFontRasterizer : IFontRasterizer
     {
         private const string LibraryName = "nexus_font_native";
 
+        /// <summary>
+        /// Generates atlas data and glyph metrics using the native font library.
+        /// </summary>
+        /// <param name="path">The UTF-8 font path.</param>
+        /// <param name="codepoints">The requested Unicode codepoints.</param>
+        /// <param name="codepointCount">The number of requested codepoints.</param>
+        /// <param name="emSize">The generation em size in pixels.</param>
+        /// <param name="distanceRange">The MSDF distance range.</param>
+        /// <param name="padding">The atlas padding in pixels.</param>
+        /// <param name="result">Receives the native result pointer.</param>
+        /// <param name="error">Receives a native UTF-8 error pointer on failure.</param>
+        /// <returns>Zero on success; otherwise a native error status.</returns>
         [DllImport(
             LibraryName,
             EntryPoint = "nap_font_generate",
@@ -187,6 +220,10 @@ public sealed class NativeFontRasterizer : IFontRasterizer
             out IntPtr error
         );
 
+        /// <summary>
+        /// Releases the native result and all arrays it owns.
+        /// </summary>
+        /// <param name="result">The native result pointer.</param>
         [DllImport(
             LibraryName,
             EntryPoint = "nap_font_result_free",
@@ -194,6 +231,10 @@ public sealed class NativeFontRasterizer : IFontRasterizer
         )]
         internal static extern void FreeResult(IntPtr result);
 
+        /// <summary>
+        /// Releases an error string returned by the native generator.
+        /// </summary>
+        /// <param name="error">The native error pointer.</param>
         [DllImport(
             LibraryName,
             EntryPoint = "nap_font_error_free",
