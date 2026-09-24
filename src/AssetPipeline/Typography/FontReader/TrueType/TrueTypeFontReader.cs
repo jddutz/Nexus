@@ -47,8 +47,10 @@ public sealed class TrueTypeFontReader
         if (codepoint is < 0 or > 0x10FFFF)
             return 0;
 
-        var glyphCount = MaxpTable.Parse(new TrueTypeReader(GetTable("maxp"))).GlyphCount;
-        _cmapTable ??= CmapTable.Parse(new TrueTypeReader(GetTable("cmap")), glyphCount);
+        _cmapTable ??= CmapTable.Parse(
+            new TrueTypeReader(GetTable("cmap")),
+            FontFace.GlyphCount
+        );
         return _cmapTable.GetGlyphIndex(codepoint);
     }
 
@@ -197,12 +199,11 @@ public sealed class TrueTypeFontReader
         var glyfData = GetTable("glyf");
         if (_locaTable is null)
         {
-            var head = HeadTable.Parse(new TrueTypeReader(GetTable("head")));
-            var maxp = MaxpTable.Parse(new TrueTypeReader(GetTable("maxp")));
+            var fontFace = FontFace;
             _locaTable = LocaTable.Parse(
                 new TrueTypeReader(GetTable("loca")),
-                maxp.GlyphCount,
-                head.IndexToLocFormat,
+                fontFace.GlyphCount,
+                fontFace.IndexToLocFormat,
                 glyfData.Length
             );
         }
