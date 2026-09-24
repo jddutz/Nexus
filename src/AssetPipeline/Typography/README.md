@@ -346,6 +346,18 @@ It does **not** own atlas placement.
 
 This separation is important because an individual glyph should be testable without generating an entire font.
 
+Stage 10 implements this boundary with `MsdfGenerator.Generate(contours, settings)`. Settings specify
+pixels per geometry unit, the encoded distance range in pixels, and bitmap padding. The generated
+`GlyphBitmap` contains width, height, and row-major RGB8 bytes. Contours with at least three detected
+corners receive deterministic cycling RGB edge masks; smooth contours use all channels. Each channel
+stores its nearest assigned-edge distance, signed by the shape's nonzero-winding fill result, then
+normalized around 128 (inside above the midpoint, outside below it). The generator handles one glyph
+only and does not perform atlas placement or texture upload.
+
+`MsdfGeneratorTests` generates a synthetic capital A with a reversed-winding counter, checks the
+inside/counter values and channel variation, and writes `msdf-A.ppm` beside the test assembly as a
+trivial visual diagnostic.
+
 ---
 
 ## 9. Atlas generation
