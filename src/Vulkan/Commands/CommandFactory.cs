@@ -6,7 +6,7 @@ namespace Nexus.Graphics.Vulkan.Commands;
 public unsafe class CommandFactory(
     Context context,
     ISwapChain swapChain,
-    IVertexBufferRegistry geometryRegistry,
+    IVertexBufferRegistry vertexBufferRegistry,
     IInstanceBufferRegistry instanceBufferRegistry,
     IImageRegistry imageRegistry,
     IPipelineRegistry pipelineRegistry,
@@ -48,7 +48,7 @@ public unsafe class CommandFactory(
 
         var renderPassMask = RenderPasses.Main;
 
-        geometryRegistry.Create(drawable.Mesh, vertexShader.VertexFormat);
+        vertexBufferRegistry.Create(drawable.Mesh, vertexShader.VertexFormat);
         if (vertexShader.InstanceLayout.Length > 0)
             instanceBufferRegistry.Create(drawable, vertexShader.InstanceLayout);
 
@@ -63,7 +63,7 @@ public unsafe class CommandFactory(
             $"Prepared Vulkan drawable resources. DrawableId={drawable.Id}, PipelineId={pipelineDefinition.Id}"
         );
 
-        var vertexBuffer = geometryRegistry.Get(drawable.Mesh.Id, vertexShader.VertexFormat.Id);
+        var vertexBuffer = vertexBufferRegistry.Get(drawable.Mesh.Id, vertexShader.VertexFormat.Id);
 
         yield return new BindPipelineCommand(
             renderPassMask,
