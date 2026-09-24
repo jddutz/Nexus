@@ -1,5 +1,3 @@
-using Nexus.Graphics.Textures;
-
 namespace Nexus.Graphics.Components;
 
 /// <summary>

@@ -35,7 +35,6 @@ public sealed class SyncManager : ISyncManager
     /// Creates a new synchronization manager with the specified number of frames in flight.
     /// </summary>
     /// <param name="context">Graphics context providing device and Vulkan API access</param>
-    /// <param name="loggerFactory">Logger factory for diagnostics</param>
     /// <param name="maxFramesInFlight">Maximum number of frames that can be processed simultaneously (default: 2)</param>
     public SyncManager(Context context, uint maxFramesInFlight = 2)
     {

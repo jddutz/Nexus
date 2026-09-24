@@ -3,7 +3,7 @@ namespace Nexus.Graphics.Vulkan.Rendering;
 /// <summary>
 /// Defines an ordered collection of Vulkan commands.
 /// </summary>
-public class RenderBatch(IBatchStrategy batchStrategy, ILogger? logger = null) : IRenderBatch
+public class RenderBatch(IBatchStrategy batchStrategy) : IRenderBatch
 {
     private readonly SortedSet<IVulkanCommand> _commands = new(batchStrategy);
 
@@ -27,14 +27,9 @@ public class RenderBatch(IBatchStrategy batchStrategy, ILogger? logger = null) :
         var added = _commands.Add(command);
         if (!added)
         {
-            logger?.LogWarning(
-                "Command collapsed by batch comparer. CommandType={CommandType}, PipelineId={PipelineId}, "
-                    + "DrawableId={DrawableId}, RenderPriority={RenderPriority}, CommandId={CommandId}",
-                command.GetType().Name,
-                command.PipelineId,
-                command.Drawable?.Id,
-                command.RenderPriority,
-                command.Id
+            Debug.WriteLine(
+                $"[WARN] Command collapsed by batch comparer. CommandType={command.GetType().Name}, PipelineId={command.PipelineId}, "
+                    + $"DrawableId={command.Drawable?.Id}, RenderPriority={command.RenderPriority}, CommandId={command.Id}"
             );
         }
 

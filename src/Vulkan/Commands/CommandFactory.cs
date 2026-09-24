@@ -7,12 +7,12 @@ public unsafe class CommandFactory(
     Context context,
     ISwapChain swapChain,
     IVertexBufferRegistry geometryRegistry,
+    IInstanceBufferRegistry instanceBufferRegistry,
     IImageRegistry imageRegistry,
     IPipelineRegistry pipelineRegistry,
     IDescriptorSetPool descriptorSetPool,
     IBufferManager bufferManager,
-    ISamplerRegistry samplerRegistry,
-    ILogger<CommandFactory> logger
+    ISamplerRegistry samplerRegistry
 ) : ICommandFactory
 {
     public IEnumerable<IVulkanCommand> Create(IDrawable drawable)
@@ -50,7 +50,7 @@ public unsafe class CommandFactory(
 
         geometryRegistry.Create(drawable.Mesh, vertexShader.VertexFormat);
         if (vertexShader.InstanceLayout.Length > 0)
-            geometryRegistry.CreateInstanceBuffer(drawable, vertexShader.InstanceLayout);
+            instanceBufferRegistry.Create(drawable, vertexShader.InstanceLayout);
 
         foreach (var command in imageRegistry.Create(drawable.Texture, colorFormat))
             yield return command;
@@ -59,12 +59,9 @@ public unsafe class CommandFactory(
 
         var (pipeline, pipelineLayout) = pipelineRegistry.GetOrCreate(pipelineDefinition);
 
-        if (logger is not null && logger.IsEnabled(LogLevel.Debug))
-            logger.LogDebug(
-                "Prepared Vulkan drawable resources. DrawableId={DrawableId}, PipelineId={PipelineId}",
-                drawable.Id,
-                pipelineDefinition.Id
-            );
+        Debug.WriteLine(
+            $"Prepared Vulkan drawable resources. DrawableId={drawable.Id}, PipelineId={pipelineDefinition.Id}"
+        );
 
         var vertexBuffer = geometryRegistry.Get(drawable.Mesh.Id, vertexShader.VertexFormat.Id);
 
@@ -88,13 +85,9 @@ public unsafe class CommandFactory(
             var descriptorSet = descriptorSetPool.Allocate(layout);
             descriptorSets[setSchema.Set] = descriptorSet;
 
-            if (logger is not null && logger.IsEnabled(LogLevel.Debug))
-                logger.LogDebug(
-                    "Allocated descriptor set. DrawableId={DrawableId}, PipelineId={PipelineId}, Set={Set}",
-                    drawable.Id,
-                    pipelineDefinition.Id,
-                    setSchema.Set
-                );
+            Debug.WriteLine(
+                $"Allocated descriptor set. DrawableId={drawable.Id}, PipelineId={pipelineDefinition.Id}, Set={setSchema.Set}"
+            );
 
             foreach (var binding in setSchema.Bindings)
             {
@@ -151,7 +144,7 @@ public unsafe class CommandFactory(
 
         if (vertexShader.InstanceLayout.Length > 0)
         {
-            var instanceBuffer = geometryRegistry.GetInstanceBuffer(drawable.Id);
+            var instanceBuffer = instanceBufferRegistry.Get(drawable.Id);
             yield return new BindVertexBufferCommand(
                 renderPassMask,
                 pipelineDefinition.Id,
@@ -169,13 +162,9 @@ public unsafe class CommandFactory(
             checked((uint)drawable.Instances.Count)
         );
 
-        if (logger is not null && logger.IsEnabled(LogLevel.Debug))
-            logger.LogDebug(
-                "Created Vulkan commands. DrawableId={DrawableId}, PipelineId={PipelineId}, VertexCount={VertexCount}",
-                drawable.Id,
-                pipelineDefinition.Id,
-                drawable.Mesh.Count
-            );
+        Debug.WriteLine(
+            $"Created Vulkan commands. DrawableId={drawable.Id}, PipelineId={pipelineDefinition.Id}, VertexCount={drawable.Mesh.Count}"
+        );
     }
 
     /// <summary>

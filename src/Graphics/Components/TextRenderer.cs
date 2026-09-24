@@ -1,1 +1,0 @@
-namespace Nexus.Graphics.Components;

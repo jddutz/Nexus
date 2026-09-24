@@ -51,11 +51,7 @@ public interface IValidation : IDisposable
     /// <param name="instance">The Vulkan instance handle with validation layers enabled</param>
     /// <remarks>
     /// Creates the debug messenger and registers callback for validation messages.
-    /// Messages are routed to ILogger with appropriate severity levels:
-    /// - ERROR → LogError
-    /// - WARNING → LogWarning
-    /// - INFO → LogInformation
-    /// - VERBOSE → LogDebug
+    /// Messages are written to the debug output with severity labels.
     /// </remarks>
     void Initialize(Vk vk, Instance instance);
 

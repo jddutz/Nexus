@@ -10,7 +10,6 @@ namespace Nexus.Graphics.Vulkan;
 /// <param name="textureRegistry">The registry that manages images.</param>
 /// <param name="renderPassConfig">The shared render-pass configurations.</param>
 /// <param name="eventHub">The event hub used to register this graphics system.</param>
-/// <param name="logger">The logger used to record graphics system activity.</param>
 /// <param name="syncManager">The synchronization manager used to establish device-idle shutdown.</param>
 public unsafe class VulkanGraphicsSystem(
     Context context,
@@ -20,9 +19,9 @@ public unsafe class VulkanGraphicsSystem(
     IEventHub eventHub,
     ICommandFactory commandFactory,
     IVertexBufferRegistry geometryRegistry,
+    IInstanceBufferRegistry instanceBufferRegistry,
     IImageRegistry textureRegistry,
-    IPipelineRegistry pipelineRegistry,
-    ILogger<VulkanGraphicsSystem> logger
+    IPipelineRegistry pipelineRegistry
 ) : IGraphicsSystem, IDisposable
 {
     private RenderLayerCollection _layers = new();
@@ -35,14 +34,14 @@ public unsafe class VulkanGraphicsSystem(
         var coll = new RenderBatchCollection();
         _batches[layer.Index] = coll;
 
-        coll.Set(RenderPasses.Start, new RenderBatch(new DefaultBatchStrategy(), logger));
+        coll.Set(RenderPasses.Start, new RenderBatch(new DefaultBatchStrategy()));
 
         foreach (var renderPass in RenderPasses.GetActivePasses(layer.RenderPassMask))
         {
-            coll.Set(renderPass, new RenderBatch(new DefaultBatchStrategy(), logger));
+            coll.Set(renderPass, new RenderBatch(new DefaultBatchStrategy()));
         }
 
-        coll.Set(RenderPasses.End, new RenderBatch(new DefaultBatchStrategy(), logger));
+        coll.Set(RenderPasses.End, new RenderBatch(new DefaultBatchStrategy()));
     }
 
     private void OnLayerRemoved(IRenderLayer layer)
@@ -60,12 +59,9 @@ public unsafe class VulkanGraphicsSystem(
         _layers.LayerAdded += OnLayerAdded;
         _layers.LayerRemoved += OnLayerRemoved;
 
-        logger.LogInformation(
-            "Vulkan graphics system initialized. DeviceHandle={DeviceHandle}, "
-                + "SwapchainExtent={Width}x{Height}",
-            context.Device.Handle,
-            swapChain.Extent.Width,
-            swapChain.Extent.Height
+        Debug.WriteLine(
+            $"Vulkan graphics system initialized. DeviceHandle={context.Device.Handle}, "
+                + $"SwapchainExtent={swapChain.Extent.Width}x{swapChain.Extent.Height}"
         );
     }
 
@@ -93,10 +89,8 @@ public unsafe class VulkanGraphicsSystem(
         foreach (var command in commandFactory.Create(drawable))
             AddToBatches(batches, command);
 
-        logger.LogTrace(
-            "Activated drawable. DrawableType={DrawableType}, DrawableId={DrawableId}",
-            drawable.GetType().Name,
-            drawable.Id
+        Debug.WriteLine(
+            $"Activated drawable. DrawableType={drawable.GetType().Name}, DrawableId={drawable.Id}"
         );
     }
 
@@ -210,15 +204,13 @@ public unsafe class VulkanGraphicsSystem(
 
         pipelineRegistry.Release(pipelineDefinition.Id);
         geometryRegistry.Release(drawable.Mesh, vertexShader.VertexFormat);
-        geometryRegistry.ReleaseInstanceBuffer(drawable.Id);
+        instanceBufferRegistry.Release(drawable.Id);
 
         foreach (var command in textureRegistry.Release(drawable.Texture, colorFormat))
             AddToBatches(batches, command);
 
-        logger.LogTrace(
-            "Deactivated drawable. DrawableType={DrawableType}, DrawableId={DrawableId}",
-            drawable.GetType().Name,
-            drawable.Id
+        Debug.WriteLine(
+            $"Deactivated drawable. DrawableType={drawable.GetType().Name}, DrawableId={drawable.Id}"
         );
     }
 
@@ -232,17 +224,15 @@ public unsafe class VulkanGraphicsSystem(
                 view.RenderLayer = null;
             }
 
-            logger.LogDebug("Cleared Vulkan graphics view configuration.");
+            Debug.WriteLine("Cleared Vulkan graphics view configuration.");
             return;
         }
 
         if (e.Component is not IGraphicsComponent component)
             return;
 
-        logger.LogDebug(
-            "Graphics component deactivated. ComponentType={ComponentType}, DrawableCount={DrawableCount}",
-            component.GetType().Name,
-            component.Drawables.Count()
+        Debug.WriteLine(
+            $"Graphics component deactivated. ComponentType={component.GetType().Name}, DrawableCount={component.Drawables.Count()}"
         );
 
         component.PropertyChanged -= OnDrawablePropertyChanged;
@@ -316,7 +306,7 @@ public unsafe class VulkanGraphicsSystem(
     {
         if (disposedValue)
         {
-            logger.LogDebug("Vulkan graphics system disposal requested more than once.");
+            Debug.WriteLine("Vulkan graphics system disposal requested more than once.");
             return;
         }
 
@@ -330,7 +320,7 @@ public unsafe class VulkanGraphicsSystem(
         }
 
         disposedValue = true;
-        logger.LogInformation("Vulkan graphics system disposed.");
+        Debug.WriteLine("Vulkan graphics system disposed.");
     }
 
     /// <summary>
