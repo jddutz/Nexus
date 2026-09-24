@@ -11,6 +11,7 @@ public sealed class TrueTypeFontReader
     private readonly ReadOnlyMemory<byte> _data;
     private FontFace? _fontFace;
     private CmapTable? _cmapTable;
+    private HmtxTable? _hmtxTable;
 
     /// <summary>
     /// Initializes a font reader from in-memory font data.
@@ -45,6 +46,22 @@ public sealed class TrueTypeFontReader
         var glyphCount = MaxpTable.Parse(new TrueTypeReader(GetTable("maxp"))).GlyphCount;
         _cmapTable ??= CmapTable.Parse(new TrueTypeReader(GetTable("cmap")), glyphCount);
         return _cmapTable.GetGlyphIndex(codepoint);
+    }
+
+    /// <summary>
+    /// Gets the horizontal metrics for a glyph index.
+    /// </summary>
+    /// <param name="glyphIndex">The zero-based glyph index, typically resolved from a codepoint.</param>
+    /// <returns>The glyph's advance width and left side bearing in font units.</returns>
+    public GlyphHorizontalMetrics GetHorizontalMetrics(ushort glyphIndex)
+    {
+        var fontFace = FontFace;
+        _hmtxTable ??= HmtxTable.Parse(
+            new TrueTypeReader(GetTable("hmtx")),
+            fontFace.GlyphCount,
+            fontFace.NumberOfHorizontalMetrics
+        );
+        return _hmtxTable.GetMetrics(glyphIndex);
     }
 
     /// <summary>

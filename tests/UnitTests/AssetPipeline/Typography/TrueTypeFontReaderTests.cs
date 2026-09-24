@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Text;
 using Nexus.AssetPipeline.Typography.FontReader.TrueType;
+using Nexus.AssetPipeline.Typography.FontReader.TrueType.Tables;
 
 namespace Nexus.AssetPipeline.Tests;
 
@@ -143,6 +144,59 @@ public sealed class TrueTypeFontReaderTests
     }
 
     /// <summary>
+    /// Verifies codepoints resolve to their horizontal advances and bearings through cmap and hmtx.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFontReader_resolvesHorizontalMetricsForCodepoints()
+    {
+        var cmap = CreateCmap(
+            (
+                0,
+                4,
+                CreateFormat12Subtable(
+                    (0x20u, 0x20u, 1u),
+                    (0x41u, 0x41u, 2u),
+                    (0x57u, 0x57u, 4u),
+                    (0x69u, 0x69u, 3u)
+                )
+            )
+        );
+        var hmtx = CreateHmtxTable([(500, -10), (250, 12), (610, 20), (215, -3), (900, 1)]);
+        var font = new TrueTypeFontReader(
+            CreateFontWithTables(
+                ("cmap", cmap),
+                ("head", CreateHeadTable()),
+                ("maxp", CreateMaxpTable(5)),
+                ("hhea", CreateHheaTable(5)),
+                ("hmtx", hmtx)
+            )
+        );
+
+        Assert.Equal((ushort)250, font.GetHorizontalMetrics(font.GetGlyphIndex(' ')).AdvanceWidth);
+        Assert.Equal((ushort)610, font.GetHorizontalMetrics(font.GetGlyphIndex('A')).AdvanceWidth);
+        Assert.Equal((ushort)215, font.GetHorizontalMetrics(font.GetGlyphIndex('i')).AdvanceWidth);
+        Assert.Equal((ushort)900, font.GetHorizontalMetrics(font.GetGlyphIndex('W')).AdvanceWidth);
+        Assert.Equal((short)20, font.GetHorizontalMetrics(font.GetGlyphIndex('A')).LeftSideBearing);
+    }
+
+    /// <summary>
+    /// Verifies glyphs without full hmtx records reuse the last advance and keep their own bearings.
+    /// </summary>
+    [Fact]
+    public void HmtxTable_reusesLastAdvanceForRemainingGlyphs()
+    {
+        var table = HmtxTable.Parse(
+            new TrueTypeReader(CreateHmtxTable([(500, -10), (600, 20)], 25, -40)),
+            glyphCount: 4,
+            numberOfHorizontalMetrics: 2
+        );
+
+        Assert.Equal(new GlyphHorizontalMetrics(600, 25), table.GetMetrics(2));
+        Assert.Equal(new GlyphHorizontalMetrics(600, -40), table.GetMetrics(3));
+        Assert.Throws<ArgumentOutOfRangeException>(() => table.GetMetrics(4));
+    }
+
+    /// <summary>
     /// Verifies a locally supplied TTF contains the expected core tables when available.
     /// </summary>
     [Fact]
@@ -167,6 +221,10 @@ public sealed class TrueTypeFontReaderTests
         Assert.Equal((ushort)38, font.GetGlyphIndex('B'));
         Assert.Equal((ushort)4, font.GetGlyphIndex(' '));
         Assert.Equal((ushort)0, font.GetGlyphIndex(0x10FFFF));
+        Assert.Equal((ushort)1336, font.GetHorizontalMetrics(font.GetGlyphIndex('A')).AdvanceWidth);
+        Assert.Equal((ushort)498, font.GetHorizontalMetrics(font.GetGlyphIndex('i')).AdvanceWidth);
+        Assert.Equal((ushort)1817, font.GetHorizontalMetrics(font.GetGlyphIndex('W')).AdvanceWidth);
+        Assert.Equal((ushort)508, font.GetHorizontalMetrics(font.GetGlyphIndex(' ')).AdvanceWidth);
     }
 
     /// <summary>
@@ -376,6 +434,67 @@ public sealed class TrueTypeFontReaderTests
         var table = new byte[6];
         BinaryPrimitives.WriteUInt32BigEndian(table, 0x00010000);
         BinaryPrimitives.WriteUInt16BigEndian(table.AsSpan(4), glyphCount);
+        return table;
+    }
+
+    /// <summary>
+    /// Creates a horizontal header table with the requested full metric count.
+    /// </summary>
+    /// <param name="numberOfHorizontalMetrics">The number of full hmtx records.</param>
+    /// <returns>The hhea table bytes.</returns>
+    private static byte[] CreateHheaTable(ushort numberOfHorizontalMetrics)
+    {
+        var table = new byte[36];
+        BinaryPrimitives.WriteUInt32BigEndian(table, 0x00010000);
+        BinaryPrimitives.WriteUInt16BigEndian(table.AsSpan(34), numberOfHorizontalMetrics);
+        return table;
+    }
+
+    /// <summary>
+    /// Creates the minimal valid head table needed to initialize a font face.
+    /// </summary>
+    /// <returns>The head table bytes.</returns>
+    private static byte[] CreateHeadTable()
+    {
+        var table = new byte[54];
+        BinaryPrimitives.WriteUInt32BigEndian(table, 0x00010000);
+        BinaryPrimitives.WriteUInt32BigEndian(table.AsSpan(12), 0x5F0F3CF5);
+        BinaryPrimitives.WriteUInt16BigEndian(table.AsSpan(18), 1000);
+        return table;
+    }
+
+    /// <summary>
+    /// Creates hmtx bytes from full records followed by optional bearing-only entries.
+    /// </summary>
+    /// <param name="metrics">The advance and bearing pairs in full records.</param>
+    /// <param name="remainingBearings">The bearings for glyphs after the full records.</param>
+    /// <returns>The hmtx table bytes.</returns>
+    private static byte[] CreateHmtxTable(
+        (ushort AdvanceWidth, short LeftSideBearing)[] metrics,
+        params short[] remainingBearings
+    )
+    {
+        var table = new byte[metrics.Length * 4 + remainingBearings.Length * 2];
+        for (var index = 0; index < metrics.Length; index++)
+        {
+            var position = index * 4;
+            BinaryPrimitives.WriteUInt16BigEndian(
+                table.AsSpan(position),
+                metrics[index].AdvanceWidth
+            );
+            BinaryPrimitives.WriteInt16BigEndian(
+                table.AsSpan(position + 2),
+                metrics[index].LeftSideBearing
+            );
+        }
+
+        var bearingPosition = metrics.Length * 4;
+        for (var index = 0; index < remainingBearings.Length; index++)
+            BinaryPrimitives.WriteInt16BigEndian(
+                table.AsSpan(bearingPosition + index * 2),
+                remainingBearings[index]
+            );
+
         return table;
     }
 
