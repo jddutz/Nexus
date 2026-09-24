@@ -3,6 +3,7 @@ using System.Text;
 using Nexus.AssetPipeline.Typography.FontReader;
 using Nexus.AssetPipeline.Typography.FontReader.TrueType;
 using Nexus.AssetPipeline.Typography.FontReader.TrueType.Tables;
+using Nexus.AssetPipeline.Typography.Geometry;
 using Xunit.Abstractions;
 
 namespace Nexus.AssetPipeline.Tests;
@@ -231,6 +232,126 @@ public sealed class TrueTypeFontReaderTests
             (-2, 1, true),
             (contour.Points[3].X, contour.Points[3].Y, contour.Points[3].OnCurve)
         );
+    }
+
+    /// <summary>
+    /// Verifies on-curve pairs become lines and an on/off/on sequence becomes a quadratic edge.
+    /// </summary>
+    [Fact]
+    public void FontContourConverter_convertsLinesAndQuadratics()
+    {
+        var contour = FontContourConverter.Convert(
+            new FontContour(
+                [
+                    new FontPoint(0, 0, true),
+                    new FontPoint(2, 3, false),
+                    new FontPoint(4, 0, true),
+                    new FontPoint(4, -2, true),
+                ]
+            )
+        );
+
+        Assert.Collection(
+            contour.Edges,
+            edge =>
+            {
+                var quadratic = Assert.IsType<QuadraticSegment>(edge);
+                Assert.Equal(new System.Numerics.Vector2(0, 0), quadratic.Start);
+                Assert.Equal(new System.Numerics.Vector2(2, 3), quadratic.Control);
+                Assert.Equal(new System.Numerics.Vector2(4, 0), quadratic.End);
+            },
+            edge => Assert.IsType<LineSegment>(edge),
+            edge => Assert.IsType<LineSegment>(edge)
+        );
+    }
+
+    /// <summary>
+    /// Verifies adjacent off-curve points produce implied midpoint anchors, including across closure.
+    /// </summary>
+    [Fact]
+    public void FontContourConverter_addsImpliedMidpointsAcrossContourWraparound()
+    {
+        var contour = FontContourConverter.Convert(
+            new FontContour(
+                [
+                    new FontPoint(2, 0, false),
+                    new FontPoint(4, 0, true),
+                    new FontPoint(4, 2, false),
+                ]
+            )
+        );
+
+        Assert.Collection(
+            contour.Edges,
+            edge =>
+            {
+                var quadratic = Assert.IsType<QuadraticSegment>(edge);
+                Assert.Equal(new System.Numerics.Vector2(4, 0), quadratic.Start);
+                Assert.Equal(new System.Numerics.Vector2(4, 2), quadratic.Control);
+                Assert.Equal(new System.Numerics.Vector2(3, 1), quadratic.End);
+            },
+            edge =>
+            {
+                var quadratic = Assert.IsType<QuadraticSegment>(edge);
+                Assert.Equal(new System.Numerics.Vector2(3, 1), quadratic.Start);
+                Assert.Equal(new System.Numerics.Vector2(2, 0), quadratic.Control);
+                Assert.Equal(new System.Numerics.Vector2(4, 0), quadratic.End);
+            }
+        );
+    }
+
+    /// <summary>
+    /// Verifies adjacent off-curve points inside a contour share an implied on-curve midpoint.
+    /// </summary>
+    [Fact]
+    public void FontContourConverter_addsImpliedMidpointsBetweenOffCurvePoints()
+    {
+        var contour = FontContourConverter.Convert(
+            new FontContour(
+                [
+                    new FontPoint(0, 0, true),
+                    new FontPoint(2, 2, false),
+                    new FontPoint(4, 2, false),
+                    new FontPoint(6, 0, true),
+                ]
+            )
+        );
+
+        var quadratics = contour.Edges.OfType<QuadraticSegment>().ToArray();
+        Assert.Equal(2, quadratics.Length);
+        Assert.Equal(new System.Numerics.Vector2(3, 2), quadratics[0].End);
+        Assert.Equal(new System.Numerics.Vector2(3, 2), quadratics[1].Start);
+    }
+
+    /// <summary>
+    /// Verifies conversion preserves the source on-curve vertices and off-curve control points.
+    /// </summary>
+    [Fact]
+    public void Open_convertsLocalCurvesWithoutLosingTrueTypePointsWhenAvailable()
+    {
+        var fontPath = FindLocalFont("Roboto-Regular.ttf");
+        if (fontPath is null)
+            return;
+
+        var font = TrueTypeFontReader.Open(fontPath);
+        var outlines = new[]
+        {
+            font.GetGlyphOutline(font.GetGlyphIndex('O')),
+            font.GetGlyphOutline(font.GetGlyphIndex('S')),
+        };
+
+        foreach (var sourceContour in outlines.SelectMany(outline => outline.Contours))
+        {
+            var converted = FontContourConverter.Convert(sourceContour);
+            var endpoints = converted.Edges.SelectMany(edge => new[] { edge.Start, edge.End });
+            var controls = converted.Edges.OfType<QuadraticSegment>().Select(edge => edge.Control);
+
+            foreach (var point in sourceContour.Points)
+            {
+                var position = new System.Numerics.Vector2(point.X, point.Y);
+                Assert.Contains(position, point.OnCurve ? endpoints : controls);
+            }
+        }
     }
 
     /// <summary>

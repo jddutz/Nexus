@@ -13,9 +13,10 @@ public sealed class FontContour
     /// Initializes a contour with its ordered points.
     /// </summary>
     /// <param name="points">The points in the contour.</param>
-    internal FontContour(FontPoint[] points)
+    public FontContour(IEnumerable<FontPoint> points)
     {
-        _points = Array.AsReadOnly(points);
+        ArgumentNullException.ThrowIfNull(points);
+        _points = Array.AsReadOnly(points.ToArray());
     }
 
     /// <summary>
