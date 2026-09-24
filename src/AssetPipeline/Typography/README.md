@@ -1,0 +1,439 @@
+## NAP Typography — Technical Specification
+
+### 1. Purpose
+
+`AssetPipeline/Typography` provides the font-processing implementation used by NAP to transform supported source font files into Nexus-native font assets.
+
+Typography is an **asset compilation subsystem**, not a general-purpose font library and not a runtime text-rendering system.
+
+Its responsibility is:
+
+```text
+Source Font
+    ↓
+Read font structures
+    ↓
+Resolve requested characters
+    ↓
+Extract glyph metrics and outlines
+    ↓
+Generate distance-field glyph images
+    ↓
+Pack glyphs into an atlas
+    ↓
+Produce Nexus font metadata + atlas data
+```
+
+The output must contain everything required by the runtime `ITextStyle`/`TextSpan` path without requiring the source font or a font-processing library at runtime.
+
+The existing runtime requirements establish the required baked information: font metrics, glyph advance and bounds, atlas bounds, and kerning.   
+
+---
+
+## 2. Project location
+
+Typography remains part of the Asset Pipeline project:
+
+```text
+src/
+└── AssetPipeline/
+    ├── Typography/
+    │   ├── FontReader/
+    │   ├── Geometry/
+    │   ├── DistanceFields/
+    │   ├── Atlas/
+    │   └── ...
+    │
+    └── ...
+```
+
+It does **not** become a runtime Nexus project.
+
+NAP is the only consumer unless a future build-time tool has a concrete reason to reuse it.
+
+---
+
+## 3. Architectural boundary
+
+The subsystem owns the complete transformation from font-file bytes to generated Nexus font data.
+
+```text
+                  AssetPipeline
+                       │
+                FontProcessor
+                       │
+                       ▼
+                 Typography
+        ┌──────────────┼───────────────┐
+        │              │               │
+     Reader         Geometry        Generation
+        │              │               │
+        └──────────────┴───────────────┘
+                       │
+                       ▼
+                FontBuildResult
+```
+
+`FontProcessor` remains responsible for NAP concerns such as validating the asset definition, resolving the source path, determining the requested repertoire, and coordinating output. Its current contract already does those things before invoking font generation. 
+
+Typography must not know about:
+
+```text
+YAML
+ContentId
+content-manifest.json
+output directories
+runtime providers
+Vulkan
+IDrawable
+TextSpan
+```
+
+Those belong outside this subsystem.
+
+---
+
+## 4. Proposed folder structure
+
+I would start deliberately small:
+
+```text
+src/AssetPipeline/Typography/
+│
+├── FontReader/
+│   ├── FontReader.cs
+│   ├── FontFace.cs
+│   ├── FontGlyph.cs
+│   ├── FontContour.cs
+│   ├── FontPoint.cs
+│   │
+│   └── TrueType/
+│       ├── TrueTypeFontReader.cs
+│       ├── TrueTypeReader.cs
+│       └── Tables/
+│           ├── TableDirectory.cs
+│           ├── CmapTable.cs
+│           ├── HeadTable.cs
+│           ├── HheaTable.cs
+│           ├── HmtxTable.cs
+│           ├── MaxpTable.cs
+│           ├── LocaTable.cs
+│           ├── GlyfTable.cs
+│           └── KernTable.cs
+│
+├── Geometry/
+│   ├── Contour.cs
+│   ├── Edge.cs
+│   ├── LineSegment.cs
+│   └── QuadraticSegment.cs
+│
+├── DistanceFields/
+│   ├── MsdfGenerator.cs
+│   ├── EdgeColoring.cs
+│   └── SignedDistance.cs
+│
+├── Atlas/
+│   ├── FontAtlasBuilder.cs
+│   ├── GlyphBitmap.cs
+│   └── AtlasPlacement.cs
+│
+└── TypographyProcessor.cs
+```
+
+I would **not consider those exact classes mandatory**. The folder boundaries are more important than prematurely deciding every type.
+
+---
+
+## 5. Processing stages
+
+### FontReader
+
+`FontReader` transforms a supported font file into Nexus-owned font-domain data.
+
+```text
+Stream / ReadOnlyMemory<byte>
+          ↓
+      FontReader
+          ↓
+       FontFace
+```
+
+Conceptually:
+
+```csharp
+FontFace Read(Stream source);
+```
+
+`FontFace` represents the information extracted from the source font, not the source file itself.
+
+It needs to provide enough information to obtain:
+
+```text
+font metrics
+codepoint → glyph
+glyph advance
+glyph outline
+kerning
+```
+
+It does not rasterize anything.
+
+---
+
+### TrueType reader
+
+The initial implementation supports the subset of TrueType/OpenType required by NAP.
+
+Its parser must operate from the published binary format rather than reproduce the architecture of an existing font library.
+
+The likely table dependency is:
+
+```text
+SFNT
+ ├─ cmap       character mapping
+ ├─ head       units per em / global data
+ ├─ hhea       horizontal metrics
+ ├─ hmtx       glyph advances
+ ├─ maxp       glyph count
+ ├─ loca       glyph locations
+ ├─ glyf       outlines
+ └─ kern       pair adjustments
+```
+
+That table list should be validated when we write the detailed TrueType-reader spec rather than treated as the final compatibility promise.
+
+Unsupported font features must produce an explicit diagnostic rather than silently generating incorrect assets.
+
+---
+
+## 6. Font-domain geometry
+
+The reader should preserve the source font's geometry without knowing anything about MSDF generation.
+
+For TrueType, the useful intermediate representation is approximately:
+
+```text
+FontGlyph
+    GlyphIndex
+    Advance
+    Contours[]
+
+FontContour
+    Points[]
+
+FontPoint
+    X
+    Y
+    OnCurve
+```
+
+This preserves the native quadratic-outline representation.
+
+The reader should not produce GPU vertices, texture coordinates, pixels, or runtime transformations.
+
+---
+
+## 7. Geometry conversion
+
+`Geometry` converts font-specific contours into primitives understood by the distance-field generator.
+
+```text
+FontContour
+     ↓
+Contour
+     ↓
+Edge[]
+    ├─ LineSegment
+    └─ QuadraticSegment
+```
+
+This layer owns TrueType contour semantics such as implied on-curve points.
+
+The important boundary is:
+
+> **FontReader understands fonts. Geometry understands curves.**
+
+The distance-field generator should not need to know whether its curves originally came from TrueType, synthetic test geometry, or some future font format.
+
+That gives us an independently testable MSDF implementation.
+
+---
+
+## 8. Distance-field generation
+
+The distance-field subsystem receives geometry and generates an RGB glyph image.
+
+```text
+Contour[]
+    ↓
+Edge coloring
+    ↓
+Distance evaluation
+    ↓
+RGB distance field
+```
+
+It owns:
+
+```text
+edge coloring
+signed-distance evaluation
+inside/outside determination
+distance normalization
+RGB channel generation
+generation resolution
+distance range
+padding
+```
+
+It does **not** own atlas placement.
+
+This separation is important because an individual glyph should be testable without generating an entire font.
+
+---
+
+## 9. Atlas generation
+
+Atlas generation receives generated glyph bitmaps:
+
+```text
+GlyphBitmap[]
+      ↓
+FontAtlasBuilder
+      ↓
+FontAtlas
++ glyph placements
+```
+
+It owns:
+
+```text
+packing
+atlas dimensions
+pixel placement
+atlas bounds
+```
+
+It must be deterministic: identical source font, repertoire, and generation settings must produce identical output.
+
+The resulting atlas currently needs RGB8 data; `FontBuildResult` already identifies the atlas as `rgb8`. 
+
+---
+
+## 10. Typography orchestration
+
+The top-level Typography processor composes the stages:
+
+```text
+TypographyProcessor
+
+Read font
+    ↓
+Resolve requested codepoints
+    ↓
+Extract required glyphs
+    ↓
+Convert outlines
+    ↓
+Generate glyph distance fields
+    ↓
+Pack atlas
+    ↓
+Construct FontBuildResult
+```
+
+The existing NAP boundary can therefore become conceptually:
+
+```csharp
+FontBuildResult Build(
+    string sourcePath,
+    IReadOnlyList<int> codepoints,
+    FontGenerationSettings settings);
+```
+
+That is essentially the existing `IFontRasterizer` operation, although `Rasterize` may no longer be the best name because the implementation now performs considerably more than rasterization. 
+
+---
+
+## 11. Dependency requirements
+
+`AssetPipeline/Typography` should be designed as a **self-contained managed implementation**.
+
+Architectural requirements:
+
+* No native DLLs.
+* No P/Invoke.
+* No external executables.
+* No installed system fonts.
+* No runtime Nexus dependency.
+* No dependency on a general-purpose font framework.
+* No dependence on platform graphics APIs.
+* No temporary intermediate interchange format.
+* Deterministic operation from source bytes and build settings.
+
+Standard .NET libraries are sufficient infrastructure.
+
+This allows the existing `NativeFontRasterizer` and `nexus_font_native` path to disappear once feature parity is established. The current implementation's native ABI and memory-copy boundary are entirely contained within `NativeFontRasterizer`. 
+
+---
+
+## 12. Scope philosophy
+
+The governing rule should be:
+
+> **Implement the font features required to compile Nexus assets, not the features expected of a general-purpose font library.**
+
+That means unsupported features are acceptable.
+
+Incorrect interpretation is not.
+
+For example, if NAP v1 supports TrueType quadratic outlines but not CFF outlines, encountering CFF should result in something like:
+
+```text
+Font 'foo.otf' uses CFF outlines, which are not supported by NAP Typography.
+```
+
+rather than trying to approximate them.
+
+The same principle applies as we encounter shaping, variation, advanced positioning, color fonts, hinting, or other OpenType functionality.
+
+---
+
+## 13. Testing architecture
+
+The stage separation gives us unusually good testing boundaries:
+
+```text
+FontReader tests
+    known bytes → known tables/metrics
+
+cmap tests
+    codepoint → expected glyph index
+
+glyph tests
+    glyph → expected contours/points
+
+composite glyph tests
+    component transforms → expected outline
+
+geometry tests
+    font points → expected line/quadratic edges
+
+distance tests
+    synthetic edge → known signed distances
+
+MSDF tests
+    synthetic shape → deterministic RGB bitmap
+
+atlas tests
+    known rectangles → deterministic placement
+
+integration tests
+    known TTF + repertoire
+        ↓
+    deterministic FontBuildResult
+```
+
+The final integration test should not merely check that files exist. It should verify that the generated `FontBuildResult` satisfies the data actually consumed by `TextSpan`: scaling from `EmSize`, advances and kerning for pen placement, `PlaneBounds` for geometry, and `AtlasBounds` for texture coordinates. 
+
+That gives us a clean architectural spec to hand to the coding agent. The next spec can then be much more mechanical: **NAP Typography TrueType Reader v1**, defining the supported SFNT structures, byte order, required tables, table parsing order, glyph resolution, simple/composite `glyf` decoding, coordinate reconstruction, and explicit unsupported cases.
