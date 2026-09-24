@@ -4,7 +4,7 @@ $o = Join-Path $PSScriptRoot ".content"
 $nativeLibrary = Join-Path (Split-Path -Parent $nap) "nexus_font_native.dll"
 
 if (-not (Test-Path $nativeLibrary -PathType Leaf)) {
-	throw "Missing native font rasterizer '$nativeLibrary'. Build and install src\AssetPipeline\native for the current Windows runtime before running this script."
+    throw "Missing native font rasterizer '$nativeLibrary'. Build and install src\AssetPipeline\native for the current Windows runtime before running this script."
 }
 
 & $nap --output $o clean
