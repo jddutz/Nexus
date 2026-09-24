@@ -132,10 +132,7 @@ public sealed class TrueTypeFontReaderTests
             (0x42u, 0x42u, 38u),
             (0x1F600u, 0x1F600u, 7u)
         );
-        var cmap = CreateCmap(
-            (0, 4, format12),
-            (3, 1, format4)
-        );
+        var cmap = CreateCmap((0, 4, format12), (3, 1, format4));
         var font = new TrueTypeFontReader(
             CreateFontWithTables(("cmap", cmap), ("maxp", CreateMaxpTable(40)))
         );
@@ -262,8 +259,14 @@ public sealed class TrueTypeFontReaderTests
             var table = tables[index];
             var recordOffset = headerLength + index * recordLength;
             Encoding.ASCII.GetBytes(table.Tag, font.AsSpan(recordOffset, 4));
-            BinaryPrimitives.WriteUInt32BigEndian(font.AsSpan(recordOffset + 8), checked((uint)tablePosition));
-            BinaryPrimitives.WriteUInt32BigEndian(font.AsSpan(recordOffset + 12), checked((uint)table.Data.Length));
+            BinaryPrimitives.WriteUInt32BigEndian(
+                font.AsSpan(recordOffset + 8),
+                checked((uint)tablePosition)
+            );
+            BinaryPrimitives.WriteUInt32BigEndian(
+                font.AsSpan(recordOffset + 12),
+                checked((uint)table.Data.Length)
+            );
             table.Data.CopyTo(font, tablePosition);
             tablePosition += table.Data.Length;
         }
@@ -276,7 +279,9 @@ public sealed class TrueTypeFontReaderTests
     /// </summary>
     /// <param name="subtables">The platform, encoding, and subtable tuples.</param>
     /// <returns>The cmap table bytes.</returns>
-    private static byte[] CreateCmap(params (ushort Platform, ushort Encoding, byte[] Data)[] subtables)
+    private static byte[] CreateCmap(
+        params (ushort Platform, ushort Encoding, byte[] Data)[] subtables
+    )
     {
         var headerLength = 4 + subtables.Length * 8;
         var cmap = new byte[headerLength + subtables.Sum(subtable => subtable.Data.Length)];
@@ -288,7 +293,10 @@ public sealed class TrueTypeFontReaderTests
             var recordOffset = 4 + index * 8;
             BinaryPrimitives.WriteUInt16BigEndian(cmap.AsSpan(recordOffset), subtable.Platform);
             BinaryPrimitives.WriteUInt16BigEndian(cmap.AsSpan(recordOffset + 2), subtable.Encoding);
-            BinaryPrimitives.WriteUInt32BigEndian(cmap.AsSpan(recordOffset + 4), checked((uint)subtablePosition));
+            BinaryPrimitives.WriteUInt32BigEndian(
+                cmap.AsSpan(recordOffset + 4),
+                checked((uint)subtablePosition)
+            );
             subtable.Data.CopyTo(cmap, subtablePosition);
             subtablePosition += subtable.Data.Length;
         }
@@ -307,7 +315,10 @@ public sealed class TrueTypeFontReaderTests
         var subtable = new byte[16 + codepoints.Length * 8];
         BinaryPrimitives.WriteUInt16BigEndian(subtable, 4);
         BinaryPrimitives.WriteUInt16BigEndian(subtable.AsSpan(2), checked((ushort)subtable.Length));
-        BinaryPrimitives.WriteUInt16BigEndian(subtable.AsSpan(6), checked((ushort)(codepoints.Length * 2)));
+        BinaryPrimitives.WriteUInt16BigEndian(
+            subtable.AsSpan(6),
+            checked((ushort)(codepoints.Length * 2))
+        );
         var position = 14;
         foreach (var codepoint in codepoints)
         {

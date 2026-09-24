@@ -71,10 +71,22 @@ public sealed class CmapTable
 
         var format4 = format4Candidate is null
             ? null
-            : ParseFormat4(reader.Slice((int)format4Candidate.Offset, reader.Length - (int)format4Candidate.Offset), glyphCount);
+            : ParseFormat4(
+                reader.Slice(
+                    (int)format4Candidate.Offset,
+                    reader.Length - (int)format4Candidate.Offset
+                ),
+                glyphCount
+            );
         var format12 = format12Candidate is null
             ? null
-            : ParseFormat12(reader.Slice((int)format12Candidate.Offset, reader.Length - (int)format12Candidate.Offset), glyphCount);
+            : ParseFormat12(
+                reader.Slice(
+                    (int)format12Candidate.Offset,
+                    reader.Length - (int)format12Candidate.Offset
+                ),
+                glyphCount
+            );
         return new CmapTable(format4, format12);
     }
 
@@ -88,7 +100,10 @@ public sealed class CmapTable
         if (codepoint < 0 || (uint)codepoint > MaximumUnicodeCodepoint)
             return 0;
 
-        if (_format12 is not null && _format12.TryGetGlyphIndex((uint)codepoint, out var glyphIndex))
+        if (
+            _format12 is not null
+            && _format12.TryGetGlyphIndex((uint)codepoint, out var glyphIndex)
+        )
             return glyphIndex;
 
         return _format4 is not null && codepoint <= ushort.MaxValue
@@ -118,9 +133,13 @@ public sealed class CmapTable
     /// <param name="candidate">The cmap encoding record.</param>
     /// <returns>A lower value for a more preferred record.</returns>
     private static int GetEncodingPriority(CmapCandidate candidate) =>
-        candidate.PlatformId == 0 ? candidate.EncodingId == 4 ? 0 : 1
-        : candidate.EncodingId == 10 ? 2
-        : 3;
+        candidate.PlatformId == 0
+            ? candidate.EncodingId == 4
+                ? 0
+                : 1
+            : candidate.EncodingId == 10
+                ? 2
+                : 3;
 
     /// <summary>
     /// Determines whether an encoding record identifies Unicode text.
@@ -154,7 +173,9 @@ public sealed class CmapTable
         _ = reader.ReadUInt16();
         var segmentCountX2 = reader.ReadUInt16();
         if (segmentCountX2 == 0 || (segmentCountX2 & 1) != 0)
-            throw new InvalidDataException("The 'cmap' format 4 subtable has an invalid segment count.");
+            throw new InvalidDataException(
+                "The 'cmap' format 4 subtable has an invalid segment count."
+            );
 
         var segmentCount = segmentCountX2 / 2;
         if (16 + segmentCount * 8 > length)
@@ -183,18 +204,26 @@ public sealed class CmapTable
 
         for (var index = 0; index < segmentCount; index++)
         {
-            if (startCodes[index] > endCodes[index] || index > 0 && endCodes[index - 1] > endCodes[index])
-                throw new InvalidDataException("The 'cmap' format 4 subtable has invalid segments.");
+            if (
+                startCodes[index] > endCodes[index]
+                || index > 0 && endCodes[index - 1] > endCodes[index]
+            )
+                throw new InvalidDataException(
+                    "The 'cmap' format 4 subtable has invalid segments."
+                );
 
             if (idRangeOffsets[index] == 0)
                 continue;
 
-            var lastGlyphOffset = idRangeOffsetsPosition
+            var lastGlyphOffset =
+                idRangeOffsetsPosition
                 + index * sizeof(ushort)
                 + idRangeOffsets[index]
                 + (endCodes[index] - startCodes[index]) * sizeof(ushort);
             if (lastGlyphOffset < 0 || lastGlyphOffset > length - sizeof(ushort))
-                throw new InvalidDataException("The 'cmap' format 4 subtable has an invalid glyph offset.");
+                throw new InvalidDataException(
+                    "The 'cmap' format 4 subtable has an invalid glyph offset."
+                );
         }
 
         return new Format4Subtable(
@@ -222,7 +251,9 @@ public sealed class CmapTable
             throw new InvalidDataException("The 'cmap' format 12 subtable has an invalid header.");
 
         if (header.ReadUInt16() != 0)
-            throw new InvalidDataException("The 'cmap' format 12 subtable has an invalid reserved field.");
+            throw new InvalidDataException(
+                "The 'cmap' format 12 subtable has an invalid reserved field."
+            );
 
         var length = header.ReadUInt32();
         _ = header.ReadUInt32();
@@ -245,11 +276,13 @@ public sealed class CmapTable
             var endCodepoint = reader.ReadUInt32();
             var startGlyphIndex = reader.ReadUInt32();
             var lastGlyphIndex = (ulong)startGlyphIndex + endCodepoint - startCodepoint;
-            if (startCodepoint > endCodepoint
+            if (
+                startCodepoint > endCodepoint
                 || endCodepoint > MaximumUnicodeCodepoint
                 || index > 0 && startCodepoint <= previousEnd
                 || lastGlyphIndex >= glyphCount
-                || lastGlyphIndex > ushort.MaxValue)
+                || lastGlyphIndex > ushort.MaxValue
+            )
             {
                 throw new InvalidDataException(
                     $"The 'cmap' format 12 subtable has an invalid group at index {index}: "
@@ -333,11 +366,14 @@ public sealed class CmapTable
                     high = middle - 1;
                 else
                 {
-                    var glyphIndex = _idRangeOffsets[middle] == 0
-                        ? unchecked((ushort)(codepoint + _idDeltas[middle]))
-                        : GetGlyphArrayIndex(middle, codepoint);
+                    var glyphIndex =
+                        _idRangeOffsets[middle] == 0
+                            ? unchecked((ushort)(codepoint + _idDeltas[middle]))
+                            : GetGlyphArrayIndex(middle, codepoint);
                     if (glyphIndex >= _glyphCount && glyphIndex != 0)
-                        throw new InvalidDataException("The 'cmap' table references an invalid glyph index.");
+                        throw new InvalidDataException(
+                            "The 'cmap' table references an invalid glyph index."
+                        );
                     return glyphIndex;
                 }
             }
@@ -353,7 +389,8 @@ public sealed class CmapTable
         /// <returns>The glyph index after applying the segment delta.</returns>
         private ushort GetGlyphArrayIndex(int segmentIndex, ushort codepoint)
         {
-            var offset = _idRangeOffsetsPosition
+            var offset =
+                _idRangeOffsetsPosition
                 + segmentIndex * sizeof(ushort)
                 + _idRangeOffsets[segmentIndex]
                 + (codepoint - _startCodes[segmentIndex]) * sizeof(ushort);
@@ -417,5 +454,9 @@ public sealed class CmapTable
     /// <param name="StartCodepoint">The first codepoint in the group.</param>
     /// <param name="EndCodepoint">The last codepoint in the group.</param>
     /// <param name="StartGlyphIndex">The glyph index corresponding to the first codepoint.</param>
-    private sealed record Format12Group(uint StartCodepoint, uint EndCodepoint, uint StartGlyphIndex);
+    private sealed record Format12Group(
+        uint StartCodepoint,
+        uint EndCodepoint,
+        uint StartGlyphIndex
+    );
 }
