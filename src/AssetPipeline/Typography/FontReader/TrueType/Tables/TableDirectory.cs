@@ -56,10 +56,14 @@ public sealed class TableDirectory
             var length = reader.ReadUInt32();
 
             if (!seenTags.Add(tag))
-                throw new InvalidDataException($"The SFNT directory contains duplicate table tag '{tag}'.");
+                throw new InvalidDataException(
+                    $"The SFNT directory contains duplicate table tag '{tag}'."
+                );
 
             if (offset > (uint)reader.Length || length > (uint)reader.Length - offset)
-                throw new InvalidDataException($"The SFNT table '{tag}' extends beyond the font data.");
+                throw new InvalidDataException(
+                    $"The SFNT table '{tag}' extends beyond the font data."
+                );
 
             tables[index] = new TableRecord(tag, checksum, offset, length);
         }

@@ -112,6 +112,9 @@ public sealed class TrueTypeReader
     private void ValidateRange(int offset, int length)
     {
         if (offset < 0 || length < 0 || offset > _data.Length - length)
-            throw new ArgumentOutOfRangeException(nameof(offset), "The requested range exceeds the byte buffer.");
+            throw new ArgumentOutOfRangeException(
+                nameof(offset),
+                "The requested range exceeds the byte buffer."
+            );
     }
 }

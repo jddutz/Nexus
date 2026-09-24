@@ -16,7 +16,22 @@ public sealed class TrueTypeFontReaderTests
     public void TrueTypeReader_readsBigEndianValues()
     {
         var reader = new TrueTypeReader(
-            new byte[] { 0xAB, 0x12, 0x34, 0xFF, 0xFE, 0x01, 0x02, 0x03, 0x04, 0xFF, 0xFF, 0xFF, 0xFF }
+            new byte[]
+            {
+                0xAB,
+                0x12,
+                0x34,
+                0xFF,
+                0xFE,
+                0x01,
+                0x02,
+                0x03,
+                0x04,
+                0xFF,
+                0xFF,
+                0xFF,
+                0xFF,
+            }
         );
 
         Assert.Equal((byte)0xAB, reader.ReadUInt8());
@@ -49,13 +64,18 @@ public sealed class TrueTypeFontReaderTests
     [Fact]
     public void TrueTypeFontReader_parsesTableDirectory()
     {
-        var font = new TrueTypeFontReader(CreateFont(
-            ("head", 0x11223344, 60u, 1u),
-            ("cmap", 0x55667788, 61u, 1u),
-            ("glyf", 0x99AABBCC, 62u, 1u)
-        ));
+        var font = new TrueTypeFontReader(
+            CreateFont(
+                ("head", 0x11223344, 60u, 1u),
+                ("cmap", 0x55667788, 61u, 1u),
+                ("glyf", 0x99AABBCC, 62u, 1u)
+            )
+        );
 
-        Assert.Equal(new[] { "head", "cmap", "glyf" }, font.TableDirectory.Tables.Select(table => table.Tag));
+        Assert.Equal(
+            new[] { "head", "cmap", "glyf" },
+            font.TableDirectory.Tables.Select(table => table.Tag)
+        );
         Assert.True(font.TableDirectory.TryGetTable("head", out var head));
         Assert.Equal(0x11223344u, head.Checksum);
         Assert.Equal(60u, head.Offset);
@@ -73,9 +93,9 @@ public sealed class TrueTypeFontReaderTests
         invalidSignature[0] = 0xFF;
 
         Assert.Throws<InvalidDataException>(() => new TrueTypeFontReader(invalidSignature));
-        Assert.Throws<InvalidDataException>(() => new TrueTypeFontReader(
-            CreateFont(("head", 0u, uint.MaxValue, 1u))
-        ));
+        Assert.Throws<InvalidDataException>(() =>
+            new TrueTypeFontReader(CreateFont(("head", 0u, uint.MaxValue, 1u)))
+        );
     }
 
     /// <summary>
@@ -92,6 +112,13 @@ public sealed class TrueTypeFontReaderTests
         Assert.Contains(font.TableDirectory.Tables, table => table.Tag == "head");
         Assert.Contains(font.TableDirectory.Tables, table => table.Tag == "cmap");
         Assert.Contains(font.TableDirectory.Tables, table => table.Tag == "glyf");
+        Assert.Equal((ushort)2048, font.FontFace.UnitsPerEm);
+        Assert.Equal((short)1900, font.FontFace.Ascender);
+        Assert.Equal((short)-500, font.FontFace.Descender);
+        Assert.Equal((short)0, font.FontFace.LineGap);
+        Assert.Equal((ushort)1321, font.FontFace.GlyphCount);
+        Assert.Equal((ushort)1321, font.FontFace.NumberOfHorizontalMetrics);
+        Assert.Equal((short)0, font.FontFace.IndexToLocFormat);
     }
 
     /// <summary>
@@ -118,7 +145,9 @@ public sealed class TrueTypeFontReaderTests
     /// </summary>
     /// <param name="records">The records to include in the table directory.</param>
     /// <returns>A font buffer with one data byte for each table.</returns>
-    private static byte[] CreateFont(params (string Tag, uint Checksum, uint Offset, uint Length)[] records)
+    private static byte[] CreateFont(
+        params (string Tag, uint Checksum, uint Offset, uint Length)[] records
+    )
     {
         const int headerLength = 12;
         const int recordLength = 16;
@@ -162,7 +191,11 @@ public sealed class TrueTypeFontReaderTests
     /// <returns>The font-assets directory, or null when it is unavailable.</returns>
     private static string? FindLocalFontDirectory()
     {
-        for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
+        for (
+            var directory = new DirectoryInfo(AppContext.BaseDirectory);
+            directory is not null;
+            directory = directory.Parent
+        )
         {
             var candidate = Path.Combine(directory.FullName, ".assets", "Fonts");
             if (Directory.Exists(candidate))

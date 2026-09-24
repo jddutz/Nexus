@@ -1,3 +1,4 @@
+using Nexus.AssetPipeline.Typography.FontReader;
 using Nexus.AssetPipeline.Typography.FontReader.TrueType.Tables;
 
 namespace Nexus.AssetPipeline.Typography.FontReader.TrueType;
@@ -8,6 +9,7 @@ namespace Nexus.AssetPipeline.Typography.FontReader.TrueType;
 public sealed class TrueTypeFontReader
 {
     private readonly ReadOnlyMemory<byte> _data;
+    private FontFace? _fontFace;
 
     /// <summary>
     /// Initializes a font reader from in-memory font data.
@@ -23,6 +25,11 @@ public sealed class TrueTypeFontReader
     /// Gets the parsed SFNT table directory.
     /// </summary>
     public TableDirectory TableDirectory { get; }
+
+    /// <summary>
+    /// Gets the font-wide metrics parsed from the required TrueType tables.
+    /// </summary>
+    public FontFace FontFace => _fontFace ??= ParseFontFace();
 
     /// <summary>
     /// Opens a font file from disk.
@@ -48,5 +55,17 @@ public sealed class TrueTypeFontReader
             throw new KeyNotFoundException($"The font does not contain the '{tag}' table.");
 
         return _data.Slice(checked((int)table.Offset), checked((int)table.Length));
+    }
+
+    /// <summary>
+    /// Parses the required global metric tables into a format-neutral font face.
+    /// </summary>
+    /// <returns>The parsed font face.</returns>
+    private FontFace ParseFontFace()
+    {
+        var head = HeadTable.Parse(new TrueTypeReader(GetTable("head")));
+        var maxp = MaxpTable.Parse(new TrueTypeReader(GetTable("maxp")));
+        var hhea = HheaTable.Parse(new TrueTypeReader(GetTable("hhea")), maxp.GlyphCount);
+        return new FontFace(head, hhea, maxp);
     }
 }
