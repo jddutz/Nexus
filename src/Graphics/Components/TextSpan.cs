@@ -1,35 +1,5 @@
 namespace Nexus.Graphics.Components;
 
-/// <summary>
-/// Describes one glyph instance in a <see cref="TextSpan"/>.
-/// </summary>
-public sealed class TextGlyph
-{
-    /// <summary>Initializes a glyph with its transform, atlas region, and tint color.</summary>
-    /// <param name="transformationMatrix">The transformation applied to the glyph quad.</param>
-    /// <param name="textureRegion">The normalized atlas region sampled by the glyph.</param>
-    /// <param name="color">The tint multiplied against the sampled glyph.</param>
-    public TextGlyph(
-        Matrix4X4<float> transformationMatrix,
-        Vector4D<float> textureRegion,
-        Color color
-    )
-    {
-        TransformationMatrix = transformationMatrix;
-        TextureRegion = textureRegion;
-        Color = color;
-    }
-
-    /// <summary>Gets the transformation applied to the glyph quad.</summary>
-    public Matrix4X4<float> TransformationMatrix { get; }
-
-    /// <summary>Gets the normalized texture-atlas region sampled by the glyph.</summary>
-    public Vector4D<float> TextureRegion { get; }
-
-    /// <summary>Gets the tint multiplied against the sampled glyph.</summary>
-    public Color Color { get; }
-}
-
 /// <summary>Renders a group of glyphs from one texture atlas as textured-quad instances.</summary>
 public sealed class TextSpan : IDrawable, IMeshInstance
 {

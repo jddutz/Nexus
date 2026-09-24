@@ -4,3 +4,4 @@ global using System.CommandLine.Parsing;
 global using System.Text;
 global using Nexus.AssetPipeline;
 global using Nexus.AssetPipeline.Fonts;
+global using Nexus.Graphics.Text;

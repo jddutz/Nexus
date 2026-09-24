@@ -11,5 +11,6 @@
     <PackageReference Include="System.CommandLine" />
     <PackageReference Include="YamlDotNet" />
     <PackageReference Include="StbImageSharp" />
+    <ProjectReference Include="..\Graphics\Nexus.Graphics.csproj" />
   </ItemGroup>
 </Project>
