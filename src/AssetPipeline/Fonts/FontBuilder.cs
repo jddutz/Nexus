@@ -60,9 +60,9 @@ public sealed class FontBuilder : IFontBuilder
                 .GetGlyphOutline(glyphIndex)
                 .Contours.Select(FontContourConverter.Convert)
                 .ToArray();
-            var geometryBounds = GetGeometryBounds(contours);
+            var geometryBounds = GeometryBoundsCalculator.GetBounds(contours);
             var bitmap = msdfGenerator.Generate(contours, msdfSettings);
-            var expansion = settings.DistanceRange / 2;
+            var expansion = settings.DistanceRange;
             var planeBounds = geometryBounds is { } bounds
                 ? new FontBounds(
                     bounds.Left * pixelsPerFontUnit - expansion,
@@ -85,7 +85,7 @@ public sealed class FontBuilder : IFontBuilder
         var atlasResult = new FontAtlasBuilder().Build(
             glyphData.Select(glyph => glyph.Bitmap).ToArray()
         );
-        var atlasInset = bitmapPadding - settings.DistanceRange / 2;
+        var atlasInset = bitmapPadding - settings.DistanceRange;
         var glyphs = new FontGlyph[glyphData.Count];
         for (var index = 0; index < glyphData.Count; index++)
         {
@@ -127,41 +127,5 @@ public sealed class FontBuilder : IFontBuilder
                 + $"Glyphs={result.Glyphs.Count}, Kerning={result.Kerning.Count}."
         );
         return result;
-    }
-
-    /// <summary>
-    /// Gets the geometry bounds used by the distance-field generator.
-    /// </summary>
-    /// <param name="contours">The converted glyph contours.</param>
-    /// <returns>The bounds in font units, or null when the glyph has no edges.</returns>
-    private static (double Left, double Bottom, double Right, double Top)? GetGeometryBounds(
-        IReadOnlyList<Contour> contours
-    )
-    {
-        var edges = contours.SelectMany(contour => contour.Edges).ToArray();
-        if (edges.Length == 0)
-            return null;
-
-        var left = double.PositiveInfinity;
-        var bottom = double.PositiveInfinity;
-        var right = double.NegativeInfinity;
-        var top = double.NegativeInfinity;
-        foreach (var edge in edges)
-        {
-            Include(edge.Start);
-            Include(edge.End);
-            if (edge is QuadraticSegment quadratic)
-                Include(quadratic.Control);
-        }
-
-        return (left, bottom, right, top);
-
-        void Include(System.Numerics.Vector2 point)
-        {
-            left = Math.Min(left, point.X);
-            bottom = Math.Min(bottom, point.Y);
-            right = Math.Max(right, point.X);
-            top = Math.Max(top, point.Y);
-        }
     }
 }

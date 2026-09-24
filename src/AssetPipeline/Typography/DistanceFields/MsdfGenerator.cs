@@ -38,24 +38,11 @@ public sealed class MsdfGenerator
         if (shape.Any(contour => contour is null))
             throw new ArgumentException("Contours cannot contain null entries.", nameof(contours));
 
-        var edges = shape.SelectMany(contour => contour.Edges).ToArray();
-        if (edges.Length == 0)
+        if (GeometryBoundsCalculator.GetBounds(shape) is not { } geometryBounds)
             return new GlyphBitmap(0, 0, []);
 
-        var minimumX = float.PositiveInfinity;
-        var minimumY = float.PositiveInfinity;
-        var maximumX = float.NegativeInfinity;
-        var maximumY = float.NegativeInfinity;
-        foreach (var edge in edges)
-        {
-            IncludePoint(edge.Start);
-            IncludePoint(edge.End);
-            if (edge is QuadraticSegment quadratic)
-                IncludePoint(quadratic.Control);
-        }
-
-        var geometryWidth = (maximumX - minimumX) * settings.PixelsPerUnit;
-        var geometryHeight = (maximumY - minimumY) * settings.PixelsPerUnit;
+        var geometryWidth = (geometryBounds.Right - geometryBounds.Left) * settings.PixelsPerUnit;
+        var geometryHeight = (geometryBounds.Top - geometryBounds.Bottom) * settings.PixelsPerUnit;
         var width = checked((int)MathF.Ceiling(geometryWidth) + settings.Padding * 2);
         var height = checked((int)MathF.Ceiling(geometryHeight) + settings.Padding * 2);
         var pixels = new byte[checked(width * height * 3)];
@@ -64,11 +51,12 @@ public sealed class MsdfGenerator
 
         for (var y = 0; y < height; y++)
         {
-            var geometryY = maximumY - (y - settings.Padding + 0.5f) / settings.PixelsPerUnit;
+            var geometryY =
+                geometryBounds.Top - (y - settings.Padding + 0.5f) / settings.PixelsPerUnit;
             for (var x = 0; x < width; x++)
             {
                 var point = new Vector2(
-                    minimumX + (x - settings.Padding + 0.5f) / settings.PixelsPerUnit,
+                    geometryBounds.Left + (x - settings.Padding + 0.5f) / settings.PixelsPerUnit,
                     geometryY
                 );
                 Array.Fill(channelDistances, float.PositiveInfinity);
@@ -117,14 +105,6 @@ public sealed class MsdfGenerator
         }
 
         return new GlyphBitmap(width, height, pixels);
-
-        void IncludePoint(Vector2 point)
-        {
-            minimumX = MathF.Min(minimumX, point.X);
-            minimumY = MathF.Min(minimumY, point.Y);
-            maximumX = MathF.Max(maximumX, point.X);
-            maximumY = MathF.Max(maximumY, point.Y);
-        }
     }
 
     /// <summary>
