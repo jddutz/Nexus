@@ -17,7 +17,7 @@ public sealed class FontProcessorTests : IDisposable
     {
         Directory.CreateDirectory(_folder);
         File.WriteAllText(Path.Combine(_folder, fileName), "not a font");
-        var processor = new FontProcessor(new FakeRasterizer());
+        var processor = new FontProcessor(new FakeBuilder());
         var definition = CreateDefinition(fileName);
 
         var exception = Assert.Throws<FontBuildException>(() =>
@@ -32,8 +32,8 @@ public sealed class FontProcessorTests : IDisposable
     [Fact]
     public void Process_rejectsMissingSourceBeforeRasterization()
     {
-        var rasterizer = new FakeRasterizer();
-        var processor = new FontProcessor(rasterizer);
+        var builder = new FakeBuilder();
+        var processor = new FontProcessor(builder);
 
         var exception = Assert.Throws<FontBuildException>(() =>
             processor.Process(CreateDefinition("missing.ttf"), _folder)
@@ -41,16 +41,16 @@ public sealed class FontProcessorTests : IDisposable
 
         Assert.Contains("ui.default", exception.Message);
         Assert.Contains("missing.ttf", exception.Message);
-        Assert.False(rasterizer.WasCalled);
+        Assert.False(builder.WasCalled);
     }
 
     [Fact]
-    public void Process_convertsRasterizerResultAndWrapsErrors()
+    public void Process_convertsBuilderResultAndWrapsErrors()
     {
         Directory.CreateDirectory(_folder);
         File.WriteAllBytes(Path.Combine(_folder, "font.ttf"), [1]);
         var expected = CreateResult();
-        var processor = new FontProcessor(new FakeRasterizer(expected));
+        var processor = new FontProcessor(new FakeBuilder(expected));
 
         var actual = processor.Process(CreateDefinition("font.ttf"), _folder);
 
@@ -59,11 +59,11 @@ public sealed class FontProcessorTests : IDisposable
     }
 
     [Fact]
-    public void Process_addsAssetAndSourceContextToRasterizerErrors()
+    public void Process_addsAssetAndSourceContextToBuilderErrors()
     {
         Directory.CreateDirectory(_folder);
         File.WriteAllBytes(Path.Combine(_folder, "broken.otf"), [1]);
-        var processor = new FontProcessor(new ThrowingRasterizer());
+        var processor = new FontProcessor(new ThrowingBuilder());
 
         var exception = Assert.Throws<FontBuildException>(() =>
             processor.Process(CreateDefinition("broken.otf"), _folder)
@@ -124,11 +124,11 @@ public sealed class FontProcessorTests : IDisposable
             new MsdfMetadata(4, 48)
         );
 
-    private sealed class FakeRasterizer(FontBuildResult? result = null) : IFontRasterizer
+    private sealed class FakeBuilder(FontBuildResult? result = null) : IFontBuilder
     {
         public bool WasCalled { get; private set; }
 
-        public FontBuildResult Rasterize(
+        public FontBuildResult Build(
             string sourcePath,
             IReadOnlyList<int> codepoints,
             FontGenerationSettings settings
@@ -139,9 +139,9 @@ public sealed class FontProcessorTests : IDisposable
         }
     }
 
-    private sealed class ThrowingRasterizer : IFontRasterizer
+    private sealed class ThrowingBuilder : IFontBuilder
     {
-        public FontBuildResult Rasterize(
+        public FontBuildResult Build(
             string sourcePath,
             IReadOnlyList<int> codepoints,
             FontGenerationSettings settings

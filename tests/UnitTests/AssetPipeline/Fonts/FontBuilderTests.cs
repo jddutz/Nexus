@@ -5,19 +5,19 @@ namespace Nexus.AssetPipeline.Tests;
 /// <summary>
 /// Verifies that the managed typography stages produce a complete runtime font result.
 /// </summary>
-public sealed class ManagedFontRasterizerTests
+public sealed class FontBuilderTests
 {
     /// <summary>
     /// Builds selected glyphs and checks metrics, geometry, atlas bounds, and RGB8 data.
     /// </summary>
     [Fact]
-    public void Rasterize_assemblesManagedFontBuildResult()
+    public void Build_assemblesManagedFontBuildResult()
     {
         var fontPath = FindTestFont();
         if (fontPath is null)
             return;
 
-        var result = new ManagedFontRasterizer().Rasterize(
+        var result = new FontBuilder().Build(
             fontPath,
             ['A', 'V', ' '],
             new FontGenerationSettings

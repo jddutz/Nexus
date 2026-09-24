@@ -21,13 +21,8 @@ assets:
 
 The deterministic output is one logical directory, `fonts/<contentId>/`, containing:
 
-* `atlas.rgb8`: tightly specified RGB8 atlas bytes in row-major order;
-* `font.json`: Nexus-owned font/glyph metrics, atlas geometry, kerning, and MSDF metadata.
+* `atlas.rgb8`: tightly specified RGB8 atlas bytes in row-major order.
 
-The source font is not copied. The package contains no Graphics contracts and requires no font library at runtime.
+NAP records the atlas path and generated font metadata in `content-manifest.json`. The source font is not copied. Font generation is performed by the managed Typography implementation; NAP requires no native font libraries, external executables, or runtime font library.
 
-## Integration decision
-
-There is no managed type boundary in the selected native libraries that is both narrow and stable enough for NAP's content model. Directly projecting the C++ APIs with P/Invoke would couple managed code to C++ ABI, STL, compiler, and allocator details. NAP therefore owns a small C ABI in `native/`: one generation call, one result owner, and two matching release calls. It uses `msdfgen` plus its FreeType extension in-process, while atlas layout and serialization remain Nexus policy. Native handles never enter managed code and native results are copied immediately.
-
-Native binaries are RID/architecture artifacts of NAP itself. They are not runtime game dependencies and no executable, command line, temporary JSON, or stdout parsing is involved.
+`FontProcessor` adapts NAP asset definitions to `IFontBuilder`. The builder returns a `FontBuildResult`; NAP then writes the atlas and maps the result to its content-manifest representation.

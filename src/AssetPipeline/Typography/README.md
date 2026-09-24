@@ -410,7 +410,7 @@ Pack atlas
 Construct FontBuildResult
 ```
 
-The existing NAP boundary can therefore become conceptually:
+The NAP-facing Typography boundary is `IFontBuilder`:
 
 ```csharp
 FontBuildResult Build(
@@ -419,7 +419,7 @@ FontBuildResult Build(
     FontGenerationSettings settings);
 ```
 
-That is essentially the existing `IFontRasterizer` operation, although `Rasterize` may no longer be the best name because the implementation now performs considerably more than rasterization. 
+`FontBuilder` composes these stages and returns the complete `FontBuildResult`. NAP owns asset validation, source-path resolution, atlas writing, and translation into its content-manifest representation.
 
 ---
 
@@ -441,7 +441,7 @@ Architectural requirements:
 
 Standard .NET libraries are sufficient infrastructure.
 
-This allows the existing `NativeFontRasterizer` and `nexus_font_native` path to disappear once feature parity is established. The current implementation's native ABI and memory-copy boundary are entirely contained within `NativeFontRasterizer`. 
+The current NAP implementation follows these requirements: font generation is managed, and there is no native generator, P/Invoke boundary, or native font-library dependency.
 
 ---
 

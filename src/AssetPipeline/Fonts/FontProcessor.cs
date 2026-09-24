@@ -1,5 +1,8 @@
 namespace Nexus.AssetPipeline.Fonts;
 
+/// <summary>
+/// Adapts NAP font asset definitions to the Typography builder and adds asset context to failures.
+/// </summary>
 public sealed class FontProcessor
 {
     private static readonly HashSet<string> SupportedExtensions = new(
@@ -9,10 +12,22 @@ public sealed class FontProcessor
         ".ttf",
         ".otf",
     };
-    private readonly IFontRasterizer _rasterizer;
+    private readonly IFontBuilder _builder;
 
-    public FontProcessor(IFontRasterizer rasterizer) => _rasterizer = rasterizer;
+    /// <summary>
+    /// Initializes a processor with the font builder used to generate font data.
+    /// </summary>
+    /// <param name="builder">The Typography builder.</param>
+    public FontProcessor(IFontBuilder builder) => _builder = builder;
 
+    /// <summary>
+    /// Validates and builds a font asset from its normalized definition.
+    /// </summary>
+    /// <param name="definition">The normalized font asset definition.</param>
+    /// <param name="sourceRoot">The root used to resolve the source font path.</param>
+    /// <returns>The generated font atlas and runtime metadata.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="definition"/> is null.</exception>
+    /// <exception cref="FontBuildException">The definition is invalid or the font cannot be built.</exception>
     public FontBuildResult Process(FontDefinition definition, string sourceRoot)
     {
         PipelineLog.Info(
@@ -51,8 +66,8 @@ public sealed class FontProcessor
         {
             definition.Generation.Validate();
             var codepoints = definition.Glyphs.GetCodepoints();
-            PipelineLog.Info($"Calling rasterizer: CodepointCount={codepoints.Length}.");
-            var result = _rasterizer.Rasterize(sourcePath, codepoints, definition.Generation);
+            PipelineLog.Info($"Calling font builder: CodepointCount={codepoints.Length}.");
+            var result = _builder.Build(sourcePath, codepoints, definition.Generation);
             PipelineLog.Info(
                 $"FontProcessor.Process returned atlas {result.Atlas.Width}x{result.Atlas.Height}, "
                     + $"Pixels={result.Atlas.Pixels.Length}, Glyphs={result.Glyphs.Count}, Kerning={result.Kerning.Count}."
@@ -75,6 +90,12 @@ public sealed class FontProcessor
         }
     }
 
+    /// <summary>
+    /// Gets the package directory for a font content identifier.
+    /// </summary>
+    /// <param name="outputRoot">The content output root.</param>
+    /// <param name="contentId">The font content identifier.</param>
+    /// <returns>The font package directory.</returns>
     public static string GetOutputPath(string outputRoot, string contentId)
     {
         var result = Path.Combine(outputRoot, "fonts", contentId);

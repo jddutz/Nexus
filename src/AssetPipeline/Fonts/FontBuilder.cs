@@ -8,7 +8,7 @@ namespace Nexus.AssetPipeline.Fonts;
 /// <summary>
 /// Builds a font atlas and runtime metadata using the managed typography stages.
 /// </summary>
-public sealed class ManagedFontRasterizer : IFontRasterizer
+public sealed class FontBuilder : IFontBuilder
 {
     /// <summary>
     /// Generates glyph distance fields, packs their atlas, and assembles the runtime font result.
@@ -19,7 +19,7 @@ public sealed class ManagedFontRasterizer : IFontRasterizer
     /// <returns>The atlas, glyph metadata, font metrics, and codepoint kerning pairs.</returns>
     /// <exception cref="ArgumentNullException">An argument is null.</exception>
     /// <exception cref="FontBuildException">The requested font result cannot be generated.</exception>
-    public FontBuildResult Rasterize(
+    public FontBuildResult Build(
         string sourcePath,
         IReadOnlyList<int> codepoints,
         FontGenerationSettings settings
@@ -123,7 +123,7 @@ public sealed class ManagedFontRasterizer : IFontRasterizer
             new MsdfMetadata(settings.DistanceRange, settings.EmSize)
         );
         PipelineLog.Info(
-            $"ManagedFontRasterizer.Rasterize returned atlas {result.Atlas.Width}x{result.Atlas.Height}, "
+            $"FontBuilder.Build returned atlas {result.Atlas.Width}x{result.Atlas.Height}, "
                 + $"Glyphs={result.Glyphs.Count}, Kerning={result.Kerning.Count}."
         );
         return result;
