@@ -202,6 +202,13 @@ SFNT
 
 That table list should be validated when we write the detailed TrueType-reader spec rather than treated as the final compatibility promise.
 
+The current cmap reader supports Unicode format 4 and format 12. This scope was checked against
+the local `.assets/Fonts` reference set: every font has a Unicode format 4 map, and the two
+HomeVideo fonts also include Unicode format 12 maps. Format 12 is preferred when available, with
+format 4 used for codepoints it does not map and for fonts without format 12. Formats 0 and 6 also
+occur in the fixtures but are not needed for their Unicode mappings. Missing or invalid Unicode
+codepoints resolve to glyph zero; glyph indices use the SFNT `ushort` range.
+
 Unsupported font features must produce an explicit diagnostic rather than silently generating incorrect assets.
 
 ---

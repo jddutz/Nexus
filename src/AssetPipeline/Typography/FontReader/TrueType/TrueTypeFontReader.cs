@@ -10,6 +10,7 @@ public sealed class TrueTypeFontReader
 {
     private readonly ReadOnlyMemory<byte> _data;
     private FontFace? _fontFace;
+    private CmapTable? _cmapTable;
 
     /// <summary>
     /// Initializes a font reader from in-memory font data.
@@ -30,6 +31,21 @@ public sealed class TrueTypeFontReader
     /// Gets the font-wide metrics parsed from the required TrueType tables.
     /// </summary>
     public FontFace FontFace => _fontFace ??= ParseFontFace();
+
+    /// <summary>
+    /// Gets the glyph index representing a Unicode codepoint, or zero when it is absent.
+    /// </summary>
+    /// <param name="codepoint">The Unicode codepoint to resolve.</param>
+    /// <returns>The glyph index, or zero if no mapping exists.</returns>
+    public ushort GetGlyphIndex(int codepoint)
+    {
+        if (codepoint is < 0 or > 0x10FFFF)
+            return 0;
+
+        var glyphCount = MaxpTable.Parse(new TrueTypeReader(GetTable("maxp"))).GlyphCount;
+        _cmapTable ??= CmapTable.Parse(new TrueTypeReader(GetTable("cmap")), glyphCount);
+        return _cmapTable.GetGlyphIndex(codepoint);
+    }
 
     /// <summary>
     /// Opens a font file from disk.
