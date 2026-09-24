@@ -27,7 +27,7 @@ public sealed class Pipeline
                 .WithNamingConvention(CamelCaseNamingConvention.Instance)
                 .IgnoreUnmatchedProperties()
                 .Build();
-            var processor = new FontProcessor(new NativeFontRasterizer());
+            var processor = new FontProcessor(new ManagedFontRasterizer());
             var textureEntries = new Dictionary<string, Dictionary<string, string>>(
                 StringComparer.Ordinal
             );
