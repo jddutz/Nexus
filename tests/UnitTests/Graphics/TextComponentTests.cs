@@ -2,6 +2,7 @@ using Nexus.Graphics;
 using Nexus.Graphics.Components;
 using Nexus.Graphics.Geometry;
 using Nexus.Graphics.Shaders;
+using Nexus.Graphics.Text;
 using Nexus.Graphics.Textures;
 using Silk.NET.Maths;
 
@@ -18,7 +19,7 @@ public sealed class TextComponentTests
     [Fact]
     public void Drawables_returns_text_spans()
     {
-        var component = new TextComponent { Text = "Hello" };
+        var component = new TextComponent(CreateStyle()) { Text = "Hello" };
 
         var span = Assert.IsType<TextSpan>(Assert.Single(component.Drawables));
 
@@ -31,14 +32,14 @@ public sealed class TextComponentTests
     [Fact]
     public void Text_replaces_existing_spans_with_one_span()
     {
-        var component = new TextComponent { Text = "Before" };
+        var component = new TextComponent(CreateStyle()) { Text = "Before" };
 
         component.Text = "Hello";
 
         Assert.Equal("Hello", component.Text);
         var span = Assert.IsType<TextSpan>(Assert.Single(component.Drawables));
-        Assert.Same(Texture.Invalid, span.Texture);
-        Assert.Empty(span.Glyphs);
+        Assert.Equal(2u, span.Texture.Width);
+        Assert.Equal("Hello", span.Text);
     }
 
     /// <summary>
@@ -47,28 +48,34 @@ public sealed class TextComponentTests
     [Fact]
     public void GetInstanceData_packs_all_glyphs()
     {
-        var span = CreateSpan(2);
+        var span = new TextSpan(CreateStyle(), "AB");
         var data = span.GetInstanceData(BuiltInShaders.TexturedQuadVertexShader.InstanceLayout);
 
         Assert.Equal((ulong)2, ((IDrawable)span).InstanceCount);
         Assert.Equal(192, data.Length);
     }
 
-    /// <summary>
-    /// Creates a span with the requested number of glyph records.
-    /// </summary>
-    /// <param name="count">The number of glyph records.</param>
-    /// <returns>The configured text span.</returns>
-    private static TextSpan CreateSpan(int count)
+    private static ITextStyle CreateStyle()
     {
-        var glyphs = Enumerable
-            .Range(0, count)
-            .Select(index => new TextGlyph(
-                Matrix4X4.CreateTranslation(index, 0f, 0f),
-                new(index * 0.1f, 0f, 0.1f, 1f),
-                Colors.White
-            ));
+        return new TestTextStyle(
+            new Dictionary<int, FontGlyph>
+            {
+                ['A'] = new('A', 1, new(0, 0, 1, 1), new(0, 0, 1, 1)),
+                ['B'] = new('B', 1, new(0, 0, 1, 1), new(1, 0, 1, 1)),
+            }
+        );
+    }
 
-        return new TextSpan(new Texture("atlas", 1, 1, [Colors.White]), glyphs);
+    private sealed class TestTextStyle(IReadOnlyDictionary<int, FontGlyph> glyphs) : ITextStyle
+    {
+        public ITexture Texture { get; } = new Texture("atlas", 2, 1, [Colors.White, Colors.White]);
+        public IReadOnlyDictionary<int, FontGlyph> Glyphs { get; } = glyphs;
+        public FontMetrics FontMetrics { get; } = new(1, 1, 0, 1);
+        public IReadOnlyDictionary<
+            (int LeftCodepoint, int RightCodepoint),
+            double
+        > Kerning { get; } = new Dictionary<(int, int), double>();
+        public Color Color { get; } = Colors.White;
+        public double Size { get; } = 1;
     }
 }

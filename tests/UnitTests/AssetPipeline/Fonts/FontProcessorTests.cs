@@ -1,10 +1,14 @@
 using Nexus.AssetPipeline.Fonts;
+using Nexus.Graphics.Text;
 
 namespace Nexus.AssetPipeline.Tests;
 
 public sealed class FontProcessorTests : IDisposable
 {
-    private readonly string _folder = Path.Combine(Path.GetTempPath(), $"nap-tests-{Guid.NewGuid():N}");
+    private readonly string _folder = Path.Combine(
+        Path.GetTempPath(),
+        $"nap-tests-{Guid.NewGuid():N}"
+    );
 
     [Theory]
     [InlineData("font.woff")]
@@ -16,7 +20,9 @@ public sealed class FontProcessorTests : IDisposable
         var processor = new FontProcessor(new FakeRasterizer());
         var definition = CreateDefinition(fileName);
 
-        var exception = Assert.Throws<FontBuildException>(() => processor.Process(definition, _folder));
+        var exception = Assert.Throws<FontBuildException>(() =>
+            processor.Process(definition, _folder)
+        );
 
         Assert.Contains("ui.default", exception.Message);
         Assert.Contains(fileName, exception.Message);
@@ -29,8 +35,8 @@ public sealed class FontProcessorTests : IDisposable
         var rasterizer = new FakeRasterizer();
         var processor = new FontProcessor(rasterizer);
 
-        var exception = Assert.Throws<FontBuildException>(
-            () => processor.Process(CreateDefinition("missing.ttf"), _folder)
+        var exception = Assert.Throws<FontBuildException>(() =>
+            processor.Process(CreateDefinition("missing.ttf"), _folder)
         );
 
         Assert.Contains("ui.default", exception.Message);
@@ -59,8 +65,8 @@ public sealed class FontProcessorTests : IDisposable
         File.WriteAllBytes(Path.Combine(_folder, "broken.otf"), [1]);
         var processor = new FontProcessor(new ThrowingRasterizer());
 
-        var exception = Assert.Throws<FontBuildException>(
-            () => processor.Process(CreateDefinition("broken.otf"), _folder)
+        var exception = Assert.Throws<FontBuildException>(() =>
+            processor.Process(CreateDefinition("broken.otf"), _folder)
         );
 
         Assert.Contains("ui.default", exception.Message);
@@ -107,8 +113,15 @@ public sealed class FontProcessorTests : IDisposable
         new(
             new FontAtlas(2, 2, new byte[12]),
             new FontMetrics(48, .8, -.2, 1.2),
-            Enumerable.Range(32, glyphCount).Select(codepoint =>
-                new FontGlyph(codepoint, .5, new(0, 0, .5, 1), new(0, 0, 1, 2))).ToArray(),
+            Enumerable
+                .Range(32, glyphCount)
+                .Select(codepoint => new FontGlyph(
+                    codepoint,
+                    .5,
+                    new(0, 0, .5, 1),
+                    new(0, 0, 1, 2)
+                ))
+                .ToArray(),
             [],
             new MsdfMetadata(4, 48)
         );
@@ -117,7 +130,11 @@ public sealed class FontProcessorTests : IDisposable
     {
         public bool WasCalled { get; private set; }
 
-        public FontBuildResult Rasterize(string sourcePath, IReadOnlyList<int> codepoints, FontGenerationSettings settings)
+        public FontBuildResult Rasterize(
+            string sourcePath,
+            IReadOnlyList<int> codepoints,
+            FontGenerationSettings settings
+        )
         {
             WasCalled = true;
             return result ?? CreateResult(codepoints.Count);
@@ -126,7 +143,10 @@ public sealed class FontProcessorTests : IDisposable
 
     private sealed class ThrowingRasterizer : IFontRasterizer
     {
-        public FontBuildResult Rasterize(string sourcePath, IReadOnlyList<int> codepoints, FontGenerationSettings settings) =>
-            throw new FontBuildException("invalid font");
+        public FontBuildResult Rasterize(
+            string sourcePath,
+            IReadOnlyList<int> codepoints,
+            FontGenerationSettings settings
+        ) => throw new FontBuildException("invalid font");
     }
 }

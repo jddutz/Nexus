@@ -4,7 +4,7 @@ public sealed record FontBuildResult(
     FontAtlas Atlas,
     FontMetrics Metrics,
     IReadOnlyList<FontGlyph> Glyphs,
-    IReadOnlyList<FontKerningPair> Kerning,
+    IReadOnlyList<TextKerningPair> Kerning,
     MsdfMetadata Msdf
 );
 

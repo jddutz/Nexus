@@ -92,7 +92,7 @@ public sealed class NativeFontRasterizer : IFontRasterizer
             ))
             .ToArray();
         var kerning = CopyArray<NativeKerning>(native.Kerning, native.KerningCount)
-            .Select(pair => new FontKerningPair(pair.Left, pair.Right, pair.Adjustment))
+            .Select(pair => new TextKerningPair(pair.Left, pair.Right, pair.Adjustment))
             .ToArray();
 
         var result = new FontBuildResult(

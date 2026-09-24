@@ -1,4 +1,7 @@
-namespace Nexus.Graphics.Components;
+using System.Text;
+using Nexus.Graphics.Components;
+
+namespace Nexus.Graphics.Text;
 
 /// <summary>Renders a group of glyphs from one texture atlas as textured-quad instances.</summary>
 public sealed class TextSpan : IDrawable, IMeshInstance
@@ -11,29 +14,32 @@ public sealed class TextSpan : IDrawable, IMeshInstance
     private static ulong _nextId;
     private readonly DrawableId _id = new(Interlocked.Increment(ref _nextId));
 
-    /// <summary>Initializes a text span with one or more glyph instances.</summary>
-    /// <param name="texture">The texture atlas sampled by every glyph.</param>
-    /// <param name="glyphs">The independent glyph instances rendered by the span.</param>
-    public TextSpan(ITexture texture, IEnumerable<TextGlyph> glyphs)
+    /// <summary>Initializes a text span with its text and rendering style.</summary>
+    /// <param name="style">The font and visual data used to render the text.</param>
+    /// <param name="text">The text represented by the span.</param>
+    public TextSpan(ITextStyle style, string text)
     {
-        ArgumentNullException.ThrowIfNull(texture);
-        ArgumentNullException.ThrowIfNull(glyphs);
+        ArgumentNullException.ThrowIfNull(style);
+        ArgumentNullException.ThrowIfNull(text);
 
-        Texture = texture;
-        Glyphs = glyphs.ToArray();
+        Style = style;
+        Text = text;
     }
 
     /// <summary>Gets or sets the mask of render layers in which this span participates.</summary>
     public ulong RenderLayerMask { get; set; } = ulong.MaxValue;
 
-    /// <summary>Gets the glyph instances rendered by this span.</summary>
-    public IReadOnlyList<TextGlyph> Glyphs { get; }
+    /// <summary>Gets the font and visual data used to render this span.</summary>
+    public ITextStyle Style { get; }
+
+    /// <summary>Gets or sets the text represented by this span.</summary>
+    public string Text { get; set; }
 
     /// <summary>Gets the shared textured-quad mesh geometry used by the glyphs.</summary>
     public Mesh Mesh { get; } = BuiltInMesh.TexturedQuadOffset;
 
     /// <summary>Gets the texture atlas sampled by the glyphs.</summary>
-    public ITexture Texture { get; }
+    public ITexture Texture => Style.Texture;
 
     /// <summary>Gets the sampling behavior used when sampling the texture atlas.</summary>
     public ISamplingBehavior SamplingBehavior { get; set; } = SamplingBehaviors.Smooth;
@@ -57,14 +63,22 @@ public sealed class TextSpan : IDrawable, IMeshInstance
     DrawableId IDrawable.Id => _id;
 
     /// <summary>Gets the number of glyph instances in this span.</summary>
-    ulong IDrawable.InstanceCount => checked((ulong)Glyphs.Count);
+    ulong IDrawable.InstanceCount => checked((ulong)BuildGlyphs().Count);
 
     /// <summary>Gets the first glyph transform for the mesh-instance compatibility contract.</summary>
-    public Matrix4X4<float> TransformationMatrix =>
-        Glyphs.Count == 0 ? Matrix4X4<float>.Identity : Glyphs[0].TransformationMatrix;
+    public Matrix4X4<float> TransformationMatrix
+    {
+        get
+        {
+            var glyphs = BuildGlyphs();
+            return glyphs.Count == 0
+                ? Matrix4X4<float>.Identity
+                : CreateTransformation(glyphs[0].Glyph, glyphs[0].X);
+        }
+    }
 
     /// <summary>Gets the first glyph tint for the mesh-instance compatibility contract.</summary>
-    public Color Color => Glyphs.Count == 0 ? Colors.White : Glyphs[0].Color;
+    public Color Color => Style.Color;
 
     /// <summary>Gets the packed uniform data required by the textured-quad shader.</summary>
     /// <param name="layout">The requested uniform layout.</param>
@@ -96,23 +110,68 @@ public sealed class TextSpan : IDrawable, IMeshInstance
                 nameof(layout)
             );
 
-        var data = new byte[checked(Glyphs.Count * InstanceDataSize)];
+        var glyphs = BuildGlyphs();
+        var data = new byte[checked(glyphs.Count * InstanceDataSize)];
         var textureRegionOffset = System.Runtime.CompilerServices.Unsafe.SizeOf<Matrix4X4<float>>();
         var colorOffset =
             textureRegionOffset + System.Runtime.CompilerServices.Unsafe.SizeOf<Vector4D<float>>();
-        for (var index = 0; index < Glyphs.Count; index++)
+        for (var index = 0; index < glyphs.Count; index++)
         {
             var destination = data.AsSpan(index * InstanceDataSize, InstanceDataSize);
-            var glyph = Glyphs[index];
-            var transformationMatrix = glyph.TransformationMatrix;
-            var textureRegion = glyph.TextureRegion;
-            var color = glyph.Color;
+            var glyph = glyphs[index].Glyph;
+            var transformationMatrix = CreateTransformation(glyph, glyphs[index].X);
+            var textureRegion = new Vector4D<float>(
+                (float)(glyph.AtlasBounds.Left / Texture.Width),
+                (float)(glyph.AtlasBounds.Bottom / Texture.Height),
+                (float)((glyph.AtlasBounds.Right - glyph.AtlasBounds.Left) / Texture.Width),
+                (float)((glyph.AtlasBounds.Top - glyph.AtlasBounds.Bottom) / Texture.Height)
+            );
+            var color = Style.Color;
             MemoryMarshal.Write(destination, in transformationMatrix);
             MemoryMarshal.Write(destination[textureRegionOffset..], in textureRegion);
             MemoryMarshal.Write(destination[colorOffset..], in color);
         }
 
         return data;
+    }
+
+    private List<(FontGlyph Glyph, float X)> BuildGlyphs()
+    {
+        var glyphs = new List<(FontGlyph Glyph, float X)>();
+        var penX = 0.0;
+        var scale = Style.FontMetrics.EmSize == 0 ? 1.0 : Style.Size / Style.FontMetrics.EmSize;
+        var previousCodepoint = -1;
+
+        foreach (var rune in Text.EnumerateRunes())
+        {
+            var codepoint = rune.Value;
+            if (!Style.Glyphs.TryGetValue(codepoint, out var glyph))
+                continue;
+
+            if (
+                previousCodepoint >= 0
+                && Style.Kerning.TryGetValue((previousCodepoint, codepoint), out var adjustment)
+            )
+                penX += adjustment * scale;
+
+            glyphs.Add((glyph, (float)penX));
+            penX += glyph.Advance * scale;
+            previousCodepoint = codepoint;
+        }
+
+        return glyphs;
+    }
+
+    private Matrix4X4<float> CreateTransformation(FontGlyph glyph, float penX)
+    {
+        var scale = Style.FontMetrics.EmSize == 0 ? 1.0 : Style.Size / Style.FontMetrics.EmSize;
+        var width = (float)((glyph.PlaneBounds.Right - glyph.PlaneBounds.Left) * scale);
+        var height = (float)((glyph.PlaneBounds.Top - glyph.PlaneBounds.Bottom) * scale);
+        var centerX =
+            penX + (float)((glyph.PlaneBounds.Left + glyph.PlaneBounds.Right) * scale / 2);
+        var centerY = (float)((glyph.PlaneBounds.Bottom + glyph.PlaneBounds.Top) * scale / 2);
+        return Matrix4X4.CreateScale(width, height, 1f)
+            * Matrix4X4.CreateTranslation(centerX, centerY, 0f);
     }
 
     /// <inheritdoc/>

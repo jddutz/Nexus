@@ -1,3 +1,5 @@
+using Nexus.Graphics.Text;
+
 namespace Nexus.Graphics.Components;
 
 /// <summary>
@@ -6,7 +8,15 @@ namespace Nexus.Graphics.Components;
 public class TextComponent : Component, IGraphicsComponent
 {
     private readonly List<TextSpan> _spans = [];
+    private readonly ITextStyle _textStyle;
     private string _text = string.Empty;
+
+    /// <summary>Initializes a text component with the style used by its spans.</summary>
+    /// <param name="textStyle">The font and visual data used to render the component's text.</param>
+    public TextComponent(ITextStyle textStyle)
+    {
+        _textStyle = textStyle ?? throw new ArgumentNullException(nameof(textStyle));
+    }
 
     /// <summary>Gets or sets the text represented by this component.</summary>
     public string Text
@@ -19,7 +29,7 @@ public class TextComponent : Component, IGraphicsComponent
             _spans.Clear();
 
             // TODO: Parse multiline and rich text into glyph spans.
-            _spans.Add(new TextSpan(Texture.Invalid, []));
+            _spans.Add(new TextSpan(_textStyle, _text));
         }
     }
 
