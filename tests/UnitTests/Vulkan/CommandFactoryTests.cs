@@ -105,12 +105,12 @@ public class CommandFactoryTests
                 ),
             dependencies.SwapChain,
             dependencies.Geometry,
+            dependencies.Geometry,
             dependencies.Texture,
             dependencies.Pipelines,
             dependencies.Descriptors,
             dependencies.Buffers,
-            dependencies.Samplers,
-            null!
+            dependencies.Samplers
         )
         {
             PipelineDefinition = dependencies.PipelineDefinition,
@@ -169,23 +169,23 @@ public class CommandFactoryTests
         Context context,
         ISwapChain swapChain,
         IVertexBufferRegistry geometryRegistry,
+        IInstanceBufferRegistry instanceBufferRegistry,
         IImageRegistry textureRegistry,
         IPipelineRegistry pipelineRegistry,
         IDescriptorSetPool descriptorSetPool,
         IBufferManager bufferManager,
-        ISamplerRegistry samplerRegistry,
-        ILogger<CommandFactory> logger
+        ISamplerRegistry samplerRegistry
     )
         : CommandFactory(
             context,
             swapChain,
             geometryRegistry,
+            instanceBufferRegistry,
             textureRegistry,
             pipelineRegistry,
             descriptorSetPool,
             bufferManager,
-            samplerRegistry,
-            logger
+            samplerRegistry
         )
     {
         public PipelineDefinition PipelineDefinition { get; init; } =
@@ -240,14 +240,11 @@ public class CommandFactoryTests
         public void Dispose() { }
     }
 
-    private sealed class TestGeometryRegistry : IVertexBufferRegistry
+    private sealed class TestGeometryRegistry : IVertexBufferRegistry, IInstanceBufferRegistry
     {
         public int CreateCount { get; private set; }
 
-        public IEnumerable<IVulkanCommand> CreateInstanceBuffer(
-            IDrawable drawable,
-            ShaderInput[] layout
-        ) => [];
+        public IEnumerable<IVulkanCommand> Create(IDrawable drawable, ShaderInput[] layout) => [];
 
         public IEnumerable<IVulkanCommand> Create(IGeometry geometry, VertexFormat format)
         {
@@ -259,11 +256,11 @@ public class CommandFactoryTests
 
         public VkBuffer Get(MeshId meshId, VertexFormatId formatId) => new(11);
 
-        public VkBuffer GetInstanceBuffer(DrawableId drawableId) => new(12);
+        public VkBuffer Get(DrawableId drawableId) => new(12);
 
         public IEnumerable<IVulkanCommand> Release(IGeometry geometry, VertexFormat format) => [];
 
-        public IEnumerable<IVulkanCommand> ReleaseInstanceBuffer(DrawableId drawableId) => [];
+        public IEnumerable<IVulkanCommand> Release(DrawableId drawableId) => [];
 
         public void Reset() { }
 
