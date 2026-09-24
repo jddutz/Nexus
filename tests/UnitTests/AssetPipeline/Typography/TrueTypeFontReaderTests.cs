@@ -235,6 +235,70 @@ public sealed class TrueTypeFontReaderTests
     }
 
     /// <summary>
+    /// Verifies nested components apply their F2Dot14 scale and XY translation.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFontReader_resolvesNestedCompositeTransforms()
+    {
+        var font = new TrueTypeFontReader(
+            CreateFontWithGlyphs(
+                CreateCompressedSimpleGlyph(),
+                CreateCompositeGlyph((0x000B, 0, 0, 0, [0x7FFF])),
+                CreateCompositeGlyph((0x0003, 1, 10, 5, []))
+            )
+        );
+
+        var outline = font.GetGlyphOutline(2);
+        var point = Assert.Single(outline.Contours).Points[1];
+
+        Assert.Equal((4, 1, false), (point.X, point.Y, point.OnCurve));
+    }
+
+    /// <summary>
+    /// Verifies point-index arguments align a component point with an existing parent point.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFontReader_resolvesCompositePointAttachments()
+    {
+        var font = new TrueTypeFontReader(
+            CreateFontWithGlyphs(
+                CreateCompressedSimpleGlyph(),
+                CreateCompositeGlyph((0x0023, 0, 100, 0, []), (0x0001, 0, 1, 0, []))
+            )
+        );
+
+        var contours = font.GetGlyphOutline(1).Contours;
+
+        Assert.Equal(2, contours.Count);
+        Assert.Equal((-3 + 100, -2), (contours[1].Points[0].X, contours[1].Points[0].Y));
+    }
+
+    /// <summary>
+    /// Verifies composite cycles, excessive nesting, and references outside the glyph set are rejected.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFontReader_rejectsMalformedCompositeGraphs()
+    {
+        var cyclicFont = new TrueTypeFontReader(
+            CreateFontWithGlyphs(CreateCompositeGlyph((0x0003, 0, 0, 0, [])))
+        );
+        Assert.Throws<InvalidDataException>(() => cyclicFont.GetGlyphOutline(0));
+
+        var deepGlyphs = Enumerable
+            .Range(0, 32)
+            .Select(index => CreateCompositeGlyph((0x0003, checked((ushort)(index + 1)), 0, 0, [])))
+            .Append(CreateCompressedSimpleGlyph())
+            .ToArray();
+        var deepFont = new TrueTypeFontReader(CreateFontWithGlyphs(deepGlyphs));
+        Assert.Throws<InvalidDataException>(() => deepFont.GetGlyphOutline(0));
+
+        var invalidIndexFont = new TrueTypeFontReader(
+            CreateFontWithGlyphs(CreateCompositeGlyph((0x0003, 1, 0, 0, [])))
+        );
+        Assert.Throws<InvalidDataException>(() => invalidIndexFont.GetGlyphOutline(0));
+    }
+
+    /// <summary>
     /// Verifies on-curve pairs become lines and an on/off/on sequence becomes a quadratic edge.
     /// </summary>
     [Fact]
@@ -373,6 +437,24 @@ public sealed class TrueTypeFontReaderTests
 
         WriteOutline('I', iGlyphIndex, iOutline);
         WriteOutline('O', oGlyphIndex, oOutline);
+    }
+
+    /// <summary>
+    /// Verifies common accented Latin glyphs resolve through composite outlines in the local font.
+    /// </summary>
+    [Fact]
+    public void Open_resolvesLocalCompositeLatinAccentsWhenAvailable()
+    {
+        var fontPath = FindLocalFont("Roboto-Regular.ttf");
+        if (fontPath is null)
+            return;
+
+        var font = TrueTypeFontReader.Open(fontPath);
+        foreach (var character in new[] { 'é', 'Å' })
+        {
+            var outline = font.GetGlyphOutline(font.GetGlyphIndex(character));
+            Assert.NotEmpty(outline.Contours);
+        }
     }
 
     /// <summary>
@@ -681,6 +763,93 @@ public sealed class TrueTypeFontReaderTests
         glyph[22] = 3;
         glyph[23] = 6;
         return glyph;
+    }
+
+    /// <summary>
+    /// Creates a composite glyph with the supplied component records.
+    /// </summary>
+    /// <param name="components">The flags, glyph index, arguments, and encoded transform values.</param>
+    /// <returns>The encoded composite glyph.</returns>
+    private static byte[] CreateCompositeGlyph(
+        params (
+            ushort Flags,
+            ushort GlyphIndex,
+            short Argument1,
+            short Argument2,
+            short[] Transform
+        )[] components
+    )
+    {
+        var length = 10;
+        foreach (var component in components)
+        {
+            length += (component.Flags & 1) != 0 ? 8 : 6;
+            length += component.Transform.Length * 2;
+        }
+
+        var glyph = new byte[length];
+        BinaryPrimitives.WriteInt16BigEndian(glyph, -1);
+        var position = 10;
+        foreach (var component in components)
+        {
+            BinaryPrimitives.WriteUInt16BigEndian(glyph.AsSpan(position), component.Flags);
+            BinaryPrimitives.WriteUInt16BigEndian(glyph.AsSpan(position + 2), component.GlyphIndex);
+            position += 4;
+            if ((component.Flags & 1) != 0)
+            {
+                BinaryPrimitives.WriteInt16BigEndian(glyph.AsSpan(position), component.Argument1);
+                BinaryPrimitives.WriteInt16BigEndian(
+                    glyph.AsSpan(position + 2),
+                    component.Argument2
+                );
+                position += 4;
+            }
+            else
+            {
+                glyph[position++] = unchecked((byte)(sbyte)component.Argument1);
+                glyph[position++] = unchecked((byte)(sbyte)component.Argument2);
+            }
+
+            foreach (var value in component.Transform)
+            {
+                BinaryPrimitives.WriteInt16BigEndian(glyph.AsSpan(position), value);
+                position += 2;
+            }
+        }
+
+        return glyph;
+    }
+
+    /// <summary>
+    /// Creates a font containing a long-format loca table and the requested glyphs.
+    /// </summary>
+    /// <param name="glyphs">The glyph records in glyph-index order.</param>
+    /// <returns>The complete SFNT font bytes.</returns>
+    private static byte[] CreateFontWithGlyphs(params byte[][] glyphs)
+    {
+        var glyf = new byte[glyphs.Sum(glyph => glyph.Length)];
+        var loca = new byte[(glyphs.Length + 1) * sizeof(uint)];
+        var offset = 0;
+        for (var index = 0; index < glyphs.Length; index++)
+        {
+            BinaryPrimitives.WriteUInt32BigEndian(
+                loca.AsSpan(index * sizeof(uint)),
+                checked((uint)offset)
+            );
+            glyphs[index].CopyTo(glyf, offset);
+            offset += glyphs[index].Length;
+        }
+
+        BinaryPrimitives.WriteUInt32BigEndian(
+            loca.AsSpan(glyphs.Length * sizeof(uint)),
+            checked((uint)offset)
+        );
+        return CreateFontWithTables(
+            ("head", CreateHeadTable(1)),
+            ("maxp", CreateMaxpTable(checked((ushort)glyphs.Length))),
+            ("loca", loca),
+            ("glyf", glyf)
+        );
     }
 
     /// <summary>

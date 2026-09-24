@@ -66,13 +66,13 @@ public sealed class TrueTypeFontReader
     }
 
     /// <summary>
-    /// Gets the decoded outline for a simple TrueType glyph.
+    /// Gets the decoded outline for a simple or composite TrueType glyph.
     /// </summary>
     /// <param name="glyphIndex">The zero-based glyph index, typically resolved from a codepoint.</param>
     /// <returns>The glyph's contours and points in font units.</returns>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="glyphIndex"/> is outside the font.</exception>
     /// <exception cref="InvalidDataException">The loca or glyph data is malformed.</exception>
-    /// <exception cref="NotSupportedException">The glyph is composite rather than simple.</exception>
+    /// <exception cref="InvalidDataException">The glyph data is malformed or contains cyclic or excessively deep composites.</exception>
     public FontGlyphOutline GetGlyphOutline(ushort glyphIndex)
     {
         var glyfData = GetTable("glyf");

@@ -3,7 +3,7 @@ using System.Collections.ObjectModel;
 namespace Nexus.AssetPipeline.Typography.FontReader;
 
 /// <summary>
-/// Contains the contours decoded from one simple TrueType glyph.
+/// Contains the contours decoded from one TrueType glyph.
 /// </summary>
 public sealed class FontGlyphOutline
 {

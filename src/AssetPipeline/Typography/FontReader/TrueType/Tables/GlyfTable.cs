@@ -4,7 +4,7 @@ using Nexus.AssetPipeline.Typography.FontReader.TrueType;
 namespace Nexus.AssetPipeline.Typography.FontReader.TrueType.Tables;
 
 /// <summary>
-/// Decodes simple glyph outlines from a TrueType glyf table.
+/// Decodes simple and composite glyph outlines from a TrueType glyf table.
 /// </summary>
 public static class GlyfTable
 {
@@ -14,9 +14,22 @@ public static class GlyfTable
     private const byte RepeatFlag = 0x08;
     private const byte XSameOrPositive = 0x10;
     private const byte YSameOrPositive = 0x20;
+    private const ushort Arg1And2AreWords = 0x0001;
+    private const ushort ArgsAreXyValues = 0x0002;
+    private const ushort RoundXyToGrid = 0x0004;
+    private const ushort WeHaveAScale = 0x0008;
+    private const ushort MoreComponents = 0x0020;
+    private const ushort WeHaveAnXAndYScale = 0x0040;
+    private const ushort WeHaveATwoByTwo = 0x0080;
+    private const ushort WeHaveInstructions = 0x0100;
+    private const ushort ScaledComponentOffset = 0x0800;
+    private const ushort UnscaledComponentOffset = 0x1000;
+    private const ushort KnownComponentFlags = 0x1FEF;
+    private const int MaximumCompositeDepth = 32;
+    private const int MaximumCompositePointCount = 1_000_000;
 
     /// <summary>
-    /// Parses one simple glyph from a bounded glyf table reader.
+    /// Parses one glyph from a bounded glyf table reader, resolving composite components recursively.
     /// </summary>
     /// <param name="reader">A reader bounded to the glyf table data.</param>
     /// <param name="locaTable">The validated glyph offsets.</param>
@@ -24,8 +37,7 @@ public static class GlyfTable
     /// <returns>The decoded glyph outline.</returns>
     /// <exception cref="ArgumentNullException">A reader or loca table is null.</exception>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="glyphIndex"/> is outside the font.</exception>
-    /// <exception cref="InvalidDataException">The glyph data is malformed.</exception>
-    /// <exception cref="NotSupportedException">The glyph is composite rather than simple.</exception>
+    /// <exception cref="InvalidDataException">The glyph data is malformed, cyclic, or excessively deep.</exception>
     public static FontGlyphOutline ParseGlyph(
         TrueTypeReader reader,
         LocaTable locaTable,
@@ -40,7 +52,7 @@ public static class GlyfTable
 
         try
         {
-            return ParseSimpleGlyph(new TrueTypeReader(reader.Slice(range.Offset, range.Length)));
+            return ParseGlyph(reader, locaTable, glyphIndex, new HashSet<ushort>(), depth: 0);
         }
         catch (ArgumentOutOfRangeException exception)
         {
@@ -59,29 +71,63 @@ public static class GlyfTable
     }
 
     /// <summary>
+    /// Resolves a glyph and its components while tracking the active recursion path.
+    /// </summary>
+    /// <param name="reader">A reader over the complete glyf table.</param>
+    /// <param name="locaTable">The validated glyph offsets.</param>
+    /// <param name="glyphIndex">The glyph to decode.</param>
+    /// <param name="ancestry">Glyphs currently being resolved.</param>
+    /// <param name="depth">The number of component levels already entered.</param>
+    /// <returns>The decoded glyph outline.</returns>
+    /// <exception cref="InvalidDataException">The glyph graph contains a cycle or excessive nesting.</exception>
+    private static FontGlyphOutline ParseGlyph(
+        TrueTypeReader reader,
+        LocaTable locaTable,
+        ushort glyphIndex,
+        HashSet<ushort> ancestry,
+        int depth
+    )
+    {
+        if (depth >= MaximumCompositeDepth)
+            throw new InvalidDataException("A 'glyf' composite exceeds the maximum nesting depth.");
+        if (!ancestry.Add(glyphIndex))
+            throw new InvalidDataException("A 'glyf' composite contains a component cycle.");
+
+        try
+        {
+            var range = locaTable.GetGlyphRange(glyphIndex);
+            if (range.Length == 0)
+                return new FontGlyphOutline([]);
+
+            var glyphReader = new TrueTypeReader(reader.Slice(range.Offset, range.Length));
+            if (glyphReader.Length < 10)
+                throw new InvalidDataException("A 'glyf' glyph header is too short.");
+
+            var contourCount = glyphReader.ReadInt16();
+            for (var index = 0; index < 4; index++)
+                _ = glyphReader.ReadInt16();
+
+            if (contourCount >= 0)
+                return ParseSimpleGlyph(glyphReader, contourCount);
+            if (contourCount != -1)
+                throw new InvalidDataException("A 'glyf' glyph has an invalid contour count.");
+
+            return ParseCompositeGlyph(glyphReader, reader, locaTable, ancestry, depth);
+        }
+        finally
+        {
+            ancestry.Remove(glyphIndex);
+        }
+    }
+
+    /// <summary>
     /// Decodes a glyph header, point flags, and compressed coordinate deltas.
     /// </summary>
     /// <param name="reader">A reader bounded to one glyph's data.</param>
     /// <returns>The decoded glyph outline.</returns>
     /// <exception cref="InvalidDataException">The simple glyph structure is malformed.</exception>
-    /// <exception cref="NotSupportedException">The glyph is composite rather than simple.</exception>
-    private static FontGlyphOutline ParseSimpleGlyph(TrueTypeReader reader)
+    private static FontGlyphOutline ParseSimpleGlyph(TrueTypeReader reader, int contourCount)
     {
-        if (reader.Length < 10)
-            throw new InvalidDataException("A 'glyf' glyph header is too short.");
-
-        var contourCount = reader.ReadInt16();
-        for (var index = 0; index < 4; index++)
-            _ = reader.ReadInt16();
-
-        if (contourCount < 0)
-        {
-            if (contourCount == -1)
-                throw new NotSupportedException("Composite TrueType glyphs are not supported yet.");
-
-            throw new InvalidDataException("A 'glyf' glyph has an invalid contour count.");
-        }
-
         if (contourCount == 0)
             return new FontGlyphOutline([]);
 
@@ -138,6 +184,197 @@ public static class GlyfTable
 
         return new FontGlyphOutline(contours);
     }
+
+    /// <summary>
+    /// Decodes component records, recursively resolves their outlines, and combines transformed contours.
+    /// </summary>
+    /// <param name="glyphReader">The reader positioned after the composite glyph header.</param>
+    /// <param name="glyfReader">A reader over the complete glyf table.</param>
+    /// <param name="locaTable">The validated glyph offsets.</param>
+    /// <param name="ancestry">Glyphs currently being resolved.</param>
+    /// <param name="depth">The current nesting depth.</param>
+    /// <returns>The assembled composite outline.</returns>
+    /// <exception cref="InvalidDataException">A component record or attachment is malformed.</exception>
+    private static FontGlyphOutline ParseCompositeGlyph(
+        TrueTypeReader glyphReader,
+        TrueTypeReader glyfReader,
+        LocaTable locaTable,
+        HashSet<ushort> ancestry,
+        int depth
+    )
+    {
+        var contours = new List<FontContour>();
+        var points = new List<FontPoint>();
+        var hasInstructions = false;
+        ushort flags;
+        do
+        {
+            flags = glyphReader.ReadUInt16();
+            if ((flags & ~KnownComponentFlags) != 0)
+                throw new InvalidDataException("A 'glyf' component contains reserved flag bits.");
+
+            var componentIndex = glyphReader.ReadUInt16();
+            if (componentIndex >= locaTable.GlyphCount)
+                throw new InvalidDataException(
+                    "A 'glyf' composite references an invalid glyph index."
+                );
+
+            var argument1 = ReadComponentArgument(glyphReader, flags);
+            var argument2 = ReadComponentArgument(glyphReader, flags);
+            var (a, b, c, d) = ReadComponentTransform(glyphReader, flags);
+            var component = ParseGlyph(glyfReader, locaTable, componentIndex, ancestry, depth + 1);
+            var componentPoints = component
+                .Contours.SelectMany(contour => contour.Points)
+                .ToArray();
+
+            double offsetX;
+            double offsetY;
+            if ((flags & ArgsAreXyValues) != 0)
+            {
+                var x = (double)argument1;
+                var y = (double)argument2;
+                if ((flags & ScaledComponentOffset) != 0)
+                {
+                    (x, y) = (a * x + c * y, b * x + d * y);
+                }
+
+                if ((flags & RoundXyToGrid) != 0)
+                {
+                    x = Math.Round(x, MidpointRounding.AwayFromZero);
+                    y = Math.Round(y, MidpointRounding.AwayFromZero);
+                }
+
+                offsetX = x;
+                offsetY = y;
+            }
+            else
+            {
+                if (argument1 >= points.Count || argument2 >= componentPoints.Length)
+                    throw new InvalidDataException(
+                        "A 'glyf' composite has an invalid point attachment."
+                    );
+
+                var parentPoint = points[argument1];
+                var childPoint = TransformPoint(componentPoints[argument2], a, b, c, d, 0, 0);
+                offsetX = checked(parentPoint.X - childPoint.X);
+                offsetY = checked(parentPoint.Y - childPoint.Y);
+            }
+
+            foreach (var contour in component.Contours)
+            {
+                var transformedPoints = contour
+                    .Points.Select(point => TransformPoint(point, a, b, c, d, offsetX, offsetY))
+                    .ToArray();
+                if (transformedPoints.Length > MaximumCompositePointCount - points.Count)
+                    throw new InvalidDataException("A 'glyf' composite contains too many points.");
+
+                contours.Add(new FontContour(transformedPoints));
+                points.AddRange(transformedPoints);
+            }
+
+            hasInstructions |= (flags & WeHaveInstructions) != 0;
+        } while ((flags & MoreComponents) != 0);
+
+        if (hasInstructions)
+        {
+            var instructionLength = glyphReader.ReadUInt16();
+            for (var index = 0; index < instructionLength; index++)
+                _ = glyphReader.ReadUInt8();
+        }
+
+        return new FontGlyphOutline(contours.ToArray());
+    }
+
+    /// <summary>
+    /// Reads one signed XY or unsigned point-index component argument.
+    /// </summary>
+    /// <param name="reader">The component glyph reader.</param>
+    /// <param name="flags">The component flags.</param>
+    /// <returns>The decoded argument.</returns>
+    private static int ReadComponentArgument(TrueTypeReader reader, ushort flags)
+    {
+        var words = (flags & Arg1And2AreWords) != 0;
+        if ((flags & ArgsAreXyValues) != 0)
+            return words ? reader.ReadInt16() : unchecked((sbyte)reader.ReadUInt8());
+
+        return words ? reader.ReadUInt16() : reader.ReadUInt8();
+    }
+
+    /// <summary>
+    /// Reads and validates the optional F2Dot14 component transform.
+    /// </summary>
+    /// <param name="reader">The component glyph reader.</param>
+    /// <param name="flags">The component flags.</param>
+    /// <returns>The transform matrix in TrueType coordinate order.</returns>
+    private static (double A, double B, double C, double D) ReadComponentTransform(
+        TrueTypeReader reader,
+        ushort flags
+    )
+    {
+        var transformFlags = flags & (WeHaveAScale | WeHaveAnXAndYScale | WeHaveATwoByTwo);
+        if (transformFlags != 0 && (transformFlags & (transformFlags - 1)) != 0)
+            throw new InvalidDataException("A 'glyf' component has conflicting transform flags.");
+
+        if (
+            (flags & (ScaledComponentOffset | UnscaledComponentOffset))
+            == (ScaledComponentOffset | UnscaledComponentOffset)
+        )
+            throw new InvalidDataException("A 'glyf' component has conflicting offset flags.");
+
+        if (transformFlags == WeHaveAScale)
+        {
+            var scale = reader.ReadInt16() / 16384.0;
+            return (scale, 0, 0, scale);
+        }
+
+        if (transformFlags == WeHaveAnXAndYScale)
+        {
+            var xScale = reader.ReadInt16() / 16384.0;
+            var yScale = reader.ReadInt16() / 16384.0;
+            return (xScale, 0, 0, yScale);
+        }
+
+        if (transformFlags == WeHaveATwoByTwo)
+        {
+            var a = reader.ReadInt16() / 16384.0;
+            var b = reader.ReadInt16() / 16384.0;
+            var c = reader.ReadInt16() / 16384.0;
+            var d = reader.ReadInt16() / 16384.0;
+            return (a, b, c, d);
+        }
+
+        return (1, 0, 0, 1);
+    }
+
+    /// <summary>
+    /// Applies a matrix and component translation to a TrueType point.
+    /// </summary>
+    /// <param name="point">The source point.</param>
+    /// <param name="a">The horizontal-to-horizontal matrix value.</param>
+    /// <param name="b">The horizontal-to-vertical matrix value.</param>
+    /// <param name="c">The vertical-to-horizontal matrix value.</param>
+    /// <param name="d">The vertical-to-vertical matrix value.</param>
+    /// <param name="offsetX">The horizontal translation.</param>
+    /// <param name="offsetY">The vertical translation.</param>
+    /// <returns>The transformed point, rounded to font units.</returns>
+    private static FontPoint TransformPoint(
+        FontPoint point,
+        double a,
+        double b,
+        double c,
+        double d,
+        double offsetX,
+        double offsetY
+    ) =>
+        new(
+            checked(
+                (int)Math.Round(a * point.X + c * point.Y + offsetX, MidpointRounding.AwayFromZero)
+            ),
+            checked(
+                (int)Math.Round(b * point.X + d * point.Y + offsetY, MidpointRounding.AwayFromZero)
+            ),
+            point.OnCurve
+        );
 
     /// <summary>
     /// Expands repeated point flags to one flag per glyph point.
