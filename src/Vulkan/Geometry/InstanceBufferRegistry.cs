@@ -34,7 +34,7 @@ public unsafe class InstanceBufferRegistry : IInstanceBufferRegistry
         ArgumentNullException.ThrowIfNull(drawable);
         ArgumentNullException.ThrowIfNull(layout);
 
-        var data = drawable.Instances.GetInstanceData(layout);
+        var data = drawable.GetInstanceData(layout);
         if (data.IsEmpty)
             throw new InvalidOperationException("Instance data cannot be empty.");
 

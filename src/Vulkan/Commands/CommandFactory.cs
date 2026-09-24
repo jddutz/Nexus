@@ -159,7 +159,7 @@ public unsafe class CommandFactory(
             pipelineDefinition.Id,
             drawable,
             checked((uint)drawable.Mesh.Count),
-            checked((uint)drawable.Instances.Count)
+            checked((uint)drawable.InstanceCount)
         );
 
         Debug.WriteLine(

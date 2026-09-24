@@ -96,9 +96,12 @@ public class DefaultBatchStrategyTests
 
         public ITexture Texture => null!;
 
+        public ulong InstanceCount => 1;
+
         public ISamplingBehavior SamplingBehavior => null!;
 
-        public IInstanceDataSource Instances => null!;
+        public ReadOnlyMemory<byte> GetInstanceData(ShaderInput[] layout) =>
+            ReadOnlyMemory<byte>.Empty;
 
         public ReadOnlyMemory<byte> GetUniformData(ShaderInput[] layout) =>
             ReadOnlyMemory<byte>.Empty;

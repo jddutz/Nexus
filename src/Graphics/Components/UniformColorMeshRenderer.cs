@@ -7,7 +7,6 @@ public class UniformColorMeshRenderer()
     : Component,
         IGraphicsComponent,
         IDrawable,
-        IInstanceDataSource,
         IMeshInstance
 {
     private static readonly int InstanceDataSize =
@@ -46,12 +45,7 @@ public class UniformColorMeshRenderer()
 
     ISamplingBehavior IDrawable.SamplingBehavior => SamplingBehavior;
 
-    IInstanceDataSource IDrawable.Instances => this;
-
-    DrawableId IInstanceDataSource.Id =>
-        new IdentityHashBuilder(nameof(UniformColorMeshRenderer)).Add(Id).Compute();
-
-    ulong IInstanceDataSource.Count => 1;
+    ulong IDrawable.InstanceCount => checked((ulong)InstanceCount);
 
     VertexShader? IDrawable.VertexShader => BuiltInShaders.UniformColorVertexShader;
 
@@ -159,7 +153,7 @@ public class UniformColorMeshRenderer()
         return GetInstanceData(destination);
     }
 
-    ReadOnlyMemory<byte> IInstanceDataSource.GetInstanceData(ShaderInput[] layout)
+    ReadOnlyMemory<byte> IDrawable.GetInstanceData(ShaderInput[] layout)
     {
         ArgumentNullException.ThrowIfNull(layout);
 

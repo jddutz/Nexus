@@ -3,12 +3,7 @@ namespace Nexus.Graphics.Components;
 /// <summary>
 /// Renders a texture-mapped quad with a per-instance transformation matrix, source rectangle, and tint color.
 /// </summary>
-public class TexturedQuadRenderer
-    : Component,
-        IGraphicsComponent,
-        IDrawable,
-        IInstanceDataSource,
-        IMeshInstance
+public class TexturedQuadRenderer : Component, IGraphicsComponent, IDrawable, IMeshInstance
 {
     private static readonly int InstanceDataSize =
         System.Runtime.CompilerServices.Unsafe.SizeOf<Matrix4X4<float>>()
@@ -64,12 +59,7 @@ public class TexturedQuadRenderer
 
     ITexture IDrawable.Texture => _texture ?? global::Nexus.Graphics.Textures.Texture.Invalid;
 
-    IInstanceDataSource IDrawable.Instances => this;
-
-    DrawableId IInstanceDataSource.Id =>
-        new IdentityHashBuilder(nameof(TexturedQuadRenderer)).Add(Id).Compute();
-
-    ulong IInstanceDataSource.Count => 1;
+    ulong IDrawable.InstanceCount => checked((ulong)InstanceCount);
 
     VertexShader? IDrawable.VertexShader => BuiltInShaders.TexturedQuadVertexShader;
 
@@ -198,7 +188,7 @@ public class TexturedQuadRenderer
         return GetInstanceData(destination);
     }
 
-    ReadOnlyMemory<byte> IInstanceDataSource.GetInstanceData(ShaderInput[] layout)
+    ReadOnlyMemory<byte> IDrawable.GetInstanceData(ShaderInput[] layout)
     {
         ArgumentNullException.ThrowIfNull(layout);
 

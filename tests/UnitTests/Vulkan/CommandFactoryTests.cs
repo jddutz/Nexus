@@ -409,8 +409,11 @@ public class CommandFactoryTests
         public ulong RenderLayerMask => ulong.MaxValue;
         public Mesh Mesh => mesh;
         public ITexture Texture => texture;
+        public ulong InstanceCount => 1;
         public ISamplingBehavior SamplingBehavior => samplingBehavior;
-        public IInstanceDataSource Instances { get; } = new TestInstanceDataSource();
+
+        public ReadOnlyMemory<byte> GetInstanceData(ShaderInput[] layout) =>
+            ReadOnlyMemory<byte>.Empty;
 
         public ReadOnlyMemory<byte> GetUniformData(ShaderInput[] layout) => new byte[16];
 
@@ -419,22 +422,6 @@ public class CommandFactoryTests
         public IShaderContract? TessellationEvalShader => tessellationEvalShader;
         public IShaderContract? GeometryShader => geometryShader;
         public FragmentShader? FragmentShader => fragmentShader;
-    }
-
-    /// <summary>
-    /// Supplies a single test instance for command-factory tests.
-    /// </summary>
-    private sealed class TestInstanceDataSource : IInstanceDataSource
-    {
-        /// <inheritdoc/>
-        public DrawableId Id => new(1);
-
-        /// <inheritdoc/>
-        public ulong Count => 1;
-
-        /// <inheritdoc/>
-        public ReadOnlyMemory<byte> GetInstanceData(ShaderInput[] layout) =>
-            ReadOnlyMemory<byte>.Empty;
     }
 
     private sealed class TestShader(string name, ShaderStageEnum stage, VertexFormat vertexFormat)

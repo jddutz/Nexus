@@ -26,14 +26,21 @@ public interface IDrawable
     ITexture Texture { get; }
 
     /// <summary>
+    /// Gets the number of instances represented by the drawable.
+    /// </summary>
+    ulong InstanceCount { get; }
+
+    /// <summary>
+    /// Gets the packed instance data required by the specified shader inputs.
+    /// </summary>
+    /// <param name="layout">The ordered instance inputs required by a shader contract.</param>
+    /// <returns>The packed instance-buffer data.</returns>
+    ReadOnlyMemory<byte> GetInstanceData(ShaderInput[] layout);
+
+    /// <summary>
     /// Defines the sampling behavior used when rendering.
     /// </summary>
     public ISamplingBehavior SamplingBehavior { get; }
-
-    /// <summary>
-    /// Gets the per-instance data used when rendering the drawable.
-    /// </summary>
-    IInstanceDataSource Instances { get; }
 
     /// <summary>
     /// Gets the packed uniform data required by the specified shader inputs.

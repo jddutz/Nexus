@@ -31,7 +31,7 @@ public sealed class TextGlyph
 }
 
 /// <summary>Renders a group of glyphs from one texture atlas as textured-quad instances.</summary>
-public sealed class TextSpan : IDrawable, IInstanceDataSource, IMeshInstance
+public sealed class TextSpan : IDrawable, IMeshInstance
 {
     private static readonly int InstanceDataSize =
         System.Runtime.CompilerServices.Unsafe.SizeOf<Matrix4X4<float>>()
@@ -68,9 +68,6 @@ public sealed class TextSpan : IDrawable, IInstanceDataSource, IMeshInstance
     /// <summary>Gets the sampling behavior used when sampling the texture atlas.</summary>
     public ISamplingBehavior SamplingBehavior { get; set; } = SamplingBehaviors.Smooth;
 
-    /// <summary>Gets this span's packed glyph instance data source.</summary>
-    public IInstanceDataSource Instances => this;
-
     /// <summary>Gets the textured-quad vertex shader contract.</summary>
     public VertexShader VertexShader => BuiltInShaders.TexturedQuadVertexShader;
 
@@ -89,11 +86,8 @@ public sealed class TextSpan : IDrawable, IInstanceDataSource, IMeshInstance
     /// <summary>Gets the stable identifier of this span.</summary>
     DrawableId IDrawable.Id => _id;
 
-    /// <summary>Gets the identifier used by this span's instance buffer.</summary>
-    DrawableId IInstanceDataSource.Id => _id;
-
     /// <summary>Gets the number of glyph instances in this span.</summary>
-    ulong IInstanceDataSource.Count => checked((ulong)Glyphs.Count);
+    ulong IDrawable.InstanceCount => checked((ulong)Glyphs.Count);
 
     /// <summary>Gets the first glyph transform for the mesh-instance compatibility contract.</summary>
     public Matrix4X4<float> TransformationMatrix =>

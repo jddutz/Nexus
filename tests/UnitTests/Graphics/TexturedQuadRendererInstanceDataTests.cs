@@ -19,9 +19,8 @@ public sealed class TexturedQuadRendererInstanceDataTests
         var layout = BuiltInShaders.TexturedQuadVertexShader.InstanceLayout;
         var renderers = CreateDemoGrid();
         var drawables = renderers.Select(renderer => (IDrawable)renderer).ToArray();
-        var instanceDataSources = drawables.Select(drawable => drawable.Instances).ToArray();
-        var records = instanceDataSources
-            .Select(instanceDataSource => instanceDataSource.GetInstanceData(layout).ToArray())
+        var records = drawables
+            .Select(drawable => drawable.GetInstanceData(layout).ToArray())
             .ToArray();
 
         Assert.Equal(144, records.Length);
@@ -30,9 +29,9 @@ public sealed class TexturedQuadRendererInstanceDataTests
             drawables.Select(drawable => drawable.Id).Distinct().Count()
         );
         Assert.Equal(
-            instanceDataSources.Length,
-            instanceDataSources
-                .Select(instanceDataSource => instanceDataSource.Id)
+            drawables.Length,
+            drawables
+                .Select(drawable => drawable.Id)
                 .Distinct()
                 .Count()
         );

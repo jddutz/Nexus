@@ -18,10 +18,7 @@ public sealed class TextComponentTests
     [Fact]
     public void Drawables_returns_text_spans()
     {
-        var component = new TextComponent
-        {
-            Text = "Hello"
-        };
+        var component = new TextComponent { Text = "Hello" };
 
         var span = Assert.IsType<TextSpan>(Assert.Single(component.Drawables));
 
@@ -34,10 +31,7 @@ public sealed class TextComponentTests
     [Fact]
     public void Text_replaces_existing_spans_with_one_span()
     {
-        var component = new TextComponent
-        {
-            Text = "Before"
-        };
+        var component = new TextComponent { Text = "Before" };
 
         component.Text = "Hello";
 
@@ -56,7 +50,7 @@ public sealed class TextComponentTests
         var span = CreateSpan(2);
         var data = span.GetInstanceData(BuiltInShaders.TexturedQuadVertexShader.InstanceLayout);
 
-        Assert.Equal((ulong)2, ((IInstanceDataSource)span).Count);
+        Assert.Equal((ulong)2, ((IDrawable)span).InstanceCount);
         Assert.Equal(192, data.Length);
     }
 
