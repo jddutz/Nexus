@@ -1,7 +1,9 @@
 using System.Buffers.Binary;
 using System.Text;
+using Nexus.AssetPipeline.Typography.FontReader;
 using Nexus.AssetPipeline.Typography.FontReader.TrueType;
 using Nexus.AssetPipeline.Typography.FontReader.TrueType.Tables;
+using Xunit.Abstractions;
 
 namespace Nexus.AssetPipeline.Tests;
 
@@ -10,6 +12,17 @@ namespace Nexus.AssetPipeline.Tests;
 /// </summary>
 public sealed class TrueTypeFontReaderTests
 {
+    private readonly ITestOutputHelper _output;
+
+    /// <summary>
+    /// Initializes the test output writer.
+    /// </summary>
+    /// <param name="output">The test output writer.</param>
+    public TrueTypeFontReaderTests(ITestOutputHelper output)
+    {
+        _output = output;
+    }
+
     /// <summary>
     /// Verifies numeric reads use big-endian interpretation and advance the cursor.
     /// </summary>
@@ -177,6 +190,74 @@ public sealed class TrueTypeFontReaderTests
         Assert.Equal((ushort)215, font.GetHorizontalMetrics(font.GetGlyphIndex('i')).AdvanceWidth);
         Assert.Equal((ushort)900, font.GetHorizontalMetrics(font.GetGlyphIndex('W')).AdvanceWidth);
         Assert.Equal((short)20, font.GetHorizontalMetrics(font.GetGlyphIndex('A')).LeftSideBearing);
+    }
+
+    /// <summary>
+    /// Verifies repeated flags and signed coordinate deltas in both loca offset formats.
+    /// </summary>
+    /// <param name="indexToLocFormat">The short or long loca offset format.</param>
+    [Theory]
+    [InlineData((short)0)]
+    [InlineData((short)1)]
+    public void TrueTypeFontReader_decodesCompressedSimpleGlyphOutlines(short indexToLocFormat)
+    {
+        var glyf = CreateCompressedSimpleGlyph();
+        var font = new TrueTypeFontReader(
+            CreateFontWithTables(
+                ("head", CreateHeadTable(indexToLocFormat)),
+                ("maxp", CreateMaxpTable(1)),
+                ("loca", CreateLocaTable(indexToLocFormat, glyf.Length)),
+                ("glyf", glyf)
+            )
+        );
+
+        var outline = font.GetGlyphOutline(0);
+
+        var contour = Assert.Single(outline.Contours);
+        Assert.Equal(4, contour.Points.Count);
+        Assert.Equal(
+            (0, 0, true),
+            (contour.Points[0].X, contour.Points[0].Y, contour.Points[0].OnCurve)
+        );
+        Assert.Equal(
+            (-3, -2, false),
+            (contour.Points[1].X, contour.Points[1].Y, contour.Points[1].OnCurve)
+        );
+        Assert.Equal(
+            (-7, -5, false),
+            (contour.Points[2].X, contour.Points[2].Y, contour.Points[2].OnCurve)
+        );
+        Assert.Equal(
+            (-2, 1, true),
+            (contour.Points[3].X, contour.Points[3].Y, contour.Points[3].OnCurve)
+        );
+    }
+
+    /// <summary>
+    /// Dumps local-font I and O outlines and verifies the curved glyph contains off-curve points.
+    /// </summary>
+    [Fact]
+    public void Open_dumpsLocalSimpleIAndOCurvesWhenAvailable()
+    {
+        var fontPath = FindLocalFont("Roboto-Regular.ttf");
+        if (fontPath is null)
+            return;
+
+        var font = TrueTypeFontReader.Open(fontPath);
+        var iGlyphIndex = font.GetGlyphIndex('I');
+        var oGlyphIndex = font.GetGlyphIndex('O');
+        var iOutline = font.GetGlyphOutline(iGlyphIndex);
+        var oOutline = font.GetGlyphOutline(oGlyphIndex);
+
+        Assert.NotEmpty(iOutline.Contours);
+        Assert.True(oOutline.Contours.Count >= 2);
+        Assert.Contains(
+            oOutline.Contours.SelectMany(contour => contour.Points),
+            point => !point.OnCurve
+        );
+
+        WriteOutline('I', iGlyphIndex, iOutline);
+        WriteOutline('O', oGlyphIndex, oOutline);
     }
 
     /// <summary>
@@ -454,13 +535,83 @@ public sealed class TrueTypeFontReaderTests
     /// Creates the minimal valid head table needed to initialize a font face.
     /// </summary>
     /// <returns>The head table bytes.</returns>
-    private static byte[] CreateHeadTable()
+    private static byte[] CreateHeadTable(short indexToLocFormat = 0)
     {
         var table = new byte[54];
         BinaryPrimitives.WriteUInt32BigEndian(table, 0x00010000);
         BinaryPrimitives.WriteUInt32BigEndian(table.AsSpan(12), 0x5F0F3CF5);
         BinaryPrimitives.WriteUInt16BigEndian(table.AsSpan(18), 1000);
+        BinaryPrimitives.WriteInt16BigEndian(table.AsSpan(50), indexToLocFormat);
         return table;
+    }
+
+    /// <summary>
+    /// Creates a four-point simple glyph with one repeated flag run and signed short deltas.
+    /// </summary>
+    /// <returns>The encoded glyf record padded to an even byte length.</returns>
+    private static byte[] CreateCompressedSimpleGlyph()
+    {
+        var glyph = new byte[26];
+        BinaryPrimitives.WriteInt16BigEndian(glyph, 1);
+        BinaryPrimitives.WriteUInt16BigEndian(glyph.AsSpan(10), 3);
+        BinaryPrimitives.WriteUInt16BigEndian(glyph.AsSpan(12), 0);
+        glyph[14] = 0x31;
+        glyph[15] = 0x0E;
+        glyph[16] = 1;
+        glyph[17] = 0x37;
+        glyph[18] = 3;
+        glyph[19] = 4;
+        glyph[20] = 5;
+        glyph[21] = 2;
+        glyph[22] = 3;
+        glyph[23] = 6;
+        return glyph;
+    }
+
+    /// <summary>
+    /// Creates the loca offsets for one glyph in the selected offset format.
+    /// </summary>
+    /// <param name="indexToLocFormat">The short or long loca offset format.</param>
+    /// <param name="glyfLength">The byte length of the glyph data.</param>
+    /// <returns>The two loca offsets delimiting the glyph.</returns>
+    private static byte[] CreateLocaTable(short indexToLocFormat, int glyfLength)
+    {
+        if (indexToLocFormat == 0)
+        {
+            var table = new byte[4];
+            BinaryPrimitives.WriteUInt16BigEndian(
+                table.AsSpan(2),
+                checked((ushort)(glyfLength / 2))
+            );
+            return table;
+        }
+
+        var longTable = new byte[8];
+        BinaryPrimitives.WriteUInt32BigEndian(longTable.AsSpan(4), checked((uint)glyfLength));
+        return longTable;
+    }
+
+    /// <summary>
+    /// Writes each contour's decoded points to the test output.
+    /// </summary>
+    /// <param name="character">The character used to resolve the glyph.</param>
+    /// <param name="glyphIndex">The glyph's index in the font.</param>
+    /// <param name="outline">The decoded outline to dump.</param>
+    private void WriteOutline(char character, ushort glyphIndex, FontGlyphOutline outline)
+    {
+        _output.WriteLine($"{character} glyph {glyphIndex}");
+        for (var contourIndex = 0; contourIndex < outline.Contours.Count; contourIndex++)
+        {
+            var points = string.Join(
+                " ",
+                outline
+                    .Contours[contourIndex]
+                    .Points.Select(point =>
+                        $"({point.X},{point.Y},{(point.OnCurve ? "on" : "off")})"
+                    )
+            );
+            _output.WriteLine($"  contour {contourIndex}: {points}");
+        }
     }
 
     /// <summary>

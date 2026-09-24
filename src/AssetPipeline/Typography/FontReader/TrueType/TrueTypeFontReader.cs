@@ -12,6 +12,7 @@ public sealed class TrueTypeFontReader
     private FontFace? _fontFace;
     private CmapTable? _cmapTable;
     private HmtxTable? _hmtxTable;
+    private LocaTable? _locaTable;
 
     /// <summary>
     /// Initializes a font reader from in-memory font data.
@@ -62,6 +63,32 @@ public sealed class TrueTypeFontReader
             fontFace.NumberOfHorizontalMetrics
         );
         return _hmtxTable.GetMetrics(glyphIndex);
+    }
+
+    /// <summary>
+    /// Gets the decoded outline for a simple TrueType glyph.
+    /// </summary>
+    /// <param name="glyphIndex">The zero-based glyph index, typically resolved from a codepoint.</param>
+    /// <returns>The glyph's contours and points in font units.</returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="glyphIndex"/> is outside the font.</exception>
+    /// <exception cref="InvalidDataException">The loca or glyph data is malformed.</exception>
+    /// <exception cref="NotSupportedException">The glyph is composite rather than simple.</exception>
+    public FontGlyphOutline GetGlyphOutline(ushort glyphIndex)
+    {
+        var glyfData = GetTable("glyf");
+        if (_locaTable is null)
+        {
+            var head = HeadTable.Parse(new TrueTypeReader(GetTable("head")));
+            var maxp = MaxpTable.Parse(new TrueTypeReader(GetTable("maxp")));
+            _locaTable = LocaTable.Parse(
+                new TrueTypeReader(GetTable("loca")),
+                maxp.GlyphCount,
+                head.IndexToLocFormat,
+                glyfData.Length
+            );
+        }
+
+        return GlyfTable.ParseGlyph(new TrueTypeReader(glyfData), _locaTable, glyphIndex);
     }
 
     /// <summary>
