@@ -18,13 +18,33 @@ public sealed class TextComponentTests
     [Fact]
     public void Drawables_returns_text_spans()
     {
-        var span = CreateSpan(2);
-        var component = new TextComponent([span]);
+        var component = new TextComponent
+        {
+            Text = "Hello"
+        };
 
-        var drawable = Assert.Single(component.Drawables);
+        var span = Assert.IsType<TextSpan>(Assert.Single(component.Drawables));
 
-        Assert.Same(span, drawable);
         Assert.Equal(BuiltInMesh.TexturedQuadOffset.Id, span.Mesh.Id);
+    }
+
+    /// <summary>
+    /// Verifies that setting text stores the value and replaces existing spans with one text span.
+    /// </summary>
+    [Fact]
+    public void Text_replaces_existing_spans_with_one_span()
+    {
+        var component = new TextComponent
+        {
+            Text = "Before"
+        };
+
+        component.Text = "Hello";
+
+        Assert.Equal("Hello", component.Text);
+        var span = Assert.IsType<TextSpan>(Assert.Single(component.Drawables));
+        Assert.Same(Texture.Invalid, span.Texture);
+        Assert.Empty(span.Glyphs);
     }
 
     /// <summary>

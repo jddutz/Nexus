@@ -6,29 +6,23 @@ namespace Nexus.Graphics.Components;
 public class TextComponent : Component, IGraphicsComponent
 {
     private readonly List<TextSpan> _spans = [];
+    private string _text = string.Empty;
 
-    /// <summary>Initializes an empty text component.</summary>
-    public TextComponent() { }
-
-    /// <summary>Initializes a text component with the supplied spans.</summary>
-    /// <param name="spans">The spans rendered by the component.</param>
-    public TextComponent(IEnumerable<TextSpan> spans)
+    /// <summary>Gets or sets the text represented by this component.</summary>
+    public string Text
     {
-        ArgumentNullException.ThrowIfNull(spans);
-        _spans.AddRange(spans);
-    }
+        get => _text;
+        set
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            _text = value;
+            _spans.Clear();
 
-    /// <summary>Gets the spans rendered by this component.</summary>
-    public IReadOnlyList<TextSpan> Spans => _spans;
+            // TODO: Parse multiline and rich text into glyph spans.
+            _spans.Add(new TextSpan(Texture.Invalid, []));
+        }
+    }
 
     /// <summary>Gets the spans as drawable contributions for the graphics system.</summary>
-    public IReadOnlyList<IDrawable> Drawables => _spans.Cast<IDrawable>().ToArray();
-
-    /// <summary>Adds a span to this text component.</summary>
-    /// <param name="span">The span to add.</param>
-    public void AddSpan(TextSpan span)
-    {
-        ArgumentNullException.ThrowIfNull(span);
-        _spans.Add(span);
-    }
+    public IReadOnlyList<IDrawable> Drawables => _spans;
 }
