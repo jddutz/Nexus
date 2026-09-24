@@ -84,20 +84,18 @@ public sealed class FontProcessorTests : IDisposable
     }
 
     [Fact]
-    public void PackageWriter_writesOnlyAtlasAndRuntimeMetadata()
+    public void AtlasWriter_writesOnlyAtlasArtifact()
     {
         var package = Path.Combine(_folder, "Content", "fonts", "ui.default");
+        var atlasPath = Path.Combine(package, "atlas.rgb8");
 
-        FontPackageWriter.Write(package, CreateResult(1));
+        FontAtlasWriter.Write(atlasPath, CreateResult(1));
 
         Assert.Equal(
-            new[] { "atlas.rgb8", "font.json" },
+            new[] { "atlas.rgb8" },
             Directory.GetFiles(package).Select(Path.GetFileName).Order()
         );
-        var metadata = File.ReadAllText(Path.Combine(package, "font.json"));
-        Assert.Contains("\"formatVersion\": 1", metadata);
-        Assert.Contains("\"codepoint\": 32", metadata);
-        Assert.DoesNotContain("ttf", metadata, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(12, File.ReadAllBytes(atlasPath).Length);
     }
 
     public void Dispose()

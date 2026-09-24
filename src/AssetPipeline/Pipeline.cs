@@ -31,6 +31,7 @@ public sealed class Pipeline
             var textureEntries = new Dictionary<string, Dictionary<string, string>>(
                 StringComparer.Ordinal
             );
+            var fontEntries = new Dictionary<string, FontManifestEntry>(StringComparer.Ordinal);
             PipelineLog.Info("YAML deserializer and font processor created.");
 
             foreach (var inputFile in _inputFiles.Order(StringComparer.Ordinal))
@@ -87,15 +88,30 @@ public sealed class Pipeline
                         $"Font processor returned atlas {result.Atlas.Width}x{result.Atlas.Height}, Pixels={result.Atlas.Pixels.Length}, Glyphs={result.Glyphs.Count}, Kerning={result.Kerning.Count}."
                     );
                     var outputPath = FontProcessor.GetOutputPath(_outputFolder, font.ContentId);
-                    PipelineLog.Info($"Writing font package to '{outputPath}'.");
-                    FontPackageWriter.Write(outputPath, result);
+                    var atlasPath = Path.Combine(outputPath, "atlas.rgb8");
+                    PipelineLog.Info($"Writing font atlas to '{atlasPath}'.");
+                    FontAtlasWriter.Write(atlasPath, result);
+                    var relativeAtlasPath = Path.GetRelativePath(_outputFolder, atlasPath)
+                        .Replace('\\', '/');
+                    fontEntries[font.ContentId] = new FontManifestEntry(
+                        new FontManifestAtlas(
+                            relativeAtlasPath,
+                            result.Atlas.Width,
+                            result.Atlas.Height,
+                            FontAtlas.PixelFormat
+                        ),
+                        result.Metrics,
+                        result.Glyphs,
+                        result.Kerning,
+                        result.Msdf
+                    );
                     PipelineLog.Info(
-                        $"Font package write returned successfully for '{font.ContentId}'."
+                        $"Font atlas write returned successfully for '{font.ContentId}'."
                     );
                 }
             }
 
-            WriteManifest(textureEntries);
+            WriteManifest(textureEntries, fontEntries);
             PipelineLog.Info("Pipeline execution completed successfully. ReturnCode=0.");
             return 0;
         }
@@ -146,7 +162,10 @@ public sealed class Pipeline
         textureEntries[asset.GroupName.Length == 0 ? "Textures" : asset.GroupName] = textureSection;
     }
 
-    private void WriteManifest(Dictionary<string, Dictionary<string, string>> textureEntries)
+    private void WriteManifest(
+        Dictionary<string, Dictionary<string, string>> textureEntries,
+        Dictionary<string, FontManifestEntry> fontEntries
+    )
     {
         var content = new Dictionary<string, object>(StringComparer.Ordinal)
         {
@@ -169,10 +188,7 @@ public sealed class Pipeline
             {
                 ["Content"] = new Dictionary<string, string>(),
             },
-            ["Fonts"] = new Dictionary<string, object>
-            {
-                ["Content"] = new Dictionary<string, string>(),
-            },
+            ["Fonts"] = new Dictionary<string, object> { ["Content"] = fontEntries },
         };
 
         Directory.CreateDirectory(_outputFolder);

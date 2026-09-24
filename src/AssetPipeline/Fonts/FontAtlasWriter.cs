@@ -1,0 +1,54 @@
+namespace Nexus.AssetPipeline.Fonts;
+
+/// <summary>
+/// Writes the binary atlas artifact produced by the font rasterizer.
+/// </summary>
+public static class FontAtlasWriter
+{
+    /// <summary>
+    /// Writes the rasterized atlas to the specified artifact path.
+    /// </summary>
+    /// <param name="atlasPath">The path of the atlas artifact to write.</param>
+    /// <param name="result">The rasterized font data containing the atlas.</param>
+    public static void Write(string atlasPath, FontBuildResult result)
+    {
+        ArgumentNullException.ThrowIfNull(atlasPath);
+        ArgumentNullException.ThrowIfNull(result);
+        Validate(result);
+
+        try
+        {
+            var directory = Path.GetDirectoryName(atlasPath);
+            if (!string.IsNullOrEmpty(directory))
+                Directory.CreateDirectory(directory);
+
+            PipelineLog.Info($"Writing atlas bytes to '{atlasPath}'.");
+            File.WriteAllBytes(atlasPath, result.Atlas.Pixels);
+            PipelineLog.Info(
+                $"FontAtlasWriter.Write returned successfully. AtlasExists={File.Exists(atlasPath)}."
+            );
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            throw new FontBuildException($"Could not write font atlas '{atlasPath}'.", exception);
+        }
+    }
+
+    /// <summary>
+    /// Validates the atlas dimensions, pixel count, and glyph payload.
+    /// </summary>
+    /// <param name="result">The rasterized font data to validate.</param>
+    private static void Validate(FontBuildResult result)
+    {
+        if (result.Atlas.Width <= 0 || result.Atlas.Height <= 0)
+            throw new FontBuildException("Rasterizer returned invalid atlas dimensions.");
+
+        var expectedLength = checked(result.Atlas.Width * result.Atlas.Height * 3);
+        if (result.Atlas.Pixels.Length != expectedLength)
+            throw new FontBuildException(
+                $"Rasterizer returned {result.Atlas.Pixels.Length} atlas bytes; expected {expectedLength}."
+            );
+        if (result.Glyphs.Count == 0)
+            throw new FontBuildException("Rasterizer returned no glyphs.");
+    }
+}
