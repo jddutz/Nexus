@@ -32,10 +32,7 @@ public static class FontContourConverter
             {
                 points.Add(
                     (
-                        new Vector2(
-                            ((float)point.X + next.X) / 2f,
-                            ((float)point.Y + next.Y) / 2f
-                        ),
+                        new Vector2(((float)point.X + next.X) / 2f, ((float)point.Y + next.Y) / 2f),
                         true
                     )
                 );

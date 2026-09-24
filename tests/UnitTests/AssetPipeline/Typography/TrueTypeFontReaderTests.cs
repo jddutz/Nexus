@@ -241,14 +241,12 @@ public sealed class TrueTypeFontReaderTests
     public void FontContourConverter_convertsLinesAndQuadratics()
     {
         var contour = FontContourConverter.Convert(
-            new FontContour(
-                [
-                    new FontPoint(0, 0, true),
-                    new FontPoint(2, 3, false),
-                    new FontPoint(4, 0, true),
-                    new FontPoint(4, -2, true),
-                ]
-            )
+            new FontContour([
+                new FontPoint(0, 0, true),
+                new FontPoint(2, 3, false),
+                new FontPoint(4, 0, true),
+                new FontPoint(4, -2, true),
+            ])
         );
 
         Assert.Collection(
@@ -272,13 +270,11 @@ public sealed class TrueTypeFontReaderTests
     public void FontContourConverter_addsImpliedMidpointsAcrossContourWraparound()
     {
         var contour = FontContourConverter.Convert(
-            new FontContour(
-                [
-                    new FontPoint(2, 0, false),
-                    new FontPoint(4, 0, true),
-                    new FontPoint(4, 2, false),
-                ]
-            )
+            new FontContour([
+                new FontPoint(2, 0, false),
+                new FontPoint(4, 0, true),
+                new FontPoint(4, 2, false),
+            ])
         );
 
         Assert.Collection(
@@ -307,14 +303,12 @@ public sealed class TrueTypeFontReaderTests
     public void FontContourConverter_addsImpliedMidpointsBetweenOffCurvePoints()
     {
         var contour = FontContourConverter.Convert(
-            new FontContour(
-                [
-                    new FontPoint(0, 0, true),
-                    new FontPoint(2, 2, false),
-                    new FontPoint(4, 2, false),
-                    new FontPoint(6, 0, true),
-                ]
-            )
+            new FontContour([
+                new FontPoint(0, 0, true),
+                new FontPoint(2, 2, false),
+                new FontPoint(4, 2, false),
+                new FontPoint(6, 0, true),
+            ])
         );
 
         var quadratics = contour.Edges.OfType<QuadraticSegment>().ToArray();
