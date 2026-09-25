@@ -1,3 +1,5 @@
+using System.Buffers.Binary;
+using System.IO.Compression;
 using Nexus.Assets.Fonts;
 
 namespace Nexus.AssetPipeline.Tests;
@@ -95,6 +97,43 @@ public sealed class FontProcessorTests : IDisposable
             Directory.GetFiles(package).Select(Path.GetFileName).Order()
         );
         Assert.Equal(12, File.ReadAllBytes(atlasPath).Length);
+    }
+
+    [Fact]
+    public void AtlasWriter_writesRgbPngPreservingAtlasRows()
+    {
+        var atlasPath = Path.Combine(_folder, "diagnostics", "atlas.png");
+        var result = CreateResult(1) with
+        {
+            Atlas = new FontAtlas(2, 2, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]),
+        };
+
+        FontAtlasWriter.WritePng(atlasPath, result);
+
+        var png = File.ReadAllBytes(atlasPath);
+        Assert.Equal(new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 }, png[..8]);
+        Assert.Equal(2, BinaryPrimitives.ReadInt32BigEndian(png.AsSpan(16, 4)));
+        Assert.Equal(2, BinaryPrimitives.ReadInt32BigEndian(png.AsSpan(20, 4)));
+
+        using var compressed = new MemoryStream();
+        var offset = 8;
+        while (offset < png.Length)
+        {
+            var length = BinaryPrimitives.ReadInt32BigEndian(png.AsSpan(offset, 4));
+            var type = System.Text.Encoding.ASCII.GetString(png, offset + 4, 4);
+            if (type == "IDAT")
+                compressed.Write(png, offset + 8, length);
+            offset += length + 12;
+        }
+
+        compressed.Position = 0;
+        using var decompressor = new ZLibStream(compressed, CompressionMode.Decompress);
+        using var scanlines = new MemoryStream();
+        decompressor.CopyTo(scanlines);
+        Assert.Equal(
+            new byte[] { 0, 1, 2, 3, 4, 5, 6, 0, 7, 8, 9, 10, 11, 12 },
+            scanlines.ToArray()
+        );
     }
 
     public void Dispose()
