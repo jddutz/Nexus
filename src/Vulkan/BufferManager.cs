@@ -7,13 +7,15 @@ namespace Nexus.Graphics.Vulkan;
 /// Initializes a buffer manager for the specified Vulkan context.
 /// </remarks>
 /// <param name="context">The Vulkan context used to create and manage buffers.</param>
-public unsafe class BufferManager(Context context) : IBufferManager
+public unsafe class BufferManager(Context context, PerformanceMetrics? performanceMetrics = null)
+    : IBufferManager
 {
     // Tracks the DeviceMemory backing each buffer, keyed by the buffer's native handle
     // (which also serves as the buffer's VkBuffer value).
     private readonly ConcurrentDictionary<ulong, (DeviceMemory Memory, ulong Size)> _buffers =
         new();
     private readonly Context _context = context;
+    private readonly PerformanceMetrics? _performanceMetrics = performanceMetrics;
 
     /// <inheritdoc />
     public VkBuffer CreateVertexBuffer(ReadOnlySpan<byte> data)
@@ -79,6 +81,7 @@ public unsafe class BufferManager(Context context) : IBufferManager
         _context.VulkanApi.UnmapMemory(_context.Device, memory);
 
         _buffers[buffer.Handle] = (memory, bufferSize);
+        _performanceMetrics?.RecordBuffersStored(_buffers.Count);
         return new VkBuffer(buffer.Handle);
     }
 
@@ -143,6 +146,7 @@ public unsafe class BufferManager(Context context) : IBufferManager
         _context.VulkanApi.UnmapMemory(_context.Device, memory);
 
         _buffers[buffer.Handle] = (memory, bufferSize);
+        _performanceMetrics?.RecordBuffersStored(_buffers.Count);
         return new VkBuffer(buffer.Handle);
     }
 
@@ -154,7 +158,7 @@ public unsafe class BufferManager(Context context) : IBufferManager
         {
             SType = StructureType.BufferCreateInfo,
             Size = size,
-            Usage = BufferUsageFlags.UniformBufferBit,
+            Usage = BufferUsageFlags.UniformBufferBit | BufferUsageFlags.TransferDstBit,
             SharingMode = SharingMode.Exclusive,
         };
 
@@ -198,6 +202,7 @@ public unsafe class BufferManager(Context context) : IBufferManager
         _context.VulkanApi.BindBufferMemory(_context.Device, buffer, memory, 0);
 
         _buffers[buffer.Handle] = (memory, size);
+        _performanceMetrics?.RecordBuffersStored(_buffers.Count);
         return new VkBuffer(buffer.Handle);
     }
 
@@ -250,6 +255,7 @@ public unsafe class BufferManager(Context context) : IBufferManager
         _context.VulkanApi.BindBufferMemory(_context.Device, buffer, memory, 0);
 
         _buffers[buffer.Handle] = (memory, size);
+        _performanceMetrics?.RecordBuffersStored(_buffers.Count);
         return new VkBuffer(buffer.Handle);
     }
 
@@ -288,6 +294,8 @@ public unsafe class BufferManager(Context context) : IBufferManager
         {
             return;
         }
+
+        _performanceMetrics?.RecordBuffersStored(_buffers.Count);
 
         // Wait for GPU to finish using the buffer
         _context.VulkanApi.DeviceWaitIdle(_context.Device);

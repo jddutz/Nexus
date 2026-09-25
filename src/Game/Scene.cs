@@ -67,6 +67,18 @@ public class Scene : IScene
     public Scene(SceneId sceneId)
     {
         Id = sceneId;
+
+        Layers = new RenderLayerCollection();
+        Layers.Create("GUI", RenderPasses.Main);
+
+        var defaultView = new GameObject2D();
+        var defaultCamera = defaultView.AddComponent<StaticCamera>();
+
+        var viewComponent = new ViewComponent() { Camera = defaultCamera, LayerMask = 1 };
+
+        defaultView.AddComponent(viewComponent);
+
+        AddChild(defaultView);
     }
 
     /// <summary>

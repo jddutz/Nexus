@@ -47,6 +47,9 @@ public static class ServiceCollectionExtensions
     /// <returns>The updated service collection.</returns>
     public static IServiceCollection AddVkValidation(this IServiceCollection services)
     {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.TryAddSingleton<PerformanceMetrics>();
         services.TryAddSingleton<IValidation, Validation>();
         return services;
     }

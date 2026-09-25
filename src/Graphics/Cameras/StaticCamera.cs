@@ -18,6 +18,9 @@ public class StaticCamera : Component, ICameraComponent
     private Rectangle<float> _visibleRect;
     private bool _visibleRectDirty = true;
 
+    /// <inheritdoc />
+    public override string DisplayName => "Static Camera";
+
     /// <summary>Gets the renderable contributions produced by this camera.</summary>
     public IReadOnlyList<IDrawable> Renderables => [];
 

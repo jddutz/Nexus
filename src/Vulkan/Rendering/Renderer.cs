@@ -12,13 +12,15 @@ public unsafe class Renderer(
     Context context,
     ISwapChain swapChain,
     ISyncManager syncManager,
-    RenderPassConfigurations renderPasses
+    RenderPassConfigurations renderPasses,
+    PerformanceMetrics? performanceMetrics = null
 ) : IRenderer, IDisposable
 {
     private readonly Context _context = context;
     private readonly ISwapChain _swapChain = swapChain;
     private readonly ISyncManager _syncManager = syncManager;
     private readonly RenderPassConfigurations _renderPasses = renderPasses;
+    private readonly PerformanceMetrics? _performanceMetrics = performanceMetrics;
 
     private readonly CommandBufferPool _commandPool = CommandBufferPool.ForGraphics(context, 2);
 
@@ -26,6 +28,7 @@ public unsafe class Renderer(
     private ImageSync? _imageSync;
     private uint _imageIndex;
     private CommandBuffer _commandBuffer;
+    private Rect2D _renderArea;
     private bool _disposed;
 
     /// <summary>
@@ -74,6 +77,17 @@ public unsafe class Renderer(
     public void Begin(IRenderBatch batch)
     {
         ArgumentNullException.ThrowIfNull(batch);
+
+        _renderArea = new Rect2D { Offset = new Offset2D(0, 0), Extent = _swapChain.Extent };
+
+        foreach (var command in batch.Commands)
+        {
+            if (command is not SetViewportScissorCommand viewState)
+                continue;
+
+            _renderArea = viewState.RenderArea;
+            break;
+        }
 
         RecordCommands(batch);
     }
@@ -131,6 +145,7 @@ public unsafe class Renderer(
         foreach (var command in batch.Commands)
         {
             command.Record(_context.VulkanApi, _commandBuffer);
+            _performanceMetrics?.Record(command);
         }
     }
 
@@ -139,20 +154,6 @@ public unsafe class Renderer(
     /// </summary>
     private void BeginRendering(RenderPassConfiguration configuration)
     {
-        var viewport = new Viewport
-        {
-            X = 0,
-            Y = 0,
-            Width = _swapChain.Extent.Width,
-            Height = _swapChain.Extent.Height,
-            MinDepth = 0,
-            MaxDepth = 1,
-        };
-        var scissor = new Rect2D { Offset = new Offset2D(0, 0), Extent = _swapChain.Extent };
-
-        _context.VulkanApi.CmdSetViewport(_commandBuffer, 0, 1, &viewport);
-        _context.VulkanApi.CmdSetScissor(_commandBuffer, 0, 1, &scissor);
-
         var clearValue =
             configuration.ClearValues.Length > 0 ? configuration.ClearValues[0] : default;
 
@@ -169,7 +170,7 @@ public unsafe class Renderer(
         var renderingInfo = new RenderingInfo
         {
             SType = StructureType.RenderingInfo,
-            RenderArea = new Rect2D { Offset = new Offset2D(0, 0), Extent = _swapChain.Extent },
+            RenderArea = _renderArea,
             LayerCount = 1,
             ViewMask = 0,
             ColorAttachmentCount = 1,

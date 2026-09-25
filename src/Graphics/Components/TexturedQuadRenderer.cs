@@ -10,13 +10,16 @@ public class TexturedQuadRenderer : Component, IGraphicsComponent, IDrawable, IM
         + System.Runtime.CompilerServices.Unsafe.SizeOf<Vector4D<float>>()
         + Marshal.SizeOf<Color>();
 
-    private ulong _renderLayerMask;
+    private ulong _renderLayerMask = 1;
     private Texture? _texture;
     private Matrix4X4<float> _transformationMatrix = Matrix4X4<float>.Identity;
     private Vector4D<float> _textureRegion = new(0f, 0f, 1f, 1f);
     private Color _color = Colors.White;
     private Matrix4X4<float> _view = Matrix4X4<float>.Identity;
     private ISamplingBehavior _samplingBehavior = SamplingBehaviors.Smooth;
+
+    /// <inheritdoc />
+    public override string DisplayName => "Textured Quad";
 
     /// <summary>
     /// Initializes a textured quad renderer with a corner-pivoted quad mesh.

@@ -21,6 +21,9 @@ public class PerspectiveCamera : Component, ICameraComponent
     private Matrix4X4<float> _viewProjectionMatrix;
     private bool _viewProjectionDirty = true;
 
+    /// <inheritdoc />
+    public override string DisplayName => "Perspective Camera";
+
     /// <summary>Gets the renderable contributions produced by this camera.</summary>
     public IReadOnlyList<IDrawable> Renderables => [];
 

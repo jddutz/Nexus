@@ -18,6 +18,9 @@ public class OrthoCamera : Component, ICameraComponent
     private Matrix4X4<float> _viewProjectionMatrix;
     private bool _viewProjectionDirty = true;
 
+    /// <inheritdoc />
+    public override string DisplayName => "Orthographic Camera";
+
     /// <summary>Gets the renderable contributions produced by this camera.</summary>
     public IReadOnlyList<IDrawable> Renderables => [];
 

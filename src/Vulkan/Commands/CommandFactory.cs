@@ -308,6 +308,31 @@ public unsafe class CommandFactory(
         return [];
     }
 
+    /// <inheritdoc />
+    public IEnumerable<IVulkanCommand> CreateViewProjectionCommands(
+        IDrawable drawable,
+        Matrix4X4<float> viewProjectionMatrix
+    )
+    {
+        ArgumentNullException.ThrowIfNull(drawable);
+
+        var allocation = GetAllocation(drawable);
+        var data = new byte[64];
+        MemoryMarshal.Write(data.AsSpan(), in viewProjectionMatrix);
+
+        foreach (var uniform in allocation.UniformBuffers)
+        {
+            if (
+                uniform.Layout.Length != 1
+                || uniform.Layout[0] is not { Semantic: InputSemantics.View, Size: 64 }
+                || uniform.Capacity < (ulong)data.Length
+            )
+                continue;
+
+            yield return new UpdateUniformBufferCommand(uniform.Buffer, data);
+        }
+    }
+
     /// <summary>Logs the matrix payload written for a text span's View uniform.</summary>
     /// <param name="drawable">The drawable whose uniform was uploaded.</param>
     /// <param name="descriptorSet">The descriptor set referencing the uploaded uniform buffer.</param>

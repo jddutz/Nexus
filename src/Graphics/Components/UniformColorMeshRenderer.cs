@@ -8,12 +8,15 @@ public class UniformColorMeshRenderer() : Component, IGraphicsComponent, IDrawab
     private static readonly int InstanceDataSize =
         System.Runtime.CompilerServices.Unsafe.SizeOf<Matrix4X4<float>>() + Marshal.SizeOf<Color>();
 
-    private ulong _renderLayerMask;
+    private ulong _renderLayerMask = 1;
     private Mesh _mesh = BuiltInMesh.Empty;
     private Matrix4X4<float> _transformationMatrix = Matrix4X4<float>.Identity;
     private Color _color = Colors.Black;
     private Matrix4X4<float> _view = Matrix4X4<float>.Identity;
     private ISamplingBehavior _samplingBehavior = SamplingBehaviors.Smooth;
+
+    /// <inheritdoc />
+    public override string DisplayName => "Uniform Color Mesh";
 
     /// <summary>
     /// Gets or sets the mask of render layers in which this component participates.

@@ -1,6 +1,8 @@
 using Nexus.Core;
 using Nexus.Game;
 using Nexus.Graphics;
+using Nexus.Graphics.Cameras;
+using Nexus.Graphics.Components;
 
 namespace Tests;
 
@@ -18,11 +20,45 @@ public class GameObjectTests
         var scene = new Scene(42);
 
         Assert.Equal(new SceneId(42), scene.Id);
+        Assert.IsType<StaticCamera>(scene.DefaultCamera);
+        Assert.IsType<GameObject2D>(scene.DefaultView);
+        Assert.Contains(scene.DefaultView, scene.Children);
+        Assert.Contains(
+            scene.DefaultView.Components,
+            component => ReferenceEquals(component, scene.DefaultCamera)
+        );
+        Assert.Contains(scene.DefaultView.Components, component => component is ViewComponent);
         Assert.IsNotAssignableFrom<IGameObject>(scene);
         var view = new View();
         Assert.Equal(nameof(ViewComponent), view.ViewComponent.Name);
         Assert.Equal(RenderPasses.Main, view.ViewComponent.RenderPassMask);
         Assert.Contains(view.ViewComponent, view.Components);
+    }
+
+    /// <summary>
+    /// Verifies that activating a scene raises lifecycle notifications for its default view and camera.
+    /// </summary>
+    [Fact]
+    public void Scene_activatesDefaultViewAndCameraThroughLifecycleEvents()
+    {
+        var scene = new Scene();
+        var addedGameObjects = new List<IGameObject>();
+        var addedComponents = new List<IComponent>();
+
+        scene.GameObjectAdded += addedGameObjects.Add;
+        scene.ComponentAdded += addedComponents.Add;
+
+        scene.Activate();
+
+        Assert.Contains(scene.DefaultView, addedGameObjects);
+        Assert.Contains(
+            addedComponents,
+            component => ReferenceEquals(component, scene.DefaultCamera)
+        );
+        Assert.Contains(
+            scene.DefaultView.Components,
+            component => component is ViewComponent && addedComponents.Contains(component)
+        );
     }
 
     /// <summary>
@@ -123,5 +159,9 @@ public class GameObjectTests
     /// <summary>
     /// Provides a concrete component for ownership tests.
     /// </summary>
-    private sealed class TestComponent : Component { }
+    private sealed class TestComponent : Component
+    {
+        /// <inheritdoc />
+        public override string DisplayName => "Test Component";
+    }
 }

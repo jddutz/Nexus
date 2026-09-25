@@ -3,6 +3,12 @@ namespace Nexus.Core;
 public interface IComponent : INotifyPropertyChanged
 {
     /// <summary>
+    /// Gets the concise editor-facing caption used to identify this component in component lists
+    /// and inspectors. This is not intended to be player-facing text.
+    /// </summary>
+    string DisplayName { get; }
+
+    /// <summary>
     /// Gets the identifier of the game object that owns this component.
     /// </summary>
     GameObjectId GameObjectId { get; }

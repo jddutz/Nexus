@@ -11,6 +11,9 @@ public class TextComponent : Component, IGraphicsComponent
     private readonly ITextStyle _textStyle;
     private string _text = string.Empty;
 
+    /// <inheritdoc />
+    public override string DisplayName => "Text";
+
     /// <inheritdoc/>
     public event EventHandler<DrawableEventArgs>? DrawableAdded;
 

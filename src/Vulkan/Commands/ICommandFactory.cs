@@ -15,6 +15,14 @@ public interface ICommandFactory
     /// <param name="drawable">The drawable whose uniform data changed.</param>
     IEnumerable<IVulkanCommand> UpdateUniformData(IDrawable drawable);
 
+    /// <summary>Creates commands that update a drawable's view-projection uniform.</summary>
+    /// <param name="drawable">The drawable whose uniform buffer is updated.</param>
+    /// <param name="viewProjectionMatrix">The view-projection matrix for the active view.</param>
+    IEnumerable<IVulkanCommand> CreateViewProjectionCommands(
+        IDrawable drawable,
+        Matrix4X4<float> viewProjectionMatrix
+    );
+
     /// <summary>Updates the drawable's image and sampler resources.</summary>
     /// <param name="drawable">The drawable whose texture state changed.</param>
     IEnumerable<IVulkanCommand> UpdateTexture(IDrawable drawable);

@@ -5,6 +5,9 @@ public abstract class Component : ObservableObject, IComponent
     private IGameObject? _gameObject;
     private bool _isActivated;
 
+    /// <inheritdoc />
+    public abstract string DisplayName { get; }
+
     /// <summary>
     /// Gets the identifier of the game object that owns this component.
     /// </summary>

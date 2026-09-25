@@ -1,7 +1,7 @@
 namespace Nexus.Graphics.Vulkan;
 
 /// <summary>
-/// Coordinates Vulkan resource loading, render-layer preparation, and frame rendering.
+/// Coordinates Vulkan resource loading, view batch preparation, and frame rendering.
 /// </summary>
 /// <param name="context">The Vulkan context that owns graphics resources.</param>
 /// <param name="swapChain">The swap chain used for presentation.</param>
@@ -19,38 +19,45 @@ public unsafe class VulkanGraphicsSystem(
     IEventHub eventHub,
     ICommandFactory commandFactory,
     IVertexBufferRegistry geometryRegistry,
-    IImageRegistry textureRegistry
+    IImageRegistry textureRegistry,
+    PerformanceMetrics? performanceMetrics = null
 ) : IGraphicsSystem, IDisposable
 {
-    private RenderLayerCollection _layers = new();
-    private RenderBatchCollection?[] _batches = new RenderBatchCollection?[
-        RenderLayerCollection.MaxLayers
-    ];
+    private readonly PerformanceMetrics? _performanceMetrics = performanceMetrics;
+    private readonly RenderBatchCollection _setupBatches = CreateSetupBatchCollection();
+    private readonly Dictionary<ComponentId, RenderBatchCollection> _batches = [];
+    private readonly List<ViewComponent> _activeViews = [];
     private readonly Dictionary<DrawableId, DrawableRegistration> _drawables = [];
     private readonly HashSet<IGraphicsComponent> _components = [];
 
-    /// <summary>Creates render batches for a newly added layer.</summary>
-    /// <param name="layer">The layer being added.</param>
-    private void OnLayerAdded(IRenderLayer layer)
+    /// <summary>Creates the render batches enabled by a view.</summary>
+    /// <param name="view">The view whose render passes configure the collection.</param>
+    private static RenderBatchCollection CreateRenderBatchCollection(ViewComponent view)
     {
         var coll = new RenderBatchCollection();
-        _batches[layer.Index] = coll;
-
         coll.Set(RenderPasses.Start, new RenderBatch(new DefaultBatchStrategy()));
 
-        foreach (var renderPass in RenderPasses.GetActivePasses(layer.RenderPassMask))
+        foreach (var renderPass in RenderPasses.GetActivePasses(view.RenderPassMask))
         {
             coll.Set(renderPass, new RenderBatch(new DefaultBatchStrategy()));
         }
 
         coll.Set(RenderPasses.End, new RenderBatch(new DefaultBatchStrategy()));
+        return coll;
     }
 
-    /// <summary>Removes render batches for a layer being removed.</summary>
-    /// <param name="layer">The layer being removed.</param>
-    private void OnLayerRemoved(IRenderLayer layer)
+    /// <summary>Creates the shared batch collection for frame setup commands.</summary>
+    /// <returns>A collection containing the setup phases and every render-pass slot.</returns>
+    private static RenderBatchCollection CreateSetupBatchCollection()
     {
-        _batches[layer.Index] = null;
+        var coll = new RenderBatchCollection();
+        coll.Set(RenderPasses.Start, new RenderBatch(new DefaultBatchStrategy()));
+
+        foreach (var renderPass in RenderPasses.GetActivePasses(RenderPasses.All))
+            coll.Set(renderPass, new RenderBatch(new DefaultBatchStrategy()));
+
+        coll.Set(RenderPasses.End, new RenderBatch(new DefaultBatchStrategy()));
+        return coll;
     }
 
     /// <summary>
@@ -60,23 +67,29 @@ public unsafe class VulkanGraphicsSystem(
     {
         eventHub.Register(this);
 
-        _layers.LayerAdded += OnLayerAdded;
-        _layers.LayerRemoved += OnLayerRemoved;
-
         Debug.WriteLine(
             $"Vulkan graphics system initialized. DeviceHandle={context.Device.Handle}, "
                 + $"SwapchainExtent={swapChain.Extent.Width}x{swapChain.Extent.Height}"
         );
     }
 
-    /// <summary>
-    /// Creates render batches for the specified view configuration.
-    /// </summary>
+    /// <summary>Creates and populates the batch collection for an active view.</summary>
     /// <param name="view">The activated view configuration.</param>
     private void ActivateViewComponent(ViewComponent view)
     {
-        var layer = _layers.Create(view.Name, view.RenderPassMask);
-        view.RenderLayer = layer;
+        if (_batches.ContainsKey(view.Id))
+            throw new InvalidOperationException($"View {view.Id} is already active.");
+
+        var batches = CreateRenderBatchCollection(view);
+        _activeViews.Add(view);
+        _batches.Add(view.Id, batches);
+        view.PropertyChanged += OnViewPropertyChanged;
+
+        foreach (var registration in _drawables.Values)
+        {
+            if (IsVisible(view, registration.Drawable))
+                AddDrawableToBatches(batches, registration);
+        }
     }
 
     /// <summary>Creates and registers commands for an active drawable.</summary>
@@ -85,20 +98,9 @@ public unsafe class VulkanGraphicsSystem(
     {
         ArgumentNullException.ThrowIfNull(drawable);
 
-        var targetBatches = GetDrawableBatches(drawable.RenderLayerMask).ToArray();
-        if (targetBatches.Length == 0)
-            return;
-
         var commands = commandFactory.Create(drawable).ToArray();
         var persistentCommands = commands.Where(command => command.IsSticky).ToArray();
         var transientCommands = commands.Where(command => !command.IsSticky).ToArray();
-
-        foreach (var batches in targetBatches)
-        foreach (var command in persistentCommands)
-            AddToBatches(batches, command);
-
-        foreach (var command in transientCommands)
-            AddToBatches(targetBatches[0], command);
 
         _drawables[drawable.Id] = new(
             drawable,
@@ -113,6 +115,13 @@ public unsafe class VulkanGraphicsSystem(
         drawable.InstanceDataChanged += OnDrawableInstanceDataChanged;
         drawable.UniformDataChanged += OnDrawableUniformDataChanged;
         drawable.ShaderChanged += OnDrawableShaderChanged;
+
+        foreach (var batches in GetDrawableBatches(drawable.RenderLayerMask))
+        foreach (var command in persistentCommands)
+            AddToBatches(batches, command);
+
+        foreach (var command in transientCommands)
+            AddToBatches(_setupBatches, command);
 
         Debug.WriteLine(
             $"Activated drawable. DrawableType={drawable.GetType().Name}, DrawableId={drawable.Id}"
@@ -141,6 +150,75 @@ public unsafe class VulkanGraphicsSystem(
             ActivateDrawable(drawable);
     }
 
+    /// <summary>Applies view mutations to membership or pass configuration.</summary>
+    /// <param name="sender">The view that changed.</param>
+    /// <param name="e">The changed property name.</param>
+    private void OnViewPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (sender is not ViewComponent view || !_batches.ContainsKey(view.Id))
+            return;
+
+        switch (e.PropertyName)
+        {
+            case nameof(ViewComponent.LayerMask):
+                RebuildViewBatches(view, replaceCollection: false);
+                break;
+            case nameof(ViewComponent.RenderPassMask):
+                RebuildViewBatches(view, replaceCollection: true);
+                break;
+        }
+    }
+
+    /// <summary>Rebuilds a view collection or its drawable membership.</summary>
+    /// <param name="view">The view whose collection is updated.</param>
+    /// <param name="replaceCollection">Whether to recreate pass batches.</param>
+    private void RebuildViewBatches(ViewComponent view, bool replaceCollection)
+    {
+        var batches = replaceCollection ? CreateRenderBatchCollection(view) : _batches[view.Id];
+
+        if (replaceCollection)
+            _batches[view.Id] = batches;
+        else
+        {
+            foreach (var registration in _drawables.Values)
+                RemoveDrawableFromBatches(batches, registration);
+        }
+
+        foreach (var registration in _drawables.Values)
+        {
+            if (IsVisible(view, registration.Drawable))
+                AddDrawableToBatches(batches, registration);
+        }
+    }
+
+    /// <summary>Adds retained drawable commands to a view collection.</summary>
+    /// <param name="batches">The target view collection.</param>
+    /// <param name="registration">The drawable command registration.</param>
+    private static void AddDrawableToBatches(
+        RenderBatchCollection batches,
+        DrawableRegistration registration
+    )
+    {
+        foreach (var command in registration.Commands)
+            AddToBatches(batches, command);
+    }
+
+    /// <summary>Removes a drawable's retained and pending commands from one view collection.</summary>
+    /// <param name="batches">The view collection to clear.</param>
+    /// <param name="registration">The drawable command registration.</param>
+    private static void RemoveDrawableFromBatches(
+        RenderBatchCollection batches,
+        DrawableRegistration registration
+    )
+    {
+        foreach (var batch in batches)
+        {
+            batch.Remove(registration.Drawable.Id);
+            foreach (var command in registration.Commands.Concat(registration.TransientCommands))
+                batch.RemoveCommand(command.Id);
+        }
+    }
+
     /// <summary>Activates a drawable added to an active graphics component.</summary>
     /// <param name="sender">The graphics component that raised the event.</param>
     /// <param name="e">The added drawable.</param>
@@ -157,7 +235,7 @@ public unsafe class VulkanGraphicsSystem(
         Deactivate(e.Drawable);
     }
 
-    /// <summary>Moves a drawable's existing commands when its render-layer membership changes.</summary>
+    /// <summary>Moves a drawable's commands when its view membership changes.</summary>
     /// <param name="sender">The drawable that changed.</param>
     /// <param name="e">The event data.</param>
     private void OnDrawableRenderLayerChanged(object? sender, EventArgs e)
@@ -169,24 +247,14 @@ public unsafe class VulkanGraphicsSystem(
         if (registration.RenderLayerMask == drawable.RenderLayerMask)
             return;
 
-        foreach (var batches in GetDrawableBatches(registration.RenderLayerMask))
-        {
-            foreach (var batch in batches)
-                batch.Remove(drawable.Id);
-            foreach (var command in registration.TransientCommands)
-            foreach (var batch in batches)
-                batch.RemoveCommand(command.Id);
-        }
+        RemoveDrawableFromViewBatches(registration);
+        registration = registration with { RenderLayerMask = drawable.RenderLayerMask };
+        _drawables[drawable.Id] = registration;
 
-        var targetBatches = GetDrawableBatches(drawable.RenderLayerMask).ToArray();
+        var targetBatches = GetDrawableBatches(drawable.RenderLayerMask);
         foreach (var batches in targetBatches)
         foreach (var command in registration.Commands)
             AddToBatches(batches, command);
-        if (targetBatches.Length > 0)
-            foreach (var command in registration.TransientCommands)
-                AddToBatches(targetBatches[0], command);
-
-        _drawables[drawable.Id] = registration with { RenderLayerMask = drawable.RenderLayerMask };
     }
 
     /// <summary>Updates instance buffers and draw counts for a changed drawable.</summary>
@@ -257,8 +325,7 @@ public unsafe class VulkanGraphicsSystem(
                 if (!command.IsSticky)
                 {
                     transientCommands.Add(command);
-                    if (targetBatches.Length > 0)
-                        AddToBatches(targetBatches[0], command);
+                    AddToBatches(_setupBatches, command);
                 }
                 else
                 {
@@ -276,9 +343,7 @@ public unsafe class VulkanGraphicsSystem(
 
             foreach (var replaced in replacedCommands)
             {
-                foreach (var batches in GetDrawableBatches(registration.RenderLayerMask))
-                foreach (var batch in batches)
-                    batch.RemoveCommand(replaced.Id);
+                RemoveCommandFromAllViewBatches(replaced.Id);
 
                 retainedCommands.Remove(replaced);
             }
@@ -352,26 +417,12 @@ public unsafe class VulkanGraphicsSystem(
         drawable.UniformDataChanged -= OnDrawableUniformDataChanged;
         drawable.ShaderChanged -= OnDrawableShaderChanged;
 
-        var targetBatches = GetDrawableBatches(registration.RenderLayerMask).ToArray();
-        foreach (var batches in targetBatches)
-        {
-            foreach (var renderPass in RenderPasses.GetActivePasses(RenderPasses.All))
-            {
-                if (batches.TryGet(renderPass, out var batch))
-                    batch!.Remove(drawable.Id);
-            }
-
-            foreach (var command in registration.TransientCommands)
-            foreach (var batch in batches)
-                batch.RemoveCommand(command.Id);
-        }
+        RemoveDrawableFromViewBatches(registration);
+        RemoveDrawableFromBatches(_setupBatches, registration);
 
         var releaseCommands = commandFactory.Release(drawable).ToArray();
-        if (targetBatches.Length > 0)
-        {
-            foreach (var command in releaseCommands)
-                AddToBatches(targetBatches[0], command);
-        }
+        foreach (var command in releaseCommands)
+            AddToBatches(_setupBatches, command);
 
         Debug.WriteLine(
             $"Deactivated drawable. DrawableType={drawable.GetType().Name}, DrawableId={drawable.Id}"
@@ -391,28 +442,58 @@ public unsafe class VulkanGraphicsSystem(
     );
 
     /// <summary>
-    /// Gets the batch collections selected by a drawable's layer mask.
+    /// Gets the batch collections for views selected by a drawable's layer mask.
     /// </summary>
-    /// <param name="renderLayerMask">The mask of render-layer slots to include.</param>
-    /// <returns>The active batch collections selected by the mask.</returns>
+    /// <param name="renderLayerMask">The drawable's layer classification mask.</param>
+    /// <returns>The active view batch collections selected by the mask.</returns>
     private IEnumerable<RenderBatchCollection> GetDrawableBatches(ulong renderLayerMask)
     {
-        if (_batches.Length == 0)
-            yield break;
+        return _activeViews
+            .Where(view => (view.LayerMask & renderLayerMask) != 0)
+            .Select(view => _batches[view.Id]);
+    }
 
-        if (renderLayerMask == 0)
-        {
-            if (_batches[0] is { } defaultBatches)
-                yield return defaultBatches;
+    /// <summary>Removes a drawable's commands from every active view collection.</summary>
+    /// <param name="registration">The drawable command registration.</param>
+    private void RemoveDrawableFromViewBatches(DrawableRegistration registration)
+    {
+        foreach (var batches in _batches.Values)
+            RemoveDrawableFromBatches(batches, registration);
+    }
 
-            yield break;
-        }
+    /// <summary>Removes a command identifier from every active view collection.</summary>
+    /// <param name="commandId">The command identifier to remove.</param>
+    private void RemoveCommandFromAllViewBatches(Guid commandId)
+    {
+        foreach (var batches in _batches.Values)
+        foreach (var batch in batches)
+            batch.RemoveCommand(commandId);
+    }
 
-        foreach (var layer in _layers.Get(renderLayerMask))
-        {
-            if (_batches[layer.Index] is { } batches)
-                yield return batches;
-        }
+    /// <summary>Determines whether a drawable's layer classification is selected by a view.</summary>
+    /// <param name="view">The view being evaluated.</param>
+    /// <param name="drawable">The drawable being evaluated.</param>
+    /// <returns><see langword="true"/> when the masks intersect.</returns>
+    private static bool IsVisible(ViewComponent view, IDrawable drawable) =>
+        (view.LayerMask & drawable.RenderLayerMask) != 0;
+
+    /// <summary>Gets the view's clipped pixel region, defaulting an unset region to the full target.</summary>
+    /// <param name="view">The view whose clipping region is converted.</param>
+    /// <returns>The target-clamped pixel offset and extent.</returns>
+    private (int X, int Y, uint Width, uint Height) GetClippingRegion(ViewComponent view)
+    {
+        var targetWidth = checked((int)swapChain.Extent.Width);
+        var targetHeight = checked((int)swapChain.Extent.Height);
+        var region = view.ClippingRegion;
+
+        if (region.Origin.X == 0 && region.Origin.Y == 0 && region.Max.X == 0 && region.Max.Y == 0)
+            return (0, 0, checked((uint)targetWidth), checked((uint)targetHeight));
+
+        var x = Math.Clamp(region.Origin.X, 0, targetWidth);
+        var y = Math.Clamp(region.Origin.Y, 0, targetHeight);
+        var right = Math.Clamp(region.Max.X, x, targetWidth);
+        var bottom = Math.Clamp(region.Max.Y, y, targetHeight);
+        return (x, y, checked((uint)(right - x)), checked((uint)(bottom - y)));
     }
 
     /// <inheritdoc />
@@ -420,10 +501,10 @@ public unsafe class VulkanGraphicsSystem(
     {
         if (e.Component is ViewComponent view)
         {
-            if (view.RenderLayer is { } layer)
+            if (_batches.Remove(view.Id))
             {
-                _layers.Remove(layer.Index);
-                view.RenderLayer = null;
+                view.PropertyChanged -= OnViewPropertyChanged;
+                _activeViews.Remove(view);
             }
 
             Debug.WriteLine("Cleared Vulkan graphics view configuration.");
@@ -452,6 +533,8 @@ public unsafe class VulkanGraphicsSystem(
     /// </summary>
     public void Render()
     {
+        var frameStartTimestamp = Stopwatch.GetTimestamp();
+
         try
         {
             var frameSync = syncManager.WaitForFrame(syncManager.CurrentFrameIndex);
@@ -459,11 +542,71 @@ public unsafe class VulkanGraphicsSystem(
             if (renderer.PrepareFrame(frameSync) is null)
                 return;
 
-            for (var layerIndex = 0; layerIndex < _batches.Length; layerIndex++)
+            renderer.Begin(_setupBatches.Get(RenderPasses.Start));
+
+            foreach (var renderPass in RenderPasses.GetActivePasses(RenderPasses.All))
             {
-                var batches = _batches[layerIndex];
-                if (batches is null)
+                if (
+                    !_setupBatches.TryGet(renderPass, out var setupBatch)
+                    || !setupBatch!.Commands.Any()
+                )
                     continue;
+
+                renderer.Record(RenderPasses.GetIndex(renderPass), setupBatch);
+            }
+
+            renderer.Finalize(_setupBatches.Get(RenderPasses.End));
+
+            foreach (
+                var view in _activeViews
+                    .OrderBy(item => item.RenderOrder)
+                    .ThenBy(item => item.Id.Value)
+            )
+            {
+                var clip = GetClippingRegion(view);
+                if (clip.Width == 0 || clip.Height == 0)
+                    continue;
+
+                view.Camera?.SetViewportSize(clip.Width, clip.Height);
+                var viewProjectionMatrix =
+                    view.Camera?.ViewProjectionMatrix ?? Matrix4X4<float>.Identity;
+                var batches = _batches[view.Id];
+
+                AddToBatches(
+                    batches,
+                    new SetViewportScissorCommand(
+                        RenderPasses.Start,
+                        clip.X,
+                        clip.Y,
+                        clip.Width,
+                        clip.Height
+                    )
+                );
+
+                foreach (var registration in _drawables.Values)
+                {
+                    if (!IsVisible(view, registration.Drawable))
+                        continue;
+
+                    foreach (
+                        var command in commandFactory.CreateViewProjectionCommands(
+                            registration.Drawable,
+                            viewProjectionMatrix
+                        )
+                    )
+                        AddToBatches(batches, command);
+                }
+
+                AddToBatches(
+                    batches,
+                    new SetViewportScissorCommand(
+                        RenderPasses.End,
+                        0,
+                        0,
+                        swapChain.Extent.Width,
+                        swapChain.Extent.Height
+                    )
+                );
 
                 renderer.Begin(batches.Get(RenderPasses.Start));
 
@@ -479,6 +622,7 @@ public unsafe class VulkanGraphicsSystem(
             }
 
             renderer.Submit();
+            _performanceMetrics?.RecordFrame(Stopwatch.GetElapsedTime(frameStartTimestamp));
             CleanTransientCommands();
         }
         catch
@@ -492,11 +636,11 @@ public unsafe class VulkanGraphicsSystem(
     /// </summary>
     private void CleanTransientCommands()
     {
-        foreach (var batches in _batches)
-        {
-            if (batches is null)
-                continue;
+        foreach (var batch in _setupBatches)
+            batch.Clean();
 
+        foreach (var batches in _batches.Values)
+        {
             foreach (var batch in batches)
                 batch.Clean();
         }
@@ -528,6 +672,10 @@ public unsafe class VulkanGraphicsSystem(
         }
         _components.Clear();
 
+        foreach (var view in _activeViews)
+            view.PropertyChanged -= OnViewPropertyChanged;
+        _activeViews.Clear();
+
         foreach (
             var drawable in _drawables
                 .Values.Select(registration => registration.Drawable)
@@ -537,6 +685,7 @@ public unsafe class VulkanGraphicsSystem(
 
         geometryRegistry.Reset();
         textureRegistry.Reset();
+        _performanceMetrics?.Output();
 
         if (disposing)
         {
