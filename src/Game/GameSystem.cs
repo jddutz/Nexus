@@ -109,7 +109,10 @@ public class GameSystem(
         camera.SetViewportSize(mainWindow.Size.X, mainWindow.Size.Y);
         CurrentScene.CreateChild<GameObject>().AddComponent(camera);
 
-        var textComponent = new TextComponent(CreateRobotoTextStyle()) { Text = "Hello Nexus" };
+        var textComponent = new TextComponent(CreateRobotoTextStyle())
+        {
+            Text = "Welcome to the Nexus",
+        };
         CurrentScene.CreateChild<GameObject2D>().AddComponent(textComponent);
 
         _logger.LogTrace("Activating scene...");

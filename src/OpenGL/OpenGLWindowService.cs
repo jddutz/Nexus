@@ -1,6 +1,6 @@
 namespace Nexus.Graphics.OpenGL;
 
-using Microsoft.Extensions.Logging;
+using System.Diagnostics;
 
 /// <summary>
 /// Provides the OpenGL-backed application window.
@@ -8,7 +8,6 @@ using Microsoft.Extensions.Logging;
 public sealed class OpenGLWindowService : IWindowService, IDisposable
 {
     private const string WindowUnavailable = "Application Window has not been initialized yet.";
-    private readonly ILogger<OpenGLWindowService> _logger;
     private readonly Dictionary<WindowId, IWindow> _windows = new();
     private ulong _nextWindowId = 1;
     private WindowId _mainWindowId = WindowId.Invalid;
@@ -16,11 +15,7 @@ public sealed class OpenGLWindowService : IWindowService, IDisposable
     /// <summary>
     /// Initializes a new instance of the <see cref="OpenGLWindowService"/> class.
     /// </summary>
-    /// <param name="logger">The logger used to report window lifecycle events.</param>
-    public OpenGLWindowService(ILogger<OpenGLWindowService> logger)
-    {
-        _logger = logger;
-    }
+    public OpenGLWindowService() { }
 
     /// <inheritdoc />
     public WindowId MainWindowId => _mainWindowId;
@@ -31,7 +26,7 @@ public sealed class OpenGLWindowService : IWindowService, IDisposable
         if (_windows.TryGetValue(windowId, out var window))
             return window;
 
-        _logger.LogDebug("OpenGL window {WindowId} was not found.", windowId.Value);
+        Debug.WriteLine($"OpenGL window {windowId.Value} was not found.");
         throw new InvalidOperationException(WindowUnavailable);
     }
 
@@ -54,13 +49,8 @@ public sealed class OpenGLWindowService : IWindowService, IDisposable
         if (isMainWindow)
             _mainWindowId = windowId;
 
-        _logger.LogDebug(
-            "Created OpenGL window {WindowId} with title {Title} and size {Width}x{Height}. MainWindow={IsMainWindow}",
-            windowId.Value,
-            settings.Title,
-            settings.Width,
-            settings.Height,
-            isMainWindow
+        Debug.WriteLine(
+            $"Created OpenGL window {windowId.Value} with title {settings.Title} and size {settings.Width}x{settings.Height}. MainWindow={isMainWindow}"
         );
         return windowId;
     }
@@ -71,7 +61,7 @@ public sealed class OpenGLWindowService : IWindowService, IDisposable
         var id = windowId ?? _mainWindowId;
         if (!_windows.Remove(id, out var window))
         {
-            _logger.LogDebug("OpenGL window {WindowId} was not open when close was requested.", id.Value);
+            Debug.WriteLine($"OpenGL window {id.Value} was not open when close was requested.");
             return;
         }
 
@@ -80,7 +70,7 @@ public sealed class OpenGLWindowService : IWindowService, IDisposable
         if (id == _mainWindowId)
         {
             _mainWindowId = _windows.Keys.FirstOrDefault();
-            _logger.LogDebug("Main OpenGL window changed to {WindowId}.", _mainWindowId.Value);
+            Debug.WriteLine($"Main OpenGL window changed to {_mainWindowId.Value}.");
         }
     }
 
@@ -89,7 +79,7 @@ public sealed class OpenGLWindowService : IWindowService, IDisposable
     /// </summary>
     public void Dispose()
     {
-        _logger.LogDebug("Disposing OpenGL window service with {WindowCount} open windows.", _windows.Count);
+        Debug.WriteLine($"Disposing OpenGL window service with {_windows.Count} open windows.");
         foreach (var window in _windows.Values)
             window.Dispose();
 
