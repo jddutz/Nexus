@@ -21,7 +21,7 @@ public sealed class TextComponentTests
     [Fact]
     public void Drawables_returns_text_spans()
     {
-        var component = new TextComponent(CreateStyle()) { Text = "Hello" };
+        var component = new TextComponent(CreateStyle()) { Text = "AB" };
 
         var span = Assert.IsType<TextSpan>(Assert.Single(component.Drawables));
 
@@ -34,21 +34,143 @@ public sealed class TextComponentTests
     [Fact]
     public void Text_replaces_existing_spans_with_one_span()
     {
-        var component = new TextComponent(CreateStyle()) { Text = "Before" };
+        var component = new TextComponent(CreateStyle()) { Text = "A" };
         var previousSpan = Assert.Single(component.Drawables);
         var removed = new List<IDrawable>();
         var added = new List<IDrawable>();
         component.DrawableRemoved += (_, e) => removed.Add(e.Drawable);
         component.DrawableAdded += (_, e) => added.Add(e.Drawable);
 
-        component.Text = "Hello";
+        component.Text = "B";
 
-        Assert.Equal("Hello", component.Text);
+        Assert.Equal("B", component.Text);
         var span = Assert.IsType<TextSpan>(Assert.Single(component.Drawables));
         Assert.Equal(2u, span.Texture.Width);
-        Assert.Equal("Hello", span.Text);
+        Assert.Equal("B", span.Text);
         Assert.Same(previousSpan, Assert.Single(removed));
         Assert.Same(span, Assert.Single(added));
+    }
+
+    /// <summary>
+    /// Verifies empty and whitespace-only text do not expose drawable spans.
+    /// </summary>
+    [Fact]
+    public void Text_without_renderable_glyphs_has_no_drawables()
+    {
+        var component = new TextComponent(CreateStyle());
+        var removed = new List<IDrawable>();
+        var added = new List<IDrawable>();
+        component.DrawableRemoved += (_, e) => removed.Add(e.Drawable);
+        component.DrawableAdded += (_, e) => added.Add(e.Drawable);
+
+        component.Text = string.Empty;
+        component.Text = " ";
+
+        Assert.Empty(component.Drawables);
+        Assert.Empty(removed);
+        Assert.Empty(added);
+    }
+
+    /// <summary>
+    /// Verifies visible text creates one drawable containing its renderable glyphs.
+    /// </summary>
+    [Fact]
+    public void Visible_text_creates_one_drawable()
+    {
+        var component = new TextComponent(CreateStyle()) { Text = "AB" };
+
+        var span = Assert.IsType<TextSpan>(Assert.Single(component.Drawables));
+
+        Assert.Equal((ulong)2, ((IDrawable)span).InstanceCount);
+    }
+
+    /// <summary>
+    /// Verifies changing visible text to empty text removes its drawable.
+    /// </summary>
+    [Fact]
+    public void Visible_text_to_empty_text_removes_drawable()
+    {
+        var component = new TextComponent(CreateStyle()) { Text = "A" };
+        var previousSpan = Assert.Single(component.Drawables);
+        var removed = new List<IDrawable>();
+        var added = new List<IDrawable>();
+        component.DrawableRemoved += (_, e) => removed.Add(e.Drawable);
+        component.DrawableAdded += (_, e) => added.Add(e.Drawable);
+
+        component.Text = string.Empty;
+
+        Assert.Empty(component.Drawables);
+        Assert.Same(previousSpan, Assert.Single(removed));
+        Assert.Empty(added);
+    }
+
+    /// <summary>
+    /// Verifies changing empty text to visible text adds its drawable.
+    /// </summary>
+    [Fact]
+    public void Empty_text_to_visible_text_adds_drawable()
+    {
+        var component = new TextComponent(CreateStyle());
+        var removed = new List<IDrawable>();
+        var added = new List<IDrawable>();
+        component.DrawableRemoved += (_, e) => removed.Add(e.Drawable);
+        component.DrawableAdded += (_, e) => added.Add(e.Drawable);
+
+        component.Text = "A";
+
+        Assert.Single(component.Drawables);
+        Assert.Empty(removed);
+        Assert.Same(Assert.Single(component.Drawables), Assert.Single(added));
+    }
+
+    /// <summary>
+    /// Verifies a layout-only space advances the following glyph without creating an instance.
+    /// </summary>
+    [Fact]
+    public void Layout_whitespace_advances_following_glyph_without_rendering()
+    {
+        var span = new TextSpan(CreateStyleWithSpace(), "A B");
+        var data = span.GetInstanceData(BuiltInShaders.TexturedQuadVertexShader.InstanceLayout);
+        var secondGlyph = MemoryMarshal.Read<Matrix4X4<float>>(data.Span[(data.Length / 2)..]);
+
+        Assert.Equal((ulong)2, ((IDrawable)span).InstanceCount);
+        Assert.Equal(
+            Matrix4X4.CreateScale(1f, 1f, 1f) * Matrix4X4.CreateTranslation(2.5f, 0.5f, 0f),
+            secondGlyph
+        );
+    }
+
+    /// <summary>
+    /// Verifies unsupported glyphs do not produce an empty drawable.
+    /// </summary>
+    [Fact]
+    public void Unsupported_glyph_does_not_create_drawable()
+    {
+        var component = new TextComponent(CreateStyle()) { Text = "?" };
+
+        Assert.Empty(component.Drawables);
+    }
+
+    /// <summary>
+    /// Verifies an unsupported code point is skipped without advancing or breaking kerning.
+    /// </summary>
+    [Fact]
+    public void Unsupported_glyph_is_skipped_without_affecting_layout()
+    {
+        var style = new TestTextStyle(
+            new Dictionary<int, FontGlyph>
+            {
+                ['A'] = new('A', 1, new(0, 0, 1, 1), new(0, 0, 1, 1)),
+                ['B'] = new('B', 1, new(0, 0, 1, 1), new(1, 0, 1, 1)),
+            },
+            new Dictionary<(int, int), double> { [('A', 'B')] = -0.25 }
+        );
+        var span = new TextSpan(style, "A?B");
+        var data = span.GetInstanceData(BuiltInShaders.TexturedQuadVertexShader.InstanceLayout);
+        var secondGlyph = MemoryMarshal.Read<Matrix4X4<float>>(data.Span[(data.Length / 2)..]);
+
+        Assert.Equal((ulong)2, ((IDrawable)span).InstanceCount);
+        Assert.Equal(1.25f, secondGlyph.M41);
     }
 
     /// <summary>
@@ -127,7 +249,22 @@ public sealed class TextComponentTests
         );
     }
 
-    private sealed class TestTextStyle(IReadOnlyDictionary<int, FontGlyph> glyphs) : ITextStyle
+    private static ITextStyle CreateStyleWithSpace()
+    {
+        return new TestTextStyle(
+            new Dictionary<int, FontGlyph>
+            {
+                ['A'] = new('A', 1, new(0, 0, 1, 1), new(0, 0, 1, 1)),
+                ['B'] = new('B', 1, new(0, 0, 1, 1), new(1, 0, 1, 1)),
+                [' '] = new(' ', 1, new(0, 0, 0, 0), new(0, 0, 0, 0)),
+            }
+        );
+    }
+
+    private sealed class TestTextStyle(
+        IReadOnlyDictionary<int, FontGlyph> glyphs,
+        IReadOnlyDictionary<(int LeftCodepoint, int RightCodepoint), double>? kerning = null
+    ) : ITextStyle
     {
         public ITexture Texture { get; } = new Texture("atlas", 2, 1, [Colors.White, Colors.White]);
         public IReadOnlyDictionary<int, FontGlyph> Glyphs { get; } = glyphs;
@@ -135,7 +272,7 @@ public sealed class TextComponentTests
         public IReadOnlyDictionary<
             (int LeftCodepoint, int RightCodepoint),
             double
-        > Kerning { get; } = new Dictionary<(int, int), double>();
+        > Kerning { get; } = kerning ?? new Dictionary<(int, int), double>();
         public Color Color { get; } = Colors.White;
         public double Size { get; } = 1;
     }

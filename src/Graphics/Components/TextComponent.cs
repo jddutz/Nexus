@@ -38,12 +38,14 @@ public class TextComponent : Component, IGraphicsComponent
 
             // TODO: Parse multiline and rich text into glyph spans.
             var span = new TextSpan(_textStyle, _text);
-            _spans.Add(span);
+            if (((IDrawable)span).InstanceCount > 0)
+                _spans.Add(span);
 
             foreach (var removedSpan in removedSpans)
                 DrawableRemoved?.Invoke(this, new DrawableEventArgs(removedSpan));
 
-            DrawableAdded?.Invoke(this, new DrawableEventArgs(span));
+            if (_spans.Count > 0)
+                DrawableAdded?.Invoke(this, new DrawableEventArgs(span));
         }
     }
 

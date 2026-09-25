@@ -220,7 +220,10 @@ public sealed class TextSpan : IDrawable, IMeshInstance
         {
             var codepoint = rune.Value;
             if (!Style.Glyphs.TryGetValue(codepoint, out var glyph))
+            {
+                // Missing glyphs have no layout metrics, so they do not advance or break kerning.
                 continue;
+            }
 
             if (
                 previousCodepoint >= 0
@@ -228,7 +231,12 @@ public sealed class TextSpan : IDrawable, IMeshInstance
             )
                 penX += adjustment * scale;
 
-            glyphs.Add((glyph, (float)penX));
+            if (
+                glyph.PlaneBounds.Right > glyph.PlaneBounds.Left
+                && glyph.PlaneBounds.Top > glyph.PlaneBounds.Bottom
+            )
+                glyphs.Add((glyph, (float)penX));
+
             penX += glyph.Advance * scale;
             previousCodepoint = codepoint;
         }
