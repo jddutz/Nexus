@@ -1,11 +1,14 @@
 namespace Nexus.Graphics.Vulkan;
 
+using Microsoft.Extensions.Logging;
+
 /// <summary>
 /// Provides the Vulkan-backed application window.
 /// </summary>
 public sealed class VulkanWindowService : IWindowService, IDisposable
 {
     private const string WindowUnavailable = "Application Window has not been initialized yet.";
+    private readonly ILogger<VulkanWindowService> _logger;
     private readonly Dictionary<WindowId, IWindow> _windows = new();
     private ulong _nextWindowId = 1;
     private WindowId _mainWindowId = WindowId.Invalid;
@@ -13,7 +16,11 @@ public sealed class VulkanWindowService : IWindowService, IDisposable
     /// <summary>
     /// Initializes a new instance of the <see cref="VulkanWindowService"/> class.
     /// </summary>
-    public VulkanWindowService() { }
+    /// <param name="logger">The logger used to report window lifecycle events.</param>
+    public VulkanWindowService(ILogger<VulkanWindowService> logger)
+    {
+        _logger = logger;
+    }
 
     /// <inheritdoc />
     public WindowId MainWindowId => _mainWindowId;
@@ -21,9 +28,11 @@ public sealed class VulkanWindowService : IWindowService, IDisposable
     /// <inheritdoc />
     public IWindow GetWindow(WindowId windowId)
     {
-        return _windows.TryGetValue(windowId, out var window)
-            ? window
-            : throw new InvalidOperationException(WindowUnavailable);
+        if (_windows.TryGetValue(windowId, out var window))
+            return window;
+
+        _logger.LogDebug("Vulkan window {WindowId} was not found.", windowId.Value);
+        throw new InvalidOperationException(WindowUnavailable);
     }
 
     /// <inheritdoc />
@@ -41,9 +50,18 @@ public sealed class VulkanWindowService : IWindowService, IDisposable
         var window = Window.Create(windowOptions);
         var windowId = new WindowId(_nextWindowId++);
         _windows.Add(windowId, window);
-        if (_mainWindowId == WindowId.Invalid)
+        var isMainWindow = _mainWindowId == WindowId.Invalid;
+        if (isMainWindow)
             _mainWindowId = windowId;
 
+        _logger.LogDebug(
+            "Created Vulkan window {WindowId} with title {Title} and size {Width}x{Height}. MainWindow={IsMainWindow}",
+            windowId.Value,
+            settings.Title,
+            settings.Width,
+            settings.Height,
+            isMainWindow
+        );
         return windowId;
     }
 
@@ -52,12 +70,18 @@ public sealed class VulkanWindowService : IWindowService, IDisposable
     {
         var id = windowId ?? _mainWindowId;
         if (!_windows.Remove(id, out var window))
+        {
+            _logger.LogDebug("Vulkan window {WindowId} was not open when close was requested.", id.Value);
             return;
+        }
 
         window.Close();
         window.Dispose();
         if (id == _mainWindowId)
+        {
             _mainWindowId = _windows.Keys.FirstOrDefault();
+            _logger.LogDebug("Main Vulkan window changed to {WindowId}.", _mainWindowId.Value);
+        }
     }
 
     /// <summary>
@@ -65,6 +89,7 @@ public sealed class VulkanWindowService : IWindowService, IDisposable
     /// </summary>
     public void Dispose()
     {
+        _logger.LogDebug("Disposing Vulkan window service with {WindowCount} open windows.", _windows.Count);
         foreach (var window in _windows.Values)
             window.Dispose();
 
