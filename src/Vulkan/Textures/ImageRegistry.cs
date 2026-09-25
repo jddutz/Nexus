@@ -470,12 +470,7 @@ public unsafe class ImageRegistry : IImageRegistry
         QueueStagedBuffer(stagingBuffer, _syncManager.CurrentFrameIndex);
         return
         [
-            new UploadImageCommand(
-                stagingBuffer,
-                image,
-                region,
-                ImageLayout.ShaderReadOnlyOptimal
-            ),
+            new UploadImageCommand(stagingBuffer, image, region, ImageLayout.ShaderReadOnlyOptimal),
         ];
     }
 

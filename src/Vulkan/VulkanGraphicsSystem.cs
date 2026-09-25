@@ -94,8 +94,8 @@ public unsafe class VulkanGraphicsSystem(
         var transientCommands = commands.Where(command => !command.IsSticky).ToArray();
 
         foreach (var batches in targetBatches)
-            foreach (var command in persistentCommands)
-                AddToBatches(batches, command);
+        foreach (var command in persistentCommands)
+            AddToBatches(batches, command);
 
         foreach (var command in transientCommands)
             AddToBatches(targetBatches[0], command);
@@ -174,22 +174,19 @@ public unsafe class VulkanGraphicsSystem(
             foreach (var batch in batches)
                 batch.Remove(drawable.Id);
             foreach (var command in registration.TransientCommands)
-                foreach (var batch in batches)
-                    batch.RemoveCommand(command.Id);
+            foreach (var batch in batches)
+                batch.RemoveCommand(command.Id);
         }
 
         var targetBatches = GetDrawableBatches(drawable.RenderLayerMask).ToArray();
         foreach (var batches in targetBatches)
-            foreach (var command in registration.Commands)
-                AddToBatches(batches, command);
+        foreach (var command in registration.Commands)
+            AddToBatches(batches, command);
         if (targetBatches.Length > 0)
             foreach (var command in registration.TransientCommands)
                 AddToBatches(targetBatches[0], command);
 
-        _drawables[drawable.Id] = registration with
-        {
-            RenderLayerMask = drawable.RenderLayerMask,
-        };
+        _drawables[drawable.Id] = registration with { RenderLayerMask = drawable.RenderLayerMask };
     }
 
     /// <summary>Updates instance buffers and draw counts for a changed drawable.</summary>
@@ -280,8 +277,8 @@ public unsafe class VulkanGraphicsSystem(
             foreach (var replaced in replacedCommands)
             {
                 foreach (var batches in GetDrawableBatches(registration.RenderLayerMask))
-                    foreach (var batch in batches)
-                        batch.RemoveCommand(replaced.Id);
+                foreach (var batch in batches)
+                    batch.RemoveCommand(replaced.Id);
 
                 retainedCommands.Remove(replaced);
             }
@@ -365,8 +362,8 @@ public unsafe class VulkanGraphicsSystem(
             }
 
             foreach (var command in registration.TransientCommands)
-                foreach (var batch in batches)
-                    batch.RemoveCommand(command.Id);
+            foreach (var batch in batches)
+                batch.RemoveCommand(command.Id);
         }
 
         var releaseCommands = commandFactory.Release(drawable).ToArray();
@@ -531,7 +528,11 @@ public unsafe class VulkanGraphicsSystem(
         }
         _components.Clear();
 
-        foreach (var drawable in _drawables.Values.Select(registration => registration.Drawable).ToArray())
+        foreach (
+            var drawable in _drawables
+                .Values.Select(registration => registration.Drawable)
+                .ToArray()
+        )
             Deactivate(drawable);
 
         geometryRegistry.Reset();

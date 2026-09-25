@@ -250,7 +250,7 @@ public class CommandFactoryTests
                     PrimitiveTopologyEnum.TriangleList,
                     format,
                     [new ShaderInput(0, 16)],
-                     includeInstanceLayout ? [new ShaderInput(0, 16)] : []
+                    includeInstanceLayout ? [new ShaderInput(0, 16)] : []
                 )
                 : null,
             includeFragmentShader

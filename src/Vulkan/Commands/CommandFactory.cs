@@ -416,9 +416,10 @@ public unsafe class CommandFactory(
                 vertexShader.InstanceLayout.Length == 0 ? null : vertexShader.InstanceLayout;
         }
 
-        var (pipeline, pipelineLayout) = pipelineDefinition.Id == oldPipelineId
-            ? (pipelineRegistry.Get(oldPipelineId), pipelineRegistry.GetLayout(oldPipelineId))
-            : pipelineRegistry.GetOrCreate(pipelineDefinition);
+        var (pipeline, pipelineLayout) =
+            pipelineDefinition.Id == oldPipelineId
+                ? (pipelineRegistry.Get(oldPipelineId), pipelineRegistry.GetLayout(oldPipelineId))
+                : pipelineRegistry.GetOrCreate(pipelineDefinition);
         allocation.VertexShader = vertexShader;
         allocation.PipelineId = pipelineDefinition.Id;
         allocation.Pipeline = pipeline;
