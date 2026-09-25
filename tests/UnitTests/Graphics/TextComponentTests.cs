@@ -1,3 +1,4 @@
+using Nexus.Assets.Fonts;
 using Nexus.Graphics;
 using Nexus.Graphics.Components;
 using Nexus.Graphics.Geometry;

@@ -1,9 +1,9 @@
 using System.Buffers.Binary;
 using System.Text;
-using Nexus.AssetPipeline.Typography.FontReader;
-using Nexus.AssetPipeline.Typography.FontReader.TrueType;
-using Nexus.AssetPipeline.Typography.FontReader.TrueType.Tables;
-using Nexus.AssetPipeline.Typography.Geometry;
+using Nexus.Assets.Typography.FontReader;
+using Nexus.Assets.Typography.FontReader.TrueType;
+using Nexus.Assets.Typography.FontReader.TrueType.Tables;
+using Nexus.Assets.Typography.Geometry;
 using Xunit.Abstractions;
 
 namespace Nexus.AssetPipeline.Tests;
@@ -121,7 +121,9 @@ public sealed class TrueTypeFontReaderTests
     {
         var font = CreateFontWithTables(
             ("cmap", CreateCmap((3, 1, CreateFormat4Subtable()))),
-            ("maxp", CreateMaxpTable(40))
+            ("head", CreateHeadTable()),
+            ("maxp", CreateMaxpTable(40)),
+            ("hhea", CreateHheaTable(40))
         );
 
         var reader = new TrueTypeFontReader(font);
@@ -149,7 +151,12 @@ public sealed class TrueTypeFontReaderTests
         );
         var cmap = CreateCmap((0, 4, format12), (3, 1, format4));
         var font = new TrueTypeFontReader(
-            CreateFontWithTables(("cmap", cmap), ("maxp", CreateMaxpTable(40)))
+            CreateFontWithTables(
+                ("cmap", cmap),
+                ("head", CreateHeadTable()),
+                ("maxp", CreateMaxpTable(40)),
+                ("hhea", CreateHheaTable(40))
+            )
         );
 
         Assert.Equal((ushort)37, font.GetGlyphIndex('A'));
@@ -207,6 +214,7 @@ public sealed class TrueTypeFontReaderTests
             CreateFontWithTables(
                 ("head", CreateHeadTable(indexToLocFormat)),
                 ("maxp", CreateMaxpTable(1)),
+                ("hhea", CreateHheaTable(1)),
                 ("loca", CreateLocaTable(indexToLocFormat, glyf.Length)),
                 ("glyf", glyf)
             )
@@ -252,6 +260,26 @@ public sealed class TrueTypeFontReaderTests
         var point = Assert.Single(outline.Contours).Points[1];
 
         Assert.Equal((4, 1, false), (point.X, point.Y, point.OnCurve));
+    }
+
+    /// <summary>
+    /// Verifies nested fractional transforms retain precision until the final outline coordinates are rounded.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFontReader_preservesPrecisionAcrossNestedFractionalTransforms()
+    {
+        var halfScale = new short[] { 8192 };
+        var font = new TrueTypeFontReader(
+            CreateFontWithGlyphs(
+                CreateSinglePointGlyph(1, 1),
+                CreateCompositeGlyph((0x000B, 0, 0, 0, halfScale)),
+                CreateCompositeGlyph((0x000B, 1, 0, 0, halfScale))
+            )
+        );
+
+        var point = Assert.Single(Assert.Single(font.GetGlyphOutline(2).Contours).Points);
+
+        Assert.Equal((0, 0, true), (point.X, point.Y, point.OnCurve));
     }
 
     /// <summary>
@@ -766,6 +794,22 @@ public sealed class TrueTypeFontReaderTests
     }
 
     /// <summary>
+    /// Creates a one-point simple glyph at the requested coordinates.
+    /// </summary>
+    /// <param name="x">The point's horizontal coordinate.</param>
+    /// <param name="y">The point's vertical coordinate.</param>
+    /// <returns>The encoded simple glyph padded to an even byte length.</returns>
+    private static byte[] CreateSinglePointGlyph(byte x, byte y)
+    {
+        var glyph = new byte[18];
+        BinaryPrimitives.WriteInt16BigEndian(glyph, 1);
+        glyph[14] = 0x37;
+        glyph[15] = x;
+        glyph[16] = y;
+        return glyph;
+    }
+
+    /// <summary>
     /// Creates a composite glyph with the supplied component records.
     /// </summary>
     /// <param name="components">The flags, glyph index, arguments, and encoded transform values.</param>
@@ -847,6 +891,7 @@ public sealed class TrueTypeFontReaderTests
         return CreateFontWithTables(
             ("head", CreateHeadTable(1)),
             ("maxp", CreateMaxpTable(checked((ushort)glyphs.Length))),
+            ("hhea", CreateHheaTable(checked((ushort)glyphs.Length))),
             ("loca", loca),
             ("glyf", glyf)
         );

@@ -11,5 +11,6 @@
     <PackageReference Include="Silk.NET.Windowing" />
     <PackageReference Include="StbImageSharp" />
     <ProjectReference Include="..\Core\Nexus.Core.csproj" />
+    <ProjectReference Include="..\Assets\Nexus.Assets.csproj" />
   </ItemGroup>
 </Project>

@@ -27,12 +27,11 @@ public sealed class Pipeline
                 .WithNamingConvention(CamelCaseNamingConvention.Instance)
                 .IgnoreUnmatchedProperties()
                 .Build();
-            var processor = new FontProcessor(new FontBuilder());
             var textureEntries = new Dictionary<string, Dictionary<string, string>>(
                 StringComparer.Ordinal
             );
-            var fontEntries = new Dictionary<string, FontManifestEntry>(StringComparer.Ordinal);
-            PipelineLog.Info("YAML deserializer and font processor created.");
+            var fontEntries = new Dictionary<string, string>(StringComparer.Ordinal);
+            PipelineLog.Info("YAML deserializer created.");
 
             foreach (var inputFile in _inputFiles.Order(StringComparer.Ordinal))
             {
@@ -58,7 +57,7 @@ public sealed class Pipeline
                 {
                     var asset = pipeline.Assets[assetIndex];
                     PipelineLog.Info(
-                        $"Asset[{assetIndex}] parsed: Type='{asset.AssetType}', ContentId='{asset.ContentId}', Source='{asset.Source}', Path='{asset.Path}', Group='{asset.GroupName}', Files=[{string.Join(", ", asset.Files)}], HasGlyphs={asset.Glyphs is not null}, HasGeneration={asset.Generation is not null}."
+                        $"Asset[{assetIndex}] parsed: Type='{asset.AssetType}', ContentId='{asset.ContentId}', Source='{asset.Source}', Path='{asset.Path}', Group='{asset.GroupName}', Files=[{string.Join(", ", asset.Files)}]."
                     );
                     if (!string.Equals(asset.AssetType, "font", StringComparison.OrdinalIgnoreCase))
                     {
@@ -79,35 +78,7 @@ public sealed class Pipeline
                         );
                         continue;
                     }
-                    var font = FontDefinition.FromAsset(asset);
-                    PipelineLog.Info(
-                        $"Asset[{assetIndex}] converted to FontDefinition: ContentId='{font.ContentId}', Source='{font.Source}', Repertoire='{font.Glyphs.Repertoire}', Characters='{font.Glyphs.Characters}', EmSize={font.Generation.EmSize}, DistanceRange={font.Generation.DistanceRange}, Padding={font.Generation.Padding}."
-                    );
-                    var result = processor.Process(font, sourceRoot);
-                    PipelineLog.Info(
-                        $"Font processor returned atlas {result.Atlas.Width}x{result.Atlas.Height}, Pixels={result.Atlas.Pixels.Length}, Glyphs={result.Glyphs.Count}, Kerning={result.Kerning.Count}."
-                    );
-                    var outputPath = FontProcessor.GetOutputPath(_outputFolder, font.ContentId);
-                    var atlasPath = Path.Combine(outputPath, "atlas.rgb8");
-                    PipelineLog.Info($"Writing font atlas to '{atlasPath}'.");
-                    FontAtlasWriter.Write(atlasPath, result);
-                    var relativeAtlasPath = Path.GetRelativePath(_outputFolder, atlasPath)
-                        .Replace('\\', '/');
-                    fontEntries[font.ContentId] = new FontManifestEntry(
-                        new FontManifestAtlas(
-                            relativeAtlasPath,
-                            result.Atlas.Width,
-                            result.Atlas.Height,
-                            FontAtlas.PixelFormat
-                        ),
-                        result.Metrics,
-                        result.Glyphs,
-                        result.Kerning,
-                        result.Msdf
-                    );
-                    PipelineLog.Info(
-                        $"Font atlas write returned successfully for '{font.ContentId}'."
-                    );
+                    ProcessFont(asset, sourceRoot, fontEntries);
                 }
             }
 
@@ -162,9 +133,58 @@ public sealed class Pipeline
         textureEntries[asset.GroupName.Length == 0 ? "Textures" : asset.GroupName] = textureSection;
     }
 
+    /// <summary>
+    /// Copies a TrueType or OpenType source file into the content output and records its path.
+    /// </summary>
+    /// <param name="asset">The font asset definition.</param>
+    /// <param name="sourceRoot">The root used to resolve the source font path.</param>
+    /// <param name="fontEntries">The manifest entries to update.</param>
+    private void ProcessFont(
+        AssetDefinition asset,
+        string sourceRoot,
+        Dictionary<string, string> fontEntries
+    )
+    {
+        if (string.IsNullOrWhiteSpace(asset.ContentId))
+            throw new InvalidOperationException("A Font asset must specify contentId.");
+        if (
+            asset.ContentId.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0
+            || asset.ContentId.Contains('/')
+            || asset.ContentId.Contains('\\')
+        )
+            throw new InvalidOperationException(
+                $"Font '{asset.ContentId}' has an invalid contentId."
+            );
+        if (string.IsNullOrWhiteSpace(asset.Source))
+            throw new InvalidOperationException(
+                $"Font '{asset.ContentId}' must specify a source file."
+            );
+
+        var sourcePath = Path.GetFullPath(asset.Source, sourceRoot);
+        var extension = Path.GetExtension(sourcePath);
+        if (
+            !string.Equals(extension, ".ttf", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(extension, ".otf", StringComparison.OrdinalIgnoreCase)
+        )
+            throw new InvalidOperationException(
+                $"Font '{asset.ContentId}' source '{sourcePath}' must be a .ttf or .otf file."
+            );
+        if (!File.Exists(sourcePath))
+            throw new FileNotFoundException("Font source file was not found.", sourcePath);
+
+        var relativeOutputPath = Path.Combine("fonts", asset.ContentId + extension);
+        var outputPath = Path.Combine(_outputFolder, relativeOutputPath);
+        Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
+        File.Copy(sourcePath, outputPath, overwrite: true);
+
+        var manifestPath = relativeOutputPath.Replace('\\', '/');
+        fontEntries[asset.ContentId] = manifestPath;
+        PipelineLog.Info($"Font '{asset.ContentId}' copied. RelativePath='{manifestPath}'.");
+    }
+
     private void WriteManifest(
         Dictionary<string, Dictionary<string, string>> textureEntries,
-        Dictionary<string, FontManifestEntry> fontEntries
+        Dictionary<string, string> fontEntries
     )
     {
         var content = new Dictionary<string, object>(StringComparer.Ordinal)
@@ -188,7 +208,14 @@ public sealed class Pipeline
             {
                 ["Content"] = new Dictionary<string, string>(),
             },
-            ["Fonts"] = new Dictionary<string, object> { ["Content"] = fontEntries },
+            ["Fonts"] = new Dictionary<string, object>
+            {
+                ["Content"] = fontEntries.ToDictionary(
+                    entry => entry.Key,
+                    entry => (object)new Dictionary<string, string> { ["FilePath"] = entry.Value },
+                    StringComparer.Ordinal
+                ),
+            },
         };
 
         Directory.CreateDirectory(_outputFolder);

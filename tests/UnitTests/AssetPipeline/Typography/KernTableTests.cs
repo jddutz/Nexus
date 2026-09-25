@@ -1,7 +1,7 @@
 using System.Buffers.Binary;
-using Nexus.AssetPipeline.Typography.FontReader;
-using Nexus.AssetPipeline.Typography.FontReader.TrueType;
-using Nexus.AssetPipeline.Typography.FontReader.TrueType.Tables.Kern;
+using Nexus.Assets.Typography.FontReader;
+using Nexus.Assets.Typography.FontReader.TrueType;
+using Nexus.Assets.Typography.FontReader.TrueType.Tables.Kern;
 
 namespace Nexus.AssetPipeline.Tests;
 

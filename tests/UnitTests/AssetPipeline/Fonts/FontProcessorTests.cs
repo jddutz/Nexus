@@ -1,5 +1,4 @@
-using Nexus.AssetPipeline.Fonts;
-using Nexus.Graphics.Text;
+using Nexus.Assets.Fonts;
 
 namespace Nexus.AssetPipeline.Tests;
 

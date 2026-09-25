@@ -1,5 +1,7 @@
 namespace Nexus.Graphics.Text;
 
+using Nexus.Assets.Fonts;
+
 /// <summary>
 /// Provides the font and visual data used to lay out and render text.
 /// </summary>

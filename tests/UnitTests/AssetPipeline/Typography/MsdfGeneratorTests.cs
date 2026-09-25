@@ -1,6 +1,6 @@
 using System.Numerics;
-using Nexus.AssetPipeline.Typography.DistanceFields;
-using Nexus.AssetPipeline.Typography.Geometry;
+using Nexus.Assets.Typography.DistanceFields;
+using Nexus.Assets.Typography.Geometry;
 
 namespace Nexus.AssetPipeline.Tests;
 

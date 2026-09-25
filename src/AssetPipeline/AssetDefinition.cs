@@ -8,6 +8,4 @@ public sealed class AssetDefinition
     public string Path { get; set; } = string.Empty;
     public string GroupName { get; set; } = string.Empty;
     public string[] Files { get; set; } = [];
-    public FontGlyphRepertoire? Glyphs { get; set; }
-    public FontGenerationSettings? Generation { get; set; }
 }

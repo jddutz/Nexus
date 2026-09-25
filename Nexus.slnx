@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/AssetPipeline/Nexus.AssetPipeline.csproj" />
+    <Project Path="src/Assets/Nexus.Assets.csproj" />
     <Project Path="src/Core/Nexus.Core.csproj" />
     <Project Path="src/Game/Nexus.Game.csproj" />
     <Project Path="src/Graphics/Nexus.Graphics.csproj" />

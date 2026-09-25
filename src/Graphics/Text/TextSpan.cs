@@ -1,4 +1,5 @@
 using System.Text;
+using Nexus.Assets.Fonts;
 using Nexus.Graphics.Components;
 
 namespace Nexus.Graphics.Text;

@@ -12,5 +12,6 @@
     <PackageReference Include="YamlDotNet" />
     <PackageReference Include="StbImageSharp" />
     <ProjectReference Include="..\Graphics\Nexus.Graphics.csproj" />
+    <ProjectReference Include="..\Assets\Nexus.Assets.csproj" />
   </ItemGroup>
 </Project>

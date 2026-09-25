@@ -1,6 +1,6 @@
-using Nexus.AssetPipeline.Typography.Atlas;
-using Nexus.AssetPipeline.Typography.DistanceFields;
-using Nexus.Graphics.Text;
+using Nexus.Assets.Fonts;
+using Nexus.Assets.Typography.Atlas;
+using Nexus.Assets.Typography.DistanceFields;
 
 namespace Nexus.AssetPipeline.Tests;
 
@@ -89,7 +89,7 @@ public sealed class FontAtlasBuilderTests
     /// <param name="x">The pixel's horizontal coordinate.</param>
     /// <param name="y">The pixel's row-major vertical coordinate.</param>
     /// <returns>The pixel's RGB channels.</returns>
-    private static byte[] GetPixel(Fonts.FontAtlas atlas, int x, int y)
+    private static byte[] GetPixel(FontAtlas atlas, int x, int y)
     {
         var offset = (y * atlas.Width + x) * 3;
         return atlas.Pixels[offset..(offset + 3)];

@@ -1,9 +1,9 @@
 using System.Buffers.Binary;
 using System.Text;
-using Nexus.AssetPipeline.Typography.FontReader;
-using Nexus.AssetPipeline.Typography.FontReader.TrueType;
-using Nexus.AssetPipeline.Typography.FontReader.TrueType.Tables.Gpos;
-using Nexus.Graphics.Text;
+using Nexus.Assets.Fonts;
+using Nexus.Assets.Typography.FontReader;
+using Nexus.Assets.Typography.FontReader.TrueType;
+using Nexus.Assets.Typography.FontReader.TrueType.Tables.Gpos;
 
 namespace Nexus.AssetPipeline.Tests;
 
@@ -29,19 +29,67 @@ public sealed class GposTableTests
     }
 
     /// <summary>
+    /// Verifies PairPos format 1 uses the first glyph's xAdvance and ignores other fields.
+    /// </summary>
+    [Fact]
+    public void GposTable_usesFirstGlyphAdvanceForExplicitPairPositioning()
+    {
+        var gpos = GposTable.Parse(
+            new TrueTypeReader(
+                BuildGpos(
+                    BuildPairPositioningFormatOne(
+                        -120,
+                        secondAdjustment: 45,
+                        firstValueFormat: 0x0005
+                    )
+                )
+            ),
+            glyphCount: 3,
+            glyphIndices: [1, 2]
+        );
+
+        Assert.True(gpos.HasSupportedKerning);
+        Assert.Equal(new GlyphKerningPair(1, 2, -120), Assert.Single(gpos.Pairs));
+    }
+
+    /// <summary>
     /// Verifies PairPos format 2 expands class pairs only across requested glyphs.
     /// </summary>
     [Fact]
     public void GposTable_expandsClassPairsForRequestedGlyphs()
     {
         var gpos = GposTable.Parse(
-            new TrueTypeReader(BuildGpos(BuildPairPositioningFormatTwo(-60))),
+            new TrueTypeReader(BuildGpos(BuildPairPositioningFormatTwo(-60, 35))),
             glyphCount: 4,
             glyphIndices: [1, 2]
         );
 
         Assert.True(gpos.HasSupportedKerning);
         Assert.Equal(new GlyphKerningPair(1, 2, -60), Assert.Single(gpos.Pairs));
+    }
+
+    /// <summary>
+    /// Verifies a second-glyph advance without first-glyph xAdvance is not scalar kerning.
+    /// </summary>
+    [Fact]
+    public void GposTable_doesNotSupportSecondGlyphAdvanceAsScalarKerning()
+    {
+        var gpos = GposTable.Parse(
+            new TrueTypeReader(
+                BuildGpos(
+                    BuildPairPositioningFormatOne(
+                        0,
+                        secondAdjustment: -120,
+                        firstValueFormat: 0x0001
+                    )
+                )
+            ),
+            glyphCount: 3,
+            glyphIndices: [1, 2]
+        );
+
+        Assert.False(gpos.HasSupportedKerning);
+        Assert.Empty(gpos.Pairs);
     }
 
     /// <summary>
@@ -167,14 +215,19 @@ public sealed class GposTableTests
     /// <returns>The encoded PairPos format 1 subtable.</returns>
     private static byte[] BuildPairPositioningFormatOne(
         short adjustment,
-        ushort rightGlyphIndex = 2
+        ushort rightGlyphIndex = 2,
+        short secondAdjustment = 0,
+        ushort firstValueFormat = 0x0004
     )
     {
-        var pairPositioning = new byte[24];
+        var firstRecordLength =
+            2 * ((firstValueFormat & 0x0001) != 0 ? 1 : 0)
+            + 2 * ((firstValueFormat & 0x0004) != 0 ? 1 : 0);
+        var pairPositioning = new byte[24 + firstRecordLength];
         WriteUInt16(pairPositioning, 0, 1);
         WriteUInt16(pairPositioning, 2, 12);
-        WriteUInt16(pairPositioning, 4, 4);
-        WriteUInt16(pairPositioning, 6, 0);
+        WriteUInt16(pairPositioning, 4, firstValueFormat);
+        WriteUInt16(pairPositioning, 6, 4);
         WriteUInt16(pairPositioning, 8, 1);
         WriteUInt16(pairPositioning, 10, 18);
         WriteUInt16(pairPositioning, 12, 1);
@@ -182,7 +235,20 @@ public sealed class GposTableTests
         WriteUInt16(pairPositioning, 16, 1);
         WriteUInt16(pairPositioning, 18, 1);
         WriteUInt16(pairPositioning, 20, rightGlyphIndex);
-        BinaryPrimitives.WriteInt16BigEndian(pairPositioning.AsSpan(22), adjustment);
+        var valueOffset = 22;
+        if ((firstValueFormat & 0x0001) != 0)
+        {
+            BinaryPrimitives.WriteInt16BigEndian(pairPositioning.AsSpan(valueOffset), 30);
+            valueOffset += 2;
+        }
+
+        if ((firstValueFormat & 0x0004) != 0)
+        {
+            BinaryPrimitives.WriteInt16BigEndian(pairPositioning.AsSpan(valueOffset), adjustment);
+            valueOffset += 2;
+        }
+
+        BinaryPrimitives.WriteInt16BigEndian(pairPositioning.AsSpan(valueOffset), secondAdjustment);
         return pairPositioning;
     }
 
@@ -191,33 +257,34 @@ public sealed class GposTableTests
     /// </summary>
     /// <param name="adjustment">The signed xAdvance adjustment.</param>
     /// <returns>The encoded PairPos format 2 subtable.</returns>
-    private static byte[] BuildPairPositioningFormatTwo(short adjustment)
+    private static byte[] BuildPairPositioningFormatTwo(short adjustment, short secondAdjustment)
     {
-        var pairPositioning = new byte[46];
+        var pairPositioning = new byte[54];
         WriteUInt16(pairPositioning, 0, 2);
-        WriteUInt16(pairPositioning, 2, 24);
+        WriteUInt16(pairPositioning, 2, 32);
         WriteUInt16(pairPositioning, 4, 4);
-        WriteUInt16(pairPositioning, 6, 0);
-        WriteUInt16(pairPositioning, 8, 30);
-        WriteUInt16(pairPositioning, 10, 38);
+        WriteUInt16(pairPositioning, 6, 4);
+        WriteUInt16(pairPositioning, 8, 38);
+        WriteUInt16(pairPositioning, 10, 46);
         WriteUInt16(pairPositioning, 12, 2);
         WriteUInt16(pairPositioning, 14, 2);
 
-        BinaryPrimitives.WriteInt16BigEndian(pairPositioning.AsSpan(22), adjustment);
+        BinaryPrimitives.WriteInt16BigEndian(pairPositioning.AsSpan(28), adjustment);
+        BinaryPrimitives.WriteInt16BigEndian(pairPositioning.AsSpan(30), secondAdjustment);
 
-        WriteUInt16(pairPositioning, 24, 1);
-        WriteUInt16(pairPositioning, 26, 1);
-        WriteUInt16(pairPositioning, 28, 1);
-
-        WriteUInt16(pairPositioning, 30, 1);
         WriteUInt16(pairPositioning, 32, 1);
         WriteUInt16(pairPositioning, 34, 1);
         WriteUInt16(pairPositioning, 36, 1);
 
         WriteUInt16(pairPositioning, 38, 1);
-        WriteUInt16(pairPositioning, 40, 2);
+        WriteUInt16(pairPositioning, 40, 1);
         WriteUInt16(pairPositioning, 42, 1);
         WriteUInt16(pairPositioning, 44, 1);
+
+        WriteUInt16(pairPositioning, 46, 1);
+        WriteUInt16(pairPositioning, 48, 2);
+        WriteUInt16(pairPositioning, 50, 1);
+        WriteUInt16(pairPositioning, 52, 1);
         return pairPositioning;
     }
 

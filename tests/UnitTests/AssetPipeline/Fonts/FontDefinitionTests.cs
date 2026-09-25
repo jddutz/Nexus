@@ -1,5 +1,5 @@
 using Nexus.AssetPipeline;
-using Nexus.AssetPipeline.Fonts;
+using Nexus.Assets.Fonts;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 
@@ -16,39 +16,29 @@ public sealed class FontDefinitionTests
               - assetType: font
                 contentId: ui.default
                 source: Fonts/Regular.ttf
-                glyphs:
-                  repertoire: ascii
-                  characters: "©"
-                generation:
-                  emSize: 64
-                  distanceRange: 6
-                  padding: 3
             """;
         var deserializer = new DeserializerBuilder()
             .WithNamingConvention(CamelCaseNamingConvention.Instance)
             .Build();
 
         var pipeline = deserializer.Deserialize<PipelineDefinition>(yaml);
-        var font = FontDefinition.FromAsset(Assert.Single(pipeline.Assets));
+        var asset = Assert.Single(pipeline.Assets);
 
-        Assert.Equal("ui.default", font.ContentId);
-        Assert.Equal("Fonts/Regular.ttf", font.Source);
-        Assert.Equal(64, font.Generation.EmSize);
-        Assert.Equal(6, font.Generation.DistanceRange);
-        Assert.Contains(0xA9, font.Glyphs.GetCodepoints());
+        Assert.Equal("ui.default", asset.ContentId);
+        Assert.Equal("Fonts/Regular.ttf", asset.Source);
     }
 
     [Fact]
     public void Defaults_arePrintableAsciiAndConservativeMsdfSettings()
     {
-        var definition = FontDefinition.FromAsset(new AssetDefinition());
+        var repertoire = new FontGlyphRepertoire();
 
-        Assert.Equal(95, definition.Glyphs.GetCodepoints().Length);
-        Assert.Equal(0x20, definition.Glyphs.GetCodepoints().First());
-        Assert.Equal(0x7e, definition.Glyphs.GetCodepoints().Last());
-        Assert.Equal(48, definition.Generation.EmSize);
-        Assert.Equal(4, definition.Generation.DistanceRange);
-        Assert.Equal(2, definition.Generation.Padding);
+        Assert.Equal(95, repertoire.GetCodepoints().Length);
+        Assert.Equal(0x20, repertoire.GetCodepoints().First());
+        Assert.Equal(0x7e, repertoire.GetCodepoints().Last());
+        Assert.Equal(48, new FontGenerationSettings().EmSize);
+        Assert.Equal(4, new FontGenerationSettings().DistanceRange);
+        Assert.Equal(2, new FontGenerationSettings().Padding);
     }
 
     [Fact]
