@@ -441,7 +441,42 @@ public unsafe class ImageRegistry : IImageRegistry
     /// <inheritdoc/>
     public IEnumerable<IVulkanCommand> Update(ITexture texture, ColorFormatEnum format)
     {
-        throw new NotImplementedException();
+        ArgumentNullException.ThrowIfNull(texture);
+
+        var id = ComputeImageId(texture.Id, format);
+        if (!_images.TryGetValue(id, out var image))
+            return Create(texture, format);
+
+        var data = new byte[checked((int)(texture.Count * (ulong)format.GetBytesPerPixel()))];
+        texture.WriteTo(0, texture.Count, format, data);
+
+        var stagingBuffer = CreateStagingBuffer(data);
+        var region = new BufferImageCopy
+        {
+            BufferOffset = 0,
+            BufferRowLength = 0,
+            BufferImageHeight = 0,
+            ImageSubresource = new ImageSubresourceLayers
+            {
+                AspectMask = ImageAspectFlags.ColorBit,
+                MipLevel = 0,
+                BaseArrayLayer = 0,
+                LayerCount = 1,
+            },
+            ImageOffset = new Offset3D(0, 0, 0),
+            ImageExtent = new Extent3D(texture.Width, texture.Height, 1),
+        };
+
+        QueueStagedBuffer(stagingBuffer, _syncManager.CurrentFrameIndex);
+        return
+        [
+            new UploadImageCommand(
+                stagingBuffer,
+                image,
+                region,
+                ImageLayout.ShaderReadOnlyOptimal
+            ),
+        ];
     }
 
     /// <inheritdoc/>

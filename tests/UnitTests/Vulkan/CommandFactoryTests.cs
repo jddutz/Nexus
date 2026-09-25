@@ -94,6 +94,114 @@ public class CommandFactoryTests
         Assert.Throws<NotSupportedException>(() => factory.Create(CreateDrawable()).ToList());
     }
 
+    [Fact]
+    public void UpdateInstanceData_refreshes_instance_binding_and_draw_count()
+    {
+        var dependencies = new TestDependencies();
+        var factory = CreateFactory(dependencies);
+        var drawable = CreateDrawable(includeInstanceLayout: true);
+        factory.Create(drawable).ToArray();
+        drawable.InstanceCount = 3;
+
+        var commands = factory.UpdateInstanceData(drawable).ToArray();
+
+        Assert.Equal(2, dependencies.Geometry.InstanceCreateCount);
+        Assert.Equal(1, dependencies.Geometry.CreateCount);
+        Assert.Equal(1, dependencies.Texture.CreateCount);
+        Assert.Equal(1, dependencies.Pipelines.GetOrCreateCount);
+        Assert.Equal((uint)3, Assert.IsType<DrawCommand>(commands[^1]).InstanceCount);
+        Assert.Contains(commands, command => command is BindVertexBufferCommand { Binding: 1 });
+    }
+
+    [Fact]
+    public void UpdateUniformData_updates_the_existing_uniform_buffer()
+    {
+        var dependencies = new TestDependencies();
+        var factory = CreateFactory(dependencies);
+        var drawable = CreateDrawable(includeInstanceLayout: true);
+        factory.Create(drawable).ToArray();
+
+        factory.UpdateUniformData(drawable);
+
+        Assert.Equal(2, dependencies.Buffers.UpdateBufferCount);
+        Assert.Equal(2, dependencies.Descriptors.UniformWriteCount);
+        Assert.Equal(1, dependencies.Buffers.CreateUniformBufferCount);
+    }
+
+    [Fact]
+    public void UpdateTexture_updates_image_and_descriptor_without_recreating_pipeline()
+    {
+        var dependencies = new TestDependencies();
+        var factory = CreateFactory(dependencies);
+        var drawable = CreateDrawable();
+        factory.Create(drawable).ToArray();
+        drawable.Texture = new TestTexture();
+
+        factory.UpdateTexture(drawable).ToArray();
+
+        Assert.Equal(1, dependencies.Texture.UpdateCount);
+        Assert.Equal(2, dependencies.Descriptors.ImageSamplerWriteCount);
+        Assert.Equal(1, dependencies.Pipelines.GetOrCreateCount);
+    }
+
+    [Fact]
+    public void UpdateMesh_updates_vertex_buffer_and_refreshes_its_binding()
+    {
+        var dependencies = new TestDependencies();
+        var factory = CreateFactory(dependencies);
+        var drawable = CreateDrawable();
+        factory.Create(drawable).ToArray();
+
+        var commands = factory.UpdateMesh(drawable).ToArray();
+
+        Assert.Equal(1, dependencies.Geometry.UpdateCount);
+        Assert.Contains(commands, command => command is BindVertexBufferCommand { Binding: 0 });
+        Assert.Equal(1, dependencies.Pipelines.GetOrCreateCount);
+    }
+
+    [Fact]
+    public void UpdateShaders_acquires_new_pipeline_and_releases_the_old_reference()
+    {
+        var dependencies = new TestDependencies();
+        var factory = CreateFactory(dependencies);
+        var drawable = CreateDrawable();
+        factory.Create(drawable).ToArray();
+        factory.PipelineDefinition = new PipelineDefinition(
+            "updated",
+            null,
+            null,
+            null,
+            null,
+            null,
+            new RenderPass(1),
+            descriptorSchema: DescriptorSchemas.Textured
+        );
+
+        factory.UpdateShaders(drawable).ToArray();
+
+        Assert.Equal(2, dependencies.Pipelines.GetOrCreateCount);
+        Assert.Equal(1, dependencies.Pipelines.ReleaseCount);
+    }
+
+    [Fact]
+    public void Release_releases_drawable_owned_resources()
+    {
+        var dependencies = new TestDependencies();
+        var factory = CreateFactory(dependencies);
+        var drawable = CreateDrawable(includeInstanceLayout: true);
+        factory.Create(drawable).ToArray();
+
+        factory.Release(drawable).ToArray();
+
+        Assert.Equal(2, dependencies.Descriptors.ReleaseCount);
+        Assert.Equal(1, dependencies.Buffers.DestroyBufferCount);
+        Assert.Equal(1, dependencies.Samplers.ReleaseCount);
+        Assert.Equal(1, dependencies.Pipelines.ReleaseCount);
+        Assert.Equal(1, dependencies.Geometry.GeometryReleaseCount);
+        Assert.Equal(1, dependencies.Geometry.InstanceReleaseCount);
+        Assert.Equal(1, dependencies.Texture.ReleaseCount);
+    }
+
     private static TestCommandFactory CreateFactory(TestDependencies? dependencies = null)
     {
         dependencies ??= new TestDependencies();
@@ -122,7 +230,8 @@ public class CommandFactoryTests
         bool includeFragmentShader = true,
         IShaderContract? tessellationControlShader = null,
         IShaderContract? tessellationEvalShader = null,
-        IShaderContract? geometryShader = null
+        IShaderContract? geometryShader = null,
+        bool includeInstanceLayout = false
     )
     {
         var format = new VertexFormat([VertexSemanticEnum.Position]);
@@ -141,7 +250,7 @@ public class CommandFactoryTests
                     PrimitiveTopologyEnum.TriangleList,
                     format,
                     [new ShaderInput(0, 16)],
-                    []
+                     includeInstanceLayout ? [new ShaderInput(0, 16)] : []
                 )
                 : null,
             includeFragmentShader
@@ -188,7 +297,7 @@ public class CommandFactoryTests
             samplerRegistry
         )
     {
-        public PipelineDefinition PipelineDefinition { get; init; } =
+        public PipelineDefinition PipelineDefinition { get; set; } =
             CommandFactoryTests.CreatePipelineDefinition(DescriptorSchemas.Textured);
 
         protected override PipelineDefinition BuildPipelineDefinition(
@@ -243,8 +352,16 @@ public class CommandFactoryTests
     private sealed class TestGeometryRegistry : IVertexBufferRegistry, IInstanceBufferRegistry
     {
         public int CreateCount { get; private set; }
+        public int InstanceCreateCount { get; private set; }
+        public int UpdateCount { get; private set; }
+        public int GeometryReleaseCount { get; private set; }
+        public int InstanceReleaseCount { get; private set; }
 
-        public IEnumerable<IVulkanCommand> Create(IDrawable drawable, ShaderInput[] layout) => [];
+        public IEnumerable<IVulkanCommand> Create(IDrawable drawable, ShaderInput[] layout)
+        {
+            InstanceCreateCount++;
+            return [];
+        }
 
         public IEnumerable<IVulkanCommand> Create(IGeometry geometry, VertexFormat format)
         {
@@ -252,15 +369,27 @@ public class CommandFactoryTests
             return [];
         }
 
-        public IEnumerable<IVulkanCommand> Update(IGeometry geometry, VertexFormat format) => [];
+        public IEnumerable<IVulkanCommand> Update(IGeometry geometry, VertexFormat format)
+        {
+            UpdateCount++;
+            return [];
+        }
 
         public VkBuffer Get(MeshId meshId, VertexFormatId formatId) => new(11);
 
         public VkBuffer Get(DrawableId drawableId) => new(12);
 
-        public IEnumerable<IVulkanCommand> Release(IGeometry geometry, VertexFormat format) => [];
+        public IEnumerable<IVulkanCommand> Release(IGeometry geometry, VertexFormat format)
+        {
+            GeometryReleaseCount++;
+            return [];
+        }
 
-        public IEnumerable<IVulkanCommand> Release(DrawableId drawableId) => [];
+        public IEnumerable<IVulkanCommand> Release(DrawableId drawableId)
+        {
+            InstanceReleaseCount++;
+            return [];
+        }
 
         public void Reset() { }
 
@@ -270,6 +399,8 @@ public class CommandFactoryTests
     private sealed class TestImageRegistry : IImageRegistry
     {
         public int CreateCount { get; private set; }
+        public int UpdateCount { get; private set; }
+        public int ReleaseCount { get; private set; }
 
         public IEnumerable<IVulkanCommand> Create(ITexture texture, ColorFormatEnum format)
         {
@@ -279,9 +410,17 @@ public class CommandFactoryTests
 
         public ImageView Get(ITexture texture, ColorFormatEnum format) => new(12);
 
-        public IEnumerable<IVulkanCommand> Update(ITexture texture, ColorFormatEnum format) => [];
+        public IEnumerable<IVulkanCommand> Update(ITexture texture, ColorFormatEnum format)
+        {
+            UpdateCount++;
+            return [];
+        }
 
-        public IEnumerable<IVulkanCommand> Release(ITexture texture, ColorFormatEnum format) => [];
+        public IEnumerable<IVulkanCommand> Release(ITexture texture, ColorFormatEnum format)
+        {
+            ReleaseCount++;
+            return [];
+        }
 
         public void Reset() { }
 
@@ -291,6 +430,7 @@ public class CommandFactoryTests
     private sealed class TestPipelineRegistry : IPipelineRegistry
     {
         public int GetOrCreateCount { get; private set; }
+        public int ReleaseCount { get; private set; }
 
         public (Pipeline pipeline, PipelineLayout layout) GetOrCreate(
             PipelineDefinition description
@@ -309,7 +449,7 @@ public class CommandFactoryTests
 
         public int GetDescriptorSetLayoutCount(PipelineId pipelineId) => 2;
 
-        public void Release(PipelineId id) { }
+        public void Release(PipelineId id) => ReleaseCount++;
 
         public void Dispose() { }
     }
@@ -319,6 +459,7 @@ public class CommandFactoryTests
         public int AllocateCount { get; private set; }
         public int UniformWriteCount { get; private set; }
         public int ImageSamplerWriteCount { get; private set; }
+        public int ReleaseCount { get; private set; }
 
         public DescriptorSet Allocate(DescriptorSetLayout layout)
         {
@@ -341,7 +482,7 @@ public class CommandFactoryTests
             VkSampler sampler
         ) => ImageSamplerWriteCount++;
 
-        public void Release(DescriptorSet descriptorSet) { }
+        public void Release(DescriptorSet descriptorSet) => ReleaseCount++;
 
         public void Dispose() { }
     }
@@ -350,6 +491,7 @@ public class CommandFactoryTests
     {
         public int CreateUniformBufferCount { get; private set; }
         public int UpdateBufferCount { get; private set; }
+        public int DestroyBufferCount { get; private set; }
 
         public VkBuffer CreateVertexBuffer(ReadOnlySpan<byte> data) => new(1);
 
@@ -365,18 +507,19 @@ public class CommandFactoryTests
 
         public void UpdateBuffer(VkBuffer buffer, ReadOnlySpan<byte> data) => UpdateBufferCount++;
 
-        public void DestroyBuffer(VkBuffer buffer) { }
+        public void DestroyBuffer(VkBuffer buffer) => DestroyBufferCount++;
     }
 
     private sealed class TestSamplerRegistry : ISamplerRegistry
     {
         public int CreateCount { get; private set; }
+        public int ReleaseCount { get; private set; }
 
         public void Create(ISamplingBehavior behavior) => CreateCount++;
 
         public VkSampler Get(SamplingBehaviorId id) => new(13);
 
-        public void Release(ISamplingBehavior behavior) { }
+        public void Release(ISamplingBehavior behavior) => ReleaseCount++;
 
         public void Reset() { }
 
@@ -439,8 +582,8 @@ public class CommandFactoryTests
         public DrawableId Id => new(1);
         public ulong RenderLayerMask => ulong.MaxValue;
         public Mesh Mesh => mesh;
-        public ITexture Texture => texture;
-        public ulong InstanceCount => 1;
+        public ITexture Texture { get; set; } = texture;
+        public ulong InstanceCount { get; set; } = 1;
         public ISamplingBehavior SamplingBehavior => samplingBehavior;
 
         public ReadOnlyMemory<byte> GetInstanceData(ShaderInput[] layout) =>

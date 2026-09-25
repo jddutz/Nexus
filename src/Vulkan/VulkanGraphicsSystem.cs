@@ -6,11 +6,11 @@ namespace Nexus.Graphics.Vulkan;
 /// <param name="context">The Vulkan context that owns graphics resources.</param>
 /// <param name="swapChain">The swap chain used for presentation.</param>
 /// <param name="renderer">The renderer used to record and submit render batches.</param>
-/// <param name="geometryRegistry">The registry that manages vertex buffers.</param>
-/// <param name="textureRegistry">The registry that manages images.</param>
-/// <param name="renderPassConfig">The shared render-pass configurations.</param>
+/// <param name="geometryRegistry">The registry reset when the graphics system shuts down.</param>
+/// <param name="textureRegistry">The image registry reset when the graphics system shuts down.</param>
 /// <param name="eventHub">The event hub used to register this graphics system.</param>
 /// <param name="syncManager">The synchronization manager used to establish device-idle shutdown.</param>
+/// <param name="commandFactory">The owner of per-drawable Vulkan allocations and commands.</param>
 public unsafe class VulkanGraphicsSystem(
     Context context,
     ISwapChain swapChain,
@@ -19,28 +19,18 @@ public unsafe class VulkanGraphicsSystem(
     IEventHub eventHub,
     ICommandFactory commandFactory,
     IVertexBufferRegistry geometryRegistry,
-    IInstanceBufferRegistry instanceBufferRegistry,
-    IImageRegistry textureRegistry,
-    IPipelineRegistry pipelineRegistry
+    IImageRegistry textureRegistry
 ) : IGraphicsSystem, IDisposable
 {
     private RenderLayerCollection _layers = new();
     private RenderBatchCollection?[] _batches = new RenderBatchCollection?[
         RenderLayerCollection.MaxLayers
     ];
-    private readonly Dictionary<
-        DrawableId,
-        (
-            ulong RenderLayerMask,
-            Mesh Mesh,
-            ITexture Texture,
-            VertexFormat VertexFormat,
-            ColorFormatEnum ColorFormat,
-            PipelineId PipelineId
-        )
-    > _drawables = [];
-    private readonly Dictionary<PipelineId, int> _pipelineReferences = [];
+    private readonly Dictionary<DrawableId, DrawableRegistration> _drawables = [];
+    private readonly HashSet<IGraphicsComponent> _components = [];
 
+    /// <summary>Creates render batches for a newly added layer.</summary>
+    /// <param name="layer">The layer being added.</param>
     private void OnLayerAdded(IRenderLayer layer)
     {
         var coll = new RenderBatchCollection();
@@ -56,6 +46,8 @@ public unsafe class VulkanGraphicsSystem(
         coll.Set(RenderPasses.End, new RenderBatch(new DefaultBatchStrategy()));
     }
 
+    /// <summary>Removes render batches for a layer being removed.</summary>
+    /// <param name="layer">The layer being removed.</param>
     private void OnLayerRemoved(IRenderLayer layer)
     {
         _batches[layer.Index] = null;
@@ -87,6 +79,8 @@ public unsafe class VulkanGraphicsSystem(
         view.RenderLayer = layer;
     }
 
+    /// <summary>Creates and registers commands for an active drawable.</summary>
+    /// <param name="drawable">The drawable to activate.</param>
     private void ActivateDrawable(IDrawable drawable)
     {
         ArgumentNullException.ThrowIfNull(drawable);
@@ -95,53 +89,37 @@ public unsafe class VulkanGraphicsSystem(
         if (targetBatches.Length == 0)
             return;
 
-        var vertexShader =
-            drawable.VertexShader
-            ?? throw new InvalidOperationException("Drawables must define a vertex shader.");
-        var colorFormat =
-            drawable.FragmentShader?.ColorFormat
-            ?? throw new InvalidOperationException("Drawables must define a fragment shader.");
         var commands = commandFactory.Create(drawable).ToArray();
+        var persistentCommands = commands.Where(command => command.IsSticky).ToArray();
+        var transientCommands = commands.Where(command => !command.IsSticky).ToArray();
 
         foreach (var batches in targetBatches)
-        {
-            foreach (var command in commands)
+            foreach (var command in persistentCommands)
                 AddToBatches(batches, command);
-        }
 
-        var pipelineId =
-            commands.OfType<BindPipelineCommand>().Single().PipelineId
-            ?? throw new InvalidOperationException(
-                "Drawable pipeline commands require a pipeline ID."
-            );
-        _pipelineReferences[pipelineId] = _pipelineReferences.GetValueOrDefault(pipelineId) + 1;
-        _drawables[drawable.Id] = (
+        foreach (var command in transientCommands)
+            AddToBatches(targetBatches[0], command);
+
+        _drawables[drawable.Id] = new(
+            drawable,
             drawable.RenderLayerMask,
-            drawable.Mesh,
-            drawable.Texture,
-            vertexShader.VertexFormat,
-            colorFormat,
-            pipelineId
+            persistentCommands,
+            transientCommands
         );
 
-        drawable.RenderLayerChanged -= OnDrawableChanged;
-        drawable.RenderLayerChanged += OnDrawableChanged;
-        drawable.MeshChanged -= OnDrawableChanged;
-        drawable.MeshChanged += OnDrawableChanged;
-        drawable.TextureChanged -= OnDrawableChanged;
-        drawable.TextureChanged += OnDrawableChanged;
-        drawable.InstanceDataChanged -= OnDrawableChanged;
-        drawable.InstanceDataChanged += OnDrawableChanged;
-        drawable.UniformDataChanged -= OnDrawableChanged;
-        drawable.UniformDataChanged += OnDrawableChanged;
-        drawable.ShaderChanged -= OnDrawableChanged;
-        drawable.ShaderChanged += OnDrawableChanged;
+        drawable.RenderLayerChanged += OnDrawableRenderLayerChanged;
+        drawable.MeshChanged += OnDrawableMeshChanged;
+        drawable.TextureChanged += OnDrawableTextureChanged;
+        drawable.InstanceDataChanged += OnDrawableInstanceDataChanged;
+        drawable.UniformDataChanged += OnDrawableUniformDataChanged;
+        drawable.ShaderChanged += OnDrawableShaderChanged;
 
         Debug.WriteLine(
             $"Activated drawable. DrawableType={drawable.GetType().Name}, DrawableId={drawable.Id}"
         );
     }
 
+    /// <inheritdoc />
     public void Handle(ComponentActivatedEvent e)
     {
         if (e.Component is ViewComponent view)
@@ -153,8 +131,11 @@ public unsafe class VulkanGraphicsSystem(
         if (e.Component is not IGraphicsComponent component)
             return;
 
-        component.DrawableAdded += OnDrawableAdded;
-        component.DrawableRemoved += OnDrawableRemoved;
+        if (_components.Add(component))
+        {
+            component.DrawableAdded += OnDrawableAdded;
+            component.DrawableRemoved += OnDrawableRemoved;
+        }
 
         foreach (var drawable in component.Drawables)
             ActivateDrawable(drawable);
@@ -176,18 +157,161 @@ public unsafe class VulkanGraphicsSystem(
         Deactivate(e.Drawable);
     }
 
-    /// <summary>
-    /// Recreates the Vulkan resources and commands associated with a changed drawable.
-    /// </summary>
+    /// <summary>Moves a drawable's existing commands when its render-layer membership changes.</summary>
     /// <param name="sender">The drawable that changed.</param>
     /// <param name="e">The event data.</param>
-    private void OnDrawableChanged(object? sender, EventArgs e)
+    private void OnDrawableRenderLayerChanged(object? sender, EventArgs e)
     {
         if (sender is not IDrawable drawable || !_drawables.ContainsKey(drawable.Id))
             return;
 
-        Deactivate(drawable);
-        ActivateDrawable(drawable);
+        var registration = _drawables[drawable.Id];
+        if (registration.RenderLayerMask == drawable.RenderLayerMask)
+            return;
+
+        foreach (var batches in GetDrawableBatches(registration.RenderLayerMask))
+        {
+            foreach (var batch in batches)
+                batch.Remove(drawable.Id);
+            foreach (var command in registration.TransientCommands)
+                foreach (var batch in batches)
+                    batch.RemoveCommand(command.Id);
+        }
+
+        var targetBatches = GetDrawableBatches(drawable.RenderLayerMask).ToArray();
+        foreach (var batches in targetBatches)
+            foreach (var command in registration.Commands)
+                AddToBatches(batches, command);
+        if (targetBatches.Length > 0)
+            foreach (var command in registration.TransientCommands)
+                AddToBatches(targetBatches[0], command);
+
+        _drawables[drawable.Id] = registration with
+        {
+            RenderLayerMask = drawable.RenderLayerMask,
+        };
+    }
+
+    /// <summary>Updates instance buffers and draw counts for a changed drawable.</summary>
+    /// <param name="sender">The drawable that changed.</param>
+    /// <param name="e">The event data.</param>
+    private void OnDrawableInstanceDataChanged(object? sender, EventArgs e) =>
+        UpdateDrawable(sender, commandFactory.UpdateInstanceData);
+
+    /// <summary>Updates uniform buffers for a changed drawable.</summary>
+    /// <param name="sender">The drawable that changed.</param>
+    /// <param name="e">The event data.</param>
+    private void OnDrawableUniformDataChanged(object? sender, EventArgs e) =>
+        UpdateDrawable(sender, commandFactory.UpdateUniformData);
+
+    /// <summary>Updates image and sampler descriptors for a changed drawable.</summary>
+    /// <param name="sender">The drawable that changed.</param>
+    /// <param name="e">The event data.</param>
+    private void OnDrawableTextureChanged(object? sender, EventArgs e) =>
+        UpdateDrawable(sender, commandFactory.UpdateTexture);
+
+    /// <summary>Updates vertex-buffer bindings for a changed drawable.</summary>
+    /// <param name="sender">The drawable that changed.</param>
+    /// <param name="e">The event data.</param>
+    private void OnDrawableMeshChanged(object? sender, EventArgs e) =>
+        UpdateDrawable(sender, commandFactory.UpdateMesh);
+
+    /// <summary>Updates pipelines and dependent commands for a changed drawable.</summary>
+    /// <param name="sender">The drawable that changed.</param>
+    /// <param name="e">The event data.</param>
+    private void OnDrawableShaderChanged(object? sender, EventArgs e) =>
+        UpdateDrawable(sender, commandFactory.UpdateShaders, replaceAllCommands: true);
+
+    /// <summary>Applies the factory update for an active drawable.</summary>
+    /// <param name="sender">The object that raised the drawable event.</param>
+    /// <param name="update">The targeted factory operation.</param>
+    /// <param name="replaceAllCommands">Whether the operation replaces the complete command set.</param>
+    private void UpdateDrawable(
+        object? sender,
+        Func<IDrawable, IEnumerable<IVulkanCommand>> update,
+        bool replaceAllCommands = false
+    )
+    {
+        if (sender is not IDrawable drawable || !_drawables.ContainsKey(drawable.Id))
+            return;
+
+        ApplyDrawableCommands(drawable, update(drawable).ToArray(), replaceAllCommands);
+    }
+
+    /// <summary>Replaces only affected command slots and queues transient commands.</summary>
+    /// <param name="drawable">The drawable whose commands changed.</param>
+    /// <param name="commands">The new or transient commands from the factory.</param>
+    /// <param name="replaceAllCommands">Whether to remove every retained command first.</param>
+    private void ApplyDrawableCommands(
+        IDrawable drawable,
+        IVulkanCommand[] commands,
+        bool replaceAllCommands
+    )
+    {
+        var registration = _drawables[drawable.Id];
+        var retainedCommands = registration.Commands.ToList();
+        var transientCommands = registration.TransientCommands.ToList();
+        var clearOldCommands = replaceAllCommands;
+        foreach (var command in commands)
+        {
+            if (!command.IsSticky || command.Drawable?.Id != drawable.Id)
+            {
+                var targetBatches = GetDrawableBatches(drawable.RenderLayerMask).ToArray();
+                if (!command.IsSticky)
+                {
+                    transientCommands.Add(command);
+                    if (targetBatches.Length > 0)
+                        AddToBatches(targetBatches[0], command);
+                }
+                else
+                {
+                    foreach (var batches in targetBatches)
+                        AddToBatches(batches, command);
+                }
+
+                continue;
+            }
+
+            var replacedCommands = clearOldCommands
+                ? retainedCommands.ToArray()
+                : retainedCommands.Where(existing => SameCommandSlot(existing, command)).ToArray();
+            clearOldCommands = false;
+
+            foreach (var replaced in replacedCommands)
+            {
+                foreach (var batches in GetDrawableBatches(registration.RenderLayerMask))
+                    foreach (var batch in batches)
+                        batch.RemoveCommand(replaced.Id);
+
+                retainedCommands.Remove(replaced);
+            }
+
+            foreach (var batches in GetDrawableBatches(drawable.RenderLayerMask))
+                AddToBatches(batches, command);
+
+            retainedCommands.Add(command);
+        }
+
+        _drawables[drawable.Id] = registration with
+        {
+            RenderLayerMask = drawable.RenderLayerMask,
+            Commands = retainedCommands.ToArray(),
+            TransientCommands = transientCommands.ToArray(),
+        };
+    }
+
+    /// <summary>Determines whether two commands occupy the same drawable command slot.</summary>
+    /// <param name="left">The current command.</param>
+    /// <param name="right">The replacement command.</param>
+    /// <returns><see langword="true"/> when the replacement supersedes the current command.</returns>
+    private static bool SameCommandSlot(IVulkanCommand left, IVulkanCommand right)
+    {
+        if (left.GetType() != right.GetType())
+            return false;
+
+        return left is not BindVertexBufferCommand leftBinding
+            || right is not BindVertexBufferCommand rightBinding
+            || leftBinding.Binding == rightBinding.Binding;
     }
 
     /// <summary>
@@ -215,6 +339,8 @@ public unsafe class VulkanGraphicsSystem(
         }
     }
 
+    /// <summary>Releases an active drawable and removes its commands from batches.</summary>
+    /// <param name="drawable">The drawable to deactivate.</param>
     private void Deactivate(IDrawable drawable)
     {
         ArgumentNullException.ThrowIfNull(drawable);
@@ -222,12 +348,12 @@ public unsafe class VulkanGraphicsSystem(
         if (!_drawables.Remove(drawable.Id, out var registration))
             return;
 
-        drawable.RenderLayerChanged -= OnDrawableChanged;
-        drawable.MeshChanged -= OnDrawableChanged;
-        drawable.TextureChanged -= OnDrawableChanged;
-        drawable.InstanceDataChanged -= OnDrawableChanged;
-        drawable.UniformDataChanged -= OnDrawableChanged;
-        drawable.ShaderChanged -= OnDrawableChanged;
+        drawable.RenderLayerChanged -= OnDrawableRenderLayerChanged;
+        drawable.MeshChanged -= OnDrawableMeshChanged;
+        drawable.TextureChanged -= OnDrawableTextureChanged;
+        drawable.InstanceDataChanged -= OnDrawableInstanceDataChanged;
+        drawable.UniformDataChanged -= OnDrawableUniformDataChanged;
+        drawable.ShaderChanged -= OnDrawableShaderChanged;
 
         var targetBatches = GetDrawableBatches(registration.RenderLayerMask).ToArray();
         foreach (var batches in targetBatches)
@@ -237,27 +363,13 @@ public unsafe class VulkanGraphicsSystem(
                 if (batches.TryGet(renderPass, out var batch))
                     batch!.Remove(drawable.Id);
             }
+
+            foreach (var command in registration.TransientCommands)
+                foreach (var batch in batches)
+                    batch.RemoveCommand(command.Id);
         }
 
-        if (_pipelineReferences.TryGetValue(registration.PipelineId, out var referenceCount))
-        {
-            if (referenceCount == 1)
-            {
-                _pipelineReferences.Remove(registration.PipelineId);
-                pipelineRegistry.Release(registration.PipelineId);
-            }
-            else
-            {
-                _pipelineReferences[registration.PipelineId] = referenceCount - 1;
-            }
-        }
-        geometryRegistry.Release(registration.Mesh, registration.VertexFormat);
-        instanceBufferRegistry.Release(drawable.Id);
-
-        var releaseCommands = textureRegistry.Release(
-            registration.Texture,
-            registration.ColorFormat
-        );
+        var releaseCommands = commandFactory.Release(drawable).ToArray();
         if (targetBatches.Length > 0)
         {
             foreach (var command in releaseCommands)
@@ -268,6 +380,18 @@ public unsafe class VulkanGraphicsSystem(
             $"Deactivated drawable. DrawableType={drawable.GetType().Name}, DrawableId={drawable.Id}"
         );
     }
+
+    /// <summary>Retains the drawable's batch placement and current command sets.</summary>
+    /// <param name="Drawable">The active drawable.</param>
+    /// <param name="RenderLayerMask">The layer placement for the retained commands.</param>
+    /// <param name="Commands">Persistent commands currently registered in batches.</param>
+    /// <param name="TransientCommands">One-shot commands awaiting submission.</param>
+    private sealed record DrawableRegistration(
+        IDrawable Drawable,
+        ulong RenderLayerMask,
+        IVulkanCommand[] Commands,
+        IVulkanCommand[] TransientCommands
+    );
 
     /// <summary>
     /// Gets the batch collections selected by a drawable's layer mask.
@@ -294,6 +418,7 @@ public unsafe class VulkanGraphicsSystem(
         }
     }
 
+    /// <inheritdoc />
     public void Handle(ComponentDeactivatedEvent e)
     {
         if (e.Component is ViewComponent view)
@@ -311,8 +436,11 @@ public unsafe class VulkanGraphicsSystem(
         if (e.Component is not IGraphicsComponent component)
             return;
 
-        component.DrawableAdded -= OnDrawableAdded;
-        component.DrawableRemoved -= OnDrawableRemoved;
+        if (_components.Remove(component))
+        {
+            component.DrawableAdded -= OnDrawableAdded;
+            component.DrawableRemoved -= OnDrawableRemoved;
+        }
 
         Debug.WriteLine(
             $"Graphics component deactivated. ComponentType={component.GetType().Name}, DrawableCount={component.Drawables.Count()}"
@@ -375,6 +503,9 @@ public unsafe class VulkanGraphicsSystem(
             foreach (var batch in batches)
                 batch.Clean();
         }
+
+        foreach (var drawableId in _drawables.Keys.ToArray())
+            _drawables[drawableId] = _drawables[drawableId] with { TransientCommands = [] };
     }
 
     private bool disposedValue;
@@ -392,6 +523,17 @@ public unsafe class VulkanGraphicsSystem(
         }
 
         syncManager.DeviceWaitIdle();
+
+        foreach (var component in _components)
+        {
+            component.DrawableAdded -= OnDrawableAdded;
+            component.DrawableRemoved -= OnDrawableRemoved;
+        }
+        _components.Clear();
+
+        foreach (var drawable in _drawables.Values.Select(registration => registration.Drawable).ToArray())
+            Deactivate(drawable);
+
         geometryRegistry.Reset();
         textureRegistry.Reset();
 

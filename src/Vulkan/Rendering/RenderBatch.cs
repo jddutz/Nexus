@@ -43,6 +43,12 @@ public class RenderBatch(IBatchStrategy batchStrategy) : IRenderBatch
     }
 
     /// <inheritdoc />
+    public void RemoveCommand(Guid commandId)
+    {
+        _commands.RemoveWhere(command => command.Id == commandId);
+    }
+
+    /// <inheritdoc />
     public void Clean()
     {
         _commands.RemoveWhere(command => !command.IsSticky);

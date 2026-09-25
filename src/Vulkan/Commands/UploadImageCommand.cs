@@ -1,9 +1,15 @@
 namespace Nexus.Graphics.Vulkan.Commands;
 
+/// <summary>Uploads staging-buffer contents into a Vulkan image.</summary>
+/// <param name="source">The staging buffer containing pixel data.</param>
+/// <param name="destination">The destination image.</param>
+/// <param name="region">The image region to populate.</param>
+/// <param name="oldLayout">The image layout before the upload begins.</param>
 public sealed unsafe class UploadImageCommand(
     VkBuffer source,
     VkImage destination,
-    BufferImageCopy region
+    BufferImageCopy region,
+    ImageLayout oldLayout = ImageLayout.Undefined
 ) : IVulkanCommand
 {
     /// <inheritdoc />
@@ -30,7 +36,7 @@ public sealed unsafe class UploadImageCommand(
         var barrier = new ImageMemoryBarrier
         {
             SType = StructureType.ImageMemoryBarrier,
-            OldLayout = ImageLayout.Undefined,
+            OldLayout = oldLayout,
             NewLayout = ImageLayout.TransferDstOptimal,
 
             SrcQueueFamilyIndex = Vk.QueueFamilyIgnored,
@@ -47,13 +53,15 @@ public sealed unsafe class UploadImageCommand(
                 LayerCount = 1,
             },
 
-            SrcAccessMask = 0,
+            SrcAccessMask = oldLayout == ImageLayout.Undefined ? 0 : AccessFlags.ShaderReadBit,
             DstAccessMask = AccessFlags.TransferWriteBit,
         };
 
         vk.CmdPipelineBarrier(
             commandBuffer,
-            PipelineStageFlags.TopOfPipeBit,
+            oldLayout == ImageLayout.Undefined
+                ? PipelineStageFlags.TopOfPipeBit
+                : PipelineStageFlags.FragmentShaderBit,
             PipelineStageFlags.TransferBit,
             0,
             0,

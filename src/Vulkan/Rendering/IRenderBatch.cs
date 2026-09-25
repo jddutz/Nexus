@@ -26,6 +26,10 @@ public interface IRenderBatch
     /// <param name="drawableId">The drawable identifier.</param>
     void Remove(DrawableId drawableId);
 
+    /// <summary>Removes the command with the specified unique identifier.</summary>
+    /// <param name="commandId">The command identifier.</param>
+    void RemoveCommand(Guid commandId);
+
     /// <summary>
     /// Removes all transient commands from the batch.
     /// </summary>
