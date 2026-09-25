@@ -1,5 +1,7 @@
 namespace Nexus.Graphics.Vulkan.Commands;
 
+using Nexus.Graphics.Text;
+
 /// <summary>
 /// Creates the Vulkan commands required to render a drawable.
 /// </summary>
@@ -152,6 +154,12 @@ public unsafe class CommandFactory(
                             0,
                             checked((ulong)uniformData.Length)
                         );
+                        LogTextSpanViewUniformUpload(
+                            drawable,
+                            descriptorSet,
+                            binding.Binding,
+                            uniformData
+                        );
                         break;
 
                     case DescriptorType.CombinedImageSampler:
@@ -284,6 +292,12 @@ public unsafe class CommandFactory(
                 0,
                 checked((ulong)data.Length)
             );
+            LogTextSpanViewUniformUpload(
+                drawable,
+                uniform.DescriptorSet,
+                uniform.Binding,
+                data
+            );
 
             if (buffer.Handle != uniform.Buffer.Handle)
                 bufferManager.DestroyBuffer(uniform.Buffer);
@@ -297,6 +311,27 @@ public unsafe class CommandFactory(
         }
 
         return [];
+    }
+
+    /// <summary>Logs the matrix payload written for a text span's View uniform.</summary>
+    /// <param name="drawable">The drawable whose uniform was uploaded.</param>
+    /// <param name="descriptorSet">The descriptor set referencing the uploaded uniform buffer.</param>
+    /// <param name="binding">The uniform binding within the descriptor set.</param>
+    /// <param name="data">The uniform bytes written to the buffer.</param>
+    private static void LogTextSpanViewUniformUpload(
+        IDrawable drawable,
+        VkDescriptorSet descriptorSet,
+        uint binding,
+        ReadOnlyMemory<byte> data
+    )
+    {
+        if (drawable is not TextSpan || data.Length != 64)
+            return;
+
+        var view = MemoryMarshal.Read<Matrix4X4<float>>(data.Span);
+        Debug.WriteLine(
+            $"TextSpan View uniform uploaded. DrawableId={drawable.Id}, DescriptorSet={descriptorSet.Handle}, Binding={binding}, Matrix={view}"
+        );
     }
 
     /// <inheritdoc />

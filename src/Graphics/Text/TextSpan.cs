@@ -21,6 +21,7 @@ public sealed class TextSpan : IDrawable, IMeshInstance
     private static ulong _nextId;
     private readonly DrawableId _id = new(Interlocked.Increment(ref _nextId));
     private Matrix4X4<float> _transformationMatrix = Matrix4X4<float>.Identity;
+    private Matrix4X4<float> _view = Matrix4X4<float>.Identity;
     private ulong _renderLayerMask = ulong.MaxValue;
     private string _text;
     private ISamplingBehavior _samplingBehavior = SamplingBehaviors.Smooth;
@@ -147,6 +148,20 @@ public sealed class TextSpan : IDrawable, IMeshInstance
                 return;
 
             _transformationMatrix = value;
+            InstanceDataChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    /// <summary>Gets or sets the view matrix supplied to the vertex shader contract.</summary>
+    public Matrix4X4<float> View
+    {
+        get => _view;
+        set
+        {
+            if (_view == value)
+                return;
+
+            _view = value;
             UniformDataChanged?.Invoke(this, EventArgs.Empty);
         }
     }
@@ -156,7 +171,7 @@ public sealed class TextSpan : IDrawable, IMeshInstance
 
     /// <summary>Gets the packed uniform data required by the textured-quad shader.</summary>
     /// <param name="layout">The requested uniform layout.</param>
-    /// <returns>The span-local transform matrix.</returns>
+    /// <returns>The view matrix.</returns>
     public ReadOnlyMemory<byte> GetUniformData(ShaderInput[] layout)
     {
         ArgumentNullException.ThrowIfNull(layout);
@@ -167,8 +182,7 @@ public sealed class TextSpan : IDrawable, IMeshInstance
             );
 
         var data = new byte[64];
-        var transformationMatrix = TransformationMatrix;
-        MemoryMarshal.Write(data.AsSpan(), in transformationMatrix);
+        MemoryMarshal.Write(data.AsSpan(), in _view);
         return data;
     }
 
@@ -195,7 +209,9 @@ public sealed class TextSpan : IDrawable, IMeshInstance
         {
             var destination = data.AsSpan(index * InstanceDataSize, InstanceDataSize);
             var glyph = glyphs[index].Glyph;
-            var transformationMatrix = CreateTransformation(glyph, glyphs[index].X, baselineOffset);
+            var spanTransform = TransformationMatrix;
+            var transformationMatrix =
+                CreateTransformation(glyph, glyphs[index].X, baselineOffset) * spanTransform;
             var textureRegion = new Vector4D<float>(
                 (float)(glyph.AtlasBounds.Left / Texture.Width),
                 (float)(glyph.AtlasBounds.Bottom / Texture.Height),
@@ -206,7 +222,6 @@ public sealed class TextSpan : IDrawable, IMeshInstance
             var layoutRight = glyphs[index].X + (float)(glyph.PlaneBounds.Right * scale);
             var layoutTop = baselineOffset - (float)(glyph.PlaneBounds.Top * scale);
             var layoutBottom = baselineOffset - (float)(glyph.PlaneBounds.Bottom * scale);
-            var spanTransform = TransformationMatrix;
             var screenBaselineX = TransformPoint(glyphs[index].X, baselineOffset, spanTransform).X;
             var screenBaselineY = TransformPoint(glyphs[index].X, baselineOffset, spanTransform).Y;
             var topLeft = TransformPoint(layoutLeft, layoutTop, spanTransform);

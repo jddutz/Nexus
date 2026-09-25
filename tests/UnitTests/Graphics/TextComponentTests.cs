@@ -215,14 +215,16 @@ public sealed class TextComponentTests
     }
 
     /// <summary>
-    /// Verifies the span transform is packed separately from each glyph's local transform.
+    /// Verifies each glyph instance contains the span transform and the uniform contains only the view.
     /// </summary>
     [Fact]
-    public void GetUniformData_packs_span_transform_separately_from_glyph_transforms()
+    public void GetInstanceData_composes_span_transform_and_uniform_packs_view()
     {
+        var view = Matrix4X4.CreateTranslation(-3f, -4f, 0f);
         var span = new TextSpan(CreateStyle(), "AB")
         {
-            TransformationMatrix = Matrix4X4.CreateTranslation(10f, 20f, 0f),
+            TransformationMatrix = Matrix4X4.CreateTranslation(100f, 100f, 0f),
+            View = view,
         };
 
         var uniformData = span.GetUniformData(
@@ -231,12 +233,14 @@ public sealed class TextComponentTests
         var instanceData = span.GetInstanceData(
             BuiltInShaders.TexturedQuadVertexShader.InstanceLayout
         );
-        var packedSpanTransform = MemoryMarshal.Read<Matrix4X4<float>>(uniformData.Span);
+        var packedView = MemoryMarshal.Read<Matrix4X4<float>>(uniformData.Span);
         var packedFirstGlyphTransform = MemoryMarshal.Read<Matrix4X4<float>>(instanceData.Span);
 
-        Assert.Equal(span.TransformationMatrix, packedSpanTransform);
+        Assert.Equal(view, packedView);
         Assert.Equal(
-            Matrix4X4.CreateScale(1f, 1f, 1f) * Matrix4X4.CreateTranslation(0.5f, 0.5f, 0f),
+            Matrix4X4.CreateScale(1f, 1f, 1f)
+                * Matrix4X4.CreateTranslation(0.5f, 0.5f, 0f)
+                * span.TransformationMatrix,
             packedFirstGlyphTransform
         );
     }
