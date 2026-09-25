@@ -29,6 +29,29 @@ public sealed class GposTableTests
     }
 
     /// <summary>
+    /// Verifies flagged PairPos lookups are skipped and legacy kern data is used as fallback.
+    /// </summary>
+    [Fact]
+    public void TrueTypeFontReader_fallsBackToLegacyKernWhenGposLookupHasFlags()
+    {
+        var font = new TrueTypeFontReader(
+            BuildFont(
+                ("cmap", BuildCmap()),
+                ("head", BuildHead()),
+                ("hhea", BuildHhea()),
+                ("maxp", BuildMaxp(3)),
+                ("kern", BuildKern(-80)),
+                ("GPOS", BuildGpos(BuildPairPositioningFormatOne(-120), lookupFlags: 0x0008))
+            )
+        );
+
+        Assert.Equal(
+            new TextKerningPair(0x41, 0x56, -0.08),
+            Assert.Single(font.GetKerningPairs([0x41, 0x56]))
+        );
+    }
+
+    /// <summary>
     /// Verifies PairPos format 1 uses the first glyph's xAdvance and ignores other fields.
     /// </summary>
     [Fact]
@@ -164,8 +187,9 @@ public sealed class GposTableTests
     /// Creates a minimal GPOS 1.0 table with one Latin default-language kern feature and lookup.
     /// </summary>
     /// <param name="pairPositioning">The PairPos lookup subtable.</param>
+    /// <param name="lookupFlags">The lookup flags.</param>
     /// <returns>The encoded GPOS table.</returns>
-    private static byte[] BuildGpos(byte[] pairPositioning)
+    private static byte[] BuildGpos(byte[] pairPositioning, ushort lookupFlags = 0)
     {
         var scriptList = new byte[20];
         WriteUInt16(scriptList, 0, 1);
@@ -188,7 +212,7 @@ public sealed class GposTableTests
         WriteUInt16(lookupList, 0, 1);
         WriteUInt16(lookupList, 2, 4);
         WriteUInt16(lookupList, 4, 2);
-        WriteUInt16(lookupList, 6, 0);
+        WriteUInt16(lookupList, 6, lookupFlags);
         WriteUInt16(lookupList, 8, 1);
         WriteUInt16(lookupList, 10, 8);
         pairPositioning.CopyTo(lookupList, 12);

@@ -40,7 +40,7 @@ public sealed class GposTable
     /// <returns>The supported kerning pairs and whether a supported GPOS source was selected.</returns>
     /// <exception cref="ArgumentNullException">A required argument is null.</exception>
     /// <exception cref="ArgumentException">A script or language tag is not four characters.</exception>
-    /// <exception cref="InvalidDataException">The GPOS table is malformed or uses unsupported selected PairPos data.</exception>
+    /// <exception cref="InvalidDataException">The GPOS table is malformed or uses an unsupported selected PairPos format.</exception>
     public static GposTable Parse(
         TrueTypeReader reader,
         ushort glyphCount,
@@ -353,9 +353,7 @@ public sealed class GposTable
                 if (lookupType != 2)
                     continue;
                 if (lookupFlags != 0)
-                    throw new InvalidDataException(
-                        "GPOS pair-positioning lookup flags are not supported by NAP Typography v1."
-                    );
+                    continue;
 
                 foreach (var subtableOffset in subtableOffsets)
                 {

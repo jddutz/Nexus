@@ -22,4 +22,8 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
+
+  <Target Name="BuildHelloNexusContent" AfterTargets="Build" Condition="'$(DesignTimeBuild)' != 'true'">
+    <Exec Command="dotnet run --project &quot;$(MSBuildThisFileDirectory)..\..\src\AssetPipeline\Nexus.AssetPipeline.csproj&quot; --configuration &quot;$(Configuration)&quot; -- --output &quot;$(TargetDir).content&quot; build --input &quot;$(MSBuildThisFileDirectory)..\..\.assets\nap.yaml&quot;" />
+  </Target>
 </Project>
