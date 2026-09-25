@@ -1,6 +1,7 @@
 global using Microsoft.Extensions.DependencyInjection;
 global using Microsoft.Extensions.DependencyInjection.Extensions;
 global using Microsoft.Extensions.Logging;
+global using Nexus.Assets.Fonts;
 global using Nexus.Audio;
 global using Nexus.Audio.Components;
 global using Nexus.Core;
@@ -9,6 +10,7 @@ global using Nexus.Graphics;
 global using Nexus.Graphics.Cameras;
 global using Nexus.Graphics.Components;
 global using Nexus.Graphics.Geometry;
+global using Nexus.Graphics.Text;
 global using Nexus.Graphics.Textures;
 global using Nexus.Input;
 global using Nexus.Input.Components;

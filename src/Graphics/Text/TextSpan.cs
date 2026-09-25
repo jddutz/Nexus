@@ -5,6 +5,12 @@ using Nexus.Graphics.Components;
 namespace Nexus.Graphics.Text;
 
 /// <summary>Renders a group of glyphs from one texture atlas as textured-quad instances.</summary>
+//
+// TODO: Consider dedicated UI/text shaders.
+// The textured-quad shaders are sufficient for the initial text rendering path,
+// but text should ultimately use an unlit UI-oriented pipeline with appropriate
+// transparency/depth behavior. A dedicated fragment shader may also interpret
+// MSDF atlas data for improved glyph edge rendering and text effects.
 public sealed class TextSpan : IDrawable, IMeshInstance
 {
     private static readonly int InstanceDataSize =
@@ -14,6 +20,7 @@ public sealed class TextSpan : IDrawable, IMeshInstance
 
     private static ulong _nextId;
     private readonly DrawableId _id = new(Interlocked.Increment(ref _nextId));
+    private Matrix4X4<float> _transformationMatrix = Matrix4X4<float>.Identity;
 
     /// <summary>Initializes a text span with its text and rendering style.</summary>
     /// <param name="style">The font and visual data used to render the text.</param>
@@ -66,16 +73,11 @@ public sealed class TextSpan : IDrawable, IMeshInstance
     /// <summary>Gets the number of glyph instances in this span.</summary>
     ulong IDrawable.InstanceCount => checked((ulong)BuildGlyphs().Count);
 
-    /// <summary>Gets the first glyph transform for the mesh-instance compatibility contract.</summary>
+    /// <summary>Gets or sets the local transform applied to this span's glyphs.</summary>
     public Matrix4X4<float> TransformationMatrix
     {
-        get
-        {
-            var glyphs = BuildGlyphs();
-            return glyphs.Count == 0
-                ? Matrix4X4<float>.Identity
-                : CreateTransformation(glyphs[0].Glyph, glyphs[0].X);
-        }
+        get => _transformationMatrix;
+        set => _transformationMatrix = value;
     }
 
     /// <summary>Gets the first glyph tint for the mesh-instance compatibility contract.</summary>
@@ -83,7 +85,7 @@ public sealed class TextSpan : IDrawable, IMeshInstance
 
     /// <summary>Gets the packed uniform data required by the textured-quad shader.</summary>
     /// <param name="layout">The requested uniform layout.</param>
-    /// <returns>An identity view matrix.</returns>
+    /// <returns>The span-local transform matrix.</returns>
     public ReadOnlyMemory<byte> GetUniformData(ShaderInput[] layout)
     {
         ArgumentNullException.ThrowIfNull(layout);
@@ -94,8 +96,8 @@ public sealed class TextSpan : IDrawable, IMeshInstance
             );
 
         var data = new byte[64];
-        var view = Matrix4X4<float>.Identity;
-        MemoryMarshal.Write(data.AsSpan(), in view);
+        var transformationMatrix = TransformationMatrix;
+        MemoryMarshal.Write(data.AsSpan(), in transformationMatrix);
         return data;
     }
 

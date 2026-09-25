@@ -6,10 +6,14 @@ namespace Nexus.Game;
 public class GameSystem(
     IEventHub eventHub,
     IContentProvider<Texture> textureProvider,
+    IContentManifest contentManifest,
+    IFontBuilder fontBuilder,
     ILogger<GameSystem> logger
 ) : IGameSystem, IGameModel
 {
     private readonly IEventHub _eventHub = eventHub;
+    private readonly IContentManifest _contentManifest = contentManifest;
+    private readonly IFontBuilder _fontBuilder = fontBuilder;
     private readonly ILogger<GameSystem> _logger = logger;
     private readonly Dictionary<GameObjectId, IGameObject> _gameObjects = [];
 
@@ -102,6 +106,9 @@ public class GameSystem(
         camera.Width = 2f;
         camera.Height = 2f;
 
+        var textComponent = new TextComponent(CreateRobotoTextStyle()) { Text = "Hello Nexus" };
+        CurrentScene.CreateChild<GameObject2D>().AddComponent(textComponent);
+
         var columns = 16;
         var rows = 9;
 
@@ -172,6 +179,42 @@ public class GameSystem(
         CurrentScene.Activate();
         _logger.LogTrace("Scene activation complete.");
         _logger.LogInformation("Game system initialized and initial scene activated.");
+    }
+
+    /// <summary>
+    /// Builds the default Roboto text style from the font registered as <c>ui.default</c>.
+    /// </summary>
+    /// <returns>The generated style at size 18 with an off-white color.</returns>
+    private ITextStyle CreateRobotoTextStyle()
+    {
+        var fontId = (ContentId)"ui.default";
+        var fontPath = Path.Combine(
+            _contentManifest.ContentLibraryPath,
+            _contentManifest.Fonts.GetContentFilePath(fontId)
+        );
+        var codepoints = new FontGlyphRepertoire().GetCodepoints();
+        var font = _fontBuilder.Build(fontPath, codepoints, new FontGenerationSettings());
+        var atlas = font.Atlas;
+        var colors = new Color[checked(atlas.Width * atlas.Height)];
+
+        for (var index = 0; index < colors.Length; index++)
+        {
+            var sourceOffset = index * 3;
+            colors[index] = new Color(
+                atlas.Pixels[sourceOffset],
+                atlas.Pixels[sourceOffset + 1],
+                atlas.Pixels[sourceOffset + 2]
+            );
+        }
+
+        var texture = new Texture(
+            (ContentId)"Roboto",
+            checked((uint)atlas.Width),
+            checked((uint)atlas.Height),
+            colors
+        );
+
+        return new TextStyle(font, texture, 18, Colors.WhiteSmoke);
     }
 
     /// <summary>

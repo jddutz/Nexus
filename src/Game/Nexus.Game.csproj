@@ -12,6 +12,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Audio\Nexus.Audio.csproj" />
+    <ProjectReference Include="..\Assets\Nexus.Assets.csproj" />
     <ProjectReference Include="..\Core\Nexus.Core.csproj" />
     <ProjectReference Include="..\Graphics\Nexus.Graphics.csproj" />
     <ProjectReference Include="..\Input\Nexus.Input.csproj" />

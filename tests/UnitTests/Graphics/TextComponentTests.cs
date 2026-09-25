@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Nexus.Assets.Fonts;
 using Nexus.Graphics;
 using Nexus.Graphics.Components;
@@ -54,6 +55,58 @@ public sealed class TextComponentTests
 
         Assert.Equal((ulong)2, ((IDrawable)span).InstanceCount);
         Assert.Equal(192, data.Length);
+    }
+
+    /// <summary>
+    /// Verifies the span transform is packed separately from each glyph's local transform.
+    /// </summary>
+    [Fact]
+    public void GetUniformData_packs_span_transform_separately_from_glyph_transforms()
+    {
+        var span = new TextSpan(CreateStyle(), "AB")
+        {
+            TransformationMatrix = Matrix4X4.CreateTranslation(10f, 20f, 0f),
+        };
+
+        var uniformData = span.GetUniformData(
+            BuiltInShaders.TexturedQuadVertexShader.UniformLayout
+        );
+        var instanceData = span.GetInstanceData(
+            BuiltInShaders.TexturedQuadVertexShader.InstanceLayout
+        );
+        var packedSpanTransform = MemoryMarshal.Read<Matrix4X4<float>>(uniformData.Span);
+        var packedFirstGlyphTransform = MemoryMarshal.Read<Matrix4X4<float>>(instanceData.Span);
+
+        Assert.Equal(span.TransformationMatrix, packedSpanTransform);
+        Assert.Equal(
+            Matrix4X4.CreateScale(1f, 1f, 1f) * Matrix4X4.CreateTranslation(0.5f, 0.5f, 0f),
+            packedFirstGlyphTransform
+        );
+    }
+
+    /// <summary>
+    /// Verifies that generated glyph metrics and visual settings are retained by a text style.
+    /// </summary>
+    [Fact]
+    public void TextStyle_uses_generated_font_data_and_visual_settings()
+    {
+        var glyph = new FontGlyph('A', 12, new(0, 0, 10, 12), new(0, 0, 10, 12));
+        var kerning = new TextKerningPair('A', 'V', -2);
+        var font = new FontBuildResult(
+            new FontAtlas(1, 1, [1, 2, 3]),
+            new FontMetrics(48, 36, -12, 48),
+            [glyph],
+            [kerning],
+            new MsdfMetadata(4, 48)
+        );
+        var texture = new Texture("Roboto", 1, 1, [Colors.White]);
+        var style = new TextStyle(font, texture, 18, Colors.WhiteSmoke);
+
+        Assert.Same(texture, style.Texture);
+        Assert.Equal(glyph, style.Glyphs['A']);
+        Assert.Equal(-2, style.Kerning[('A', 'V')]);
+        Assert.Equal(18, style.Size);
+        Assert.Equal(Colors.WhiteSmoke, style.Color);
     }
 
     private static ITextStyle CreateStyle()

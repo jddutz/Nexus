@@ -1,15 +1,15 @@
-## NAP Typography — Technical Specification
+## Runtime Typography — Technical Specification
 
 ### 1. Purpose
 
-`AssetPipeline/Typography` provides the font-processing implementation used by NAP to transform supported source font files into Nexus-native font assets.
+`Nexus.Assets/Typography` provides managed font-reading, geometry, distance-field, and atlas-building stages for runtime text-style realization.
 
-Typography is an **asset compilation subsystem**, not a general-purpose font library and not a runtime text-rendering system.
+Typography is a font-processing subsystem used when the runtime realizes a requested text style. It is not part of NAP's asset compilation step.
 
 Its responsibility is:
 
 ```text
-Source Font
+Manifest Font File (.ttf/.otf)
     ↓
 Read font structures
     ↓
@@ -21,12 +21,12 @@ Generate distance-field glyph images
     ↓
 Pack glyphs into an atlas
     ↓
-Produce Nexus font metadata + atlas data
+Produce runtime glyph data + atlas for the realized style
 ```
 
-The output must contain everything required by the runtime `ITextStyle`/`TextSpan` path without requiring the source font or a font-processing library at runtime.
+NAP copies the source font unchanged and records only its file path in the content manifest. At runtime, style realization supplies the requested glyphs and rasterization settings; the runtime reads the font and generates the glyph data and atlas it needs. The source font remains the asset, not a pre-generated atlas.
 
-The existing runtime requirements establish the required baked information: font metrics, glyph advance and bounds, atlas bounds, and kerning.   
+The generated runtime data includes font metrics, glyph advances and bounds, atlas bounds, and kerning required by the `ITextStyle`/`TextSpan` path.
 
 ---
 
@@ -36,7 +36,8 @@ Typography remains part of the Asset Pipeline project:
 
 ```text
 src/
-└── AssetPipeline/
+└── Assets/
+    ├── Fonts/
     ├── Typography/
     │   ├── FontReader/
     │   ├── Geometry/
@@ -47,9 +48,9 @@ src/
     └── ...
 ```
 
-It does **not** become a runtime Nexus project.
+The font-processing stages must be available to the runtime. They must not be invoked by NAP to preselect glyphs or bake an atlas.
 
-NAP is the only consumer unless a future build-time tool has a concrete reason to reuse it.
+NAP remains responsible only for copying the source font and recording its content path.
 
 ---
 
@@ -58,9 +59,9 @@ NAP is the only consumer unless a future build-time tool has a concrete reason t
 The subsystem owns the complete transformation from font-file bytes to generated Nexus font data.
 
 ```text
-                  AssetPipeline
+                 Nexus.Runtime
                        │
-                FontProcessor
+        Text-style realization
                        │
                        ▼
                  Typography
@@ -74,7 +75,7 @@ The subsystem owns the complete transformation from font-file bytes to generated
                 FontBuildResult
 ```
 
-`FontProcessor` remains responsible for NAP concerns such as validating the asset definition, resolving the source path, determining the requested repertoire, and coordinating output. Its current contract already does those things before invoking font generation. 
+The runtime text-style realization path resolves the manifest font path, determines the glyph repertoire and generation settings needed by the requested style, and invokes the typography stages. NAP does not call `IFontBuilder` or decide the runtime repertoire.
 
 Typography must not know about:
 
@@ -82,8 +83,7 @@ Typography must not know about:
 YAML
 ContentId
 content-manifest.json
-output directories
-runtime providers
+asset output directories
 Vulkan
 IDrawable
 TextSpan
@@ -186,7 +186,7 @@ It does not rasterize anything.
 
 ### TrueType reader
 
-The initial implementation supports the subset of TrueType/OpenType required by NAP.
+The initial implementation supports the subset of TrueType/OpenType required by runtime text realization.
 
 Its parser must operate from the published binary format rather than reproduce the architecture of an existing font library.
 
@@ -410,7 +410,7 @@ Pack atlas
 Construct FontBuildResult
 ```
 
-The NAP-facing Typography boundary is `IFontBuilder`:
+The runtime-facing Typography boundary is `IFontBuilder`:
 
 ```csharp
 FontBuildResult Build(
@@ -419,13 +419,13 @@ FontBuildResult Build(
     FontGenerationSettings settings);
 ```
 
-`FontBuilder` composes these stages and returns the complete `FontBuildResult`. NAP owns asset validation, source-path resolution, atlas writing, and translation into its content-manifest representation.
+`FontBuilder` composes these stages and returns the complete `FontBuildResult`. The runtime owns style-specific generation settings, atlas upload/caching, and the resulting `ITextStyle`. NAP owns only source-path validation, file copying, and manifest registration.
 
 ---
 
 ## 11. Dependency requirements
 
-`AssetPipeline/Typography` should be designed as a **self-contained managed implementation**.
+`Nexus.Assets/Typography` should remain a **self-contained managed implementation**.
 
 Architectural requirements:
 
@@ -441,7 +441,7 @@ Architectural requirements:
 
 Standard .NET libraries are sufficient infrastructure.
 
-The current NAP implementation follows these requirements: font generation is managed, and there is no native generator, P/Invoke boundary, or native font-library dependency.
+The typography stages follow these requirements: font generation is managed, with no native generator, P/Invoke boundary, or native font-library dependency.
 
 ---
 
@@ -449,16 +449,16 @@ The current NAP implementation follows these requirements: font generation is ma
 
 The governing rule should be:
 
-> **Implement the font features required to compile Nexus assets, not the features expected of a general-purpose font library.**
+> **Implement the font features required to realize Nexus text styles, not the features expected of a general-purpose font library.**
 
 That means unsupported features are acceptable.
 
 Incorrect interpretation is not.
 
-For example, if NAP v1 supports TrueType quadratic outlines but not CFF outlines, encountering CFF should result in something like:
+For example, if runtime typography supports TrueType quadratic outlines but not CFF outlines, encountering CFF should result in a clear unsupported-font diagnostic rather than incorrect output.
 
 ```text
-Font 'foo.otf' uses CFF outlines, which are not supported by NAP Typography.
+Font 'foo.otf' uses CFF outlines, which are not supported by Nexus Typography.
 ```
 
 rather than trying to approximate them.
