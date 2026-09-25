@@ -4,6 +4,7 @@ using Nexus.Graphics.Shaders;
 using Silk.NET.Maths;
 
 namespace Nexus.UnitTests.Graphics;
+
 using Nexus.Graphics.Textures;
 
 /// <summary>

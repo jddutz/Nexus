@@ -34,6 +34,12 @@ public class UniformColorMeshRenderer() : Component, IGraphicsComponent, IDrawab
     public IReadOnlyList<IDrawable> Drawables => [this];
 
     /// <inheritdoc/>
+    public event EventHandler<DrawableEventArgs>? DrawableAdded;
+
+    /// <inheritdoc/>
+    public event EventHandler<DrawableEventArgs>? DrawableRemoved;
+
+    /// <inheritdoc/>
     public event EventHandler? RenderLayerChanged;
 
     /// <inheritdoc/>

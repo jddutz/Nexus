@@ -54,6 +54,12 @@ public class TexturedQuadRenderer : Component, IGraphicsComponent, IDrawable, IM
     public IReadOnlyList<IDrawable> Drawables => [this];
 
     /// <inheritdoc/>
+    public event EventHandler<DrawableEventArgs>? DrawableAdded;
+
+    /// <inheritdoc/>
+    public event EventHandler<DrawableEventArgs>? DrawableRemoved;
+
+    /// <inheritdoc/>
     DrawableId IDrawable.Id => new(Id.Value);
 
     /// <inheritdoc/>
@@ -109,6 +115,7 @@ public class TexturedQuadRenderer : Component, IGraphicsComponent, IDrawable, IM
         add { }
         remove { }
     }
+
     /// <summary>
     /// Gets or sets the texture sampled by this component.
     /// </summary>
@@ -202,7 +209,7 @@ public class TexturedQuadRenderer : Component, IGraphicsComponent, IDrawable, IM
     /// <summary>
     /// Gets the required instance-record size or writes the transform, texture region, and color to a destination span.
     /// </summary>
-        /// Gets or sets the atlas UV transform (U offset, V offset, U scale, V scale) used to sample <see cref="Texture"/>.
+    /// Gets or sets the atlas UV transform (U offset, V offset, U scale, V scale) used to sample <see cref="Texture"/>.
     /// <returns>The required or written byte count.</returns>
     public int GetInstanceData(Span<byte> destination)
     {
@@ -230,7 +237,7 @@ public class TexturedQuadRenderer : Component, IGraphicsComponent, IDrawable, IM
     /// <summary>
     /// Gets or writes the packed instance record at the specified component-local index.
     /// </summary>
-        /// Gets or sets the tint color multiplied against the sampled texture color.
+    /// Gets or sets the tint color multiplied against the sampled texture color.
     /// <param name="destination">The destination span, or an empty span when querying its size.</param>
     /// <returns>The required or written byte count.</returns>
     public int GetInstanceData(int instanceIndex, Span<byte> destination)

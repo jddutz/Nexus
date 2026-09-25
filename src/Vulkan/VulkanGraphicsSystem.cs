@@ -111,7 +111,9 @@ public unsafe class VulkanGraphicsSystem(
 
         var pipelineId =
             commands.OfType<BindPipelineCommand>().Single().PipelineId
-            ?? throw new InvalidOperationException("Drawable pipeline commands require a pipeline ID.");
+            ?? throw new InvalidOperationException(
+                "Drawable pipeline commands require a pipeline ID."
+            );
         _pipelineReferences[pipelineId] = _pipelineReferences.GetValueOrDefault(pipelineId) + 1;
         _drawables[drawable.Id] = (
             drawable.RenderLayerMask,
@@ -151,8 +153,27 @@ public unsafe class VulkanGraphicsSystem(
         if (e.Component is not IGraphicsComponent component)
             return;
 
+        component.DrawableAdded += OnDrawableAdded;
+        component.DrawableRemoved += OnDrawableRemoved;
+
         foreach (var drawable in component.Drawables)
             ActivateDrawable(drawable);
+    }
+
+    /// <summary>Activates a drawable added to an active graphics component.</summary>
+    /// <param name="sender">The graphics component that raised the event.</param>
+    /// <param name="e">The added drawable.</param>
+    private void OnDrawableAdded(object? sender, DrawableEventArgs e)
+    {
+        ActivateDrawable(e.Drawable);
+    }
+
+    /// <summary>Releases a drawable removed from an active graphics component.</summary>
+    /// <param name="sender">The graphics component that raised the event.</param>
+    /// <param name="e">The removed drawable.</param>
+    private void OnDrawableRemoved(object? sender, DrawableEventArgs e)
+    {
+        Deactivate(e.Drawable);
     }
 
     /// <summary>
@@ -289,6 +310,9 @@ public unsafe class VulkanGraphicsSystem(
 
         if (e.Component is not IGraphicsComponent component)
             return;
+
+        component.DrawableAdded -= OnDrawableAdded;
+        component.DrawableRemoved -= OnDrawableRemoved;
 
         Debug.WriteLine(
             $"Graphics component deactivated. ComponentType={component.GetType().Name}, DrawableCount={component.Drawables.Count()}"

@@ -35,6 +35,11 @@ public sealed class TextComponentTests
     public void Text_replaces_existing_spans_with_one_span()
     {
         var component = new TextComponent(CreateStyle()) { Text = "Before" };
+        var previousSpan = Assert.Single(component.Drawables);
+        var removed = new List<IDrawable>();
+        var added = new List<IDrawable>();
+        component.DrawableRemoved += (_, e) => removed.Add(e.Drawable);
+        component.DrawableAdded += (_, e) => added.Add(e.Drawable);
 
         component.Text = "Hello";
 
@@ -42,6 +47,8 @@ public sealed class TextComponentTests
         var span = Assert.IsType<TextSpan>(Assert.Single(component.Drawables));
         Assert.Equal(2u, span.Texture.Width);
         Assert.Equal("Hello", span.Text);
+        Assert.Same(previousSpan, Assert.Single(removed));
+        Assert.Same(span, Assert.Single(added));
     }
 
     /// <summary>

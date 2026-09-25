@@ -11,6 +11,12 @@ public class TextComponent : Component, IGraphicsComponent
     private readonly ITextStyle _textStyle;
     private string _text = string.Empty;
 
+    /// <inheritdoc/>
+    public event EventHandler<DrawableEventArgs>? DrawableAdded;
+
+    /// <inheritdoc/>
+    public event EventHandler<DrawableEventArgs>? DrawableRemoved;
+
     /// <summary>Initializes a text component with the style used by its spans.</summary>
     /// <param name="textStyle">The font and visual data used to render the component's text.</param>
     public TextComponent(ITextStyle textStyle)
@@ -26,10 +32,18 @@ public class TextComponent : Component, IGraphicsComponent
         {
             ArgumentNullException.ThrowIfNull(value);
             _text = value;
+
+            var removedSpans = _spans.ToArray();
             _spans.Clear();
 
             // TODO: Parse multiline and rich text into glyph spans.
-            _spans.Add(new TextSpan(_textStyle, _text));
+            var span = new TextSpan(_textStyle, _text);
+            _spans.Add(span);
+
+            foreach (var removedSpan in removedSpans)
+                DrawableRemoved?.Invoke(this, new DrawableEventArgs(removedSpan));
+
+            DrawableAdded?.Invoke(this, new DrawableEventArgs(span));
         }
     }
 
