@@ -252,6 +252,10 @@ public sealed class TextSpan : IDrawable, IMeshInstance
         var centerX =
             penX + (float)((glyph.PlaneBounds.Left + glyph.PlaneBounds.Right) * scale / 2);
         var centerY = (float)((glyph.PlaneBounds.Bottom + glyph.PlaneBounds.Top) * scale / 2);
+        System.Diagnostics.Debug.WriteLine(
+            $"Text glyph geometry. Codepoint={glyph.Codepoint}, Left={penX + glyph.PlaneBounds.Left * scale}, Right={penX + glyph.PlaneBounds.Right * scale}, Bottom={glyph.PlaneBounds.Bottom * scale}, Top={glyph.PlaneBounds.Top * scale}"
+        );
+
         return Matrix4X4.CreateScale(width, height, 1f)
             * Matrix4X4.CreateTranslation(centerX, centerY, 0f);
     }

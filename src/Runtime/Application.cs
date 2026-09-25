@@ -77,7 +77,10 @@ public sealed class Application : IApplication, IDisposable
         {
             var windowService = Services.GetRequiredService<IWindowService>();
 
-            var window = windowService.GetOrCreateWindow();
+            var windowSettings = Services.GetRequiredService<IOptions<WindowSettings>>().Value;
+            windowService.CreateWindow(windowSettings);
+
+            var window = windowService.GetMainWindow();
             window.Initialize();
 
             var runtime = Services.GetRequiredService<INexusRuntime>();

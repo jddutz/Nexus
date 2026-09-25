@@ -5,6 +5,7 @@ namespace Nexus.Game;
 /// </summary>
 public class GameSystem(
     IEventHub eventHub,
+    IWindowService windowService,
     IContentProvider<Texture> textureProvider,
     IContentManifest contentManifest,
     IFontBuilder fontBuilder,
@@ -102,9 +103,11 @@ public class GameSystem(
         // StaticCamera) because its symmetric [-1,1] extent matches this demo's NDC-sized world
         // coordinates 1:1 - StaticCamera's top-left-origin [0,width] extent would scale and
         // offset everything incorrectly.
-        var camera = CurrentScene.CreateChild<GameObject>().AddComponent<OrthoCamera>();
-        camera.Width = 2f;
-        camera.Height = 2f;
+        var mainWindow = windowService.GetMainWindow();
+
+        var camera = new StaticCamera();
+        camera.SetViewportSize(mainWindow.Size.X, mainWindow.Size.Y);
+        CurrentScene.CreateChild<GameObject>().AddComponent(camera);
 
         var textComponent = new TextComponent(CreateRobotoTextStyle()) { Text = "Hello Nexus" };
         CurrentScene.CreateChild<GameObject2D>().AddComponent(textComponent);

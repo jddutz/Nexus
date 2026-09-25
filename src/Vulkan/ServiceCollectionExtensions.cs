@@ -15,7 +15,7 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
 
         services.TryAddSingleton<IWindowService, VulkanWindowService>();
-        services.TryAddSingleton(sp => sp.GetRequiredService<IWindowService>().GetWindow());
+        services.TryAddSingleton(sp => sp.GetRequiredService<IWindowService>().GetMainWindow());
         services.TryAddSingleton<Context>();
         services.TryAddSingleton<RenderPassConfigurations>();
         services.TryAddSingleton<SwapChain>();

@@ -6,48 +6,70 @@ namespace Nexus.Graphics.OpenGL;
 public sealed class OpenGLWindowService : IWindowService, IDisposable
 {
     private const string WindowUnavailable = "Application Window has not been initialized yet.";
-    private readonly IOptions<WindowSettings> _options;
-    private IWindow? _window;
+    private readonly Dictionary<WindowId, IWindow> _windows = new();
+    private ulong _nextWindowId = 1;
+    private WindowId _mainWindowId = WindowId.Invalid;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="OpenGLWindowService"/> class.
     /// </summary>
-    /// <param name="options">The application window settings.</param>
-    public OpenGLWindowService(IOptions<WindowSettings> options)
+    public OpenGLWindowService() { }
+
+    /// <inheritdoc />
+    public WindowId MainWindowId => _mainWindowId;
+
+    /// <inheritdoc />
+    public IWindow GetWindow(WindowId windowId)
     {
-        _options = options;
+        return _windows.TryGetValue(windowId, out var window)
+            ? window
+            : throw new InvalidOperationException(WindowUnavailable);
     }
 
     /// <inheritdoc />
-    public IWindow GetWindow() =>
-        _window ?? throw new InvalidOperationException(WindowUnavailable);
+    public IWindow GetMainWindow() => GetWindow(_mainWindowId);
 
     /// <inheritdoc />
-    public IWindow GetOrCreateWindow()
+    public WindowId CreateWindow(WindowSettings settings)
     {
-        if (_window is null)
-        {
-            var windowOptions = WindowOptions.Default;
-            windowOptions.Title = _options.Value.Title;
-            windowOptions.Size = new Vector2D<int>(_options.Value.Width, _options.Value.Height);
-            windowOptions.VSync = _options.Value.VSync;
-            windowOptions.UpdatesPerSecond = 60;
-            _window = Window.Create(windowOptions);
-        }
+        ArgumentNullException.ThrowIfNull(settings);
+        var windowOptions = WindowOptions.Default;
+        windowOptions.Title = settings.Title;
+        windowOptions.Size = new Vector2D<int>(settings.Width, settings.Height);
+        windowOptions.VSync = settings.VSync;
+        windowOptions.UpdatesPerSecond = 60;
+        var window = Window.Create(windowOptions);
+        var windowId = new WindowId(_nextWindowId++);
+        _windows.Add(windowId, window);
+        if (_mainWindowId == WindowId.Invalid)
+            _mainWindowId = windowId;
 
-        return _window;
+        return windowId;
     }
 
     /// <inheritdoc />
-    public void CloseWindow() => _window?.Close();
+    public void CloseWindow(WindowId? windowId = null)
+    {
+        var id = windowId ?? _mainWindowId;
+        if (!_windows.Remove(id, out var window))
+            return;
+
+        window.Close();
+        window.Dispose();
+        if (id == _mainWindowId)
+            _mainWindowId = _windows.Keys.FirstOrDefault();
+    }
 
     /// <summary>
     /// Releases the window and its native resources.
     /// </summary>
     public void Dispose()
     {
-        _window?.Dispose();
-        _window = null;
+        foreach (var window in _windows.Values)
+            window.Dispose();
+
+        _windows.Clear();
+        _mainWindowId = WindowId.Invalid;
         GC.SuppressFinalize(this);
     }
 }
