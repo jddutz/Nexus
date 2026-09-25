@@ -292,12 +292,7 @@ public unsafe class CommandFactory(
                 0,
                 checked((ulong)data.Length)
             );
-            LogTextSpanViewUniformUpload(
-                drawable,
-                uniform.DescriptorSet,
-                uniform.Binding,
-                data
-            );
+            LogTextSpanViewUniformUpload(drawable, uniform.DescriptorSet, uniform.Binding, data);
 
             if (buffer.Handle != uniform.Buffer.Handle)
                 bufferManager.DestroyBuffer(uniform.Buffer);
