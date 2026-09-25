@@ -11,6 +11,36 @@ public interface IDrawable
     DrawableId Id { get; }
 
     /// <summary>
+    /// Occurs when the drawable's render-layer mask changes.
+    /// </summary>
+    event EventHandler? RenderLayerChanged;
+
+    /// <summary>
+    /// Occurs when the drawable's mesh changes.
+    /// </summary>
+    event EventHandler? MeshChanged;
+
+    /// <summary>
+    /// Occurs when the drawable's texture or sampling behavior changes.
+    /// </summary>
+    event EventHandler? TextureChanged;
+
+    /// <summary>
+    /// Occurs when the drawable's instance data changes.
+    /// </summary>
+    event EventHandler? InstanceDataChanged;
+
+    /// <summary>
+    /// Occurs when the drawable's uniform data changes.
+    /// </summary>
+    event EventHandler? UniformDataChanged;
+
+    /// <summary>
+    /// Occurs when one or more shader contracts used by the drawable change.
+    /// </summary>
+    event EventHandler? ShaderChanged;
+
+    /// <summary>
     /// Gets the mask identifying the render layers on which the drawable is visible.
     /// </summary>
     ulong RenderLayerMask { get; }
@@ -38,9 +68,9 @@ public interface IDrawable
     ReadOnlyMemory<byte> GetInstanceData(ShaderInput[] layout);
 
     /// <summary>
-    /// Defines the sampling behavior used when rendering.
+    /// Gets the sampling behavior used when sampling the drawable's texture.
     /// </summary>
-    public ISamplingBehavior SamplingBehavior { get; }
+    ISamplingBehavior SamplingBehavior { get; }
 
     /// <summary>
     /// Gets the packed uniform data required by the specified shader inputs.

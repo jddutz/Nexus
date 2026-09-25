@@ -28,6 +28,18 @@ public unsafe class VulkanGraphicsSystem(
     private RenderBatchCollection?[] _batches = new RenderBatchCollection?[
         RenderLayerCollection.MaxLayers
     ];
+    private readonly Dictionary<
+        DrawableId,
+        (
+            ulong RenderLayerMask,
+            Mesh Mesh,
+            ITexture Texture,
+            VertexFormat VertexFormat,
+            ColorFormatEnum ColorFormat,
+            PipelineId PipelineId
+        )
+    > _drawables = [];
+    private readonly Dictionary<PipelineId, int> _pipelineReferences = [];
 
     private void OnLayerAdded(IRenderLayer layer)
     {
@@ -79,51 +91,53 @@ public unsafe class VulkanGraphicsSystem(
     {
         ArgumentNullException.ThrowIfNull(drawable);
 
-        if (_batches.Length == 0)
+        var targetBatches = GetDrawableBatches(drawable.RenderLayerMask).ToArray();
+        if (targetBatches.Length == 0)
             return;
 
-        var batches = _batches[0];
-        if (batches is null)
-            return;
+        var vertexShader =
+            drawable.VertexShader
+            ?? throw new InvalidOperationException("Drawables must define a vertex shader.");
+        var colorFormat =
+            drawable.FragmentShader?.ColorFormat
+            ?? throw new InvalidOperationException("Drawables must define a fragment shader.");
+        var commands = commandFactory.Create(drawable).ToArray();
 
-        foreach (var command in commandFactory.Create(drawable))
-            AddToBatches(batches, command);
+        foreach (var batches in targetBatches)
+        {
+            foreach (var command in commands)
+                AddToBatches(batches, command);
+        }
+
+        var pipelineId =
+            commands.OfType<BindPipelineCommand>().Single().PipelineId
+            ?? throw new InvalidOperationException("Drawable pipeline commands require a pipeline ID.");
+        _pipelineReferences[pipelineId] = _pipelineReferences.GetValueOrDefault(pipelineId) + 1;
+        _drawables[drawable.Id] = (
+            drawable.RenderLayerMask,
+            drawable.Mesh,
+            drawable.Texture,
+            vertexShader.VertexFormat,
+            colorFormat,
+            pipelineId
+        );
+
+        drawable.RenderLayerChanged -= OnDrawableChanged;
+        drawable.RenderLayerChanged += OnDrawableChanged;
+        drawable.MeshChanged -= OnDrawableChanged;
+        drawable.MeshChanged += OnDrawableChanged;
+        drawable.TextureChanged -= OnDrawableChanged;
+        drawable.TextureChanged += OnDrawableChanged;
+        drawable.InstanceDataChanged -= OnDrawableChanged;
+        drawable.InstanceDataChanged += OnDrawableChanged;
+        drawable.UniformDataChanged -= OnDrawableChanged;
+        drawable.UniformDataChanged += OnDrawableChanged;
+        drawable.ShaderChanged -= OnDrawableChanged;
+        drawable.ShaderChanged += OnDrawableChanged;
 
         Debug.WriteLine(
             $"Activated drawable. DrawableType={drawable.GetType().Name}, DrawableId={drawable.Id}"
         );
-    }
-
-    /// <summary>
-    /// Reconstructs the pipeline definition used by a drawable.
-    /// </summary>
-    /// <param name="drawable">The drawable whose shader state defines the pipeline.</param>
-    /// <param name="renderPass">The render pass used by the drawable.</param>
-    /// <param name="vertexShader">The drawable's required vertex shader.</param>
-    /// <returns>The pipeline definition for the drawable.</returns>
-    private PipelineDefinition CreatePipelineDefinition(
-        IDrawable drawable,
-        uint renderPass,
-        VertexShader vertexShader
-    )
-    {
-        var pipelineDefinitionBuilder = new PipelineDefinitionBuilder(
-            drawable.GetType().Name,
-            context
-        )
-            .WithShader(vertexShader)
-            .WithRenderPass(swapChain.Passes[RenderPasses.GetIndex(renderPass)]);
-
-        if (drawable.TessellationControlShader is not null)
-            pipelineDefinitionBuilder.WithShader(drawable.TessellationControlShader);
-        if (drawable.TessellationEvalShader is not null)
-            pipelineDefinitionBuilder.WithShader(drawable.TessellationEvalShader);
-        if (drawable.GeometryShader is not null)
-            pipelineDefinitionBuilder.WithShader(drawable.GeometryShader);
-        if (drawable.FragmentShader is not null)
-            pipelineDefinitionBuilder.WithShader(drawable.FragmentShader);
-
-        return pipelineDefinitionBuilder.Build();
     }
 
     public void Handle(ComponentActivatedEvent e)
@@ -139,13 +153,20 @@ public unsafe class VulkanGraphicsSystem(
 
         foreach (var drawable in component.Drawables)
             ActivateDrawable(drawable);
-
-        component.PropertyChanged += OnDrawablePropertyChanged;
     }
 
-    private void OnDrawablePropertyChanged(object? sender, PropertyChangedEventArgs e)
+    /// <summary>
+    /// Recreates the Vulkan resources and commands associated with a changed drawable.
+    /// </summary>
+    /// <param name="sender">The drawable that changed.</param>
+    /// <param name="e">The event data.</param>
+    private void OnDrawableChanged(object? sender, EventArgs e)
     {
-        // TODO: handle updates
+        if (sender is not IDrawable drawable || !_drawables.ContainsKey(drawable.Id))
+            return;
+
+        Deactivate(drawable);
+        ActivateDrawable(drawable);
     }
 
     /// <summary>
@@ -177,41 +198,79 @@ public unsafe class VulkanGraphicsSystem(
     {
         ArgumentNullException.ThrowIfNull(drawable);
 
-        if (_batches.Length == 0)
+        if (!_drawables.Remove(drawable.Id, out var registration))
             return;
 
-        var batches = _batches[0];
-        if (batches is null)
-            return;
+        drawable.RenderLayerChanged -= OnDrawableChanged;
+        drawable.MeshChanged -= OnDrawableChanged;
+        drawable.TextureChanged -= OnDrawableChanged;
+        drawable.InstanceDataChanged -= OnDrawableChanged;
+        drawable.UniformDataChanged -= OnDrawableChanged;
+        drawable.ShaderChanged -= OnDrawableChanged;
 
-        foreach (var renderPass in RenderPasses.GetActivePasses(RenderPasses.All))
+        var targetBatches = GetDrawableBatches(registration.RenderLayerMask).ToArray();
+        foreach (var batches in targetBatches)
         {
-            if (batches.TryGet(renderPass, out var batch))
-                batch!.Remove(drawable.Id);
+            foreach (var renderPass in RenderPasses.GetActivePasses(RenderPasses.All))
+            {
+                if (batches.TryGet(renderPass, out var batch))
+                    batch!.Remove(drawable.Id);
+            }
         }
 
-        var vertexShader =
-            drawable.VertexShader
-            ?? throw new InvalidOperationException("Drawables must define a vertex shader.");
-        var colorFormat =
-            drawable.FragmentShader?.ColorFormat
-            ?? throw new InvalidOperationException("Drawables must define a fragment shader.");
-        var pipelineDefinition = CreatePipelineDefinition(
-            drawable,
-            RenderPasses.Main,
-            vertexShader
-        );
-
-        pipelineRegistry.Release(pipelineDefinition.Id);
-        geometryRegistry.Release(drawable.Mesh, vertexShader.VertexFormat);
+        if (_pipelineReferences.TryGetValue(registration.PipelineId, out var referenceCount))
+        {
+            if (referenceCount == 1)
+            {
+                _pipelineReferences.Remove(registration.PipelineId);
+                pipelineRegistry.Release(registration.PipelineId);
+            }
+            else
+            {
+                _pipelineReferences[registration.PipelineId] = referenceCount - 1;
+            }
+        }
+        geometryRegistry.Release(registration.Mesh, registration.VertexFormat);
         instanceBufferRegistry.Release(drawable.Id);
 
-        foreach (var command in textureRegistry.Release(drawable.Texture, colorFormat))
-            AddToBatches(batches, command);
+        var releaseCommands = textureRegistry.Release(
+            registration.Texture,
+            registration.ColorFormat
+        );
+        if (targetBatches.Length > 0)
+        {
+            foreach (var command in releaseCommands)
+                AddToBatches(targetBatches[0], command);
+        }
 
         Debug.WriteLine(
             $"Deactivated drawable. DrawableType={drawable.GetType().Name}, DrawableId={drawable.Id}"
         );
+    }
+
+    /// <summary>
+    /// Gets the batch collections selected by a drawable's layer mask.
+    /// </summary>
+    /// <param name="renderLayerMask">The mask of render-layer slots to include.</param>
+    /// <returns>The active batch collections selected by the mask.</returns>
+    private IEnumerable<RenderBatchCollection> GetDrawableBatches(ulong renderLayerMask)
+    {
+        if (_batches.Length == 0)
+            yield break;
+
+        if (renderLayerMask == 0)
+        {
+            if (_batches[0] is { } defaultBatches)
+                yield return defaultBatches;
+
+            yield break;
+        }
+
+        foreach (var layer in _layers.Get(renderLayerMask))
+        {
+            if (_batches[layer.Index] is { } batches)
+                yield return batches;
+        }
     }
 
     public void Handle(ComponentDeactivatedEvent e)
@@ -234,8 +293,6 @@ public unsafe class VulkanGraphicsSystem(
         Debug.WriteLine(
             $"Graphics component deactivated. ComponentType={component.GetType().Name}, DrawableCount={component.Drawables.Count()}"
         );
-
-        component.PropertyChanged -= OnDrawablePropertyChanged;
 
         foreach (var drawable in component.Drawables)
             Deactivate(drawable);

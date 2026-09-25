@@ -21,13 +21,39 @@ public class UniformColorMeshRenderer() : Component, IGraphicsComponent, IDrawab
     public ulong RenderLayerMask
     {
         get => _renderLayerMask;
-        set => SetProperty(ref _renderLayerMask, value);
+        set
+        {
+            if (SetProperty(ref _renderLayerMask, value))
+                RenderLayerChanged?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     /// <summary>
     /// Gets the single renderable contribution produced by this component.
     /// </summary>
     public IReadOnlyList<IDrawable> Drawables => [this];
+
+    /// <inheritdoc/>
+    public event EventHandler? RenderLayerChanged;
+
+    /// <inheritdoc/>
+    public event EventHandler? MeshChanged;
+
+    /// <inheritdoc/>
+    public event EventHandler? TextureChanged;
+
+    /// <inheritdoc/>
+    public event EventHandler? InstanceDataChanged;
+
+    /// <inheritdoc/>
+    public event EventHandler? UniformDataChanged;
+
+    /// <inheritdoc/>
+    event EventHandler? IDrawable.ShaderChanged
+    {
+        add { }
+        remove { }
+    }
 
     /// <inheritdoc/>
     DrawableId IDrawable.Id => new(Id.Value);
@@ -62,7 +88,11 @@ public class UniformColorMeshRenderer() : Component, IGraphicsComponent, IDrawab
     public Mesh Mesh
     {
         get => _mesh;
-        set => SetProperty(ref _mesh, value);
+        set
+        {
+            if (SetProperty(ref _mesh, value))
+                MeshChanged?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     /// <summary>
@@ -71,7 +101,11 @@ public class UniformColorMeshRenderer() : Component, IGraphicsComponent, IDrawab
     public ISamplingBehavior SamplingBehavior
     {
         get => _samplingBehavior;
-        set => SetProperty(ref _samplingBehavior, value);
+        set
+        {
+            if (SetProperty(ref _samplingBehavior, value))
+                TextureChanged?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     /// <summary>
@@ -80,7 +114,11 @@ public class UniformColorMeshRenderer() : Component, IGraphicsComponent, IDrawab
     public Matrix4X4<float> TransformationMatrix
     {
         get => _transformationMatrix;
-        set => SetProperty(ref _transformationMatrix, value);
+        set
+        {
+            if (SetProperty(ref _transformationMatrix, value))
+                InstanceDataChanged?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     /// <summary>
@@ -89,14 +127,22 @@ public class UniformColorMeshRenderer() : Component, IGraphicsComponent, IDrawab
     public Color Color
     {
         get => _color;
-        set => SetProperty(ref _color, value);
+        set
+        {
+            if (SetProperty(ref _color, value))
+                InstanceDataChanged?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     /// <summary>Gets or sets the view matrix supplied to the vertex shader contract.</summary>
     public Matrix4X4<float> View
     {
         get => _view;
-        set => SetProperty(ref _view, value);
+        set
+        {
+            if (SetProperty(ref _view, value))
+                UniformDataChanged?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     ReadOnlyMemory<byte> IDrawable.GetUniformData(ShaderInput[] layout)

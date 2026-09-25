@@ -21,6 +21,9 @@ public sealed class TextSpan : IDrawable, IMeshInstance
     private static ulong _nextId;
     private readonly DrawableId _id = new(Interlocked.Increment(ref _nextId));
     private Matrix4X4<float> _transformationMatrix = Matrix4X4<float>.Identity;
+    private ulong _renderLayerMask = ulong.MaxValue;
+    private string _text;
+    private ISamplingBehavior _samplingBehavior = SamplingBehaviors.Smooth;
 
     /// <summary>Initializes a text span with its text and rendering style.</summary>
     /// <param name="style">The font and visual data used to render the text.</param>
@@ -31,17 +34,66 @@ public sealed class TextSpan : IDrawable, IMeshInstance
         ArgumentNullException.ThrowIfNull(text);
 
         Style = style;
-        Text = text;
+        _text = text;
+    }
+
+    /// <inheritdoc/>
+    public event EventHandler? RenderLayerChanged;
+
+    /// <inheritdoc/>
+    event EventHandler? IDrawable.MeshChanged
+    {
+        add { }
+        remove { }
+    }
+
+    /// <inheritdoc/>
+    public event EventHandler? TextureChanged;
+
+    /// <inheritdoc/>
+    public event EventHandler? InstanceDataChanged;
+
+    /// <inheritdoc/>
+    public event EventHandler? UniformDataChanged;
+
+    /// <inheritdoc/>
+    event EventHandler? IDrawable.ShaderChanged
+    {
+        add { }
+        remove { }
     }
 
     /// <summary>Gets or sets the mask of render layers in which this span participates.</summary>
-    public ulong RenderLayerMask { get; set; } = ulong.MaxValue;
+    public ulong RenderLayerMask
+    {
+        get => _renderLayerMask;
+        set
+        {
+            if (_renderLayerMask == value)
+                return;
+
+            _renderLayerMask = value;
+            RenderLayerChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
 
     /// <summary>Gets the font and visual data used to render this span.</summary>
     public ITextStyle Style { get; }
 
     /// <summary>Gets or sets the text represented by this span.</summary>
-    public string Text { get; set; }
+    public string Text
+    {
+        get => _text;
+        set
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            if (_text == value)
+                return;
+
+            _text = value;
+            InstanceDataChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
 
     /// <summary>Gets the shared textured-quad mesh geometry used by the glyphs.</summary>
     public Mesh Mesh { get; } = BuiltInMesh.TexturedQuadOffset;
@@ -50,7 +102,19 @@ public sealed class TextSpan : IDrawable, IMeshInstance
     public ITexture Texture => Style.Texture;
 
     /// <summary>Gets the sampling behavior used when sampling the texture atlas.</summary>
-    public ISamplingBehavior SamplingBehavior { get; set; } = SamplingBehaviors.Smooth;
+    public ISamplingBehavior SamplingBehavior
+    {
+        get => _samplingBehavior;
+        set
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            if (_samplingBehavior == value)
+                return;
+
+            _samplingBehavior = value;
+            TextureChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
 
     /// <summary>Gets the textured-quad vertex shader contract.</summary>
     public VertexShader VertexShader => BuiltInShaders.TexturedQuadVertexShader;
@@ -77,7 +141,14 @@ public sealed class TextSpan : IDrawable, IMeshInstance
     public Matrix4X4<float> TransformationMatrix
     {
         get => _transformationMatrix;
-        set => _transformationMatrix = value;
+        set
+        {
+            if (_transformationMatrix == value)
+                return;
+
+            _transformationMatrix = value;
+            UniformDataChanged?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     /// <summary>Gets the first glyph tint for the mesh-instance compatibility contract.</summary>

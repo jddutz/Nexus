@@ -4,6 +4,7 @@ using Nexus.Graphics.Shaders;
 using Silk.NET.Maths;
 
 namespace Nexus.UnitTests.Graphics;
+using Nexus.Graphics.Textures;
 
 /// <summary>
 /// Verifies the pre-Vulkan instance serialization performed by <see cref="TexturedQuadRenderer"/>.
@@ -56,6 +57,34 @@ public sealed class TexturedQuadRendererInstanceDataTests
         }
 
         Assert.Equal(renderers.Length, transforms.Count);
+    }
+
+    /// <summary>
+    /// Verifies that textured-quad mutations raise the event matching the changed render input.
+    /// </summary>
+    [Fact]
+    public void PropertyChanges_raise_matching_drawable_events()
+    {
+        var renderer = new TexturedQuadRenderer();
+        var renderLayerChanges = 0;
+        var textureChanges = 0;
+        var instanceDataChanges = 0;
+        var uniformDataChanges = 0;
+
+        renderer.RenderLayerChanged += (_, _) => renderLayerChanges++;
+        renderer.TextureChanged += (_, _) => textureChanges++;
+        renderer.InstanceDataChanged += (_, _) => instanceDataChanges++;
+        renderer.UniformDataChanged += (_, _) => uniformDataChanges++;
+
+        renderer.RenderLayerMask = 1;
+        renderer.SamplingBehavior = SamplingBehaviors.PixelPerfect;
+        renderer.TextureRegion = new(0.1f, 0.2f, 0.3f, 0.4f);
+        renderer.View = Matrix4X4.CreateTranslation(1f, 2f, 0f);
+
+        Assert.Equal(1, renderLayerChanges);
+        Assert.Equal(1, textureChanges);
+        Assert.Equal(1, instanceDataChanges);
+        Assert.Equal(1, uniformDataChanges);
     }
 
     /// <summary>

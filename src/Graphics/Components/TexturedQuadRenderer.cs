@@ -41,7 +41,11 @@ public class TexturedQuadRenderer : Component, IGraphicsComponent, IDrawable, IM
     public ulong RenderLayerMask
     {
         get => _renderLayerMask;
-        set => SetProperty(ref _renderLayerMask, value);
+        set
+        {
+            if (SetProperty(ref _renderLayerMask, value))
+                RenderLayerChanged?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     /// <summary>
@@ -80,13 +84,42 @@ public class TexturedQuadRenderer : Component, IGraphicsComponent, IDrawable, IM
     /// </summary>
     public Mesh Mesh { get; }
 
+    /// <inheritdoc/>
+    public event EventHandler? RenderLayerChanged;
+
+    /// <inheritdoc/>
+    event EventHandler? IDrawable.MeshChanged
+    {
+        add { }
+        remove { }
+    }
+
+    /// <inheritdoc/>
+    public event EventHandler? TextureChanged;
+
+    /// <inheritdoc/>
+    public event EventHandler? InstanceDataChanged;
+
+    /// <inheritdoc/>
+    public event EventHandler? UniformDataChanged;
+
+    /// <inheritdoc/>
+    event EventHandler? IDrawable.ShaderChanged
+    {
+        add { }
+        remove { }
+    }
     /// <summary>
     /// Gets or sets the texture sampled by this component.
     /// </summary>
     public Texture? Texture
     {
         get => _texture;
-        set => SetProperty(ref _texture, value);
+        set
+        {
+            if (SetProperty(ref _texture, value))
+                TextureChanged?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     /// <summary>
@@ -95,7 +128,11 @@ public class TexturedQuadRenderer : Component, IGraphicsComponent, IDrawable, IM
     public ISamplingBehavior SamplingBehavior
     {
         get => _samplingBehavior;
-        set => SetProperty(ref _samplingBehavior, value);
+        set
+        {
+            if (SetProperty(ref _samplingBehavior, value))
+                TextureChanged?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     /// <summary>
@@ -104,7 +141,11 @@ public class TexturedQuadRenderer : Component, IGraphicsComponent, IDrawable, IM
     public Matrix4X4<float> TransformationMatrix
     {
         get => _transformationMatrix;
-        set => SetProperty(ref _transformationMatrix, value);
+        set
+        {
+            if (SetProperty(ref _transformationMatrix, value))
+                InstanceDataChanged?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     /// <summary>
@@ -113,7 +154,11 @@ public class TexturedQuadRenderer : Component, IGraphicsComponent, IDrawable, IM
     public Vector4D<float> TextureRegion
     {
         get => _textureRegion;
-        set => SetProperty(ref _textureRegion, value);
+        set
+        {
+            if (SetProperty(ref _textureRegion, value))
+                InstanceDataChanged?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     /// <summary>
@@ -122,14 +167,22 @@ public class TexturedQuadRenderer : Component, IGraphicsComponent, IDrawable, IM
     public Color Color
     {
         get => _color;
-        set => SetProperty(ref _color, value);
+        set
+        {
+            if (SetProperty(ref _color, value))
+                InstanceDataChanged?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     /// <summary>Gets or sets the view matrix supplied to the vertex shader contract.</summary>
     public Matrix4X4<float> View
     {
         get => _view;
-        set => SetProperty(ref _view, value);
+        set
+        {
+            if (SetProperty(ref _view, value))
+                UniformDataChanged?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     ReadOnlyMemory<byte> IDrawable.GetUniformData(ShaderInput[] layout)
@@ -149,7 +202,7 @@ public class TexturedQuadRenderer : Component, IGraphicsComponent, IDrawable, IM
     /// <summary>
     /// Gets the required instance-record size or writes the transform, texture region, and color to a destination span.
     /// </summary>
-    /// <param name="destination">The destination for the instance record, or an empty span when querying its size.</param>
+        /// Gets or sets the atlas UV transform (U offset, V offset, U scale, V scale) used to sample <see cref="Texture"/>.
     /// <returns>The required or written byte count.</returns>
     public int GetInstanceData(Span<byte> destination)
     {
@@ -177,7 +230,7 @@ public class TexturedQuadRenderer : Component, IGraphicsComponent, IDrawable, IM
     /// <summary>
     /// Gets or writes the packed instance record at the specified component-local index.
     /// </summary>
-    /// <param name="instanceIndex">The zero-based instance index.</param>
+        /// Gets or sets the tint color multiplied against the sampled texture color.
     /// <param name="destination">The destination span, or an empty span when querying its size.</param>
     /// <returns>The required or written byte count.</returns>
     public int GetInstanceData(int instanceIndex, Span<byte> destination)
