@@ -189,16 +189,40 @@ public sealed class TextSpan : IDrawable, IMeshInstance
         var textureRegionOffset = System.Runtime.CompilerServices.Unsafe.SizeOf<Matrix4X4<float>>();
         var colorOffset =
             textureRegionOffset + System.Runtime.CompilerServices.Unsafe.SizeOf<Vector4D<float>>();
+        var scale = Style.FontMetrics.EmSize == 0 ? 1.0 : Style.Size / Style.FontMetrics.EmSize;
+        var baselineOffset = (float)(Style.FontMetrics.Ascender * scale);
         for (var index = 0; index < glyphs.Count; index++)
         {
             var destination = data.AsSpan(index * InstanceDataSize, InstanceDataSize);
             var glyph = glyphs[index].Glyph;
-            var transformationMatrix = CreateTransformation(glyph, glyphs[index].X);
+            var transformationMatrix = CreateTransformation(
+                glyph,
+                glyphs[index].X,
+                baselineOffset
+            );
             var textureRegion = new Vector4D<float>(
                 (float)(glyph.AtlasBounds.Left / Texture.Width),
                 (float)(glyph.AtlasBounds.Bottom / Texture.Height),
                 (float)((glyph.AtlasBounds.Right - glyph.AtlasBounds.Left) / Texture.Width),
                 (float)((glyph.AtlasBounds.Top - glyph.AtlasBounds.Bottom) / Texture.Height)
+            );
+            var layoutLeft = glyphs[index].X + (float)(glyph.PlaneBounds.Left * scale);
+            var layoutRight = glyphs[index].X + (float)(glyph.PlaneBounds.Right * scale);
+            var layoutTop = baselineOffset - (float)(glyph.PlaneBounds.Top * scale);
+            var layoutBottom = baselineOffset - (float)(glyph.PlaneBounds.Bottom * scale);
+            var spanTransform = TransformationMatrix;
+            var screenBaselineX = TransformPoint(glyphs[index].X, baselineOffset, spanTransform).X;
+            var screenBaselineY = TransformPoint(glyphs[index].X, baselineOffset, spanTransform).Y;
+            var topLeft = TransformPoint(layoutLeft, layoutTop, spanTransform);
+            var topRight = TransformPoint(layoutRight, layoutTop, spanTransform);
+            var bottomLeft = TransformPoint(layoutLeft, layoutBottom, spanTransform);
+            var bottomRight = TransformPoint(layoutRight, layoutBottom, spanTransform);
+            var screenLeft = MathF.Min(MathF.Min(topLeft.X, topRight.X), MathF.Min(bottomLeft.X, bottomRight.X));
+            var screenRight = MathF.Max(MathF.Max(topLeft.X, topRight.X), MathF.Max(bottomLeft.X, bottomRight.X));
+            var screenTop = MathF.Min(MathF.Min(topLeft.Y, topRight.Y), MathF.Min(bottomLeft.Y, bottomRight.Y));
+            var screenBottom = MathF.Max(MathF.Max(topLeft.Y, topRight.Y), MathF.Max(bottomLeft.Y, bottomRight.Y));
+            System.Diagnostics.Debug.WriteLine(
+                $"Text glyph instance. Codepoint={glyph.Codepoint}, GlyphBounds(L={glyph.PlaneBounds.Left}, R={glyph.PlaneBounds.Right}, B={glyph.PlaneBounds.Bottom}, T={glyph.PlaneBounds.Top}), ScreenBaseline(X={screenBaselineX}, Y={screenBaselineY}), ScreenBounds(L={screenLeft}, R={screenRight}, T={screenTop}, B={screenBottom}), InstanceTransform={transformationMatrix}, SpanTransform={spanTransform}, AtlasRegion(U={textureRegion.X}, V={textureRegion.Y}, UScale={textureRegion.Z}, VScale={textureRegion.W})"
             );
             var color = Style.Color;
             MemoryMarshal.Write(destination, in transformationMatrix);
@@ -208,6 +232,21 @@ public sealed class TextSpan : IDrawable, IMeshInstance
 
         return data;
     }
+
+    /// <summary>Transforms a span-layout point by the span's local transformation matrix.</summary>
+    /// <param name="x">The point's horizontal coordinate.</param>
+    /// <param name="y">The point's vertical coordinate.</param>
+    /// <param name="transformation">The span transformation matrix.</param>
+    /// <returns>The transformed point.</returns>
+    private static Vector2D<float> TransformPoint(
+        float x,
+        float y,
+        Matrix4X4<float> transformation
+    ) =>
+        new(
+            x * transformation.M11 + y * transformation.M21 + transformation.M41,
+            x * transformation.M12 + y * transformation.M22 + transformation.M42
+        );
 
     private List<(FontGlyph Glyph, float X)> BuildGlyphs()
     {
@@ -244,17 +283,24 @@ public sealed class TextSpan : IDrawable, IMeshInstance
         return glyphs;
     }
 
-    private Matrix4X4<float> CreateTransformation(FontGlyph glyph, float penX)
+    /// <summary>Creates the glyph instance transform in top-left, Y-down layout coordinates.</summary>
+    /// <param name="glyph">The glyph metrics defining the quad bounds.</param>
+    /// <param name="penX">The glyph's horizontal pen position.</param>
+    /// <param name="baselineOffset">The scaled baseline distance below the line-box origin.</param>
+    /// <returns>The transform placing the glyph quad relative to the span origin.</returns>
+    private Matrix4X4<float> CreateTransformation(
+        FontGlyph glyph,
+        float penX,
+        float baselineOffset
+    )
     {
         var scale = Style.FontMetrics.EmSize == 0 ? 1.0 : Style.Size / Style.FontMetrics.EmSize;
         var width = (float)((glyph.PlaneBounds.Right - glyph.PlaneBounds.Left) * scale);
         var height = (float)((glyph.PlaneBounds.Top - glyph.PlaneBounds.Bottom) * scale);
         var centerX =
             penX + (float)((glyph.PlaneBounds.Left + glyph.PlaneBounds.Right) * scale / 2);
-        var centerY = (float)((glyph.PlaneBounds.Bottom + glyph.PlaneBounds.Top) * scale / 2);
-        System.Diagnostics.Debug.WriteLine(
-            $"Text glyph geometry. Codepoint={glyph.Codepoint}, Left={penX + glyph.PlaneBounds.Left * scale}, Right={penX + glyph.PlaneBounds.Right * scale}, Bottom={glyph.PlaneBounds.Bottom * scale}, Top={glyph.PlaneBounds.Top * scale}"
-        );
+        var centerY = baselineOffset
+            - (float)((glyph.PlaneBounds.Bottom + glyph.PlaneBounds.Top) * scale / 2);
 
         return Matrix4X4.CreateScale(width, height, 1f)
             * Matrix4X4.CreateTranslation(centerX, centerY, 0f);

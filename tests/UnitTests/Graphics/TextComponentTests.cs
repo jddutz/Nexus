@@ -187,6 +187,34 @@ public sealed class TextComponentTests
     }
 
     /// <summary>
+    /// Verifies glyph-space bounds are converted to top-left layout coordinates independently of atlas sampling.
+    /// </summary>
+    [Fact]
+    public void GetInstanceData_converts_glyph_bounds_and_packs_atlas_region()
+    {
+        var glyph = new FontGlyph('H', 48, new(-2, -4, 46, 36), new(1, 0, 2, 1));
+        var style = new TestTextStyle(
+            new Dictionary<int, FontGlyph> { ['H'] = glyph },
+            fontMetrics: new(48, 36, -12, 48),
+            size: 18
+        );
+        var span = new TextSpan(style, "H");
+
+        var data = span.GetInstanceData(BuiltInShaders.TexturedQuadVertexShader.InstanceLayout);
+        var transformation = MemoryMarshal.Read<Matrix4X4<float>>(data.Span);
+        var textureRegion = MemoryMarshal.Read<Vector4D<float>>(
+            data.Span[System.Runtime.CompilerServices.Unsafe.SizeOf<Matrix4X4<float>>()..]
+        );
+
+        Assert.Equal(18f, transformation.M11);
+        Assert.Equal(15f, transformation.M22);
+        Assert.Equal(8.25f, transformation.M41);
+        Assert.Equal(7.5f, transformation.M42);
+        Assert.Equal(0f, transformation.M42 - transformation.M22 / 2f);
+        Assert.Equal(new Vector4D<float>(0.5f, 0f, 0.5f, 1f), textureRegion);
+    }
+
+    /// <summary>
     /// Verifies the span transform is packed separately from each glyph's local transform.
     /// </summary>
     [Fact]
@@ -263,17 +291,19 @@ public sealed class TextComponentTests
 
     private sealed class TestTextStyle(
         IReadOnlyDictionary<int, FontGlyph> glyphs,
-        IReadOnlyDictionary<(int LeftCodepoint, int RightCodepoint), double>? kerning = null
+        IReadOnlyDictionary<(int LeftCodepoint, int RightCodepoint), double>? kerning = null,
+        FontMetrics? fontMetrics = null,
+        double size = 1
     ) : ITextStyle
     {
         public ITexture Texture { get; } = new Texture("atlas", 2, 1, [Colors.White, Colors.White]);
         public IReadOnlyDictionary<int, FontGlyph> Glyphs { get; } = glyphs;
-        public FontMetrics FontMetrics { get; } = new(1, 1, 0, 1);
+        public FontMetrics FontMetrics { get; } = fontMetrics ?? new(1, 1, 0, 1);
         public IReadOnlyDictionary<
             (int LeftCodepoint, int RightCodepoint),
             double
         > Kerning { get; } = kerning ?? new Dictionary<(int, int), double>();
         public Color Color { get; } = Colors.White;
-        public double Size { get; } = 1;
+        public double Size { get; } = size;
     }
 }
