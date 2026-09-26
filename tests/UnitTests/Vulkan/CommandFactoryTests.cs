@@ -22,8 +22,11 @@ public class CommandFactoryTests
     [Fact]
     public void ToVulkanAttributes_maps_msdf_distance_range_as_scalar_at_expected_offset()
     {
-        var attributes = new ShaderInput(InputSemantics.MsdfDistanceRange, 4)
-            .ToVulkanAttributes(1, 8, 96);
+        var attributes = new ShaderInput(InputSemantics.MsdfDistanceRange, 4).ToVulkanAttributes(
+            1,
+            8,
+            96
+        );
 
         var attribute = Assert.Single(attributes);
         Assert.Equal(1u, attribute.Binding);
