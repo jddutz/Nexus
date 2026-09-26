@@ -19,4 +19,10 @@ public sealed record ApplicationSettings
     /// Gets or sets the location of the content manifest.
     /// </summary>
     public string ContentManifestLocation { get; set; } = ".content/content-manifest.json";
+
+    /// <summary>
+    /// Gets or sets the maximum number of frames to render before requesting application shutdown.
+    /// A value less than or equal to zero disables the limit.
+    /// </summary>
+    public int MaxFrameCount { get; set; }
 }

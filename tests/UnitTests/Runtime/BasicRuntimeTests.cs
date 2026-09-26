@@ -1,7 +1,10 @@
+using System.Reflection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Nexus.Audio;
 using Nexus.Core;
+using Nexus.Core.Events;
 using Nexus.Game;
 using Nexus.Graphics;
 using Nexus.Graphics.Vulkan;
@@ -9,6 +12,7 @@ using Nexus.Input;
 using Nexus.Physics;
 using Nexus.Runtime;
 using Nexus.Testing;
+using Silk.NET.Windowing;
 
 namespace Tests;
 
@@ -67,6 +71,29 @@ public class BasicRuntimeTests
         var runtime = Assert.IsType<NexusRuntime>(BuildTestRuntime());
 
         Assert.Throws<InvalidOperationException>(() => runtime.OnUpdate(0d));
+    }
+
+    [Fact]
+    public void Render_requestsWindowClose_afterConfiguredFrameCount()
+    {
+        var window = DispatchProxy.Create<IWindow, CloseTrackingWindow>();
+        var closeTrackingWindow = (CloseTrackingWindow)(object)window;
+        var services = CreateRuntimeServices();
+        services.AddSingleton<IEventHub, EventHub>();
+        services.AddSingleton<IWindow>(window);
+        services.AddSingleton<IOptions<ApplicationSettings>>(
+            Options.Create(new ApplicationSettings { MaxFrameCount = 2 })
+        );
+        services.AddSingleton<INexusRuntime, NexusRuntime>();
+
+        using var serviceProvider = services.BuildServiceProvider();
+        var runtime = Assert.IsType<NexusRuntime>(serviceProvider.GetRequiredService<INexusRuntime>());
+
+        runtime.OnRender(0d);
+        Assert.False(closeTrackingWindow.CloseWasRequested);
+
+        runtime.OnRender(0d);
+        Assert.True(closeTrackingWindow.CloseWasRequested);
     }
 
     [Fact]
@@ -133,6 +160,32 @@ public class BasicRuntimeTests
     }
 
     private sealed class ExplicitService;
+
+    /// <summary>
+    /// Tracks close requests made through a proxied window without creating a native window.
+    /// </summary>
+    public class CloseTrackingWindow : DispatchProxy
+    {
+        /// <summary>Gets whether the runtime requested that the window close.</summary>
+        public bool CloseWasRequested { get; private set; }
+
+        /// <inheritdoc />
+        protected override object? Invoke(
+            MethodInfo? targetMethod,
+            object?[]? args
+        )
+        {
+            if (targetMethod?.Name == nameof(IWindow.Close))
+                CloseWasRequested = true;
+
+            var returnType = targetMethod?.ReturnType;
+            return returnType is null || returnType == typeof(void)
+                ? null
+                : returnType.IsValueType
+                    ? Activator.CreateInstance(returnType)
+                    : null;
+        }
+    }
 
     private sealed class NoOpGameSystem : IGameSystem
     {

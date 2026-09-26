@@ -5,6 +5,8 @@
 /// </summary>
 internal static class Program
 {
+    /// <summary>Creates the application configuration and runs Hello Nexus.</summary>
+    /// <param name="args">Command-line configuration overrides.</param>
     private static void Main(string[] args)
     {
         Environment.ExitCode = -1;
@@ -19,6 +21,7 @@ internal static class Program
                 .AddJsonFile(
                     Path.Combine(AppContext.BaseDirectory, ".content", "content-manifest.json")
                 )
+                .AddCommandLine(args)
                 .Build();
 
             var services = new ServiceCollection();

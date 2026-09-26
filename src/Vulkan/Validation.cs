@@ -458,7 +458,6 @@ public unsafe class Validation : IValidation
     {
         var message = Marshal.PtrToStringAnsi((nint)pCallbackData->PMessage) ?? string.Empty;
 
-        // Enhanced logging with clear indicators
         var severityIcon = messageSeverity switch
         {
             DebugUtilsMessageSeverityFlagsEXT.ErrorBitExt => "[ERROR] VULKAN",

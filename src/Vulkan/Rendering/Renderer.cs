@@ -295,7 +295,7 @@ public unsafe class Renderer(
 
         _context.VulkanApi.CmdPipelineBarrier(
             _commandBuffer,
-            PipelineStageFlags.TopOfPipeBit,
+            PipelineStageFlags.TopOfPipeBit | PipelineStageFlags.ColorAttachmentOutputBit,
             PipelineStageFlags.ColorAttachmentOutputBit,
             0,
             0,

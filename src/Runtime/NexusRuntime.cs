@@ -13,10 +13,14 @@ public sealed class NexusRuntime(
     IAudioSystem audio,
     IInputSystem input,
     IGraphicsSystem graphics,
-    IWindow? window = null
+    IWindow? window = null,
+    IOptions<ApplicationSettings>? applicationSettings = null
 ) : INexusRuntime
 {
     private bool _initialized = false;
+    private readonly int _maxFrameCount = applicationSettings?.Value.MaxFrameCount ?? 0;
+    private long _renderedFrameCount;
+
     public bool IsInitialized => _initialized;
 
     /// <summary>
@@ -61,8 +65,19 @@ public sealed class NexusRuntime(
         //graphics.Update(deltaTime);
     }
 
+    /// <summary>
+    /// Renders a frame and requests window shutdown when the configured frame limit is reached.
+    /// </summary>
+    /// <param name="deltaTime">Elapsed time since the previous frame.</param>
     public void OnRender(double deltaTime)
     {
         graphics.Render();
+
+        if (_maxFrameCount <= 0)
+            return;
+
+        _renderedFrameCount++;
+        if (_renderedFrameCount == _maxFrameCount)
+            window?.Close();
     }
 }

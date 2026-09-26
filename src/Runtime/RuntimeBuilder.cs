@@ -40,7 +40,9 @@ public class RuntimeBuilder : IRuntimeBuilder
     /// <inheritdoc/>
     public INexusRuntime Build()
     {
-        _services.TryAddSingleton(_configuration ?? new ConfigurationBuilder().Build());
+        var configuration = _configuration ?? new ConfigurationBuilder().Build();
+        _services.TryAddSingleton(configuration);
+        _services.AddOptions<ApplicationSettings>().Bind(configuration.GetSection("Application"));
         _services.TryAddSingleton<IContentManifest, ContentManifest>();
         _services.TryAddSingleton<IInputSystem, InputSystem>();
         _services.TryAddSingleton<IGameSystem, GameSystem>();
