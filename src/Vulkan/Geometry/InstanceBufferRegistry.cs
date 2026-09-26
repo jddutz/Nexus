@@ -7,6 +7,7 @@ public unsafe class InstanceBufferRegistry : IInstanceBufferRegistry
 {
     private readonly Context _context;
     private readonly ISyncManager _syncManager;
+    private readonly PerformanceMetrics? _performanceMetrics;
     private readonly Dictionary<DrawableId, VkBuffer> _buffers = [];
     private readonly Dictionary<VkBuffer, DeviceMemory> _memory = [];
     private readonly Queue<VkBuffer>[] _released;
@@ -16,10 +17,16 @@ public unsafe class InstanceBufferRegistry : IInstanceBufferRegistry
     /// </summary>
     /// <param name="context">The Vulkan context that owns the buffers.</param>
     /// <param name="syncManager">The synchronization manager used to defer buffer destruction.</param>
-    public InstanceBufferRegistry(Context context, ISyncManager syncManager)
+    /// <param name="performanceMetrics">Optional metrics tracker for live Vulkan buffers.</param>
+    public InstanceBufferRegistry(
+        Context context,
+        ISyncManager syncManager,
+        PerformanceMetrics? performanceMetrics = null
+    )
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _syncManager = syncManager ?? throw new ArgumentNullException(nameof(syncManager));
+        _performanceMetrics = performanceMetrics;
         _released = new Queue<VkBuffer>[checked((int)syncManager.MaxFramesInFlight)];
 
         for (var index = 0; index < _released.Length; index++)
@@ -111,7 +118,10 @@ public unsafe class InstanceBufferRegistry : IInstanceBufferRegistry
             _context.VulkanApi.DestroyBuffer(_context.Device, buffer, null);
 
             if (_memory.Remove(buffer, out var memory))
+            {
                 _context.VulkanApi.FreeMemory(_context.Device, memory, null);
+                _performanceMetrics?.RecordBufferDestroyed();
+            }
         }
     }
 
@@ -224,6 +234,7 @@ public unsafe class InstanceBufferRegistry : IInstanceBufferRegistry
             }
 
             _memory.Add(buffer, memory);
+            _performanceMetrics?.RecordBufferCreated();
             return buffer;
         }
         catch
@@ -242,6 +253,7 @@ public unsafe class InstanceBufferRegistry : IInstanceBufferRegistry
         {
             _context.VulkanApi.DestroyBuffer(_context.Device, memoryEntry.Key, null);
             _context.VulkanApi.FreeMemory(_context.Device, memoryEntry.Value, null);
+            _performanceMetrics?.RecordBufferDestroyed();
         }
 
         _buffers.Clear();

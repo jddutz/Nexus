@@ -73,13 +73,51 @@ public unsafe class Context
         // Get required extensions from the window system (platform-specific like Win32, X11, etc.)
         var glfwExtensions = window.VkSurface.GetRequiredExtensions(out var glfwExtensionCount);
 
-        // Count total extensions needed
+        var validationLayerNames =
+            _validationLayers?.AreEnabled == true ? _validationLayers.LayerNames : [];
+        var validationFeatureNames = GetValidationFeatureNames();
+        var layerSettingsLayer =
+            validationFeatureNames.Length == 0
+                ? null
+                : FindInstanceExtensionLayer(validationLayerNames, "VK_EXT_layer_settings");
+        var validationFeaturesLayer =
+            validationFeatureNames.Length == 0 || layerSettingsLayer is not null
+                ? null
+                : FindInstanceExtensionLayer(validationLayerNames, "VK_EXT_validation_features");
+        var useLayerSettings = layerSettingsLayer is not null;
+
+        if (
+            validationFeatureNames.Length > 0
+            && !useLayerSettings
+            && validationFeaturesLayer is null
+        )
+        {
+            Debug.WriteLine(
+                "[WARN] Requested Vulkan validation features, but the selected validation layer exposes neither VK_EXT_layer_settings nor VK_EXT_validation_features."
+            );
+        }
+
+        // Count total extensions needed.
         var totalExtensions = glfwExtensionCount;
         nint debugUtilsNamePtr = 0;
-        if (_validationLayers?.AreEnabled == true)
+        nint layerSettingsExtensionNamePtr = 0;
+        nint validationFeaturesExtensionNamePtr = 0;
+        if (validationLayerNames.Length > 0)
         {
             totalExtensions++;
             debugUtilsNamePtr = SilkMarshal.StringToPtr(ExtDebugUtils.ExtensionName);
+        }
+        if (useLayerSettings)
+        {
+            totalExtensions++;
+            layerSettingsExtensionNamePtr = SilkMarshal.StringToPtr("VK_EXT_layer_settings");
+        }
+        else if (validationFeaturesLayer is not null)
+        {
+            totalExtensions++;
+            validationFeaturesExtensionNamePtr = SilkMarshal.StringToPtr(
+                "VK_EXT_validation_features"
+            );
         }
 
         // Build extension array
@@ -88,18 +126,22 @@ public unsafe class Context
         {
             extensionsArray[i] = glfwExtensions[i];
         }
-        if (_validationLayers?.AreEnabled == true)
+        if (validationLayerNames.Length > 0)
         {
             extensionsArray[glfwExtensionCount] = (byte*)debugUtilsNamePtr;
         }
+        if (useLayerSettings)
+            extensionsArray[glfwExtensionCount + 1] = (byte*)layerSettingsExtensionNamePtr;
+        else if (validationFeaturesLayer is not null)
+            extensionsArray[glfwExtensionCount + 1] = (byte*)validationFeaturesExtensionNamePtr;
 
         createInfo.EnabledExtensionCount = totalExtensions;
         createInfo.PpEnabledExtensionNames = extensionsArray;
 
         // Enable validation layers if available
-        if (_validationLayers?.AreEnabled == true)
+        if (validationLayerNames.Length > 0)
         {
-            var layerNames = _validationLayers.LayerNames;
+            var layerNames = validationLayerNames;
             var layerNamePtrs = stackalloc nint[layerNames.Length];
             var layerNameBytePtrs = stackalloc byte*[layerNames.Length];
 
@@ -112,7 +154,13 @@ public unsafe class Context
             createInfo.EnabledLayerCount = (uint)layerNames.Length;
             createInfo.PpEnabledLayerNames = layerNameBytePtrs;
 
-            var result = _vulkanApi.CreateInstance(in createInfo, null, out _instance);
+            var result = CreateInstanceWithValidationSettings(
+                ref createInfo,
+                validationFeatureNames,
+                layerSettingsLayer,
+                validationFeaturesLayer,
+                out _instance
+            );
 
             // Cleanup layer name pointers
             for (int i = 0; i < layerNames.Length; i++)
@@ -140,6 +188,10 @@ public unsafe class Context
         {
             SilkMarshal.Free(debugUtilsNamePtr);
         }
+        if (layerSettingsExtensionNamePtr != 0)
+            SilkMarshal.Free(layerSettingsExtensionNamePtr);
+        if (validationFeaturesExtensionNamePtr != 0)
+            SilkMarshal.Free(validationFeaturesExtensionNamePtr);
 
         Marshal.FreeHGlobal((IntPtr)appInfo.PApplicationName);
         Marshal.FreeHGlobal((IntPtr)appInfo.PEngineName);
@@ -159,6 +211,181 @@ public unsafe class Context
         GraphicsQueue = graphicsQueue;
         PresentQueue = presentQueue;
     }
+
+    /// <summary>Gets the validation feature names requested by the active Vulkan settings.</summary>
+    /// <returns>The enabled feature names understood by VK_LAYER_KHRONOS_validation.</returns>
+    private string[] GetValidationFeatureNames()
+    {
+        if (_validationLayers?.AreEnabled != true)
+            return [];
+
+        var features = new List<string>();
+        if (Settings.EnableGpuAssistedValidation)
+        {
+            features.Add("VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT");
+            features.Add("VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_RESERVE_BINDING_SLOT_EXT");
+        }
+        if (Settings.EnableBestPracticesValidation)
+            features.Add("VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT");
+        if (Settings.EnableSynchronizationValidation)
+            features.Add("VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT");
+        if (Settings.EnableShaderDebugPrintf)
+            features.Add("VK_VALIDATION_FEATURE_ENABLE_DEBUG_PRINTF_EXT");
+
+        return [.. features];
+    }
+
+    /// <summary>Finds a selected validation layer that advertises the requested instance extension.</summary>
+    /// <param name="layerNames">The validation layers enabled for instance creation.</param>
+    /// <param name="extensionName">The extension name to locate.</param>
+    /// <returns>The first layer advertising the extension, or <see langword="null"/>.</returns>
+    private string? FindInstanceExtensionLayer(string[] layerNames, string extensionName)
+    {
+        foreach (var layerName in layerNames)
+        {
+            if (HasInstanceExtension(layerName, extensionName))
+                return layerName;
+        }
+
+        return null;
+    }
+
+    /// <summary>Checks whether a Vulkan layer advertises an instance extension.</summary>
+    /// <param name="layerName">The layer being queried.</param>
+    /// <param name="extensionName">The extension name to find.</param>
+    /// <returns><see langword="true"/> when the layer advertises the extension.</returns>
+    private bool HasInstanceExtension(string layerName, string extensionName)
+    {
+        var layerNamePointer = SilkMarshal.StringToPtr(layerName);
+        try
+        {
+            uint extensionCount = 0;
+            var result = _vulkanApi.EnumerateInstanceExtensionProperties(
+                (byte*)layerNamePointer,
+                &extensionCount,
+                null
+            );
+            if (result != Result.Success || extensionCount == 0)
+                return false;
+
+            var extensions = new ExtensionProperties[extensionCount];
+            fixed (ExtensionProperties* extensionPointer = extensions)
+            {
+                result = _vulkanApi.EnumerateInstanceExtensionProperties(
+                    (byte*)layerNamePointer,
+                    &extensionCount,
+                    extensionPointer
+                );
+            }
+
+            return result == Result.Success
+                && extensions.Any(extension =>
+                    Marshal.PtrToStringAnsi((nint)extension.ExtensionName) == extensionName
+                );
+        }
+        finally
+        {
+            SilkMarshal.Free(layerNamePointer);
+        }
+    }
+
+    /// <summary>Creates the instance with modern layer settings or the legacy validation-features structure.</summary>
+    /// <param name="createInfo">The Vulkan instance creation structure to update.</param>
+    /// <param name="featureNames">The validation feature names requested by settings.</param>
+    /// <param name="layerSettingsLayer">The layer advertising VK_EXT_layer_settings.</param>
+    /// <param name="validationFeaturesLayer">The layer advertising VK_EXT_validation_features.</param>
+    /// <param name="instance">The created Vulkan instance.</param>
+    /// <returns>The Vulkan result from instance creation.</returns>
+    private Result CreateInstanceWithValidationSettings(
+        ref InstanceCreateInfo createInfo,
+        string[] featureNames,
+        string? layerSettingsLayer,
+        string? validationFeaturesLayer,
+        out Instance instance
+    )
+    {
+        if (featureNames.Length == 0)
+            return _vulkanApi.CreateInstance(in createInfo, null, out instance);
+
+        if (layerSettingsLayer is not null)
+        {
+            var allocatedStrings = new List<nint>();
+            try
+            {
+                var layerNamePointer = SilkMarshal.StringToPtr(layerSettingsLayer);
+                allocatedStrings.Add(layerNamePointer);
+                var settingNamePointer = SilkMarshal.StringToPtr("enables");
+                allocatedStrings.Add(settingNamePointer);
+                var featurePointers = stackalloc byte*[featureNames.Length];
+                for (var index = 0; index < featureNames.Length; index++)
+                {
+                    var featurePointer = SilkMarshal.StringToPtr(featureNames[index]);
+                    allocatedStrings.Add(featurePointer);
+                    featurePointers[index] = (byte*)featurePointer;
+                }
+
+                var setting = new LayerSettingEXT
+                {
+                    PLayerName = (byte*)layerNamePointer,
+                    PSettingName = (byte*)settingNamePointer,
+                    Type = LayerSettingTypeEXT.StringExt,
+                    ValueCount = checked((uint)featureNames.Length),
+                    PValues = featurePointers,
+                };
+                var settingsInfo = new LayerSettingsCreateInfoEXT
+                {
+                    SType = StructureType.LayerSettingsCreateInfoExt,
+                    SettingCount = 1,
+                    PSettings = &setting,
+                };
+
+                createInfo.PNext = &settingsInfo;
+                return _vulkanApi.CreateInstance(in createInfo, null, out instance);
+            }
+            finally
+            {
+                foreach (var pointer in allocatedStrings)
+                    SilkMarshal.Free(pointer);
+            }
+        }
+
+        if (validationFeaturesLayer is not null)
+        {
+            var enabledFeatures = featureNames.Select(ToValidationFeature).ToArray();
+            fixed (ValidationFeatureEnableEXT* featurePointer = enabledFeatures)
+            {
+                var validationFeatures = new ValidationFeaturesEXT
+                {
+                    SType = StructureType.ValidationFeaturesExt,
+                    EnabledValidationFeatureCount = checked((uint)enabledFeatures.Length),
+                    PEnabledValidationFeatures = featurePointer,
+                };
+                createInfo.PNext = &validationFeatures;
+                return _vulkanApi.CreateInstance(in createInfo, null, out instance);
+            }
+        }
+
+        return _vulkanApi.CreateInstance(in createInfo, null, out instance);
+    }
+
+    /// <summary>Maps a Khronos validation feature name to its Vulkan enum value.</summary>
+    /// <param name="featureName">The validation feature name.</param>
+    /// <returns>The corresponding Vulkan validation feature.</returns>
+    private static ValidationFeatureEnableEXT ToValidationFeature(string featureName) =>
+        featureName switch
+        {
+            "VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_EXT" =>
+                ValidationFeatureEnableEXT.GpuAssistedExt,
+            "VK_VALIDATION_FEATURE_ENABLE_GPU_ASSISTED_RESERVE_BINDING_SLOT_EXT" =>
+                ValidationFeatureEnableEXT.GpuAssistedReserveBindingSlotExt,
+            "VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT" =>
+                ValidationFeatureEnableEXT.BestPracticesExt,
+            "VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT" =>
+                ValidationFeatureEnableEXT.SynchronizationValidationExt,
+            "VK_VALIDATION_FEATURE_ENABLE_DEBUG_PRINTF_EXT" =>
+                ValidationFeatureEnableEXT.DebugPrintfExt,
+            _ => throw new ArgumentOutOfRangeException(nameof(featureName), featureName, null),
+        };
 
     /// <summary>
     /// Gets the Vulkan API object that provides access to all Vulkan functions.
@@ -401,7 +628,7 @@ public unsafe class Context
             .ToHashSet();
 
         // Check all required extensions from settings
-        foreach (var required in Settings.RequiredDeviceExtensions)
+        foreach (var required in GetRequiredDeviceExtensions())
         {
             if (!availableExtensionNames.Contains(required))
             {
@@ -410,6 +637,16 @@ public unsafe class Context
         }
 
         return true;
+    }
+
+    /// <summary>Gets device extensions required by settings, including the optional shader printf dependency.</summary>
+    /// <returns>The distinct device extensions required for logical-device creation.</returns>
+    private string[] GetRequiredDeviceExtensions()
+    {
+        var extensions = Settings.RequiredDeviceExtensions.ToList();
+        if (_validationLayers?.AreEnabled == true && Settings.EnableShaderDebugPrintf)
+            extensions.Add("VK_KHR_shader_non_semantic_info");
+        return [.. extensions.Distinct(StringComparer.Ordinal)];
     }
 
     private int ScoreDevice(PhysicalDevice device)
@@ -472,6 +709,7 @@ public unsafe class Context
     /// </remarks>
     private (Device, Queue, Queue) CreateDeviceAndQueues()
     {
+        var requiredDeviceExtensions = GetRequiredDeviceExtensions();
         uint queueFamilyCount = 0;
         VulkanApi.GetPhysicalDeviceQueueFamilyProperties(PhysicalDevice, &queueFamilyCount, null);
 
@@ -541,11 +779,10 @@ public unsafe class Context
             DynamicRendering = true,
         };
 
-        var extensionNames = stackalloc byte*[Settings.RequiredDeviceExtensions.Length];
-        for (int i = 0; i < Settings.RequiredDeviceExtensions.Length; i++)
+        var extensionNames = stackalloc byte*[requiredDeviceExtensions.Length];
+        for (int i = 0; i < requiredDeviceExtensions.Length; i++)
         {
-            extensionNames[i] = (byte*)
-                SilkMarshal.StringToPtr(Settings.RequiredDeviceExtensions[i]);
+            extensionNames[i] = (byte*)SilkMarshal.StringToPtr(requiredDeviceExtensions[i]);
         }
 
         var createInfo = new DeviceCreateInfo
@@ -555,7 +792,7 @@ public unsafe class Context
             QueueCreateInfoCount = (uint)uniqueQueueFamilies.Length,
             PQueueCreateInfos = queueCreateInfos,
             PEnabledFeatures = &deviceFeatures,
-            EnabledExtensionCount = (uint)Settings.RequiredDeviceExtensions.Length,
+            EnabledExtensionCount = (uint)requiredDeviceExtensions.Length,
             PpEnabledExtensionNames = extensionNames,
         };
 
@@ -568,7 +805,7 @@ public unsafe class Context
         }
         finally
         {
-            for (int i = 0; i < Settings.RequiredDeviceExtensions.Length; i++)
+            for (int i = 0; i < requiredDeviceExtensions.Length; i++)
             {
                 SilkMarshal.Free((nint)extensionNames[i]);
             }

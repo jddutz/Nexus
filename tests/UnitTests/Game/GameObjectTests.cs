@@ -18,16 +18,16 @@ public class GameObjectTests
     public void Scene_isTopLevelEntityWithSceneId()
     {
         var scene = new Scene(42);
+        var defaultView = Assert.IsType<GameObject2D>(Assert.Single(scene.Children));
+        var defaultCamera = Assert.IsType<StaticCamera>(
+            Assert.Single(defaultView.Components.OfType<StaticCamera>())
+        );
+        var viewComponent = Assert.Single(defaultView.Components.OfType<ViewComponent>());
 
         Assert.Equal(new SceneId(42), scene.Id);
-        Assert.IsType<StaticCamera>(scene.DefaultCamera);
-        Assert.IsType<GameObject2D>(scene.DefaultView);
-        Assert.Contains(scene.DefaultView, scene.Children);
-        Assert.Contains(
-            scene.DefaultView.Components,
-            component => ReferenceEquals(component, scene.DefaultCamera)
-        );
-        Assert.Contains(scene.DefaultView.Components, component => component is ViewComponent);
+        Assert.Contains(defaultView, scene.Children);
+        Assert.Contains(defaultView.Components, component => ReferenceEquals(component, defaultCamera));
+        Assert.Same(defaultCamera, viewComponent.Camera);
         Assert.IsNotAssignableFrom<IGameObject>(scene);
         var view = new View();
         Assert.Equal(nameof(ViewComponent), view.ViewComponent.Name);
@@ -42,6 +42,9 @@ public class GameObjectTests
     public void Scene_activatesDefaultViewAndCameraThroughLifecycleEvents()
     {
         var scene = new Scene();
+        var defaultView = Assert.IsType<GameObject2D>(Assert.Single(scene.Children));
+        var defaultCamera = Assert.Single(defaultView.Components.OfType<StaticCamera>());
+        var viewComponent = Assert.Single(defaultView.Components.OfType<ViewComponent>());
         var addedGameObjects = new List<IGameObject>();
         var addedComponents = new List<IComponent>();
 
@@ -50,15 +53,9 @@ public class GameObjectTests
 
         scene.Activate();
 
-        Assert.Contains(scene.DefaultView, addedGameObjects);
-        Assert.Contains(
-            addedComponents,
-            component => ReferenceEquals(component, scene.DefaultCamera)
-        );
-        Assert.Contains(
-            scene.DefaultView.Components,
-            component => component is ViewComponent && addedComponents.Contains(component)
-        );
+        Assert.Contains(defaultView, addedGameObjects);
+        Assert.Contains(addedComponents, component => ReferenceEquals(component, defaultCamera));
+        Assert.Contains(addedComponents, component => ReferenceEquals(component, viewComponent));
     }
 
     /// <summary>

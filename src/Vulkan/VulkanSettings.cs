@@ -71,7 +71,31 @@ public sealed record VulkanSettings
     /// Default: true (catch errors early during development).
     /// Set to false if validation layers cause performance issues during profiling.
     /// </summary>
+#if DEBUG
     public bool EnableValidationLayers { get; set; } = true;
+#else
+    public bool EnableValidationLayers { get; set; } = false;
+#endif
+
+    /// <summary>
+    /// Whether to collect frame, command, and live-buffer performance counters.
+    /// Default: false, so normal rendering does not collect performance statistics.
+    /// </summary>
+#if DEBUG
+    public bool EnablePerformanceMetrics { get; set; } = true;
+#else
+    public bool EnablePerformanceMetrics { get; set; } = false;
+#endif
+
+    /// <summary>
+    /// Whether to retain detailed Vulkan resource snapshots and the first drawn-frame command trace.
+    /// Default: false, because diagnostic byte snapshots can consume significant memory.
+    /// </summary>
+#if DEBUG
+    public bool EnableDiagnostics { get; set; } = true;
+#else
+    public bool EnableDiagnostics { get; set; } = false;
+#endif
 
     /// <summary>
     /// Whether to enable Vulkan validation layers in debug builds.
@@ -79,4 +103,31 @@ public sealed record VulkanSettings
     /// Set to false if validation layers cause performance issues during profiling.
     /// </summary>
     public string[] EnabledValidationLayers { get; set; } = ["*"];
+
+    /// <summary>Whether to enable GPU-assisted validation when the Khronos layer supports it.</summary>
+#if DEBUG
+    public bool EnableGpuAssistedValidation { get; set; } = true;
+#else
+    public bool EnableGpuAssistedValidation { get; set; } = false;
+#endif
+
+    /// <summary>Whether to enable Best Practices checks when the Khronos layer supports them.</summary>
+#if DEBUG
+    public bool EnableBestPracticesValidation { get; set; } = true;
+#else
+    public bool EnableBestPracticesValidation { get; set; } = false;
+#endif
+
+    /// <summary>Whether to enable synchronization validation when the Khronos layer supports it.</summary>
+#if DEBUG
+    public bool EnableSynchronizationValidation { get; set; } = true;
+#else
+    public bool EnableSynchronizationValidation { get; set; } = false;
+#endif
+
+    /// <summary>
+    /// Whether to enable validation-layer support for GLSL <c>debugPrintfEXT</c> calls.
+    /// Shaders must include diagnostic calls; the feature is off by default due to its overhead.
+    /// </summary>
+    public bool EnableShaderDebugPrintf { get; set; }
 }

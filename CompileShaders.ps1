@@ -1,5 +1,9 @@
 # CompileShaders.ps1
 
+param(
+    [switch]$EnableShaderDebugPrintf
+)
+
 $ErrorActionPreference = "Stop"
 
 $workspaceRoot = (git -C $PSScriptRoot rev-parse --show-toplevel 2>$null)
@@ -25,11 +29,16 @@ Write-Host "Shaders:   $shaderDirectory"
 Write-Host "Output:    $outputDirectory"
 Write-Host ""
 
+$shaderCompileOptions = @()
+if ($EnableShaderDebugPrintf) {
+    $shaderCompileOptions += "-DNEXUS_SHADER_DEBUG_PRINTF=1"
+}
+
 Get-ChildItem -Path $shaderDirectory -Filter "*.vert" | ForEach-Object {
     $output = Join-Path $outputDirectory "$($_.Name).spv"
 
     Write-Host "Compiling $($_.Name)..."
-    & $glslc $_.FullName -o $output
+    & $glslc @shaderCompileOptions $_.FullName -o $output
 
     if ($LASTEXITCODE -ne 0) {
         throw "Failed to compile '$($_.Name)'."
@@ -40,7 +49,7 @@ Get-ChildItem -Path $shaderDirectory -Filter "*.frag" | ForEach-Object {
     $output = Join-Path $outputDirectory "$($_.Name).spv"
 
     Write-Host "Compiling $($_.Name)..."
-    & $glslc $_.FullName -o $output
+    & $glslc @shaderCompileOptions $_.FullName -o $output
 
     if ($LASTEXITCODE -ne 0) {
         throw "Failed to compile '$($_.Name)'."

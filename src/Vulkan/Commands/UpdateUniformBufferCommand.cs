@@ -42,6 +42,10 @@ public sealed class UpdateUniformBufferCommand : IVulkanCommand
     /// <inheritdoc />
     public int RenderPriority => 0;
 
+    internal ulong BufferHandle => _buffer.Handle;
+
+    internal ReadOnlySpan<byte> Data => _data;
+
     /// <inheritdoc />
     public unsafe void Record(Vk vk, CommandBuffer commandBuffer)
     {

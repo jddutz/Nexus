@@ -7,6 +7,7 @@ public unsafe class VertexBufferRegistry : IVertexBufferRegistry
 {
     private readonly Context _context;
     private readonly ISyncManager _syncManager;
+    private readonly PerformanceMetrics? _performanceMetrics;
 
     private readonly Dictionary<ulong, VkBuffer> _buffers = [];
     private readonly Dictionary<VkBuffer, DeviceMemory> _memory = [];
@@ -18,10 +19,16 @@ public unsafe class VertexBufferRegistry : IVertexBufferRegistry
     /// </summary>
     /// <param name="context">The Vulkan context that owns the buffers.</param>
     /// <param name="syncManager">The synchronization manager used to defer buffer destruction.</param>
-    public VertexBufferRegistry(Context context, ISyncManager syncManager)
+    /// <param name="performanceMetrics">Optional metrics tracker for live Vulkan buffers.</param>
+    public VertexBufferRegistry(
+        Context context,
+        ISyncManager syncManager,
+        PerformanceMetrics? performanceMetrics = null
+    )
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _syncManager = syncManager ?? throw new ArgumentNullException(nameof(syncManager));
+        _performanceMetrics = performanceMetrics;
         _released = new Queue<VkBuffer>[checked((int)syncManager.MaxFramesInFlight)];
 
         for (var index = 0; index < _released.Length; index++)
@@ -188,6 +195,7 @@ public unsafe class VertexBufferRegistry : IVertexBufferRegistry
             if (_memory.Remove(buffer, out var memory))
             {
                 _context.VulkanApi.FreeMemory(_context.Device, memory, null);
+                _performanceMetrics?.RecordBufferDestroyed();
             }
         }
     }
@@ -312,6 +320,7 @@ public unsafe class VertexBufferRegistry : IVertexBufferRegistry
             }
 
             _memory.Add(buffer, memory);
+            _performanceMetrics?.RecordBufferCreated();
 
             Debug.WriteLine(
                 $"Uploaded vertex buffer data. BufferHandle={buffer.Handle}, Size={size}, Data={Convert.ToHexString(data.Span)}"
@@ -339,6 +348,7 @@ public unsafe class VertexBufferRegistry : IVertexBufferRegistry
         {
             _context.VulkanApi.DestroyBuffer(_context.Device, memoryEntry.Key, null);
             _context.VulkanApi.FreeMemory(_context.Device, memoryEntry.Value, null);
+            _performanceMetrics?.RecordBufferDestroyed();
         }
 
         _buffers.Clear();

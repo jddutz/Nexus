@@ -7,6 +7,7 @@ public unsafe class ImageRegistry : IImageRegistry
 {
     private readonly Context _context;
     private readonly ISyncManager _syncManager;
+    private readonly PerformanceMetrics? _performanceMetrics;
 
     private readonly Dictionary<ulong, VkImage> _images = [];
     private readonly Dictionary<VkImage, DeviceMemory> _memory = [];
@@ -48,10 +49,16 @@ public unsafe class ImageRegistry : IImageRegistry
     /// </summary>
     /// <param name="context">The Vulkan context that owns the images.</param>
     /// <param name="syncManager">The synchronization manager used to defer image destruction.</param>
-    public ImageRegistry(Context context, ISyncManager syncManager)
+    /// <param name="performanceMetrics">Optional metrics tracker for live Vulkan buffers.</param>
+    public ImageRegistry(
+        Context context,
+        ISyncManager syncManager,
+        PerformanceMetrics? performanceMetrics = null
+    )
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _syncManager = syncManager ?? throw new ArgumentNullException(nameof(syncManager));
+        _performanceMetrics = performanceMetrics;
         _released = new Queue<VkImage>[checked((int)syncManager.MaxFramesInFlight)];
         _stagedBuffers = new Queue<VkBuffer>[checked((int)syncManager.MaxFramesInFlight)];
 
@@ -289,6 +296,7 @@ public unsafe class ImageRegistry : IImageRegistry
                 }
 
                 _stagingMemory.Add(buffer, memory);
+                _performanceMetrics?.RecordBufferCreated();
 
                 return buffer;
             }
@@ -508,6 +516,7 @@ public unsafe class ImageRegistry : IImageRegistry
         if (_stagingMemory.Remove(buffer, out var memory))
         {
             _context.VulkanApi.FreeMemory(_context.Device, memory, null);
+            _performanceMetrics?.RecordBufferDestroyed();
         }
     }
 

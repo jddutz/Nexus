@@ -205,6 +205,10 @@ public sealed class TextSpan : IDrawable, IMeshInstance
             textureRegionOffset + System.Runtime.CompilerServices.Unsafe.SizeOf<Vector4D<float>>();
         var scale = Style.FontMetrics.EmSize == 0 ? 1.0 : Style.Size / Style.FontMetrics.EmSize;
         var baselineOffset = (float)(Style.FontMetrics.Ascender * scale);
+        var diagnosticGlyphIndex = glyphs.FindIndex(item => item.Glyph.Codepoint == 'W');
+        if (diagnosticGlyphIndex < 0 && glyphs.Count > 0)
+            diagnosticGlyphIndex = 0;
+
         for (var index = 0; index < glyphs.Count; index++)
         {
             var destination = data.AsSpan(index * InstanceDataSize, InstanceDataSize);
@@ -244,9 +248,12 @@ public sealed class TextSpan : IDrawable, IMeshInstance
                 MathF.Max(topLeft.Y, topRight.Y),
                 MathF.Max(bottomLeft.Y, bottomRight.Y)
             );
-            System.Diagnostics.Debug.WriteLine(
-                $"Text glyph instance. Codepoint={glyph.Codepoint}, GlyphBounds(L={glyph.PlaneBounds.Left}, R={glyph.PlaneBounds.Right}, B={glyph.PlaneBounds.Bottom}, T={glyph.PlaneBounds.Top}), ScreenBaseline(X={screenBaselineX}, Y={screenBaselineY}), ScreenBounds(L={screenLeft}, R={screenRight}, T={screenTop}, B={screenBottom}), InstanceTransform={transformationMatrix}, SpanTransform={spanTransform}, AtlasRegion(U={textureRegion.X}, V={textureRegion.Y}, UScale={textureRegion.Z}, VScale={textureRegion.W})"
-            );
+            if (index == diagnosticGlyphIndex)
+            {
+                System.Diagnostics.Debug.WriteLine(
+                    $"Text glyph instance. Glyph={new Rune(glyph.Codepoint)}, PlaneBounds(L={glyph.PlaneBounds.Left}, R={glyph.PlaneBounds.Right}, B={glyph.PlaneBounds.Bottom}, T={glyph.PlaneBounds.Top}), ScreenBounds(L={screenLeft}, R={screenRight}, T={screenTop}, B={screenBottom}), InstanceTransform={transformationMatrix}"
+                );
+            }
             var color = Style.Color;
             MemoryMarshal.Write(destination, in transformationMatrix);
             MemoryMarshal.Write(destination[textureRegionOffset..], in textureRegion);

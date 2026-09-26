@@ -77,7 +77,7 @@ public sealed class TexturedQuadRendererInstanceDataTests
         renderer.InstanceDataChanged += (_, _) => instanceDataChanges++;
         renderer.UniformDataChanged += (_, _) => uniformDataChanges++;
 
-        renderer.RenderLayerMask = 1;
+        renderer.RenderLayerMask = 2;
         renderer.SamplingBehavior = SamplingBehaviors.PixelPerfect;
         renderer.TextureRegion = new(0.1f, 0.2f, 0.3f, 0.4f);
         renderer.View = Matrix4X4.CreateTranslation(1f, 2f, 0f);

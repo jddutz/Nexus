@@ -8,12 +8,15 @@ namespace Nexus.Graphics.Vulkan.Rendering;
 /// <param name="swapChain">The swap chain that supplies render targets and presentation.</param>
 /// <param name="syncManager">The synchronization manager for frames and swap-chain images.</param>
 /// <param name="renderPasses">The configured render passes.</param>
+/// <param name="performanceMetrics">Optional performance counter collector.</param>
+/// <param name="diagnostics">Optional immutable Vulkan diagnostic collector.</param>
 public unsafe class Renderer(
     Context context,
     ISwapChain swapChain,
     ISyncManager syncManager,
     RenderPassConfigurations renderPasses,
-    PerformanceMetrics? performanceMetrics = null
+    PerformanceMetrics? performanceMetrics = null,
+    PerformanceDiagnostics? diagnostics = null
 ) : IRenderer, IDisposable
 {
     private readonly Context _context = context;
@@ -21,6 +24,7 @@ public unsafe class Renderer(
     private readonly ISyncManager _syncManager = syncManager;
     private readonly RenderPassConfigurations _renderPasses = renderPasses;
     private readonly PerformanceMetrics? _performanceMetrics = performanceMetrics;
+    private readonly PerformanceDiagnostics? _diagnostics = diagnostics;
 
     private readonly CommandBufferPool _commandPool = CommandBufferPool.ForGraphics(context, 2);
 
@@ -64,6 +68,7 @@ public unsafe class Renderer(
         if (!BeginCommandBuffer())
             return null;
 
+        _diagnostics?.BeginFrame();
         TransitionToColorAttachment();
 
         BeforeRendering?.Invoke(this, new RenderEventArgs(_imageIndex));
@@ -146,6 +151,7 @@ public unsafe class Renderer(
         {
             command.Record(_context.VulkanApi, _commandBuffer);
             _performanceMetrics?.Record(command);
+            _diagnostics?.RecordCommand(command);
         }
     }
 

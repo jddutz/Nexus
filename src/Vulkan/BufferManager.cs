@@ -81,7 +81,7 @@ public unsafe class BufferManager(Context context, PerformanceMetrics? performan
         _context.VulkanApi.UnmapMemory(_context.Device, memory);
 
         _buffers[buffer.Handle] = (memory, bufferSize);
-        _performanceMetrics?.RecordBuffersStored(_buffers.Count);
+        _performanceMetrics?.RecordBufferCreated();
         return new VkBuffer(buffer.Handle);
     }
 
@@ -146,7 +146,7 @@ public unsafe class BufferManager(Context context, PerformanceMetrics? performan
         _context.VulkanApi.UnmapMemory(_context.Device, memory);
 
         _buffers[buffer.Handle] = (memory, bufferSize);
-        _performanceMetrics?.RecordBuffersStored(_buffers.Count);
+        _performanceMetrics?.RecordBufferCreated();
         return new VkBuffer(buffer.Handle);
     }
 
@@ -202,7 +202,7 @@ public unsafe class BufferManager(Context context, PerformanceMetrics? performan
         _context.VulkanApi.BindBufferMemory(_context.Device, buffer, memory, 0);
 
         _buffers[buffer.Handle] = (memory, size);
-        _performanceMetrics?.RecordBuffersStored(_buffers.Count);
+        _performanceMetrics?.RecordBufferCreated();
         return new VkBuffer(buffer.Handle);
     }
 
@@ -255,7 +255,7 @@ public unsafe class BufferManager(Context context, PerformanceMetrics? performan
         _context.VulkanApi.BindBufferMemory(_context.Device, buffer, memory, 0);
 
         _buffers[buffer.Handle] = (memory, size);
-        _performanceMetrics?.RecordBuffersStored(_buffers.Count);
+        _performanceMetrics?.RecordBufferCreated();
         return new VkBuffer(buffer.Handle);
     }
 
@@ -295,13 +295,12 @@ public unsafe class BufferManager(Context context, PerformanceMetrics? performan
             return;
         }
 
-        _performanceMetrics?.RecordBuffersStored(_buffers.Count);
-
         // Wait for GPU to finish using the buffer
         _context.VulkanApi.DeviceWaitIdle(_context.Device);
 
         _context.VulkanApi.DestroyBuffer(_context.Device, buffer, null);
         _context.VulkanApi.FreeMemory(_context.Device, bufferInfo.Memory, null);
+        _performanceMetrics?.RecordBufferDestroyed();
     }
 
     /// <summary>

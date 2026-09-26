@@ -16,6 +16,8 @@ public static class ServiceCollectionExtensions
 
         services.TryAddSingleton<IWindowService, VulkanWindowService>();
         services.TryAddSingleton(sp => sp.GetRequiredService<IWindowService>().GetMainWindow());
+        services.TryAddSingleton<PerformanceMetrics>();
+        services.TryAddSingleton<PerformanceDiagnostics>();
         services.TryAddSingleton<Context>();
         services.TryAddSingleton<RenderPassConfigurations>();
         services.TryAddSingleton<SwapChain>();
@@ -49,7 +51,6 @@ public static class ServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        services.TryAddSingleton<PerformanceMetrics>();
         services.TryAddSingleton<IValidation, Validation>();
         return services;
     }

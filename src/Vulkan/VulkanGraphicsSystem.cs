@@ -6,11 +6,14 @@ namespace Nexus.Graphics.Vulkan;
 /// <param name="context">The Vulkan context that owns graphics resources.</param>
 /// <param name="swapChain">The swap chain used for presentation.</param>
 /// <param name="renderer">The renderer used to record and submit render batches.</param>
+/// <param name="instanceBufferRegistry">The registry reset when the graphics system shuts down.</param>
 /// <param name="geometryRegistry">The registry reset when the graphics system shuts down.</param>
 /// <param name="textureRegistry">The image registry reset when the graphics system shuts down.</param>
 /// <param name="eventHub">The event hub used to register this graphics system.</param>
 /// <param name="syncManager">The synchronization manager used to establish device-idle shutdown.</param>
 /// <param name="commandFactory">The owner of per-drawable Vulkan allocations and commands.</param>
+/// <param name="performanceMetrics">Optional performance counter collector.</param>
+/// <param name="diagnostics">Optional immutable Vulkan diagnostic collector.</param>
 public unsafe class VulkanGraphicsSystem(
     Context context,
     ISwapChain swapChain,
@@ -18,12 +21,15 @@ public unsafe class VulkanGraphicsSystem(
     ISyncManager syncManager,
     IEventHub eventHub,
     ICommandFactory commandFactory,
+    IInstanceBufferRegistry instanceBufferRegistry,
     IVertexBufferRegistry geometryRegistry,
     IImageRegistry textureRegistry,
-    PerformanceMetrics? performanceMetrics = null
+    PerformanceMetrics? performanceMetrics = null,
+    PerformanceDiagnostics? diagnostics = null
 ) : IGraphicsSystem, IDisposable
 {
     private readonly PerformanceMetrics? _performanceMetrics = performanceMetrics;
+    private readonly PerformanceDiagnostics? _diagnostics = diagnostics;
     private readonly RenderBatchCollection _setupBatches = CreateSetupBatchCollection();
     private readonly Dictionary<ComponentId, RenderBatchCollection> _batches = [];
     private readonly List<ViewComponent> _activeViews = [];
@@ -85,10 +91,16 @@ public unsafe class VulkanGraphicsSystem(
         _batches.Add(view.Id, batches);
         view.PropertyChanged += OnViewPropertyChanged;
 
+        Debug.WriteLine(
+            $"View activated. ComponentId={view.Id}, LayerMask={view.LayerMask}, RenderPassMask={view.RenderPassMask}, ClippingRegion={view.ClippingRegion}, CameraType={view.Camera?.GetType().Name}"
+        );
+
         foreach (var registration in _drawables.Values)
         {
             if (IsVisible(view, registration.Drawable))
+            {
                 AddDrawableToBatches(batches, registration);
+            }
         }
     }
 
@@ -124,7 +136,7 @@ public unsafe class VulkanGraphicsSystem(
             AddToBatches(_setupBatches, command);
 
         Debug.WriteLine(
-            $"Activated drawable. DrawableType={drawable.GetType().Name}, DrawableId={drawable.Id}"
+            $"Drawable activated. DrawableId={drawable.Id}, DrawableType={drawable.GetType().Name}, RenderLayerMask={drawable.RenderLayerMask}, InstanceCount={drawable.InstanceCount}"
         );
     }
 
@@ -572,6 +584,42 @@ public unsafe class VulkanGraphicsSystem(
                     view.Camera?.ViewProjectionMatrix ?? Matrix4X4<float>.Identity;
                 var batches = _batches[view.Id];
 
+                if (_diagnostics?.IsEnabled == true)
+                {
+                    foreach (var registration in _drawables.Values)
+                    {
+                        if (!IsVisible(view, registration.Drawable))
+                            continue;
+
+                        var matrixBytes = new byte[64];
+                        MemoryMarshal.Write(matrixBytes.AsSpan(), in viewProjectionMatrix);
+                        var viewValues = new Dictionary<string, string>
+                        {
+                            ["ViewComponentId"] = view.Id.ToString(),
+                            ["CameraComponentId"] = view.Camera is Nexus.Core.IComponent camera
+                                ? camera.Id.ToString()
+                                : "n/a",
+                            ["LayerMask"] = $"0x{view.LayerMask:X}",
+                            ["RenderPassMask"] = view.RenderPassMask.ToString(),
+                            ["RenderOrder"] = view.RenderOrder.ToString(),
+                            ["ClippingRegion"] = view.ClippingRegion.ToString() ?? "n/a",
+                            ["EffectiveClippingRegion"] =
+                                $"{clip.X},{clip.Y} {clip.Width}x{clip.Height}",
+                            ["CameraType"] = view.Camera?.GetType().Name ?? "Identity",
+                            ["ViewProjectionMatrix"] = viewProjectionMatrix.ToString(),
+                        };
+                        _diagnostics.Record(
+                            new PerformanceDiagnosticSnapshot(
+                                registration.Drawable.Id,
+                                "View",
+                                view.Id.ToString(),
+                                viewValues,
+                                matrixBytes
+                            )
+                        );
+                    }
+                }
+
                 AddToBatches(
                     batches,
                     new SetViewportScissorCommand(
@@ -588,12 +636,11 @@ public unsafe class VulkanGraphicsSystem(
                     if (!IsVisible(view, registration.Drawable))
                         continue;
 
-                    foreach (
-                        var command in commandFactory.CreateViewProjectionCommands(
-                            registration.Drawable,
-                            viewProjectionMatrix
-                        )
-                    )
+                    var viewProjectionCommands = commandFactory
+                        .CreateViewProjectionCommands(registration.Drawable, viewProjectionMatrix)
+                        .ToArray();
+
+                    foreach (var command in viewProjectionCommands)
                         AddToBatches(batches, command);
                 }
 
@@ -622,6 +669,7 @@ public unsafe class VulkanGraphicsSystem(
             }
 
             renderer.Submit();
+            _diagnostics?.RecordFrameSubmitted();
             _performanceMetrics?.RecordFrame(Stopwatch.GetElapsedTime(frameStartTimestamp));
             CleanTransientCommands();
         }
@@ -683,9 +731,11 @@ public unsafe class VulkanGraphicsSystem(
         )
             Deactivate(drawable);
 
+        instanceBufferRegistry.Reset();
         geometryRegistry.Reset();
         textureRegistry.Reset();
         _performanceMetrics?.Output();
+        _diagnostics?.Output();
 
         if (disposing)
         {

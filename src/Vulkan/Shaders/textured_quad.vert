@@ -1,5 +1,9 @@
 #version 450
 
+#ifdef NEXUS_SHADER_DEBUG_PRINTF
+#extension GL_EXT_debug_printf : enable
+#endif
+
 layout(location = 0) in vec2 inPos;
 layout(location = 1) in vec2 inTexCoord;
 
@@ -27,10 +31,27 @@ void main()
         inWorld3
     );
 
-    gl_Position =
-        camera.viewProjection *
-        world *
-        vec4(inPos, 0.0, 1.0);
+    vec4 localPosition = vec4(inPos, 0.0, 1.0);
+    vec4 worldPosition = world * localPosition;
+    gl_Position = camera.viewProjection * worldPosition;
+
+#ifdef NEXUS_SHADER_DEBUG_PRINTF
+    if (gl_InstanceIndex == 0)
+    {
+        debugPrintfEXT(
+            "vertex instance=%d index=%d local=%v4f world=%v4f vp0=%v4f vp1=%v4f vp2=%v4f vp3=%v4f clip=%v4f",
+            gl_InstanceIndex,
+            gl_VertexIndex,
+            localPosition,
+            worldPosition,
+            camera.viewProjection[0],
+            camera.viewProjection[1],
+            camera.viewProjection[2],
+            camera.viewProjection[3],
+            gl_Position
+        );
+    }
+#endif
 
     fragTexCoord = inUvRect.xy + inTexCoord * inUvRect.zw;
     fragTintColor = inTintColor;

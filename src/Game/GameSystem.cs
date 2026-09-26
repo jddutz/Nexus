@@ -111,7 +111,7 @@ public class GameSystem(
 
         var textComponent = new TextComponent(CreateRobotoTextStyle())
         {
-            Text = "Welcome to the Nexus",
+            Text = "Hello Nexus",
         };
         CurrentScene.CreateChild<GameObject2D>().AddComponent(textComponent);
 
