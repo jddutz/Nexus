@@ -8,7 +8,12 @@ assets:
   - assetType: font
     contentId: ui.default
     source: Fonts/DejaVuSans.ttf
+    includeMsdf: true
 ```
+
+  Set `includeMsdf: true` to generate a printable-ASCII MSDF atlas and write it as
+  `fonts/ui.default.png` beside the copied font. The default is `false`, so ordinary font imports
+  remain copy-only.
 
 The source must be explicitly supplied; NAP does not discover system fonts or inspect, rasterize, or otherwise transform the font.
 

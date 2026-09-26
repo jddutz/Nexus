@@ -177,6 +177,18 @@ public sealed class Pipeline
         Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
         File.Copy(sourcePath, outputPath, overwrite: true);
 
+        if (asset.IncludeMsdf)
+        {
+            var definition = new FontDefinition(
+                asset.ContentId,
+                asset.Source,
+                new FontGlyphRepertoire(),
+                new FontGenerationSettings()
+            );
+            var result = new FontProcessor(new FontBuilder()).Process(definition, sourceRoot);
+            FontAtlasWriter.WritePng(Path.ChangeExtension(outputPath, ".png"), result);
+        }
+
         var manifestPath = relativeOutputPath.Replace('\\', '/');
         fontEntries[asset.ContentId] = manifestPath;
         PipelineLog.Info($"Font '{asset.ContentId}' copied. RelativePath='{manifestPath}'.");

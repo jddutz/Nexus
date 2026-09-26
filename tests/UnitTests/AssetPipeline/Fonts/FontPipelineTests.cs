@@ -56,6 +56,55 @@ public sealed class FontPipelineTests : IDisposable
     }
 
     /// <summary>
+    /// Exports the MSDF atlas beside the copied font when requested.
+    /// </summary>
+    [Fact]
+    public void Execute_exportsMsdfPngBesideFontWhenRequested()
+    {
+        var sourceRoot = Path.Combine(_folder, "Assets");
+        var sourceFolder = Path.Combine(sourceRoot, "Fonts");
+        var outputFolder = Path.Combine(_folder, "Content");
+        Directory.CreateDirectory(sourceFolder);
+        var sourcePath = Path.Combine(sourceFolder, "Regular.ttf");
+        var fixturePath = Path.GetFullPath(
+            Path.Combine(
+                AppContext.BaseDirectory,
+                "..",
+                "..",
+                "..",
+                "..",
+                "..",
+                ".assets",
+                "Fonts",
+                "Roboto-Regular.ttf"
+            )
+        );
+        File.Copy(fixturePath, sourcePath);
+        File.WriteAllText(
+            Path.Combine(_folder, "pipeline.yaml"),
+            """
+            root: Assets
+            assets:
+              - assetType: font
+                contentId: ui.default
+                source: Fonts/Regular.ttf
+                includeMsdf: true
+            """
+        );
+
+        var pipeline = new Pipeline([Path.Combine(_folder, "pipeline.yaml")], outputFolder);
+
+        Assert.Equal(0, pipeline.Execute());
+        var fontPath = Path.Combine(outputFolder, "fonts", "ui.default.ttf");
+        var atlasPath = Path.Combine(outputFolder, "fonts", "ui.default.png");
+        Assert.True(File.Exists(fontPath));
+        Assert.Equal(
+            new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 },
+            File.ReadAllBytes(atlasPath)[..8]
+        );
+    }
+
+    /// <summary>
     /// Removes the temporary pipeline inputs and outputs.
     /// </summary>
     public void Dispose()

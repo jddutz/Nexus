@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Nexus.Core.Events;
 
 namespace Nexus.Runtime;
@@ -19,7 +20,10 @@ public sealed class NexusRuntime(
 {
     private bool _initialized = false;
     private readonly int _maxFrameCount = applicationSettings?.Value.MaxFrameCount ?? 0;
+    private readonly TimeSpan _maxRunTime = applicationSettings?.Value.MaxRunTime ?? TimeSpan.Zero;
+    private readonly Stopwatch _runtimeStopwatch = new();
     private long _renderedFrameCount;
+    private bool _runTimeLimitReached;
 
     public bool IsInitialized => _initialized;
 
@@ -43,6 +47,7 @@ public sealed class NexusRuntime(
         gameSystem.Initialize();
         graphics.Initialize();
 
+        _runtimeStopwatch.Start();
         _initialized = true;
     }
 
@@ -66,18 +71,26 @@ public sealed class NexusRuntime(
     }
 
     /// <summary>
-    /// Renders a frame and requests window shutdown when the configured frame limit is reached.
+    /// Renders a frame and requests window shutdown when a configured runtime limit is reached.
     /// </summary>
     /// <param name="deltaTime">Elapsed time since the previous frame.</param>
     public void OnRender(double deltaTime)
     {
         graphics.Render();
 
-        if (_maxFrameCount <= 0)
+        if (_maxFrameCount > 0 && ++_renderedFrameCount == _maxFrameCount)
+        {
+            window?.Close();
+            return;
+        }
+
+        if (_maxRunTime <= TimeSpan.Zero || _runTimeLimitReached)
             return;
 
-        _renderedFrameCount++;
-        if (_renderedFrameCount == _maxFrameCount)
+        if (_runtimeStopwatch.Elapsed >= _maxRunTime)
+        {
+            _runTimeLimitReached = true;
             window?.Close();
+        }
     }
 }

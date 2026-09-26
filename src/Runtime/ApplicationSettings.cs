@@ -25,4 +25,10 @@ public sealed record ApplicationSettings
     /// A value less than or equal to zero disables the limit.
     /// </summary>
     public int MaxFrameCount { get; set; }
+
+    /// <summary>
+    /// Gets or sets the maximum runtime before requesting application shutdown.
+    /// A value less than or equal to zero disables the limit.
+    /// </summary>
+    public TimeSpan MaxRunTime { get; set; }
 }

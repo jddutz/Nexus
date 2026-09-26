@@ -99,6 +99,31 @@ public class BasicRuntimeTests
     }
 
     [Fact]
+    public void Render_requestsWindowClose_afterConfiguredRunTime()
+    {
+        var window = DispatchProxy.Create<IWindow, CloseTrackingWindow>();
+        var closeTrackingWindow = (CloseTrackingWindow)(object)window;
+        var services = CreateRuntimeServices();
+        services.AddSingleton<IEventHub, EventHub>();
+        services.AddSingleton<IWindow>(window);
+        services.AddSingleton<IOptions<ApplicationSettings>>(
+            Options.Create(new ApplicationSettings { MaxRunTime = TimeSpan.FromTicks(1) })
+        );
+        services.AddSingleton<INexusRuntime, NexusRuntime>();
+
+        using var serviceProvider = services.BuildServiceProvider();
+        var runtime = Assert.IsType<NexusRuntime>(
+            serviceProvider.GetRequiredService<INexusRuntime>()
+        );
+
+        runtime.Initialize();
+        Thread.Sleep(1);
+        runtime.OnRender(0d);
+
+        Assert.True(closeTrackingWindow.CloseWasRequested);
+    }
+
+    [Fact]
     public void RuntimeBuilder_useOpenGL_isNotImplemented()
     {
         Assert.Throws<NotImplementedException>(() => new RuntimeBuilder().UseOpenGL());

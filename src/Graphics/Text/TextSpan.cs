@@ -214,7 +214,7 @@ public sealed class TextSpan : IDrawable, IMeshInstance
                 CreateTransformation(glyph, glyphs[index].X, baselineOffset) * spanTransform;
             var textureRegion = new Vector4D<float>(
                 (float)(glyph.AtlasBounds.Left / Texture.Width),
-                (float)(glyph.AtlasBounds.Bottom / Texture.Height),
+                (float)((Texture.Height - glyph.AtlasBounds.Top) / Texture.Height),
                 (float)((glyph.AtlasBounds.Right - glyph.AtlasBounds.Left) / Texture.Width),
                 (float)((glyph.AtlasBounds.Top - glyph.AtlasBounds.Bottom) / Texture.Height)
             );
@@ -321,14 +321,11 @@ public sealed class TextSpan : IDrawable, IMeshInstance
         var scale = Style.FontMetrics.EmSize == 0 ? 1.0 : Style.Size / Style.FontMetrics.EmSize;
         var width = (float)((glyph.PlaneBounds.Right - glyph.PlaneBounds.Left) * scale);
         var height = (float)((glyph.PlaneBounds.Top - glyph.PlaneBounds.Bottom) * scale);
-        var centerX =
-            penX + (float)((glyph.PlaneBounds.Left + glyph.PlaneBounds.Right) * scale / 2);
-        var centerY =
-            baselineOffset
-            - (float)((glyph.PlaneBounds.Bottom + glyph.PlaneBounds.Top) * scale / 2);
+        var left = penX + (float)(glyph.PlaneBounds.Left * scale);
+        var top = baselineOffset - (float)(glyph.PlaneBounds.Top * scale);
 
         return Matrix4X4.CreateScale(width, height, 1f)
-            * Matrix4X4.CreateTranslation(centerX, centerY, 0f);
+            * Matrix4X4.CreateTranslation(left, top, 0f);
     }
 
     /// <inheritdoc/>

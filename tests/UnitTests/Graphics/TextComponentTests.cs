@@ -135,7 +135,7 @@ public sealed class TextComponentTests
 
         Assert.Equal((ulong)2, ((IDrawable)span).InstanceCount);
         Assert.Equal(
-            Matrix4X4.CreateScale(1f, 1f, 1f) * Matrix4X4.CreateTranslation(2.5f, 0.5f, 0f),
+            Matrix4X4.CreateScale(1f, 1f, 1f) * Matrix4X4.CreateTranslation(2f, 0f, 0f),
             secondGlyph
         );
     }
@@ -170,7 +170,7 @@ public sealed class TextComponentTests
         var secondGlyph = MemoryMarshal.Read<Matrix4X4<float>>(data.Span[(data.Length / 2)..]);
 
         Assert.Equal((ulong)2, ((IDrawable)span).InstanceCount);
-        Assert.Equal(1.25f, secondGlyph.M41);
+        Assert.Equal(0.75f, secondGlyph.M41);
     }
 
     /// <summary>
@@ -208,9 +208,10 @@ public sealed class TextComponentTests
 
         Assert.Equal(18f, transformation.M11);
         Assert.Equal(15f, transformation.M22);
-        Assert.Equal(8.25f, transformation.M41);
-        Assert.Equal(7.5f, transformation.M42);
-        Assert.Equal(0f, transformation.M42 - transformation.M22 / 2f);
+        Assert.Equal(-0.75f, transformation.M41);
+        Assert.Equal(0f, transformation.M42);
+        Assert.Equal(17.25f, transformation.M41 + transformation.M11);
+        Assert.Equal(15f, transformation.M42 + transformation.M22);
         Assert.Equal(new Vector4D<float>(0.5f, 0f, 0.5f, 1f), textureRegion);
     }
 
@@ -235,7 +236,7 @@ public sealed class TextComponentTests
         Assert.Equal(view, packedView);
         Assert.Equal(
             Matrix4X4.CreateScale(1f, 1f, 1f)
-                * Matrix4X4.CreateTranslation(0.5f, 0.5f, 0f)
+                * Matrix4X4.CreateTranslation(0f, 0f, 0f)
                 * span.TransformationMatrix,
             packedFirstGlyphTransform
         );
