@@ -33,6 +33,7 @@ public sealed class TextStyle : ITextStyle
             font.Glyphs.ToDictionary(glyph => glyph.Codepoint)
         );
         FontMetrics = font.Metrics;
+        Msdf = font.Msdf;
         Kerning = new ReadOnlyDictionary<(int LeftCodepoint, int RightCodepoint), double>(
             font.Kerning.ToDictionary(
                 pair => (pair.LeftCodepoint, pair.RightCodepoint),
@@ -51,6 +52,9 @@ public sealed class TextStyle : ITextStyle
 
     /// <inheritdoc/>
     public FontMetrics FontMetrics { get; }
+
+    /// <inheritdoc/>
+    public MsdfMetadata Msdf { get; }
 
     /// <inheritdoc/>
     public IReadOnlyDictionary<(int LeftCodepoint, int RightCodepoint), double> Kerning { get; }

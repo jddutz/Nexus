@@ -20,6 +20,19 @@ using VkSampler = Silk.NET.Vulkan.Sampler;
 public class CommandFactoryTests
 {
     [Fact]
+    public void ToVulkanAttributes_maps_msdf_distance_range_as_scalar_at_expected_offset()
+    {
+        var attributes = new ShaderInput(InputSemantics.MsdfDistanceRange, 4)
+            .ToVulkanAttributes(1, 8, 96);
+
+        var attribute = Assert.Single(attributes);
+        Assert.Equal(1u, attribute.Binding);
+        Assert.Equal(8u, attribute.Location);
+        Assert.Equal(Format.R32Sfloat, attribute.Format);
+        Assert.Equal(96u, attribute.Offset);
+    }
+
+    [Fact]
     public void Create_requires_a_vertex_shader()
     {
         var drawable = CreateDrawable(includeVertexShader: false);

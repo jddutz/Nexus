@@ -4,19 +4,14 @@ using Nexus.Graphics.Components;
 
 namespace Nexus.Graphics.Text;
 
-/// <summary>Renders a group of glyphs from one texture atlas as textured-quad instances.</summary>
-//
-// TODO: Consider dedicated UI/text shaders.
-// The textured-quad shaders are sufficient for the initial text rendering path,
-// but text should ultimately use an unlit UI-oriented pipeline with appropriate
-// transparency/depth behavior. A dedicated fragment shader may also interpret
-// MSDF atlas data for improved glyph edge rendering and text effects.
+/// <summary>Renders a group of MSDF glyphs from one texture atlas as quad instances.</summary>
 public sealed class TextSpan : IDrawable, IMeshInstance
 {
     private static readonly int InstanceDataSize =
         System.Runtime.CompilerServices.Unsafe.SizeOf<Matrix4X4<float>>()
         + System.Runtime.CompilerServices.Unsafe.SizeOf<Vector4D<float>>()
-        + Marshal.SizeOf<Color>();
+        + Marshal.SizeOf<Color>()
+        + sizeof(float);
 
     private static ulong _nextId;
     private readonly DrawableId _id = new(Interlocked.Increment(ref _nextId));
@@ -117,8 +112,8 @@ public sealed class TextSpan : IDrawable, IMeshInstance
         }
     }
 
-    /// <summary>Gets the textured-quad vertex shader contract.</summary>
-    public VertexShader VertexShader => BuiltInShaders.TexturedQuadVertexShader;
+    /// <summary>Gets the MSDF text vertex shader contract.</summary>
+    public VertexShader VertexShader => BuiltInShaders.MsdfTextVertexShader;
 
     /// <summary>Gets the tessellation-control shader contract, which is not used.</summary>
     public IShaderContract? TessellationControlShader => null;
@@ -129,8 +124,8 @@ public sealed class TextSpan : IDrawable, IMeshInstance
     /// <summary>Gets the geometry shader contract, which is not used.</summary>
     public IShaderContract? GeometryShader => null;
 
-    /// <summary>Gets the textured-quad fragment shader contract.</summary>
-    public FragmentShader FragmentShader => BuiltInShaders.TexturedQuadFragmentShader;
+    /// <summary>Gets the MSDF text fragment shader contract.</summary>
+    public FragmentShader FragmentShader => BuiltInShaders.MsdfTextFragmentShader;
 
     /// <summary>Gets the stable identifier of this span.</summary>
     DrawableId IDrawable.Id => _id;
@@ -203,9 +198,10 @@ public sealed class TextSpan : IDrawable, IMeshInstance
         var textureRegionOffset = System.Runtime.CompilerServices.Unsafe.SizeOf<Matrix4X4<float>>();
         var colorOffset =
             textureRegionOffset + System.Runtime.CompilerServices.Unsafe.SizeOf<Vector4D<float>>();
+        var msdfDistanceRangeOffset = colorOffset + Marshal.SizeOf<Color>();
         var scale = Style.FontMetrics.EmSize == 0 ? 1.0 : Style.Size / Style.FontMetrics.EmSize;
         var baselineOffset = (float)(Style.FontMetrics.Ascender * scale);
-        var diagnosticGlyphIndex = glyphs.FindIndex(item => item.Glyph.Codepoint == 'W');
+        var diagnosticGlyphIndex = glyphs.FindIndex(item => item.Glyph.Codepoint == 'H');
         if (diagnosticGlyphIndex < 0 && glyphs.Count > 0)
             diagnosticGlyphIndex = 0;
 
@@ -251,13 +247,15 @@ public sealed class TextSpan : IDrawable, IMeshInstance
             if (index == diagnosticGlyphIndex)
             {
                 System.Diagnostics.Debug.WriteLine(
-                    $"Text glyph instance. Glyph={new Rune(glyph.Codepoint)}, PlaneBounds(L={glyph.PlaneBounds.Left}, R={glyph.PlaneBounds.Right}, B={glyph.PlaneBounds.Bottom}, T={glyph.PlaneBounds.Top}), ScreenBounds(L={screenLeft}, R={screenRight}, T={screenTop}, B={screenBottom}), InstanceTransform={transformationMatrix}"
+                    $"Text glyph instance. Glyph={new Rune(glyph.Codepoint)}, PlaneBounds(L={glyph.PlaneBounds.Left}, R={glyph.PlaneBounds.Right}, B={glyph.PlaneBounds.Bottom}, T={glyph.PlaneBounds.Top}), ScreenBounds(L={screenLeft}, R={screenRight}, T={screenTop}, B={screenBottom}), AtlasBounds(L={glyph.AtlasBounds.Left}, R={glyph.AtlasBounds.Right}, B={glyph.AtlasBounds.Bottom}, T={glyph.AtlasBounds.Top}), AtlasSize(W={Texture.Width}, H={Texture.Height}), UvRect={textureRegion}, Tint={Style.Color}, InstanceTransform={transformationMatrix}"
                 );
             }
             var color = Style.Color;
             MemoryMarshal.Write(destination, in transformationMatrix);
             MemoryMarshal.Write(destination[textureRegionOffset..], in textureRegion);
             MemoryMarshal.Write(destination[colorOffset..], in color);
+            var msdfDistanceRange = (float)Style.Msdf.DistanceRange;
+            MemoryMarshal.Write(destination[msdfDistanceRangeOffset..], in msdfDistanceRange);
         }
 
         return data;

@@ -8,5 +8,16 @@ public static class InputSemantics
     public const int Color = 3;
     public const int TextureRegion = 4;
 
-    public static readonly int[] All = [Transform, View, Projection, Color, TextureRegion];
+    /// <summary>Per-instance MSDF distance range in atlas pixels.</summary>
+    public const int MsdfDistanceRange = 5;
+
+    public static readonly int[] All =
+    [
+        Transform,
+        View,
+        Projection,
+        Color,
+        TextureRegion,
+        MsdfDistanceRange,
+    ];
 }

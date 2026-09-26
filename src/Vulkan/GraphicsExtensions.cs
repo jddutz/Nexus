@@ -46,7 +46,12 @@ public static class GraphicsExtensions
             InputSemantics.Transform when input.Size == 64 => Format.R32G32B32A32Sfloat,
             InputSemantics.Color or InputSemantics.TextureRegion when input.Size == 16 =>
                 Format.R32G32B32A32Sfloat,
-            InputSemantics.Transform or InputSemantics.Color or InputSemantics.TextureRegion =>
+            InputSemantics.MsdfDistanceRange when input.Size == sizeof(float) =>
+                Format.R32Sfloat,
+            InputSemantics.Transform
+                or InputSemantics.Color
+                or InputSemantics.TextureRegion
+                or InputSemantics.MsdfDistanceRange =>
                 throw new ArgumentException(
                     $"Shader input semantic {input.Semantic} requires a supported packed size, but received {input.Size} bytes.",
                     nameof(input)

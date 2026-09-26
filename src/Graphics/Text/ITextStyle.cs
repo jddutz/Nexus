@@ -23,6 +23,11 @@ public interface ITextStyle
     FontMetrics FontMetrics { get; }
 
     /// <summary>
+    /// Gets the parameters needed to interpret the font's MSDF atlas.
+    /// </summary>
+    MsdfMetadata Msdf { get; }
+
+    /// <summary>
     /// Gets the kerning adjustments indexed by adjacent glyph code points.
     /// </summary>
     IReadOnlyDictionary<(int LeftCodepoint, int RightCodepoint), double> Kerning { get; }

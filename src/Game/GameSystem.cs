@@ -97,7 +97,6 @@ public class GameSystem(
 
         InitialScene.SetGameModel(this);
         CurrentScene = InitialScene;
-        CurrentScene.CreateChild<View>();
 
         // Every renderable pipeline expects a bound set-0 camera descriptor. OrthoCamera (not
         // StaticCamera) because its symmetric [-1,1] extent matches this demo's NDC-sized world

@@ -87,7 +87,9 @@ public class BasicRuntimeTests
         services.AddSingleton<INexusRuntime, NexusRuntime>();
 
         using var serviceProvider = services.BuildServiceProvider();
-        var runtime = Assert.IsType<NexusRuntime>(serviceProvider.GetRequiredService<INexusRuntime>());
+        var runtime = Assert.IsType<NexusRuntime>(
+            serviceProvider.GetRequiredService<INexusRuntime>()
+        );
 
         runtime.OnRender(0d);
         Assert.False(closeTrackingWindow.CloseWasRequested);
@@ -170,20 +172,15 @@ public class BasicRuntimeTests
         public bool CloseWasRequested { get; private set; }
 
         /// <inheritdoc />
-        protected override object? Invoke(
-            MethodInfo? targetMethod,
-            object?[]? args
-        )
+        protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
         {
             if (targetMethod?.Name == nameof(IWindow.Close))
                 CloseWasRequested = true;
 
             var returnType = targetMethod?.ReturnType;
-            return returnType is null || returnType == typeof(void)
-                ? null
-                : returnType.IsValueType
-                    ? Activator.CreateInstance(returnType)
-                    : null;
+            return returnType is null || returnType == typeof(void) ? null
+                : returnType.IsValueType ? Activator.CreateInstance(returnType)
+                : null;
         }
     }
 

@@ -130,7 +130,7 @@ public sealed class TextComponentTests
     public void Layout_whitespace_advances_following_glyph_without_rendering()
     {
         var span = new TextSpan(CreateStyleWithSpace(), "A B");
-        var data = span.GetInstanceData(BuiltInShaders.TexturedQuadVertexShader.InstanceLayout);
+        var data = span.GetInstanceData(BuiltInShaders.MsdfTextVertexShader.InstanceLayout);
         var secondGlyph = MemoryMarshal.Read<Matrix4X4<float>>(data.Span[(data.Length / 2)..]);
 
         Assert.Equal((ulong)2, ((IDrawable)span).InstanceCount);
@@ -166,7 +166,7 @@ public sealed class TextComponentTests
             new Dictionary<(int, int), double> { [('A', 'B')] = -0.25 }
         );
         var span = new TextSpan(style, "A?B");
-        var data = span.GetInstanceData(BuiltInShaders.TexturedQuadVertexShader.InstanceLayout);
+        var data = span.GetInstanceData(BuiltInShaders.MsdfTextVertexShader.InstanceLayout);
         var secondGlyph = MemoryMarshal.Read<Matrix4X4<float>>(data.Span[(data.Length / 2)..]);
 
         Assert.Equal((ulong)2, ((IDrawable)span).InstanceCount);
@@ -180,10 +180,10 @@ public sealed class TextComponentTests
     public void GetInstanceData_packs_all_glyphs()
     {
         var span = new TextSpan(CreateStyle(), "AB");
-        var data = span.GetInstanceData(BuiltInShaders.TexturedQuadVertexShader.InstanceLayout);
+        var data = span.GetInstanceData(BuiltInShaders.MsdfTextVertexShader.InstanceLayout);
 
         Assert.Equal((ulong)2, ((IDrawable)span).InstanceCount);
-        Assert.Equal(192, data.Length);
+        Assert.Equal(200, data.Length);
     }
 
     /// <summary>
@@ -200,7 +200,7 @@ public sealed class TextComponentTests
         );
         var span = new TextSpan(style, "H");
 
-        var data = span.GetInstanceData(BuiltInShaders.TexturedQuadVertexShader.InstanceLayout);
+        var data = span.GetInstanceData(BuiltInShaders.MsdfTextVertexShader.InstanceLayout);
         var transformation = MemoryMarshal.Read<Matrix4X4<float>>(data.Span);
         var textureRegion = MemoryMarshal.Read<Vector4D<float>>(
             data.Span[System.Runtime.CompilerServices.Unsafe.SizeOf<Matrix4X4<float>>()..]
@@ -227,12 +227,8 @@ public sealed class TextComponentTests
             View = view,
         };
 
-        var uniformData = span.GetUniformData(
-            BuiltInShaders.TexturedQuadVertexShader.UniformLayout
-        );
-        var instanceData = span.GetInstanceData(
-            BuiltInShaders.TexturedQuadVertexShader.InstanceLayout
-        );
+        var uniformData = span.GetUniformData(BuiltInShaders.MsdfTextVertexShader.UniformLayout);
+        var instanceData = span.GetInstanceData(BuiltInShaders.MsdfTextVertexShader.InstanceLayout);
         var packedView = MemoryMarshal.Read<Matrix4X4<float>>(uniformData.Span);
         var packedFirstGlyphTransform = MemoryMarshal.Read<Matrix4X4<float>>(instanceData.Span);
 
@@ -266,8 +262,24 @@ public sealed class TextComponentTests
         Assert.Same(texture, style.Texture);
         Assert.Equal(glyph, style.Glyphs['A']);
         Assert.Equal(-2, style.Kerning[('A', 'V')]);
+        Assert.Equal(new MsdfMetadata(4, 48), style.Msdf);
         Assert.Equal(18, style.Size);
         Assert.Equal(Colors.WhiteSmoke, style.Color);
+    }
+
+    /// <summary>
+    /// Verifies text spans select the MSDF shaders and pack the generated distance range per glyph.
+    /// </summary>
+    [Fact]
+    public void TextSpan_uses_msdf_shaders_and_packs_distance_range()
+    {
+        var span = new TextSpan(CreateStyle(), "A");
+
+        var data = span.GetInstanceData(span.VertexShader.InstanceLayout);
+
+        Assert.Same(BuiltInShaders.MsdfTextVertexShader, span.VertexShader);
+        Assert.Same(BuiltInShaders.MsdfTextFragmentShader, span.FragmentShader);
+        Assert.Equal(4f, MemoryMarshal.Read<float>(data.Span[96..]));
     }
 
     private static ITextStyle CreateStyle()
@@ -303,6 +315,7 @@ public sealed class TextComponentTests
         public ITexture Texture { get; } = new Texture("atlas", 2, 1, [Colors.White, Colors.White]);
         public IReadOnlyDictionary<int, FontGlyph> Glyphs { get; } = glyphs;
         public FontMetrics FontMetrics { get; } = fontMetrics ?? new(1, 1, 0, 1);
+        public MsdfMetadata Msdf { get; } = new(4, 1);
         public IReadOnlyDictionary<
             (int LeftCodepoint, int RightCodepoint),
             double

@@ -49,6 +49,32 @@ public static class BuiltInShaders
             []
         );
 
+    /// <summary>Gets the vertex shader contract for MSDF text glyphs.</summary>
+    public static VertexShader MsdfTextVertexShader { get; } =
+        new(
+            nameof(MsdfTextVertexShader),
+            "msdf_text.vert",
+            PrimitiveTopologyEnum.TriangleStrip,
+            BuiltInVertexFormats.TexturedQuad,
+            [new(InputSemantics.View, 64)],
+            [
+                new(InputSemantics.Transform, 64),
+                new(InputSemantics.TextureRegion, 16),
+                new(InputSemantics.Color, 16),
+                new(InputSemantics.MsdfDistanceRange, 4),
+            ]
+        );
+
+    /// <summary>Gets the fragment shader contract for MSDF text glyphs.</summary>
+    public static FragmentShader MsdfTextFragmentShader { get; } =
+        new(
+            nameof(MsdfTextFragmentShader),
+            "msdf_text.frag",
+            BuiltInVertexFormats.TexturedQuad,
+            ColorFormatEnum.RGBA8UNorm,
+            []
+        );
+
     /// <summary>Gets all built-in shader contracts.</summary>
     public static readonly IShaderContract[] All =
     [
@@ -56,5 +82,7 @@ public static class BuiltInShaders
         UniformColorFragmentShader,
         TexturedQuadVertexShader,
         TexturedQuadFragmentShader,
+        MsdfTextVertexShader,
+        MsdfTextFragmentShader,
     ];
 }
