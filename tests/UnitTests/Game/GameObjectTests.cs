@@ -26,7 +26,10 @@ public class GameObjectTests
 
         Assert.Equal(new SceneId(42), scene.Id);
         Assert.Contains(defaultView, scene.Children);
-        Assert.Contains(defaultView.Components, component => ReferenceEquals(component, defaultCamera));
+        Assert.Contains(
+            defaultView.Components,
+            component => ReferenceEquals(component, defaultCamera)
+        );
         Assert.Same(defaultCamera, viewComponent.Camera);
         Assert.IsNotAssignableFrom<IGameObject>(scene);
         var view = new View();
