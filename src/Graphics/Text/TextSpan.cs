@@ -212,6 +212,11 @@ public sealed class TextSpan : IDrawable, IMeshInstance
             var spanTransform = TransformationMatrix;
             var transformationMatrix =
                 CreateTransformation(glyph, glyphs[index].X, baselineOffset) * spanTransform;
+            if (spanTransform.M12 == 0f && spanTransform.M21 == 0f)
+            {
+                transformationMatrix.M41 = MathF.Round(transformationMatrix.M41);
+                transformationMatrix.M42 = MathF.Round(transformationMatrix.M42);
+            }
             var textureRegion = new Vector4D<float>(
                 (float)(glyph.AtlasBounds.Left / Texture.Width),
                 (float)((Texture.Height - glyph.AtlasBounds.Top) / Texture.Height),

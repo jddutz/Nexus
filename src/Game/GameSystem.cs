@@ -120,7 +120,7 @@ public class GameSystem(
     /// <summary>
     /// Builds the default Roboto text style from the font registered as <c>ui.default</c>.
     /// </summary>
-    /// <returns>The generated style at size 18 with an off-white color.</returns>
+    /// <returns>The generated style at size 32 with an off-white color.</returns>
     private ITextStyle CreateRobotoTextStyle()
     {
         var fontId = (ContentId)"ui.default";
@@ -150,7 +150,7 @@ public class GameSystem(
             colors
         );
 
-        return new TextStyle(font, texture, 18, Colors.WhiteSmoke);
+        return new TextStyle(font, texture, 32, Colors.WhiteSmoke);
     }
 
     /// <summary>
