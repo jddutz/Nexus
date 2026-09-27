@@ -5,7 +5,8 @@ namespace Nexus.Input.Events;
 /// </summary>
 /// <param name="mouse">The disconnected mouse.</param>
 /// <param name="position">The mouse position when it disconnected.</param>
-public sealed class MouseDisconnectedEvent(IMouseInputDevice mouse, Vector2D<float> position) : IEvent
+public sealed class MouseDisconnectedEvent(IMouseInputDevice mouse, Vector2D<float> position)
+    : IEvent
 {
     /// <summary>
     /// Gets the disconnected mouse.

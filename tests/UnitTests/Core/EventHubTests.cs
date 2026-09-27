@@ -232,7 +232,6 @@ public class EventHubTests
             TState state,
             Exception? exception,
             Func<TState, Exception?, string> formatter
-        )
-            => Messages.Add(formatter(state, exception));
+        ) => Messages.Add(formatter(state, exception));
     }
 }

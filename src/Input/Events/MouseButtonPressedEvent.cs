@@ -10,8 +10,7 @@ public sealed class MouseButtonPressedEvent(
     IMouseInputDevice mouse,
     MouseButtonEnum button,
     Vector2D<float> position
-)
-    : IEvent
+) : IEvent
 {
     /// <summary>
     /// Gets the mouse that reported the press.
