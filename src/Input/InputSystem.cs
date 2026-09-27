@@ -1,5 +1,6 @@
 namespace Nexus.Input;
 
+using System.Collections.ObjectModel;
 using Nexus.Input.Events;
 
 /// <summary>
@@ -13,6 +14,9 @@ public sealed class InputSystem : IInputSystem, IDisposable
     private readonly MouseInputState _mouse = new();
     private readonly Dictionary<InputDeviceId, IKeyboardInputDevice> _keyboards = [];
     private readonly Dictionary<InputDeviceId, IMouseInputDevice> _mice = [];
+    private readonly Dictionary<InputDeviceId, IController> _controllers = [];
+    private readonly List<IController> _controllerList = [];
+    private readonly ReadOnlyCollection<IController> _controllerView;
     private SceneInputMap? _currentMap;
     private bool _initialized;
     private bool _disposed;
@@ -49,6 +53,9 @@ public sealed class InputSystem : IInputSystem, IDisposable
     /// </summary>
     public IMouseInputState Mouse => _mouse;
 
+    /// <summary>Gets the currently registered controllers in connection order.</summary>
+    public IReadOnlyCollection<IController> Controllers => _controllerView;
+
     /// <summary>
     /// Initializes the input system with an event hub and an optional input adapter.
     /// </summary>
@@ -61,7 +68,15 @@ public sealed class InputSystem : IInputSystem, IDisposable
 
         _eventHub = eventHub;
         _inputAdapter = inputAdapter;
+        _controllerView = _controllerList.AsReadOnly();
     }
+
+    /// <summary>Looks up a connected controller by its connection-specific identifier.</summary>
+    /// <param name="id">The controller identifier.</param>
+    /// <param name="controller">The matching controller, or <see langword="null"/> when absent.</param>
+    /// <returns><see langword="true"/> when the controller is registered.</returns>
+    public bool TryGetController(InputDeviceId id, out IController? controller) =>
+        _controllers.TryGetValue(id, out controller);
 
     /// <summary>
     /// Registers for keyboard changes and publishes currently connected keyboards.
@@ -80,16 +95,21 @@ public sealed class InputSystem : IInputSystem, IDisposable
         _inputAdapter.KeyboardDisconnected += OnKeyboardDisconnected;
         _inputAdapter.MouseConnected += OnMouseConnected;
         _inputAdapter.MouseDisconnected += OnMouseDisconnected;
+        _inputAdapter.ControllerConnected += OnControllerConnected;
+        _inputAdapter.ControllerDisconnected += OnControllerDisconnected;
 
         foreach (var keyboard in _inputAdapter.Keyboards)
             RegisterKeyboard(keyboard);
 
         foreach (var mouse in _inputAdapter.Mice)
             RegisterMouse(mouse);
+
+        foreach (var controller in _inputAdapter.Controllers)
+            RegisterController(controller);
     }
 
     /// <inheritdoc />
-    public void Update(double deltaTime) { }
+    public void Update(double deltaTime) => _inputAdapter?.Update(deltaTime);
 
     /// <summary>
     /// Releases adapter event subscriptions without taking ownership of the adapter.
@@ -112,6 +132,8 @@ public sealed class InputSystem : IInputSystem, IDisposable
             _inputAdapter.KeyboardDisconnected -= OnKeyboardDisconnected;
             _inputAdapter.MouseConnected -= OnMouseConnected;
             _inputAdapter.MouseDisconnected -= OnMouseDisconnected;
+            _inputAdapter.ControllerConnected -= OnControllerConnected;
+            _inputAdapter.ControllerDisconnected -= OnControllerDisconnected;
         }
 
         foreach (var keyboard in _keyboards.Values)
@@ -129,6 +151,11 @@ public sealed class InputSystem : IInputSystem, IDisposable
             _mouse.Unregister(mouse);
 
         _mice.Clear();
+
+        foreach (var controller in _controllers.Values)
+            UnsubscribeFromController(controller);
+        _controllers.Clear();
+        _controllerList.Clear();
     }
 
     /// <summary>
@@ -292,4 +319,83 @@ public sealed class InputSystem : IInputSystem, IDisposable
         mouse.ButtonReleased -= OnMouseButtonReleased;
         mouse.WheelMoved -= OnMouseWheelMoved;
     }
+
+    /// <summary>Registers a connected controller and publishes its connection event once.</summary>
+    /// <param name="controller">The controller that connected.</param>
+    private void OnControllerConnected(IController controller) => RegisterController(controller);
+
+    /// <summary>Unregisters a disconnected controller and publishes its disconnection event.</summary>
+    /// <param name="controller">The controller that disconnected.</param>
+    private void OnControllerDisconnected(IController controller)
+    {
+        if (!_controllers.Remove(controller.Id, out var registeredController))
+            return;
+
+        UnsubscribeFromController(registeredController);
+        _controllerList.Remove(registeredController);
+        _eventHub.Publish(new ControllerDisconnectedEvent(registeredController));
+    }
+
+    /// <summary>Adds a controller and subscribes to its logical control transitions.</summary>
+    /// <param name="controller">The controller to register.</param>
+    private void RegisterController(IController controller)
+    {
+        ArgumentNullException.ThrowIfNull(controller);
+        if (!_controllers.TryAdd(controller.Id, controller))
+            return;
+
+        _controllerList.Add(controller);
+        controller.ButtonPressed += OnControllerButtonPressed;
+        controller.ButtonReleased += OnControllerButtonReleased;
+        controller.AnalogChanged += OnControllerAnalogChanged;
+        _eventHub.Publish(new ControllerConnectedEvent(controller));
+    }
+
+    /// <summary>Publishes a button-press event for a registered controller.</summary>
+    /// <param name="controller">The controller reporting the transition.</param>
+    /// <param name="button">The button that was pressed.</param>
+    private void OnControllerButtonPressed(IController controller, IButtonInput button)
+    {
+        if (IsRegisteredController(controller))
+            _eventHub.Publish(new ControllerButtonPressedEvent(controller, button));
+    }
+
+    /// <summary>Publishes a button-release event for a registered controller.</summary>
+    /// <param name="controller">The controller reporting the transition.</param>
+    /// <param name="button">The button that was released.</param>
+    private void OnControllerButtonReleased(IController controller, IButtonInput button)
+    {
+        if (IsRegisteredController(controller))
+            _eventHub.Publish(new ControllerButtonReleasedEvent(controller, button));
+    }
+
+    /// <summary>Publishes a captured analog position for a registered controller.</summary>
+    /// <param name="controller">The controller reporting the change.</param>
+    /// <param name="analogInput">The analog input that changed.</param>
+    /// <param name="position">The normalized position captured at the transition.</param>
+    private void OnControllerAnalogChanged(
+        IController controller,
+        IAnalogInput analogInput,
+        Vector2D<float> position
+    )
+    {
+        if (IsRegisteredController(controller))
+            _eventHub.Publish(new ControllerAnalogChangedEvent(controller, analogInput, position));
+    }
+
+    /// <summary>Removes this system's callbacks from a concrete controller wrapper.</summary>
+    /// <param name="controller">The controller to unsubscribe.</param>
+    private void UnsubscribeFromController(IController controller)
+    {
+        controller.ButtonPressed -= OnControllerButtonPressed;
+        controller.ButtonReleased -= OnControllerButtonReleased;
+        controller.AnalogChanged -= OnControllerAnalogChanged;
+    }
+
+    /// <summary>Determines whether a callback came from the currently registered controller instance.</summary>
+    /// <param name="controller">The controller reporting the transition.</param>
+    /// <returns><see langword="true"/> only for the registered instance.</returns>
+    private bool IsRegisteredController(IController controller) =>
+        _controllers.TryGetValue(controller.Id, out var registeredController)
+        && ReferenceEquals(registeredController, controller);
 }

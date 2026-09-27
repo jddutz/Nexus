@@ -17,6 +17,15 @@ public interface IInputSystem
     /// </summary>
     IMouseInputState Mouse { get; }
 
+    /// <summary>Gets all currently registered controllers.</summary>
+    IReadOnlyCollection<IController> Controllers { get; }
+
+    /// <summary>Looks up a currently registered controller by its connection-specific identifier.</summary>
+    /// <param name="id">The controller identifier.</param>
+    /// <param name="controller">The matching controller, or <see langword="null"/> when absent.</param>
+    /// <returns><see langword="true"/> when the controller is registered.</returns>
+    bool TryGetController(InputDeviceId id, out IController? controller);
+
     /// <summary>
     /// Initializes the input system before the update loop begins.
     /// </summary>

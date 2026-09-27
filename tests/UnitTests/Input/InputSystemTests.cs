@@ -33,6 +33,204 @@ public class InputSystemTests
         Assert.Collection(events.Connected, item => Assert.Same(keyboard, item.Keyboard));
     }
 
+    /// <summary>Verifies controller mappings, normalized state, transitions, and disconnection behavior.</summary>
+    [Fact]
+    public void Controller_exposesMappedStateAndClearsCachedValuesOnDisconnect()
+    {
+        var pressed = false;
+        var connected = true;
+        var axisValue = -1f;
+        using var controller = new Controller(
+            "Test controller",
+            [new ButtonMapping(0, 2, "FaceLeft")],
+            [
+                new AnalogMapping(
+                    0,
+                    1,
+                    SemanticName: "LeftTrigger",
+                    Normalization: AnalogNormalizationRule.UnipolarMinusOneToOne
+                ),
+            ],
+            index => index == 2 && pressed,
+            index => index == 1 ? axisValue : 0f,
+            () => connected
+        );
+        var pressedButtons = new List<int>();
+        var analogPositions = new List<Vector2D<float>>();
+        controller.ButtonPressed += (_, button) => pressedButtons.Add(button.Index);
+        controller.AnalogChanged += (_, _, position) => analogPositions.Add(position);
+
+        Assert.NotEqual(InputDeviceId.Invalid, controller.Id);
+        Assert.False(controller.Button(0).IsPressed);
+        Assert.Equal(Vector2D<float>.Zero, controller.AnalogInput(0).Position);
+        Assert.Equal("FaceLeft", controller.Button(0).SemanticName);
+        Assert.Equal("LeftTrigger", controller.AnalogInput(0).SemanticName);
+        Assert.Throws<ArgumentOutOfRangeException>(() => controller.Button(1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => controller.AnalogInput(-1));
+
+        pressed = true;
+        axisValue = 0f;
+        controller.Update();
+        axisValue = 0.5f;
+        controller.Update();
+
+        Assert.True(controller.Button(0).IsPressed);
+        Assert.Collection(pressedButtons, index => Assert.Equal(0, index));
+        Assert.Collection(
+            analogPositions,
+            position => Assert.Equal(new Vector2D<float>(0.5f, 0), position),
+            position => Assert.Equal(new Vector2D<float>(0.75f, 0), position)
+        );
+
+        connected = false;
+        controller.Dispose();
+        Assert.False(controller.IsConnected);
+        Assert.False(controller.Button(0).IsPressed);
+        Assert.Equal(Vector2D<float>.Zero, controller.AnalogInput(0).Position);
+
+        var invertedAxis = 1f;
+        using var invertedController = new Controller(
+            "Inverted trigger",
+            [],
+            [
+                new AnalogMapping(
+                    0,
+                    0,
+                    InvertX: true,
+                    Normalization: AnalogNormalizationRule.UnipolarMinusOneToOne
+                ),
+            ],
+            _ => false,
+            _ => invertedAxis,
+            () => true
+        );
+        Assert.Equal(Vector2D<float>.Zero, invertedController.AnalogInput(0).Position);
+        invertedAxis = -1f;
+        invertedController.Update();
+        Assert.Equal(new Vector2D<float>(1f, 0f), invertedController.AnalogInput(0).Position);
+    }
+
+    /// <summary>Verifies profile validation rejects invalid logical and physical mappings.</summary>
+    [Fact]
+    public void DeviceProfile_validatesLogicalIndicesPhysicalRangesAndAxisOwnership()
+    {
+        Assert.Throws<ArgumentException>(() => new DeviceProfile([new ButtonMapping(1, 0)], []));
+        Assert.Throws<ArgumentException>(() =>
+            new DeviceProfile([], [new AnalogMapping(0, 0), new AnalogMapping(1, 0)])
+        );
+
+        var profile = new DeviceProfile([new ButtonMapping(0, 1)], [new AnalogMapping(0, 2, 3)]);
+        Assert.Throws<ArgumentOutOfRangeException>(() => profile.Validate(1, 3));
+    }
+
+    /// <summary>Verifies controller events capture intermediate values and bindings select the intended devices.</summary>
+    [Fact]
+    public void Controllers_publishCapturedTransitionsAndDispatchSpecificAndAnyBindings()
+    {
+        var first = CreateTestController("First", out var firstState);
+        var second = CreateTestController("Second", out var secondState);
+        var adapter = new FakeInputAdapter();
+        var eventHub = new EventHub();
+        var collector = new InputEventCollector();
+        eventHub.Register(collector);
+        using var inputSystem = new InputSystem(eventHub, adapter);
+        adapter.Connect(first);
+        inputSystem.Initialize();
+        adapter.Connect(second);
+        Assert.True(inputSystem.TryGetController(first.Id, out var found));
+        Assert.Same(first, found);
+        Assert.Equal(2, inputSystem.Controllers.Count);
+
+        var calls = new List<string>();
+        var analogPositions = new List<Vector2D<float>>();
+        var map = new SceneInputMap(eventHub);
+        map.OnControllerButtonPressed(first.Id, 0).Invoke(() => calls.Add("first"));
+        map.OnAnyControllerButtonPressed(0).Invoke(() => calls.Add("any"));
+        map.OnControllerButtonReleased(second.Id, 0)
+            .Execute(new TestInputAction(() => calls.Add("second release")));
+        map.OnAnyControllerAnalogChanged(0)
+            .Invoke(message => analogPositions.Add(message.Position));
+        inputSystem.CurrentMap = map;
+
+        firstState.Pressed = true;
+        firstState.Axis = 0.25f;
+        inputSystem.Update(0.016);
+        inputSystem.Update(0.016);
+        firstState.Axis = 0.75f;
+        inputSystem.Update(0.016);
+        secondState.Pressed = true;
+        inputSystem.Update(0.016);
+        secondState.Pressed = false;
+        inputSystem.Update(0.016);
+        adapter.Disconnect(first);
+        eventHub.Drain();
+
+        Assert.Equal(["first", "any", "any", "second release"], calls);
+        Assert.Equal(
+            [new Vector2D<float>(0.25f, 0), new Vector2D<float>(0.75f, 0)],
+            analogPositions
+        );
+        Assert.Collection(
+            collector.ControllerConnected,
+            item => Assert.Same(first, item.Controller),
+            item => Assert.Same(second, item.Controller)
+        );
+        Assert.Collection(
+            collector.ControllerPressed,
+            item =>
+            {
+                Assert.Equal(0, item.ButtonIndex);
+                Assert.True(item.IsPressed);
+            },
+            item =>
+            {
+                Assert.Equal(0, item.ButtonIndex);
+                Assert.True(item.IsPressed);
+            }
+        );
+        Assert.Collection(
+            collector.ControllerReleased,
+            item =>
+            {
+                Assert.Equal(0, item.ButtonIndex);
+                Assert.False(item.IsPressed);
+            }
+        );
+        Assert.Collection(
+            collector.ControllerAnalogChanged,
+            item => Assert.Equal(new Vector2D<float>(0.25f, 0), item.Position),
+            item => Assert.Equal(new Vector2D<float>(0.75f, 0), item.Position)
+        );
+        Assert.Collection(
+            collector.ControllerDisconnected,
+            item =>
+            {
+                Assert.Same(first, item.Controller);
+                Assert.False(item.Controller.IsConnected);
+            }
+        );
+        Assert.False(inputSystem.TryGetController(first.Id, out _));
+        Assert.True(inputSystem.TryGetController(second.Id, out _));
+    }
+
+    /// <summary>Creates a controllable controller state used by input-system tests.</summary>
+    /// <param name="name">The controller name.</param>
+    /// <param name="state">The mutable physical state.</param>
+    /// <returns>A controller wrapper using the test state as its source.</returns>
+    private static Controller CreateTestController(string name, out TestControllerState state)
+    {
+        var controllerState = new TestControllerState();
+        state = controllerState;
+        return new Controller(
+            name,
+            [new ButtonMapping(0, 0, "FaceBottom")],
+            [new AnalogMapping(0, 0)],
+            index => index == 0 && controllerState.Pressed,
+            index => index == 0 ? controllerState.Axis : 0f,
+            () => controllerState.Connected
+        );
+    }
+
     /// <summary>
     /// Verifies live connections and disconnections update aggregate keyboard state.
     /// </summary>
@@ -454,12 +652,16 @@ public class InputSystemTests
     {
         private readonly List<IKeyboardInputDevice> _keyboards = [.. keyboards];
         private readonly List<IMouseInputDevice> _mice = [];
+        private readonly List<IController> _controllers = [];
 
         /// <inheritdoc />
         public IReadOnlyCollection<IKeyboardInputDevice> Keyboards => _keyboards;
 
         /// <inheritdoc />
         public IReadOnlyCollection<IMouseInputDevice> Mice => _mice;
+
+        /// <inheritdoc />
+        public IReadOnlyCollection<IController> Controllers => _controllers;
 
         /// <inheritdoc />
         public event Action<IKeyboardInputDevice>? KeyboardConnected;
@@ -472,6 +674,19 @@ public class InputSystemTests
 
         /// <inheritdoc />
         public event Action<IMouseInputDevice>? MouseDisconnected;
+
+        /// <inheritdoc />
+        public event Action<IController>? ControllerConnected;
+
+        /// <inheritdoc />
+        public event Action<IController>? ControllerDisconnected;
+
+        /// <inheritdoc />
+        public void Update(double deltaTime)
+        {
+            foreach (var controller in _controllers.OfType<Controller>().ToArray())
+                controller.Update();
+        }
 
         /// <summary>
         /// Adds a keyboard and raises its connection callback.
@@ -512,6 +727,37 @@ public class InputSystemTests
             _mice.Remove(mouse);
             MouseDisconnected?.Invoke(mouse);
         }
+
+        /// <summary>Adds a controller and raises its connection callback.</summary>
+        /// <param name="controller">The controller to connect.</param>
+        public void Connect(IController controller)
+        {
+            _controllers.Add(controller);
+            ControllerConnected?.Invoke(controller);
+        }
+
+        /// <summary>Removes and disposes a controller before raising its disconnection callback.</summary>
+        /// <param name="controller">The controller to disconnect.</param>
+        public void Disconnect(IController controller)
+        {
+            _controllers.Remove(controller);
+            if (controller is IDisposable disposable)
+                disposable.Dispose();
+            ControllerDisconnected?.Invoke(controller);
+        }
+    }
+
+    /// <summary>Holds mutable physical values for a fake controller source.</summary>
+    private sealed class TestControllerState
+    {
+        /// <summary>Gets or sets whether the physical button is pressed.</summary>
+        public bool Pressed { get; set; }
+
+        /// <summary>Gets or sets the raw physical axis position.</summary>
+        public float Axis { get; set; }
+
+        /// <summary>Gets or sets whether the physical source remains connected.</summary>
+        public bool Connected { get; set; } = true;
     }
 
     /// <summary>
@@ -709,6 +955,21 @@ public class InputSystemTests
         /// <summary>Gets mouse-wheel messages.</summary>
         public List<MouseWheelEvent> MouseWheels { get; } = [];
 
+        /// <summary>Gets controller connection messages.</summary>
+        public List<ControllerConnectedEvent> ControllerConnected { get; } = [];
+
+        /// <summary>Gets controller disconnection messages.</summary>
+        public List<ControllerDisconnectedEvent> ControllerDisconnected { get; } = [];
+
+        /// <summary>Gets controller button press messages.</summary>
+        public List<ControllerButtonPressedEvent> ControllerPressed { get; } = [];
+
+        /// <summary>Gets controller button release messages.</summary>
+        public List<ControllerButtonReleasedEvent> ControllerReleased { get; } = [];
+
+        /// <summary>Gets controller analog change messages.</summary>
+        public List<ControllerAnalogChangedEvent> ControllerAnalogChanged { get; } = [];
+
         /// <summary>Collects a keyboard connection message.</summary>
         /// <param name="message">The message to collect.</param>
         public void Handle(KeyboardConnectedEvent message) => Connected.Add(message);
@@ -748,5 +1009,28 @@ public class InputSystemTests
         /// <summary>Collects a mouse-wheel message.</summary>
         /// <param name="message">The message to collect.</param>
         public void Handle(MouseWheelEvent message) => MouseWheels.Add(message);
+
+        /// <summary>Collects a controller connection message.</summary>
+        /// <param name="message">The message to collect.</param>
+        public void Handle(ControllerConnectedEvent message) => ControllerConnected.Add(message);
+
+        /// <summary>Collects a controller disconnection message.</summary>
+        /// <param name="message">The message to collect.</param>
+        public void Handle(ControllerDisconnectedEvent message) =>
+            ControllerDisconnected.Add(message);
+
+        /// <summary>Collects a controller button press message.</summary>
+        /// <param name="message">The message to collect.</param>
+        public void Handle(ControllerButtonPressedEvent message) => ControllerPressed.Add(message);
+
+        /// <summary>Collects a controller button release message.</summary>
+        /// <param name="message">The message to collect.</param>
+        public void Handle(ControllerButtonReleasedEvent message) =>
+            ControllerReleased.Add(message);
+
+        /// <summary>Collects a controller analog change message.</summary>
+        /// <param name="message">The message to collect.</param>
+        public void Handle(ControllerAnalogChangedEvent message) =>
+            ControllerAnalogChanged.Add(message);
     }
 }

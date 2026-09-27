@@ -9,6 +9,7 @@ using Nexus.Game;
 using Nexus.Graphics;
 using Nexus.Graphics.Vulkan;
 using Nexus.Input;
+using Nexus.Input.Devices;
 using Nexus.Physics;
 using Nexus.Runtime;
 using Nexus.Testing;
@@ -229,6 +230,19 @@ public class BasicRuntimeTests
 
         /// <summary>Gets aggregate mouse state.</summary>
         public IMouseInputState Mouse { get; } = new MouseInputState();
+
+        /// <summary>Gets the currently available controllers.</summary>
+        public IReadOnlyCollection<IController> Controllers { get; } = [];
+
+        /// <summary>Looks up a controller; this no-op system never registers one.</summary>
+        /// <param name="id">The controller identifier.</param>
+        /// <param name="controller">Always null.</param>
+        /// <returns>Always false.</returns>
+        public bool TryGetController(InputDeviceId id, out IController? controller)
+        {
+            controller = null;
+            return false;
+        }
 
         public void Initialize() { }
 

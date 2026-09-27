@@ -10,6 +10,7 @@ using Nexus.Graphics.Components;
 using Nexus.Graphics.Text;
 using Nexus.Graphics.Textures;
 using Nexus.Input;
+using Nexus.Input.Events;
 
 /// <summary>
 /// Entry point for the Hello Nexus application.
@@ -43,7 +44,9 @@ internal static class Program
                 var windowService = serviceProvider.GetRequiredService<IWindowService>();
                 var inputMap = new SceneInputMap(eventHub);
                 var window = windowService.GetMainWindow();
+                eventHub.Register(new ControllerDiagnostics());
                 inputMap.OnKeyPressed(KeyEnum.Escape).Invoke(() => window.Close());
+                inputMap.OnAnyControllerButtonPressed(0).Invoke(() => window.Close());
 
                 var gameSystem = ActivatorUtilities.CreateInstance<GameSystem>(serviceProvider);
                 gameSystem.InitialScene = CreateHelloNexusScene(
@@ -145,5 +148,66 @@ internal static class Program
         );
 
         return new TextStyle(font, texture, 16, Colors.WhiteSmoke);
+    }
+
+    /// <summary>Writes controller discovery and sampled control changes to the demo console.</summary>
+    private sealed class ControllerDiagnostics
+    {
+        /// <summary>Logs the controller's controls when it connects.</summary>
+        /// <param name="message">The controller connection event.</param>
+        public void Handle(ControllerConnectedEvent message)
+        {
+            Console.WriteLine(
+                $"Controller connected: {message.Controller.Name} (ID {message.Controller.Id})"
+            );
+            foreach (var button in message.Controller.Buttons)
+                Console.WriteLine($"  {GetButtonLabel(button.Index, button.SemanticName)}");
+            foreach (var analogInput in message.Controller.AnalogInputs)
+                Console.WriteLine(
+                    $"  {GetAnalogLabel(analogInput.Index, analogInput.SemanticName)}"
+                );
+        }
+
+        /// <summary>Logs a controller button press.</summary>
+        /// <param name="message">The captured button-press event.</param>
+        public void Handle(ControllerButtonPressedEvent message) =>
+            Console.WriteLine(
+                $"Controller {message.Controller.Name}: {GetButtonLabel(message.ButtonIndex, message.Button.SemanticName)} pressed"
+            );
+
+        /// <summary>Logs a controller button release.</summary>
+        /// <param name="message">The captured button-release event.</param>
+        public void Handle(ControllerButtonReleasedEvent message) =>
+            Console.WriteLine(
+                $"Controller {message.Controller.Name}: {GetButtonLabel(message.ButtonIndex, message.Button.SemanticName)} released"
+            );
+
+        /// <summary>Logs an analog position captured when it changed.</summary>
+        /// <param name="message">The captured analog-change event.</param>
+        public void Handle(ControllerAnalogChangedEvent message) =>
+            Console.WriteLine(
+                $"Controller {message.Controller.Name}: {GetAnalogLabel(message.AnalogInputIndex, message.AnalogInput.SemanticName)} = {message.Position}"
+            );
+
+        /// <summary>Logs a controller disconnection.</summary>
+        /// <param name="message">The controller disconnection event.</param>
+        public void Handle(ControllerDisconnectedEvent message) =>
+            Console.WriteLine(
+                $"Controller disconnected: {message.Controller.Name} (ID {message.Controller.Id})"
+            );
+
+        /// <summary>Creates a semantic or one-based display label for a controller button.</summary>
+        /// <param name="index">The controller-local logical index.</param>
+        /// <param name="semanticName">The optional normalized role.</param>
+        /// <returns>The display label.</returns>
+        private static string GetButtonLabel(int index, string? semanticName) =>
+            semanticName ?? $"Button {index + 1}";
+
+        /// <summary>Creates a semantic or one-based display label for an analog input.</summary>
+        /// <param name="index">The controller-local logical index.</param>
+        /// <param name="semanticName">The optional normalized role.</param>
+        /// <returns>The display label.</returns>
+        private static string GetAnalogLabel(int index, string? semanticName) =>
+            semanticName ?? $"Analog {index + 1}";
     }
 }
