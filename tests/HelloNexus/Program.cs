@@ -1,7 +1,8 @@
 ﻿namespace HelloNexus;
 
-using Nexus.Core.Events;
+using Nexus.Assets.Fonts;
 using Nexus.Core;
+using Nexus.Core.Events;
 using Nexus.Game;
 using Nexus.Graphics;
 using Nexus.Graphics.Cameras;
@@ -9,7 +10,6 @@ using Nexus.Graphics.Components;
 using Nexus.Graphics.Text;
 using Nexus.Graphics.Textures;
 using Nexus.Input;
-using Nexus.Assets.Fonts;
 
 /// <summary>
 /// Entry point for the Hello Nexus application.
@@ -42,8 +42,7 @@ internal static class Program
                 var eventHub = serviceProvider.GetRequiredService<IEventHub>();
                 var windowService = serviceProvider.GetRequiredService<IWindowService>();
                 var inputMap = new SceneInputMap(eventHub);
-                inputMap.OnKeyPressed(KeyEnum.Escape)
-                    .Invoke(() => windowService.CloseWindow());
+                inputMap.OnKeyPressed(KeyEnum.Escape).Invoke(() => windowService.CloseWindow());
 
                 var gameSystem = ActivatorUtilities.CreateInstance<GameSystem>(serviceProvider);
                 gameSystem.InitialScene = CreateHelloNexusScene(
@@ -91,9 +90,7 @@ internal static class Program
         camera.SetViewportSize(mainWindow.Size.X, mainWindow.Size.Y);
         scene.CreateChild<GameObject>().AddComponent(camera);
 
-        var textComponent = new TextComponent(
-            CreateRobotoTextStyle(contentManifest, fontBuilder)
-        )
+        var textComponent = new TextComponent(CreateRobotoTextStyle(contentManifest, fontBuilder))
         {
             Text = "Welcome to the Nexus",
         };
