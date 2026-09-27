@@ -28,7 +28,17 @@ public sealed class Application : IApplication, IDisposable
 
         services.AddGameSystemServices();
 
-        services.TryAddSingleton<IEventHub, EventHub>();
+        services.TryAddSingleton<IEventHub>(serviceProvider =>
+        {
+            var applicationSettings = serviceProvider
+                .GetRequiredService<IOptions<ApplicationSettings>>()
+                .Value;
+            return new EventHub(
+                serviceProvider.GetService<ILogger<EventHub>>(),
+                applicationSettings.DiagnosticsEnabled,
+                applicationSettings.LogHighFrequencyEvents
+            );
+        });
         services.TryAddSingleton<IAudioSystem, AudioSystem>();
         services.TryAddSingleton<IInputContext>(sp =>
             sp.GetRequiredService<IWindow>().CreateInput()

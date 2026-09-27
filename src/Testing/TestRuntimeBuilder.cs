@@ -1,5 +1,8 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Nexus.Runtime;
 
 namespace Nexus.Testing;
 
@@ -25,8 +28,20 @@ public class TestRuntimeBuilder : IRuntimeBuilder
     /// </summary>
     public virtual INexusRuntime Build()
     {
-        Services.TryAddSingleton(Configuration ?? new ConfigurationBuilder().Build());
-        Services.TryAddSingleton<IEventHub, EventHub>();
+        var configuration = Configuration ?? new ConfigurationBuilder().Build();
+        Services.TryAddSingleton(configuration);
+        Services.AddOptions<ApplicationSettings>().Bind(configuration.GetSection("Application"));
+        Services.TryAddSingleton<IEventHub>(serviceProvider =>
+        {
+            var applicationSettings = serviceProvider
+                .GetRequiredService<IOptions<ApplicationSettings>>()
+                .Value;
+            return new EventHub(
+                serviceProvider.GetService<ILogger<EventHub>>(),
+                applicationSettings.DiagnosticsEnabled,
+                applicationSettings.LogHighFrequencyEvents
+            );
+        });
         Services.TryAddSingleton<INexusRuntime, NexusRuntime>();
 
         var serviceProvider = Services.BuildServiceProvider();

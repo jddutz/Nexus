@@ -27,6 +27,11 @@ public sealed class SceneInputMap
     }
 
     /// <summary>
+    /// Gets or sets whether this map suppresses scene input events from global input events.
+    /// </summary>
+    public bool SuppressSceneInputEvents { get; set; }
+
+    /// <summary>
     /// Selects a key press for binding configuration.
     /// </summary>
     /// <param name="key">The key that activates the binding.</param>
@@ -66,27 +71,41 @@ public sealed class SceneInputMap
     /// Dispatches callbacks configured for the pressed key.
     /// </summary>
     /// <param name="message">The key press event to handle.</param>
-    public void Handle(KeyPressedEvent message) => Dispatch(_keyPressedBindings, message.Key);
+    public void Handle(KeyPressedEvent message)
+    {
+        if (!SuppressSceneInputEvents)
+            Dispatch(_keyPressedBindings, message.Key);
+    }
 
     /// <summary>
     /// Dispatches callbacks configured for the released key.
     /// </summary>
     /// <param name="message">The key release event to handle.</param>
-    public void Handle(KeyReleasedEvent message) => Dispatch(_keyReleasedBindings, message.Key);
+    public void Handle(KeyReleasedEvent message)
+    {
+        if (!SuppressSceneInputEvents)
+            Dispatch(_keyReleasedBindings, message.Key);
+    }
 
     /// <summary>
     /// Dispatches callbacks configured for the pressed mouse button.
     /// </summary>
     /// <param name="message">The mouse-button press event to handle.</param>
-    public void Handle(MouseButtonPressedEvent message) =>
-        Dispatch(_mousePressedBindings, message.Button);
+    public void Handle(MouseButtonPressedEvent message)
+    {
+        if (!SuppressSceneInputEvents)
+            Dispatch(_mousePressedBindings, message.Button);
+    }
 
     /// <summary>
     /// Dispatches callbacks configured for the released mouse button.
     /// </summary>
     /// <param name="message">The mouse-button release event to handle.</param>
-    public void Handle(MouseButtonReleasedEvent message) =>
-        Dispatch(_mouseReleasedBindings, message.Button);
+    public void Handle(MouseButtonReleasedEvent message)
+    {
+        if (!SuppressSceneInputEvents)
+            Dispatch(_mouseReleasedBindings, message.Button);
+    }
 
     /// <summary>
     /// Dispatches callbacks configured for mouse-wheel movement.
@@ -94,6 +113,9 @@ public sealed class SceneInputMap
     /// <param name="message">The mouse-wheel event to handle.</param>
     public void Handle(MouseWheelEvent message)
     {
+        if (SuppressSceneInputEvents)
+            return;
+
         foreach (var callback in _mouseWheelBindings.ToArray())
             callback();
     }

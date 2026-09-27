@@ -75,31 +75,59 @@ public class InputSystemTests
         Assert.Same(mouse, inputSystem.Mouse[mouse.Id]);
         mouse.Move(new Vector2D<float>(4, 9));
         mouse.Press(MouseButtonEnum.Left);
+        mouse.Move(new Vector2D<float>(7, 11));
         mouse.Wheel(new Vector2D<float>(0, 1));
-        Assert.Equal(new Vector2D<float>(4, 9), inputSystem.Mouse.Position);
+        Assert.Equal(new Vector2D<float>(7, 11), inputSystem.Mouse.Position);
         Assert.True(inputSystem.Mouse.IsButtonDown(MouseButtonEnum.Left));
         mouse.Release(MouseButtonEnum.Left);
         adapter.Disconnect(mouse);
         eventHub.Drain();
 
         Assert.Throws<KeyNotFoundException>(() => inputSystem.Mouse[mouse.Id]);
-        Assert.Collection(events.MouseConnected, item => Assert.Same(mouse, item.Mouse));
-        Assert.Collection(events.MouseDisconnected, item => Assert.Same(mouse, item.Mouse));
+        Assert.Collection(
+            events.MouseConnected,
+            item =>
+            {
+                Assert.Same(mouse, item.Mouse);
+                Assert.Equal(Vector2D<float>.Zero, item.Position);
+            }
+        );
+        Assert.Collection(
+            events.MouseDisconnected,
+            item =>
+            {
+                Assert.Same(mouse, item.Mouse);
+                Assert.Equal(new Vector2D<float>(7, 11), item.Position);
+            }
+        );
         Assert.Collection(
             events.MouseMoved,
-            item => Assert.Equal(new Vector2D<float>(4, 9), item.Position)
+            item => Assert.Equal(new Vector2D<float>(4, 9), item.Position),
+            item => Assert.Equal(new Vector2D<float>(7, 11), item.Position)
         );
         Assert.Collection(
             events.MouseButtonPressed,
-            item => Assert.Equal(MouseButtonEnum.Left, item.Button)
+            item =>
+            {
+                Assert.Equal(MouseButtonEnum.Left, item.Button);
+                Assert.Equal(new Vector2D<float>(4, 9), item.Position);
+            }
         );
         Assert.Collection(
             events.MouseButtonReleased,
-            item => Assert.Equal(MouseButtonEnum.Left, item.Button)
+            item =>
+            {
+                Assert.Equal(MouseButtonEnum.Left, item.Button);
+                Assert.Equal(new Vector2D<float>(7, 11), item.Position);
+            }
         );
         Assert.Collection(
             events.MouseWheels,
-            item => Assert.Equal(new Vector2D<float>(0, 1), item.Delta)
+            item =>
+            {
+                Assert.Equal(new Vector2D<float>(0, 1), item.Delta);
+                Assert.Equal(new Vector2D<float>(7, 11), item.Position);
+            }
         );
     }
 
@@ -120,12 +148,55 @@ public class InputSystemTests
         map.OnMouseWheel().Invoke(() => calls.Add("wheel"));
         inputSystem.CurrentMap = map;
 
-        eventHub.Publish(new MouseButtonPressedEvent(mouse, MouseButtonEnum.Left));
-        eventHub.Publish(new MouseButtonReleasedEvent(mouse, MouseButtonEnum.Left));
-        eventHub.Publish(new MouseWheelEvent(mouse, new Vector2D<float>(0, 1)));
+        eventHub.Publish(new MouseButtonPressedEvent(mouse, MouseButtonEnum.Left, mouse.Position));
+        eventHub.Publish(new MouseButtonReleasedEvent(mouse, MouseButtonEnum.Left, mouse.Position));
+        eventHub.Publish(new MouseWheelEvent(mouse, new Vector2D<float>(0, 1), mouse.Position));
         eventHub.Drain();
 
         Assert.Equal(["pressed", "released", "wheel"], calls);
+        inputSystem.Dispose();
+    }
+
+    /// <summary>
+    /// Verifies suppressing scene input events skips all bindings until suppression is cleared.
+    /// </summary>
+    [Fact]
+    public void SceneInputMap_suppressesGlobalInputEventProcessing()
+    {
+        var eventHub = new EventHub();
+        var keyboard = new FakeKeyboard(14);
+        var mouse = new FakeMouse(15);
+        var inputSystem = new InputSystem(eventHub);
+        var calls = new List<string>();
+        var map = new SceneInputMap(eventHub) { SuppressSceneInputEvents = true };
+        map.OnKeyPressed(KeyEnum.A).Invoke(() => calls.Add("key pressed"));
+        map.OnKeyReleased(KeyEnum.A).Invoke(() => calls.Add("key released"));
+        map.OnMouseButtonPressed(MouseButtonEnum.Left).Invoke(() => calls.Add("button pressed"));
+        map.OnMouseButtonReleased(MouseButtonEnum.Left).Invoke(() => calls.Add("button released"));
+        map.OnMouseWheel().Invoke(() => calls.Add("wheel"));
+        inputSystem.CurrentMap = map;
+
+        eventHub.Publish(new KeyPressedEvent(keyboard, KeyEnum.A));
+        eventHub.Publish(new KeyReleasedEvent(keyboard, KeyEnum.A));
+        eventHub.Publish(new MouseButtonPressedEvent(mouse, MouseButtonEnum.Left, mouse.Position));
+        eventHub.Publish(new MouseButtonReleasedEvent(mouse, MouseButtonEnum.Left, mouse.Position));
+        eventHub.Publish(new MouseWheelEvent(mouse, new Vector2D<float>(0, 1), mouse.Position));
+        eventHub.Drain();
+
+        Assert.Empty(calls);
+
+        map.SuppressSceneInputEvents = false;
+        eventHub.Publish(new KeyPressedEvent(keyboard, KeyEnum.A));
+        eventHub.Publish(new KeyReleasedEvent(keyboard, KeyEnum.A));
+        eventHub.Publish(new MouseButtonPressedEvent(mouse, MouseButtonEnum.Left, mouse.Position));
+        eventHub.Publish(new MouseButtonReleasedEvent(mouse, MouseButtonEnum.Left, mouse.Position));
+        eventHub.Publish(new MouseWheelEvent(mouse, new Vector2D<float>(0, 1), mouse.Position));
+        eventHub.Drain();
+
+        Assert.Equal(
+            ["key pressed", "key released", "button pressed", "button released", "wheel"],
+            calls
+        );
         inputSystem.Dispose();
     }
 

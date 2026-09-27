@@ -16,6 +16,16 @@ public sealed record ApplicationSettings
     public string ApplicationVersion { get; set; } = "1.0.0";
 
     /// <summary>
+    /// Gets or sets whether diagnostic event logging is enabled.
+    /// </summary>
+    public bool DiagnosticsEnabled { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether high-frequency events are included in diagnostic logs.
+    /// </summary>
+    public bool LogHighFrequencyEvents { get; set; }
+
+    /// <summary>
     /// Gets or sets the location of the content manifest.
     /// </summary>
     public string ContentManifestLocation { get; set; } = ".content/content-manifest.json";

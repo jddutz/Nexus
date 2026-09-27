@@ -216,7 +216,7 @@ public sealed class InputSystem : IInputSystem, IDisposable
 
         UnsubscribeFromMouse(registeredMouse);
         _mouse.Unregister(registeredMouse);
-        _eventHub.Publish(new MouseDisconnectedEvent(registeredMouse));
+        _eventHub.Publish(new MouseDisconnectedEvent(registeredMouse, registeredMouse.Position));
     }
 
     /// <summary>
@@ -234,7 +234,7 @@ public sealed class InputSystem : IInputSystem, IDisposable
         mouse.ButtonPressed += OnMouseButtonPressed;
         mouse.ButtonReleased += OnMouseButtonReleased;
         mouse.WheelMoved += OnMouseWheelMoved;
-        _eventHub.Publish(new MouseConnectedEvent(mouse));
+        _eventHub.Publish(new MouseConnectedEvent(mouse, mouse.Position));
     }
 
     /// <summary>
@@ -256,7 +256,7 @@ public sealed class InputSystem : IInputSystem, IDisposable
     private void OnMouseButtonPressed(IMouseInputDevice mouse, MouseButtonEnum button)
     {
         if (_mice.ContainsKey(mouse.Id))
-            _eventHub.Publish(new MouseButtonPressedEvent(mouse, button));
+            _eventHub.Publish(new MouseButtonPressedEvent(mouse, button, mouse.Position));
     }
 
     /// <summary>
@@ -267,7 +267,7 @@ public sealed class InputSystem : IInputSystem, IDisposable
     private void OnMouseButtonReleased(IMouseInputDevice mouse, MouseButtonEnum button)
     {
         if (_mice.ContainsKey(mouse.Id))
-            _eventHub.Publish(new MouseButtonReleasedEvent(mouse, button));
+            _eventHub.Publish(new MouseButtonReleasedEvent(mouse, button, mouse.Position));
     }
 
     /// <summary>
@@ -278,7 +278,7 @@ public sealed class InputSystem : IInputSystem, IDisposable
     private void OnMouseWheelMoved(IMouseInputDevice mouse, Vector2D<float> delta)
     {
         if (_mice.ContainsKey(mouse.Id))
-            _eventHub.Publish(new MouseWheelEvent(mouse, delta));
+            _eventHub.Publish(new MouseWheelEvent(mouse, delta, mouse.Position));
     }
 
     /// <summary>

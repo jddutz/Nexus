@@ -1,5 +1,7 @@
 namespace Nexus.Input.Devices;
 
+using System.Text.Json.Serialization;
+
 /// <summary>
 /// Provides state and transition events for a mouse device.
 /// </summary>
@@ -8,6 +10,7 @@ public interface IMouseInputDevice : IInputDevice
     /// <summary>
     /// Gets the current mouse position in window coordinates.
     /// </summary>
+    [JsonIgnore]
     Vector2D<float> Position { get; }
 
     /// <summary>

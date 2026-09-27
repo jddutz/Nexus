@@ -53,7 +53,17 @@ public class RuntimeBuilder : IRuntimeBuilder
         _services.TryAddSingleton<IContentProvider<Texture>, TextureProvider>();
         _services.TryAddSingleton<IGraphicsSystem, VulkanGraphicsSystem>();
         _services.TryAddSingleton<IAudioSystem, AudioSystem>();
-        _services.TryAddSingleton<IEventHub, EventHub>();
+        _services.TryAddSingleton<IEventHub>(serviceProvider =>
+        {
+            var applicationSettings = serviceProvider
+                .GetRequiredService<IOptions<ApplicationSettings>>()
+                .Value;
+            return new EventHub(
+                serviceProvider.GetService<ILogger<EventHub>>(),
+                applicationSettings.DiagnosticsEnabled,
+                applicationSettings.LogHighFrequencyEvents
+            );
+        });
         _services.TryAddSingleton<INexusRuntime, NexusRuntime>();
 
         var serviceProvider = _services.BuildServiceProvider();
