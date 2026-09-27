@@ -74,16 +74,22 @@ public class InputSystemTests
         Assert.False(inputSystem.Keyboard.IsKeyDown(KeyEnum.A));
         eventHub.Drain();
 
-        Assert.Collection(events.Pressed, item =>
-        {
-            Assert.Same(keyboard, item.Keyboard);
-            Assert.Equal(KeyEnum.A, item.Key);
-        });
-        Assert.Collection(events.Released, item =>
-        {
-            Assert.Same(keyboard, item.Keyboard);
-            Assert.Equal(KeyEnum.A, item.Key);
-        });
+        Assert.Collection(
+            events.Pressed,
+            item =>
+            {
+                Assert.Same(keyboard, item.Keyboard);
+                Assert.Equal(KeyEnum.A, item.Key);
+            }
+        );
+        Assert.Collection(
+            events.Released,
+            item =>
+            {
+                Assert.Same(keyboard, item.Keyboard);
+                Assert.Equal(KeyEnum.A, item.Key);
+            }
+        );
     }
 
     /// <summary>

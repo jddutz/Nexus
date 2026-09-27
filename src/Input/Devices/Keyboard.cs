@@ -20,7 +20,10 @@ public class Keyboard : IKeyboardInputDevice, IDisposable
         ArgumentNullException.ThrowIfNull(keyboard);
 
         if (keyboard.Index < 0)
-            throw new ArgumentOutOfRangeException(nameof(keyboard), "The keyboard index must be non-negative.");
+            throw new ArgumentOutOfRangeException(
+                nameof(keyboard),
+                "The keyboard index must be non-negative."
+            );
 
         _keyboard = keyboard;
         _id = new InputDeviceId((ulong)keyboard.Index + 1);
