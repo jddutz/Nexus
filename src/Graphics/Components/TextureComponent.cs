@@ -231,7 +231,13 @@ public class TextureComponent : Nexus.Core.Component, IGraphicsComponent, IDrawa
             throw new ArgumentOutOfRangeException(nameof(instanceIndex));
 
         transform = CreateRectangleTransform(0f, 0f, Size.X, Size.Y, IsCentered);
-        texCoord = InsetTexCoord(TexCoord, insetLeft: true, insetTop: true, insetRight: true, insetBottom: true);
+        texCoord = InsetTexCoord(
+            TexCoord,
+            insetLeft: true,
+            insetTop: true,
+            insetRight: true,
+            insetBottom: true
+        );
     }
 
     /// <summary>Insets selected outer UV edges to texel centers, leaving internal split edges unchanged.</summary>
@@ -255,7 +261,9 @@ public class TextureComponent : Nexus.Core.Component, IGraphicsComponent, IDrawa
         var leftInset = insetLeft ? MathF.Min(texCoord.Z, 0.5f / Texture.Width) : 0f;
         var topInset = insetTop ? MathF.Min(texCoord.W, 0.5f / Texture.Height) : 0f;
         var rightInset = insetRight ? MathF.Min(texCoord.Z - leftInset, 0.5f / Texture.Width) : 0f;
-        var bottomInset = insetBottom ? MathF.Min(texCoord.W - topInset, 0.5f / Texture.Height) : 0f;
+        var bottomInset = insetBottom
+            ? MathF.Min(texCoord.W - topInset, 0.5f / Texture.Height)
+            : 0f;
         return new(
             texCoord.X + leftInset,
             texCoord.Y + topInset,
@@ -274,7 +282,8 @@ public class TextureComponent : Nexus.Core.Component, IGraphicsComponent, IDrawa
     protected virtual void ValidateSourceBorders(Vector4D<float> sourceBorders) { }
 
     /// <summary>Raises the instance-data event after derived instance properties change.</summary>
-    protected void NotifyInstanceDataChanged() => InstanceDataChanged?.Invoke(this, EventArgs.Empty);
+    protected void NotifyInstanceDataChanged() =>
+        InstanceDataChanged?.Invoke(this, EventArgs.Empty);
 
     /// <summary>Composes a rectangle transform with this component and its owner transforms.</summary>
     /// <param name="x">The local left edge.</param>
@@ -313,7 +322,10 @@ public class TextureComponent : Nexus.Core.Component, IGraphicsComponent, IDrawa
     private static void ValidateSize(Vector2D<float> size)
     {
         if (!float.IsFinite(size.X) || !float.IsFinite(size.Y) || size.X <= 0f || size.Y <= 0f)
-            throw new ArgumentOutOfRangeException(nameof(size), "Both size dimensions must be positive and finite.");
+            throw new ArgumentOutOfRangeException(
+                nameof(size),
+                "Both size dimensions must be positive and finite."
+            );
     }
 
     /// <inheritdoc />

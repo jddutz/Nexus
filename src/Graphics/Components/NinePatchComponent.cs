@@ -19,9 +19,20 @@ public sealed class NinePatchComponent : TextureComponent
         get => _sourceBorders;
         set
         {
-            if (!float.IsFinite(value.X) || !float.IsFinite(value.Y) || !float.IsFinite(value.Z) || !float.IsFinite(value.W)
-                || value.X < 0f || value.Y < 0f || value.Z < 0f || value.W < 0f)
-                throw new ArgumentOutOfRangeException(nameof(value), "Source borders must be finite and non-negative.");
+            if (
+                !float.IsFinite(value.X)
+                || !float.IsFinite(value.Y)
+                || !float.IsFinite(value.Z)
+                || !float.IsFinite(value.W)
+                || value.X < 0f
+                || value.Y < 0f
+                || value.Z < 0f
+                || value.W < 0f
+            )
+                throw new ArgumentOutOfRangeException(
+                    nameof(value),
+                    "Source borders must be finite and non-negative."
+                );
 
             ValidateSourceBorders(value);
             if (SetProperty(ref _sourceBorders, value))
@@ -35,11 +46,22 @@ public sealed class NinePatchComponent : TextureComponent
     /// <inheritdoc />
     protected override void ValidateTextureInput(Texture? texture, Vector4D<float> texCoord)
     {
-        if (!float.IsFinite(texCoord.X) || !float.IsFinite(texCoord.Y)
-            || !float.IsFinite(texCoord.Z) || !float.IsFinite(texCoord.W)
-            || texCoord.X < 0f || texCoord.Y < 0f || texCoord.Z <= 0f || texCoord.W <= 0f
-            || texCoord.X + texCoord.Z > 1f || texCoord.Y + texCoord.W > 1f)
-            throw new ArgumentOutOfRangeException(nameof(texCoord), "The source region must fit within the texture UV range.");
+        if (
+            !float.IsFinite(texCoord.X)
+            || !float.IsFinite(texCoord.Y)
+            || !float.IsFinite(texCoord.Z)
+            || !float.IsFinite(texCoord.W)
+            || texCoord.X < 0f
+            || texCoord.Y < 0f
+            || texCoord.Z <= 0f
+            || texCoord.W <= 0f
+            || texCoord.X + texCoord.Z > 1f
+            || texCoord.Y + texCoord.W > 1f
+        )
+            throw new ArgumentOutOfRangeException(
+                nameof(texCoord),
+                "The source region must fit within the texture UV range."
+            );
 
         if (texture is not null)
             ValidateBordersFit(_sourceBorders, texture, texCoord);
@@ -68,18 +90,46 @@ public sealed class NinePatchComponent : TextureComponent
         var sourceTop = SourceBorders.Y / textureHeight;
         var sourceRight = SourceBorders.Z / textureWidth;
         var sourceBottom = SourceBorders.W / textureHeight;
-        var destinationLeft = FitBorders(SourceBorders.X, SourceBorders.Z, Size.X, out var destinationRight);
-        var destinationTop = FitBorders(SourceBorders.Y, SourceBorders.W, Size.Y, out var destinationBottom);
-        var destinationWidths = new[] { destinationLeft, Size.X - destinationLeft - destinationRight, destinationRight };
-        var destinationHeights = new[] { destinationTop, Size.Y - destinationTop - destinationBottom, destinationBottom };
+        var destinationLeft = FitBorders(
+            SourceBorders.X,
+            SourceBorders.Z,
+            Size.X,
+            out var destinationRight
+        );
+        var destinationTop = FitBorders(
+            SourceBorders.Y,
+            SourceBorders.W,
+            Size.Y,
+            out var destinationBottom
+        );
+        var destinationWidths = new[]
+        {
+            destinationLeft,
+            Size.X - destinationLeft - destinationRight,
+            destinationRight,
+        };
+        var destinationHeights = new[]
+        {
+            destinationTop,
+            Size.Y - destinationTop - destinationBottom,
+            destinationBottom,
+        };
         var sourceWidths = new[] { sourceLeft, TexCoord.Z - sourceLeft - sourceRight, sourceRight };
-        var sourceHeights = new[] { sourceTop, TexCoord.W - sourceTop - sourceBottom, sourceBottom };
+        var sourceHeights = new[]
+        {
+            sourceTop,
+            TexCoord.W - sourceTop - sourceBottom,
+            sourceBottom,
+        };
         var column = instanceIndex % 3;
         var row = instanceIndex / 3;
         var x = column == 0 ? 0f : destinationWidths[0] + (column == 2 ? destinationWidths[1] : 0f);
         var y = row == 0 ? 0f : destinationHeights[0] + (row == 2 ? destinationHeights[1] : 0f);
-        var u = TexCoord.X + (column == 0 ? 0f : sourceWidths[0] + (column == 2 ? sourceWidths[1] : 0f));
-        var v = TexCoord.Y + (row == 0 ? 0f : sourceHeights[0] + (row == 2 ? sourceHeights[1] : 0f));
+        var u =
+            TexCoord.X
+            + (column == 0 ? 0f : sourceWidths[0] + (column == 2 ? sourceWidths[1] : 0f));
+        var v =
+            TexCoord.Y + (row == 0 ? 0f : sourceHeights[0] + (row == 2 ? sourceHeights[1] : 0f));
 
         transform = CreateRectangleTransform(
             x,
@@ -103,7 +153,12 @@ public sealed class NinePatchComponent : TextureComponent
     /// <param name="extent">The destination extent.</param>
     /// <param name="fittedTrailing">The fitted right or bottom border.</param>
     /// <returns>The fitted left or top border.</returns>
-    private static float FitBorders(float leading, float trailing, float extent, out float fittedTrailing)
+    private static float FitBorders(
+        float leading,
+        float trailing,
+        float extent,
+        out float fittedTrailing
+    )
     {
         var borderExtent = leading + trailing;
         var scale = borderExtent > extent && borderExtent > 0f ? extent / borderExtent : 1f;
@@ -121,8 +176,10 @@ public sealed class NinePatchComponent : TextureComponent
         Vector4D<float> texCoord
     )
     {
-        if (sourceBorders.X + sourceBorders.Z > texCoord.Z * texture.Width
-            || sourceBorders.Y + sourceBorders.W > texCoord.W * texture.Height)
+        if (
+            sourceBorders.X + sourceBorders.Z > texCoord.Z * texture.Width
+            || sourceBorders.Y + sourceBorders.W > texCoord.W * texture.Height
+        )
             throw new ArgumentOutOfRangeException(
                 nameof(sourceBorders),
                 "Source borders must fit within the selected texture region."

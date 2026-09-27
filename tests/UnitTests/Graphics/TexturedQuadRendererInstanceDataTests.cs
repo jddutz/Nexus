@@ -173,7 +173,9 @@ public sealed class TextureComponentInstanceDataTests
         Assert.Equal(0.2f, centerRegion.Y);
         Assert.Equal(0.3f, centerRegion.Z);
         Assert.Equal(0.3f, centerRegion.W);
-        Assert.Throws<ArgumentOutOfRangeException>(() => component.SourceBorders = new(26f, 0f, 25f, 0f));
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            component.SourceBorders = new(26f, 0f, 25f, 0f)
+        );
     }
 
     /// <summary>
