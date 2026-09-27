@@ -83,7 +83,7 @@ public class GameSystemEventRegistrationTests
     /// <param name="eventHub">The event hub to test.</param>
     /// <returns>A game system using the specified event hub.</returns>
     private static GameSystem CreateGameSystem(IEventHub eventHub) =>
-        new(eventHub, null!, null!, null!, null!, NullLogger<GameSystem>.Instance);
+        new(eventHub, NullLogger<GameSystem>.Instance);
 
     /// <summary>
     /// Represents an event used to verify global event dispatch.

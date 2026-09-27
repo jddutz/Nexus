@@ -5,18 +5,12 @@ namespace Nexus.Game;
 /// </summary>
 public class GameSystem(
     IEventHub eventHub,
-    IWindowService windowService,
-    IContentProvider<Texture> textureProvider,
-    IContentManifest contentManifest,
-    IFontBuilder fontBuilder,
     ILogger<GameSystem> logger,
     IInputSystem? inputSystem = null
 ) : IGameSystem, IGameModel
 {
     private readonly IEventHub _eventHub = eventHub;
     private readonly IInputSystem? _inputSystem = inputSystem;
-    private readonly IContentManifest _contentManifest = contentManifest;
-    private readonly IFontBuilder _fontBuilder = fontBuilder;
     private readonly ILogger<GameSystem> _logger = logger;
     private readonly Dictionary<GameObjectId, IGameObject> _gameObjects = [];
 
@@ -105,64 +99,10 @@ public class GameSystem(
         InitialScene.SetGameModel(this);
         CurrentScene = InitialScene;
 
-        // Every renderable pipeline expects a bound set-0 camera descriptor. OrthoCamera (not
-        // StaticCamera) because its symmetric [-1,1] extent matches this demo's NDC-sized world
-        // coordinates 1:1 - StaticCamera's top-left-origin [0,width] extent would scale and
-        // offset everything incorrectly.
-        var mainWindow = windowService.GetMainWindow();
-
-        var camera = new StaticCamera();
-        camera.SetViewportSize(mainWindow.Size.X, mainWindow.Size.Y);
-        CurrentScene.CreateChild<GameObject>().AddComponent(camera);
-
-        var textComponent = new TextComponent(CreateRobotoTextStyle())
-        {
-            Text = "Welcome to the Nexus",
-        };
-        var textGameObject = CurrentScene.CreateChild<GameObject2D>();
-        textGameObject.AddComponent(textComponent);
-        textGameObject.Position = new(mainWindow.Size.X / 2f - 48f, mainWindow.Size.Y / 2f - 8f);
-
         _logger.LogTrace("Activating scene...");
         CurrentScene.Activate();
         _logger.LogTrace("Scene activation complete.");
         _logger.LogInformation("Game system initialized and initial scene activated.");
-    }
-
-    /// <summary>
-    /// Builds the default Roboto text style from the font registered as <c>ui.default</c>.
-    /// </summary>
-    /// <returns>The generated style at size 16 with an off-white color.</returns>
-    private ITextStyle CreateRobotoTextStyle()
-    {
-        var fontId = (ContentId)"ui.default";
-        var fontPath = Path.Combine(
-            _contentManifest.ContentLibraryPath,
-            _contentManifest.Fonts.GetContentFilePath(fontId)
-        );
-        var codepoints = new FontGlyphRepertoire().GetCodepoints();
-        var font = _fontBuilder.Build(fontPath, codepoints, new FontGenerationSettings());
-        var atlas = font.Atlas;
-        var colors = new Color[checked(atlas.Width * atlas.Height)];
-
-        for (var index = 0; index < colors.Length; index++)
-        {
-            var sourceOffset = index * 3;
-            colors[index] = new Color(
-                atlas.Pixels[sourceOffset],
-                atlas.Pixels[sourceOffset + 1],
-                atlas.Pixels[sourceOffset + 2]
-            );
-        }
-
-        var texture = new Texture(
-            (ContentId)"Roboto",
-            checked((uint)atlas.Width),
-            checked((uint)atlas.Height),
-            colors
-        );
-
-        return new TextStyle(font, texture, 16, Colors.WhiteSmoke);
     }
 
     /// <summary>
