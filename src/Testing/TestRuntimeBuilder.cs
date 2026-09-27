@@ -31,6 +31,7 @@ public class TestRuntimeBuilder : IRuntimeBuilder
         var configuration = Configuration ?? new ConfigurationBuilder().Build();
         Services.TryAddSingleton(configuration);
         Services.AddOptions<ApplicationSettings>().Bind(configuration.GetSection("Application"));
+        Services.AddGuiServices();
         Services.TryAddSingleton<IEventHub>(serviceProvider =>
         {
             var applicationSettings = serviceProvider

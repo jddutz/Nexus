@@ -49,6 +49,7 @@ public class RuntimeBuilder : IRuntimeBuilder
         _services.TryAddSingleton<IGameModel>(serviceProvider =>
             (GameSystem)serviceProvider.GetRequiredService<IGameSystem>()
         );
+        _services.AddGuiServices();
         _services.TryAddSingleton<IPhysicsSystem, PhysicsSystem>();
         _services.TryAddSingleton<IContentProvider<Texture>, TextureProvider>();
         _services.TryAddSingleton<IGraphicsSystem, VulkanGraphicsSystem>();

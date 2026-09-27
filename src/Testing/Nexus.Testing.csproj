@@ -8,6 +8,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
     <ProjectReference Include="..\Core\Nexus.Core.csproj" />
+    <ProjectReference Include="..\GUI\Nexus.GUI.csproj" />
     <ProjectReference Include="..\Runtime\Nexus.Runtime.csproj" />
   </ItemGroup>
 </Project>

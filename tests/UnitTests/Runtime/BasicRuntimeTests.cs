@@ -6,6 +6,7 @@ using Nexus.Audio;
 using Nexus.Core;
 using Nexus.Core.Events;
 using Nexus.Game;
+using Nexus.GUI;
 using Nexus.Graphics;
 using Nexus.Graphics.Vulkan;
 using Nexus.Input;
@@ -180,6 +181,7 @@ public class BasicRuntimeTests
 
     private static void AddRuntimeServices(IServiceCollection services)
     {
+        services.AddGuiServices();
         services.AddSingleton<IInputSystem, NoOpInputSystem>();
         services.AddSingleton<IGameSystem, NoOpGameSystem>();
         services.AddSingleton<IPhysicsSystem, NoOpPhysicsSystem>();

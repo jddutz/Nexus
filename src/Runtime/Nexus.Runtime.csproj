@@ -23,6 +23,7 @@
     <ProjectReference Include="..\Audio\Nexus.Audio.csproj" />
     <ProjectReference Include="..\Core\Nexus.Core.csproj" />
     <ProjectReference Include="..\Game\Nexus.Game.csproj" />
+    <ProjectReference Include="..\GUI\Nexus.GUI.csproj" />
     <ProjectReference Include="..\Graphics\Nexus.Graphics.csproj" />
     <ProjectReference Include="..\OpenGL\Nexus.Graphics.OpenGL.csproj" />
     <ProjectReference Include="..\Vulkan\Nexus.Graphics.Vulkan.csproj" />

@@ -77,7 +77,7 @@ public unsafe class Context
             _validationLayers?.AreEnabled == true ? _validationLayers.LayerNames : [];
         var validationFeatureNames = GetValidationFeatureNames();
         var layerSettingsLayer =
-            validationFeatureNames.Length == 0
+            (validationFeatureNames.Length == 0 && Settings.EnableDiagnostics)
                 ? null
                 : FindInstanceExtensionLayer(validationLayerNames, "VK_EXT_layer_settings");
         var validationFeaturesLayer =
@@ -159,6 +159,7 @@ public unsafe class Context
                 validationFeatureNames,
                 layerSettingsLayer,
                 validationFeaturesLayer,
+                Settings.EnableDiagnostics,
                 out _instance
             );
 
@@ -294,6 +295,7 @@ public unsafe class Context
     /// <param name="featureNames">The validation feature names requested by settings.</param>
     /// <param name="layerSettingsLayer">The layer advertising VK_EXT_layer_settings.</param>
     /// <param name="validationFeaturesLayer">The layer advertising VK_EXT_validation_features.</param>
+    /// <param name="enableCoreValidation">Whether normal Core Checks should be enabled.</param>
     /// <param name="instance">The created Vulkan instance.</param>
     /// <returns>The Vulkan result from instance creation.</returns>
     private Result CreateInstanceWithValidationSettings(
@@ -301,10 +303,11 @@ public unsafe class Context
         string[] featureNames,
         string? layerSettingsLayer,
         string? validationFeaturesLayer,
+        bool enableCoreValidation,
         out Instance instance
     )
     {
-        if (featureNames.Length == 0)
+        if (featureNames.Length == 0 && layerSettingsLayer is null)
             return _vulkanApi.CreateInstance(in createInfo, null, out instance);
 
         if (layerSettingsLayer is not null)
@@ -314,29 +317,50 @@ public unsafe class Context
             {
                 var layerNamePointer = SilkMarshal.StringToPtr(layerSettingsLayer);
                 allocatedStrings.Add(layerNamePointer);
-                var settingNamePointer = SilkMarshal.StringToPtr("enables");
-                allocatedStrings.Add(settingNamePointer);
-                var featurePointers = stackalloc byte*[featureNames.Length];
-                for (var index = 0; index < featureNames.Length; index++)
+                var settings = stackalloc LayerSettingEXT[featureNames.Length == 0 ? 1 : 2];
+                uint settingCount = 0;
+                if (featureNames.Length > 0)
                 {
-                    var featurePointer = SilkMarshal.StringToPtr(featureNames[index]);
-                    allocatedStrings.Add(featurePointer);
-                    featurePointers[index] = (byte*)featurePointer;
+                    var settingNamePointer = SilkMarshal.StringToPtr("enables");
+                    allocatedStrings.Add(settingNamePointer);
+                    var featurePointers = stackalloc byte*[featureNames.Length];
+                    for (var index = 0; index < featureNames.Length; index++)
+                    {
+                        var featurePointer = SilkMarshal.StringToPtr(featureNames[index]);
+                        allocatedStrings.Add(featurePointer);
+                        featurePointers[index] = (byte*)featurePointer;
+                    }
+
+                    settings[settingCount++] = new LayerSettingEXT
+                    {
+                        PLayerName = (byte*)layerNamePointer,
+                        PSettingName = (byte*)settingNamePointer,
+                        Type = LayerSettingTypeEXT.StringExt,
+                        ValueCount = checked((uint)featureNames.Length),
+                        PValues = featurePointers,
+                    };
                 }
 
-                var setting = new LayerSettingEXT
+                uint coreValidationEnabled = enableCoreValidation ? 1u : 0u;
+                if (!enableCoreValidation)
                 {
-                    PLayerName = (byte*)layerNamePointer,
-                    PSettingName = (byte*)settingNamePointer,
-                    Type = LayerSettingTypeEXT.StringExt,
-                    ValueCount = checked((uint)featureNames.Length),
-                    PValues = featurePointers,
-                };
+                    var settingNamePointer = SilkMarshal.StringToPtr("validate_core");
+                    allocatedStrings.Add(settingNamePointer);
+                    settings[settingCount++] = new LayerSettingEXT
+                    {
+                        PLayerName = (byte*)layerNamePointer,
+                        PSettingName = (byte*)settingNamePointer,
+                        Type = LayerSettingTypeEXT.Bool32Ext,
+                        ValueCount = 1,
+                        PValues = &coreValidationEnabled,
+                    };
+                }
+
                 var settingsInfo = new LayerSettingsCreateInfoEXT
                 {
                     SType = StructureType.LayerSettingsCreateInfoExt,
-                    SettingCount = 1,
-                    PSettings = &setting,
+                    SettingCount = settingCount,
+                    PSettings = settings,
                 };
 
                 createInfo.PNext = &settingsInfo;

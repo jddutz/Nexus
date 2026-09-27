@@ -27,6 +27,7 @@ public sealed class Application : IApplication, IDisposable
         services.AddOptions<ContentSettings>().Bind(configuration.GetSection("Content"));
 
         services.AddGameSystemServices();
+        services.AddGuiServices();
 
         services.TryAddSingleton<IEventHub>(serviceProvider =>
         {
