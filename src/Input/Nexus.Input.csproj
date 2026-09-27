@@ -6,6 +6,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Silk.NET.Input" />
     <PackageReference Include="Silk.NET.Maths" />
     <PackageReference Include="Silk.NET.Windowing" />
     <ProjectReference Include="..\Core\Nexus.Core.csproj" />

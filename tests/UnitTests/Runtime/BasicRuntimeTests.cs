@@ -222,15 +222,11 @@ public class BasicRuntimeTests
 
     private sealed class NoOpInputSystem : IInputSystem
     {
+        public IKeyboardInputState Keyboard { get; } = new KeyboardInputState();
+
         public void Initialize() { }
 
         public void Update(double deltaTime) { }
-
-        public bool Activate<TComponent>(TComponent component)
-            where TComponent : class, IInputComponent => false;
-
-        public bool Deactivate<TComponent>(TComponent component)
-            where TComponent : class, IInputComponent => false;
     }
 
     private sealed class NoOpPhysicsSystem : IPhysicsSystem

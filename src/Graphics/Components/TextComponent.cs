@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using Nexus.Graphics.Text;
 
 namespace Nexus.Graphics.Components;
@@ -5,7 +6,7 @@ namespace Nexus.Graphics.Components;
 /// <summary>
 /// Groups text spans that share the component's lifetime.
 /// </summary>
-public class TextComponent : Component, IGraphicsComponent
+public class TextComponent : Nexus.Core.Component, IGraphicsComponent
 {
     private readonly List<TextSpan> _spans = [];
     private readonly ITextStyle _textStyle;
@@ -42,7 +43,10 @@ public class TextComponent : Component, IGraphicsComponent
             // TODO: Parse multiline and rich text into glyph spans.
             var span = new TextSpan(_textStyle, _text);
             if (((IDrawable)span).InstanceCount > 0)
+            {
+                span.TransformationMatrix = GetOwnerTransformationMatrix();
                 _spans.Add(span);
+            }
 
             foreach (var removedSpan in removedSpans)
                 DrawableRemoved?.Invoke(this, new DrawableEventArgs(removedSpan));
@@ -54,4 +58,33 @@ public class TextComponent : Component, IGraphicsComponent
 
     /// <summary>Gets the spans as drawable contributions for the graphics system.</summary>
     public IReadOnlyList<IDrawable> Drawables => _spans;
+
+    /// <inheritdoc/>
+    protected override void OnOwnerChanged()
+    {
+        UpdateTransformationMatrix();
+        base.OnOwnerChanged();
+    }
+
+    /// <inheritdoc/>
+    protected override void OnOwnerPropertyChanged(PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(IGameObject2D.TransformationMatrix))
+            UpdateTransformationMatrix();
+
+        base.OnOwnerPropertyChanged(e);
+    }
+
+    /// <summary>Copies the owning 2D game object's transform to every text span.</summary>
+    private void UpdateTransformationMatrix()
+    {
+        foreach (var span in _spans)
+            span.TransformationMatrix = GetOwnerTransformationMatrix();
+    }
+
+    /// <summary>Gets the owning 2D game object's transform, or identity when none is available.</summary>
+    private Matrix4X4<float> GetOwnerTransformationMatrix() =>
+        GameModel?.GetGameObject(GameObjectId) is IGameObject2D gameObject
+            ? gameObject.TransformationMatrix
+            : Matrix4X4<float>.Identity;
 }

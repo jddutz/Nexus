@@ -215,9 +215,6 @@ public class GameObject : ObservableObject, IGameObject
     }
 
     /// <inheritdoc/>
-    public void Update(double deltaTime) { }
-
-    /// <inheritdoc/>
     public void Activate()
     {
         if (IsActive)
@@ -230,6 +227,9 @@ public class GameObject : ObservableObject, IGameObject
         foreach (var child in _children)
             child.Activate();
     }
+
+    /// <inheritdoc/>
+    public virtual void Update(double deltaTime) { }
 
     /// <inheritdoc/>
     public void Deactivate()

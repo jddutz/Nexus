@@ -31,6 +31,8 @@ public abstract class Component : ObservableObject, IComponent
 
         if (_gameObject is not null)
             _gameObject.PropertyChanged += OnGameObjectPropertyChanged;
+
+        OnOwnerChanged();
     }
 
     /// <summary>
@@ -70,6 +72,11 @@ public abstract class Component : ObservableObject, IComponent
     /// </summary>
     /// <param name="e">The event data describing which owner property changed.</param>
     protected virtual void OnOwnerPropertyChanged(PropertyChangedEventArgs e) => OnChanged();
+
+    /// <summary>
+    /// Responds when this component is attached to or detached from a game object.
+    /// </summary>
+    protected virtual void OnOwnerChanged() => OnChanged();
 
     /// <summary>
     /// Raises <see cref="Changed"/>.

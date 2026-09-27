@@ -13,7 +13,7 @@ public class GameObject2D : GameObject, IGameObject2D
     /// <summary>
     /// Gets the transformation matrix for this game object.
     /// </summary>
-    protected Matrix4X4<float> TransformationMatrix => _transformationMatrix;
+    public Matrix4X4<float> TransformationMatrix => _transformationMatrix;
 
     /// <inheritdoc/>
     public Vector2D<float> Position

@@ -76,6 +76,7 @@ public class GameSystem(
     {
         ArgumentNullException.ThrowIfNull(gameObject);
         _gameObjects[gameObject.Id] = gameObject;
+        RegisterEventHandlers(gameObject);
     }
 
     /// <inheritdoc/>
@@ -83,6 +84,7 @@ public class GameSystem(
     {
         ArgumentNullException.ThrowIfNull(gameObject);
         _gameObjects.Remove(gameObject.Id);
+        UnregisterEventHandlers(gameObject);
     }
 
     /// <summary>
@@ -108,8 +110,13 @@ public class GameSystem(
         camera.SetViewportSize(mainWindow.Size.X, mainWindow.Size.Y);
         CurrentScene.CreateChild<GameObject>().AddComponent(camera);
 
-        var textComponent = new TextComponent(CreateRobotoTextStyle()) { Text = "Hello Nexus" };
-        CurrentScene.CreateChild<GameObject2D>().AddComponent(textComponent);
+        var textComponent = new TextComponent(CreateRobotoTextStyle())
+        {
+            Text = "Welcome to the Nexus",
+        };
+        var textGameObject = CurrentScene.CreateChild<GameObject2D>();
+        textGameObject.AddComponent(textComponent);
+        textGameObject.Position = new(mainWindow.Size.X / 2f - 48f, mainWindow.Size.Y / 2f - 8f);
 
         _logger.LogTrace("Activating scene...");
         CurrentScene.Activate();
@@ -120,7 +127,7 @@ public class GameSystem(
     /// <summary>
     /// Builds the default Roboto text style from the font registered as <c>ui.default</c>.
     /// </summary>
-    /// <returns>The generated style at size 32 with an off-white color.</returns>
+    /// <returns>The generated style at size 16 with an off-white color.</returns>
     private ITextStyle CreateRobotoTextStyle()
     {
         var fontId = (ContentId)"ui.default";
@@ -150,7 +157,7 @@ public class GameSystem(
             colors
         );
 
-        return new TextStyle(font, texture, 32, Colors.WhiteSmoke);
+        return new TextStyle(font, texture, 16, Colors.WhiteSmoke);
     }
 
     /// <summary>
@@ -166,6 +173,8 @@ public class GameSystem(
     /// <param name="component">The component to activate.</param>
     public void ActivateComponent(IComponent component)
     {
+        _eventHub.Register(component);
+
         _logger.LogTrace(
             "Activating component. ComponentType={ComponentType}",
             component.GetType().Name
@@ -178,6 +187,8 @@ public class GameSystem(
     /// <param name="component">The component to deactivate.</param>
     public void DeactivateComponent(IComponent component)
     {
+        _eventHub.Unregister(component);
+
         _logger.LogTrace(
             "Deactivating component. ComponentType={ComponentType}",
             component.GetType().Name
@@ -190,6 +201,8 @@ public class GameSystem(
     /// <param name="gameObject">The game object to activate.</param>
     public void ActivateGameObject(IGameObject gameObject)
     {
+        RegisterEventHandlers(gameObject);
+
         _logger.LogTrace(
             "Activating game object. GameObjectType={GameObjectType}, ComponentCount={ComponentCount}",
             gameObject.GetType().Name,
@@ -203,6 +216,8 @@ public class GameSystem(
     /// <param name="gameObject">The game object to deactivate.</param>
     public void DeactivateGameObject(IGameObject gameObject)
     {
+        UnregisterEventHandlers(gameObject);
+
         _logger.LogTrace(
             "Deactivating game object. GameObjectType={GameObjectType}, ComponentCount={ComponentCount}",
             gameObject.GetType().Name,
@@ -210,5 +225,35 @@ public class GameSystem(
         );
 
         _eventHub.Publish(new GameObjectDeactivatedEvent(gameObject));
+    }
+
+    /// <summary>
+    /// Registers a game object and its current subtree as global event handlers.
+    /// </summary>
+    /// <param name="gameObject">The root game object to register.</param>
+    private void RegisterEventHandlers(IGameObject gameObject)
+    {
+        _eventHub.Register(gameObject);
+
+        foreach (var component in gameObject.Components)
+            _eventHub.Register(component);
+
+        foreach (var child in gameObject.Children)
+            RegisterEventHandlers(child);
+    }
+
+    /// <summary>
+    /// Unregisters a game object and its current subtree from global event handling.
+    /// </summary>
+    /// <param name="gameObject">The root game object to unregister.</param>
+    private void UnregisterEventHandlers(IGameObject gameObject)
+    {
+        _eventHub.Unregister(gameObject);
+
+        foreach (var component in gameObject.Components)
+            _eventHub.Unregister(component);
+
+        foreach (var child in gameObject.Children)
+            UnregisterEventHandlers(child);
     }
 }

@@ -16,7 +16,8 @@ float median(float red, float green, float blue)
 void main()
 {
     vec3 msd = texture(texSampler, fragTexCoord).rgb;
-    float distance = median(msd.r, msd.g, msd.b);
-    float inside = step(0.5, median(msd.r, msd.g, msd.b));
-    outColor = vec4(fragTintColor.rgb, fragTintColor.a * inside);
+    float sd = median(msd.r, msd.g, msd.b) - 0.5;
+    float width = max(fwidth(sd), 1e-6);
+    float opacity = clamp(sd / width + 0.5, 0.0, 1.0);
+    outColor = vec4(fragTintColor.rgb, fragTintColor.a * opacity);
 }

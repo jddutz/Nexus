@@ -1,5 +1,7 @@
 using System.Runtime.InteropServices;
 using Nexus.Assets.Fonts;
+using Nexus.Core;
+using Nexus.Game;
 using Nexus.Graphics;
 using Nexus.Graphics.Components;
 using Nexus.Graphics.Geometry;
@@ -26,6 +28,51 @@ public sealed class TextComponentTests
         var span = Assert.IsType<TextSpan>(Assert.Single(component.Drawables));
 
         Assert.Equal(BuiltInMesh.TexturedQuadOffset.Id, span.Mesh.Id);
+    }
+
+    /// <summary>
+    /// Verifies an owning 2D transform reaches the text span and every packed glyph instance.
+    /// </summary>
+    [Fact]
+    public void Owner_transform_is_applied_to_spans_and_glyph_instances()
+    {
+        var style = CreateStyle();
+        var gameObject = new GameObject2D();
+        gameObject.SetGameModel(new TestGameModel());
+        gameObject.Position = new Vector2D<float>(3f, 4f);
+        var component = new TextComponent(style) { Text = "AB" };
+        gameObject.AddComponent(component);
+        var span = Assert.IsType<TextSpan>(Assert.Single(component.Drawables));
+
+        Assert.Equal(gameObject.TransformationMatrix, span.TransformationMatrix);
+
+        gameObject.Position = new Vector2D<float>(10f, 20f);
+
+        Assert.Equal(gameObject.TransformationMatrix, span.TransformationMatrix);
+        var glyphData = span.GetInstanceData(BuiltInShaders.MsdfTextVertexShader.InstanceLayout);
+        var untransformedData = new TextSpan(style, "AB").GetInstanceData(
+            BuiltInShaders.MsdfTextVertexShader.InstanceLayout
+        );
+        var glyphStride = glyphData.Length / 2;
+
+        for (var glyphIndex = 0; glyphIndex < 2; glyphIndex++)
+        {
+            var offset = glyphIndex * glyphStride;
+            var glyphTransform = MemoryMarshal.Read<Matrix4X4<float>>(glyphData.Span[offset..]);
+            var untransformedGlyphTransform = MemoryMarshal.Read<Matrix4X4<float>>(
+                untransformedData.Span[offset..]
+            );
+
+            Assert.Equal(
+                untransformedGlyphTransform * gameObject.TransformationMatrix,
+                glyphTransform
+            );
+        }
+
+        component.Text = "BA";
+
+        var replacementSpan = Assert.IsType<TextSpan>(Assert.Single(component.Drawables));
+        Assert.Equal(gameObject.TransformationMatrix, replacementSpan.TransformationMatrix);
     }
 
     /// <summary>
@@ -324,6 +371,26 @@ public sealed class TextComponentTests
                 [' '] = new(' ', 1, new(0, 0, 0, 0), new(0, 0, 0, 0)),
             }
         );
+    }
+
+    /// <summary>
+    /// Provides an in-memory game model for testing component ownership.
+    /// </summary>
+    private sealed class TestGameModel : IGameModel
+    {
+        private readonly Dictionary<GameObjectId, IGameObject> _gameObjects = [];
+
+        /// <inheritdoc/>
+        public IGameObject? GetGameObject(GameObjectId gameObjectId) =>
+            _gameObjects.GetValueOrDefault(gameObjectId);
+
+        /// <inheritdoc/>
+        public void RegisterGameObject(IGameObject gameObject) =>
+            _gameObjects[gameObject.Id] = gameObject;
+
+        /// <inheritdoc/>
+        public void UnregisterGameObject(IGameObject gameObject) =>
+            _gameObjects.Remove(gameObject.Id);
     }
 
     private sealed class TestTextStyle(
