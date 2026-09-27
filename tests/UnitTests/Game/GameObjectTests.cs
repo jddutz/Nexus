@@ -114,6 +114,56 @@ public class GameObjectTests
     }
 
     /// <summary>
+    /// Verifies game objects are configured from the root of the tree to its leaves.
+    /// </summary>
+    [Fact]
+    public void SetGameModel_configuresHierarchyFromRootToLeaf()
+    {
+        var root = new GameObject(10);
+        var child = new GameObject(11);
+        var leaf = new GameObject(12);
+        root.AddChild(child);
+        child.AddChild(leaf);
+        var gameModel = new TestGameModel();
+
+        root.SetGameModel(gameModel);
+
+        Assert.Equal([root.Id, child.Id, leaf.Id], gameModel.RegistrationOrder);
+    }
+
+    /// <summary>
+    /// Verifies active state propagates root-to-leaf before component notifications propagate leaf-to-root.
+    /// </summary>
+    [Fact]
+    public void Activate_setsTreeStateTopDownAndNotifiesComponentsBottomUp()
+    {
+        var root = new GameObject(20);
+        var child = new GameObject(21);
+        var leaf = new GameObject(22);
+        var rootComponent = new TestComponent();
+        var childComponent = new TestComponent();
+        var leafComponent = new TestComponent();
+        root.AddChild(child);
+        child.AddChild(leaf);
+        root.AddComponent(rootComponent);
+        child.AddComponent(childComponent);
+        leaf.AddComponent(leafComponent);
+        var activationOrder = new List<IComponent>();
+        var entireTreeIsActiveAtNotification = true;
+
+        root.ComponentAdded += component =>
+        {
+            activationOrder.Add(component);
+            entireTreeIsActiveAtNotification &= root.IsActive && child.IsActive && leaf.IsActive;
+        };
+
+        root.Activate();
+
+        Assert.Equal([leafComponent, childComponent, rootComponent], activationOrder);
+        Assert.True(entireTreeIsActiveAtNotification);
+    }
+
+    /// <summary>
     /// Verifies that attaching a component to a new game object detaches it from its prior owner.
     /// </summary>
     [Fact]
@@ -143,13 +193,19 @@ public class GameObjectTests
     {
         private readonly Dictionary<GameObjectId, IGameObject> _gameObjects = [];
 
+        /// <summary>Gets the order in which game objects were registered.</summary>
+        public List<GameObjectId> RegistrationOrder { get; } = [];
+
         /// <inheritdoc/>
         public IGameObject? GetGameObject(GameObjectId gameObjectId) =>
             _gameObjects.GetValueOrDefault(gameObjectId);
 
         /// <inheritdoc/>
-        public void RegisterGameObject(IGameObject gameObject) =>
+        public void RegisterGameObject(IGameObject gameObject)
+        {
             _gameObjects[gameObject.Id] = gameObject;
+            RegistrationOrder.Add(gameObject.Id);
+        }
 
         /// <inheritdoc/>
         public void UnregisterGameObject(IGameObject gameObject) =>

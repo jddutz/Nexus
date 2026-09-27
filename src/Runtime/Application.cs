@@ -1,5 +1,7 @@
 namespace Nexus.Runtime;
 
+using Silk.NET.Input;
+
 /// <summary>
 /// Implements the main application entry point for the Nexus Game Engine runtime.
 /// </summary>
@@ -28,6 +30,10 @@ public sealed class Application : IApplication, IDisposable
 
         services.TryAddSingleton<IEventHub, EventHub>();
         services.TryAddSingleton<IAudioSystem, AudioSystem>();
+        services.TryAddSingleton<IInputContext>(sp =>
+            sp.GetRequiredService<IWindow>().CreateInput()
+        );
+        services.TryAddSingleton<IInputAdapter, InputAdapter>();
         services.TryAddSingleton<IInputSystem, InputSystem>();
         services.TryAddSingleton<IPhysicsSystem, PhysicsSystem>();
         services.TryAddSingleton<IContentProvider<Texture>, TextureProvider>();

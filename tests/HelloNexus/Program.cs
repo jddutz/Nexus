@@ -42,10 +42,12 @@ internal static class Program
                 var eventHub = serviceProvider.GetRequiredService<IEventHub>();
                 var windowService = serviceProvider.GetRequiredService<IWindowService>();
                 var inputMap = new SceneInputMap(eventHub);
-                inputMap.OnKeyPressed(KeyEnum.Escape).Invoke(() => windowService.CloseWindow());
+                var window = windowService.GetMainWindow();
+                inputMap.OnKeyPressed(KeyEnum.Escape).Invoke(() => window.Close());
 
                 var gameSystem = ActivatorUtilities.CreateInstance<GameSystem>(serviceProvider);
                 gameSystem.InitialScene = CreateHelloNexusScene(
+                    gameSystem,
                     windowService,
                     serviceProvider.GetRequiredService<IContentManifest>(),
                     serviceProvider.GetRequiredService<IFontBuilder>(),
@@ -72,11 +74,13 @@ internal static class Program
     /// Creates the initial scene and its HelloNexus-specific content.
     /// </summary>
     /// <param name="windowService">Provides the main window dimensions.</param>
+    /// <param name="gameModel">Associates game objects with their owner before components are attached.</param>
     /// <param name="contentManifest">Describes the content available to the application.</param>
     /// <param name="fontBuilder">Builds font data for the welcome text.</param>
     /// <param name="inputMap">The scene's keyboard bindings.</param>
     /// <returns>The configured initial scene.</returns>
     private static Scene CreateHelloNexusScene(
+        IGameModel gameModel,
         IWindowService windowService,
         IContentManifest contentManifest,
         IFontBuilder fontBuilder,
@@ -85,6 +89,7 @@ internal static class Program
     {
         var mainWindow = windowService.GetMainWindow();
         var scene = new Scene { InputMap = inputMap };
+        scene.SetGameModel(gameModel);
 
         var camera = new StaticCamera();
         camera.SetViewportSize(mainWindow.Size.X, mainWindow.Size.Y);

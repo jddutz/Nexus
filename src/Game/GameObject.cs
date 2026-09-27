@@ -221,11 +221,11 @@ public class GameObject : ObservableObject, IGameObject
             return;
 
         IsActive = true;
-        foreach (var component in _components)
-            ComponentAdded?.Invoke(component);
-
         foreach (var child in _children)
             child.Activate();
+
+        foreach (var component in _components)
+            ComponentAdded?.Invoke(component);
     }
 
     /// <inheritdoc/>
