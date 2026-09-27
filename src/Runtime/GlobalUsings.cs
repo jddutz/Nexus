@@ -1,4 +1,5 @@
 global using System;
+global using System.Diagnostics;
 global using System.Reflection;
 global using Microsoft.Extensions.Configuration;
 global using Microsoft.Extensions.DependencyInjection;
@@ -18,6 +19,7 @@ global using Nexus.Graphics.Vulkan.Geometry;
 global using Nexus.Graphics.Vulkan.Pipelines;
 global using Nexus.Graphics.Vulkan.Rendering;
 global using Nexus.Graphics.Vulkan.Synchronization;
+global using Nexus.GUI;
 global using Nexus.Input;
 global using Nexus.Physics;
 global using Nexus.Runtime;

@@ -17,5 +17,6 @@
     <ProjectReference Include="..\Graphics\Nexus.Graphics.csproj" />
     <ProjectReference Include="..\Input\Nexus.Input.csproj" />
     <ProjectReference Include="..\Physics\Nexus.Physics.csproj" />
+    <ProjectReference Include="..\GUI\Nexus.GUI.csproj" />
   </ItemGroup>
 </Project>

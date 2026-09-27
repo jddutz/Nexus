@@ -69,7 +69,7 @@ public class TextComponent : Nexus.Core.Component, IGraphicsComponent
     /// <inheritdoc/>
     protected override void OnOwnerPropertyChanged(PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(IGameObject2D.TransformationMatrix))
+        if (e.PropertyName == nameof(IGameObject2D.WorldTransform))
             UpdateTransformationMatrix();
 
         base.OnOwnerPropertyChanged(e);
@@ -85,6 +85,6 @@ public class TextComponent : Nexus.Core.Component, IGraphicsComponent
     /// <summary>Gets the owning 2D game object's transform, or identity when none is available.</summary>
     private Matrix4X4<float> GetOwnerTransformationMatrix() =>
         GameModel?.GetGameObject(GameObjectId) is IGameObject2D gameObject
-            ? gameObject.TransformationMatrix
+            ? gameObject.WorldTransform
             : Matrix4X4<float>.Identity;
 }

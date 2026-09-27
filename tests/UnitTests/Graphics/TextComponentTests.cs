@@ -44,11 +44,11 @@ public sealed class TextComponentTests
         gameObject.AddComponent(component);
         var span = Assert.IsType<TextSpan>(Assert.Single(component.Drawables));
 
-        Assert.Equal(gameObject.TransformationMatrix, span.TransformationMatrix);
+        Assert.Equal(gameObject.WorldTransform, span.TransformationMatrix);
 
         gameObject.Position = new Vector2D<float>(10f, 20f);
 
-        Assert.Equal(gameObject.TransformationMatrix, span.TransformationMatrix);
+        Assert.Equal(gameObject.WorldTransform, span.TransformationMatrix);
         var glyphData = span.GetInstanceData(BuiltInShaders.MsdfTextVertexShader.InstanceLayout);
         var untransformedData = new TextSpan(style, "AB").GetInstanceData(
             BuiltInShaders.MsdfTextVertexShader.InstanceLayout
@@ -63,16 +63,13 @@ public sealed class TextComponentTests
                 untransformedData.Span[offset..]
             );
 
-            Assert.Equal(
-                untransformedGlyphTransform * gameObject.TransformationMatrix,
-                glyphTransform
-            );
+            Assert.Equal(untransformedGlyphTransform * gameObject.WorldTransform, glyphTransform);
         }
 
         component.Text = "BA";
 
         var replacementSpan = Assert.IsType<TextSpan>(Assert.Single(component.Drawables));
-        Assert.Equal(gameObject.TransformationMatrix, replacementSpan.TransformationMatrix);
+        Assert.Equal(gameObject.WorldTransform, replacementSpan.TransformationMatrix);
     }
 
     /// <summary>

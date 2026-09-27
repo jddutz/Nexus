@@ -3,6 +3,7 @@ using Nexus.Game;
 using Nexus.Graphics;
 using Nexus.Graphics.Cameras;
 using Nexus.Graphics.Components;
+using Silk.NET.Maths;
 
 namespace Tests;
 
@@ -129,6 +130,31 @@ public class GameObjectTests
         root.SetGameModel(gameModel);
 
         Assert.Equal([root.Id, child.Id, leaf.Id], gameModel.RegistrationOrder);
+    }
+
+    /// <summary>
+    /// Verifies spatial transforms compose through parents and ancestor changes notify descendants.
+    /// </summary>
+    [Fact]
+    public void SpatialTransforms_composeAndTrackAncestorChanges()
+    {
+        var parent = new GameObject2D { Position = new Vector2D<float>(3f, 4f) };
+        var child = new GameObject2D { Position = new Vector2D<float>(1f, 2f) };
+        parent.AddChild(child);
+        var worldTransformChanges = 0;
+        child.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(IGameObject2D.WorldTransform))
+                worldTransformChanges++;
+        };
+
+        Assert.Equal(child.LocalTransform * parent.WorldTransform, child.WorldTransform);
+        var initialWorldTransform = child.WorldTransform;
+
+        parent.Position = new Vector2D<float>(8f, 9f);
+
+        Assert.NotEqual(initialWorldTransform, child.WorldTransform);
+        Assert.Equal(1, worldTransformChanges);
     }
 
     /// <summary>

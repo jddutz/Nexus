@@ -8,9 +8,9 @@ namespace Nexus.UnitTests.Graphics;
 using Nexus.Graphics.Textures;
 
 /// <summary>
-/// Verifies the pre-Vulkan instance serialization performed by <see cref="TexturedQuadRenderer"/>.
+/// Verifies the pre-Vulkan instance serialization performed by textured graphics components.
 /// </summary>
-public sealed class TexturedQuadRendererInstanceDataTests
+public sealed class TextureComponentInstanceDataTests
 {
     /// <summary>
     /// Verifies that the demo grid serializes one complete, distinct, and source-equivalent record per quad.
@@ -19,8 +19,8 @@ public sealed class TexturedQuadRendererInstanceDataTests
     public void GetInstanceData_DemoGrid_ProducesCompleteDistinctSourceEquivalentRecords()
     {
         var layout = BuiltInShaders.TexturedQuadVertexShader.InstanceLayout;
-        var renderers = CreateDemoGrid();
-        var drawables = renderers.Select(renderer => (IDrawable)renderer).ToArray();
+        var components = CreateDemoGrid();
+        var drawables = components.Select(component => (IDrawable)component).ToArray();
         var records = drawables
             .Select(drawable => drawable.GetInstanceData(layout).ToArray())
             .ToArray();
@@ -42,7 +42,7 @@ public sealed class TexturedQuadRendererInstanceDataTests
         var colorOffset = GetOffset(layout, InputSemantics.Color);
         var transforms = new HashSet<Matrix4X4<float>>();
 
-        for (var index = 0; index < renderers.Length; index++)
+        for (var index = 0; index < components.Length; index++)
         {
             var record = records[index];
             var transform = MemoryMarshal.Read<Matrix4X4<float>>(record.AsSpan(transformOffset));
@@ -51,13 +51,13 @@ public sealed class TexturedQuadRendererInstanceDataTests
             );
             var color = MemoryMarshal.Read<Color>(record.AsSpan(colorOffset));
 
-            Assert.Equal(renderers[index].TransformationMatrix, transform);
-            Assert.Equal(renderers[index].TextureRegion, textureRegion);
-            Assert.Equal(renderers[index].Color, color);
+            Assert.Equal(components[index].TransformationMatrix, transform);
+            Assert.Equal(components[index].TexCoord, textureRegion);
+            Assert.Equal(components[index].Color, color);
             transforms.Add(transform);
         }
 
-        Assert.Equal(renderers.Length, transforms.Count);
+        Assert.Equal(components.Length, transforms.Count);
     }
 
     /// <summary>
@@ -66,7 +66,7 @@ public sealed class TexturedQuadRendererInstanceDataTests
     [Fact]
     public void PropertyChanges_raise_matching_drawable_events()
     {
-        var renderer = new TexturedQuadRenderer();
+        var renderer = new TextureComponent();
         var renderLayerChanges = 0;
         var textureChanges = 0;
         var instanceDataChanges = 0;
@@ -79,7 +79,7 @@ public sealed class TexturedQuadRendererInstanceDataTests
 
         renderer.RenderLayerMask = 2;
         renderer.SamplingBehavior = SamplingBehaviors.PixelPerfect;
-        renderer.TextureRegion = new(0.1f, 0.2f, 0.3f, 0.4f);
+        renderer.TexCoord = new(0.1f, 0.2f, 0.3f, 0.4f);
         renderer.View = Matrix4X4.CreateTranslation(1f, 2f, 0f);
 
         Assert.Equal(1, renderLayerChanges);
@@ -92,7 +92,7 @@ public sealed class TexturedQuadRendererInstanceDataTests
     /// Creates the textured-quad data used by the HelloNexus demo grid.
     /// </summary>
     /// <returns>The configured renderers in grid order.</returns>
-    private static TexturedQuadRenderer[] CreateDemoGrid()
+    private static TextureComponent[] CreateDemoGrid()
     {
         const int columns = 16;
         const int rows = 9;
@@ -103,7 +103,7 @@ public sealed class TexturedQuadRendererInstanceDataTests
         var cellHeight = 2.0f / rows;
         var regionWidth = 1.0f / atlasColumns;
         var regionHeight = 1.0f / atlasRows;
-        var renderers = new TexturedQuadRenderer[columns * rows];
+        var renderers = new TextureComponent[columns * rows];
 
         for (var x = 0; x < columns; x++)
         {
@@ -113,9 +113,9 @@ public sealed class TexturedQuadRendererInstanceDataTests
                 var atlasIndex = index % (atlasColumns * atlasRows);
                 var centerX = -1.0f + (x + 0.5f) * cellWidth;
                 var centerY = -1.0f + (y + 0.5f) * cellHeight;
-                var renderer = new TexturedQuadRenderer(centered: true)
+                var renderer = new TextureComponent(centered: true)
                 {
-                    TextureRegion = new(
+                    TexCoord = new(
                         (atlasIndex % atlasColumns) * regionWidth,
                         (atlasIndex / atlasColumns) * regionHeight,
                         regionWidth,
@@ -131,6 +131,49 @@ public sealed class TexturedQuadRendererInstanceDataTests
         }
 
         return renderers;
+    }
+
+    /// <summary>Verifies nine-patch packing and border fitting for a destination smaller than its borders.</summary>
+    [Fact]
+    public void NinePatch_packs_nine_regions_and_fits_borders_to_small_destinations()
+    {
+        var component = new NinePatchComponent
+        {
+            Texture = new Texture("test", 100, 80, new Color[100 * 80]),
+            Size = new(15f, 12f),
+            TexCoord = new(0.2f, 0.1f, 0.5f, 0.5f),
+            SourceBorders = new(10f, 8f, 10f, 8f),
+        };
+        var drawable = (IDrawable)component;
+        var layout = BuiltInShaders.TexturedQuadVertexShader.InstanceLayout;
+        var data = drawable.GetInstanceData(layout).ToArray();
+        var transformOffset = GetOffset(layout, InputSemantics.Transform);
+        var textureRegionOffset = GetOffset(layout, InputSemantics.TextureRegion);
+
+        Assert.Equal(9UL, drawable.InstanceCount);
+        Assert.Equal(9 * 96, data.Length);
+
+        var topLeftTransform = MemoryMarshal.Read<Matrix4X4<float>>(
+            data.AsSpan(transformOffset, 64)
+        );
+        var topLeftRegion = MemoryMarshal.Read<Vector4D<float>>(
+            data.AsSpan(textureRegionOffset, 16)
+        );
+        var centerRegion = MemoryMarshal.Read<Vector4D<float>>(
+            data.AsSpan(4 * 96 + textureRegionOffset, 16)
+        );
+
+        Assert.Equal(7.5f, topLeftTransform.M11);
+        Assert.Equal(6f, topLeftTransform.M22);
+        Assert.Equal(0.205f, topLeftRegion.X, 6);
+        Assert.Equal(0.10625f, topLeftRegion.Y, 6);
+        Assert.Equal(0.095f, topLeftRegion.Z, 6);
+        Assert.Equal(0.09375f, topLeftRegion.W, 6);
+        Assert.Equal(0.3f, centerRegion.X);
+        Assert.Equal(0.2f, centerRegion.Y);
+        Assert.Equal(0.3f, centerRegion.Z);
+        Assert.Equal(0.3f, centerRegion.W);
+        Assert.Throws<ArgumentOutOfRangeException>(() => component.SourceBorders = new(26f, 0f, 25f, 0f));
     }
 
     /// <summary>

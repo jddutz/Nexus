@@ -1,6 +1,3 @@
-using System.Diagnostics;
-using Nexus.Core.Events;
-
 namespace Nexus.Runtime;
 
 /// <summary>
@@ -14,6 +11,7 @@ public sealed class NexusRuntime(
     IAudioSystem audio,
     IInputSystem input,
     IGraphicsSystem graphics,
+    IGraphicalUserInterface gui,
     IWindow? window = null,
     IOptions<ApplicationSettings>? applicationSettings = null
 ) : INexusRuntime
@@ -46,6 +44,7 @@ public sealed class NexusRuntime(
         input.Initialize();
         gameSystem.Initialize();
         graphics.Initialize();
+        gui.Initialize();
 
         _runtimeStopwatch.Start();
         _initialized = true;
@@ -68,6 +67,7 @@ public sealed class NexusRuntime(
         audio.Update(deltaTime);
         input.Update(deltaTime);
         //graphics.Update(deltaTime);
+        gui.Update(deltaTime);
     }
 
     /// <summary>
