@@ -1,4 +1,4 @@
-namespace Nexus.Game;
+namespace Nexus.Core;
 
 /// <summary>
 /// Provides a two-dimensional game object.
@@ -10,10 +10,17 @@ public class GameObject2D : GameObject, IGameObject2D
     private Vector2D<float> _scale = Vector2D<float>.One;
     private Matrix4X4<float> _transformationMatrix = Matrix4X4<float>.Identity;
 
-    /// <summary>
-    /// Gets the transformation matrix for this game object.
-    /// </summary>
-    public Matrix4X4<float> TransformationMatrix => _transformationMatrix;
+    /// <inheritdoc/>
+    public Matrix4X4<float> LocalTransform => _transformationMatrix;
+
+    /// <inheritdoc/>
+    public Matrix4X4<float> WorldTransform =>
+        Parent switch
+        {
+            IGameObject2D parent => LocalTransform * parent.WorldTransform,
+            IGameObject3D parent => LocalTransform * parent.WorldTransform,
+            _ => LocalTransform,
+        };
 
     /// <inheritdoc/>
     public Vector2D<float> Position
@@ -69,6 +76,7 @@ public class GameObject2D : GameObject, IGameObject2D
         var rotation = Matrix4X4.CreateRotationZ(_rotation);
         var translation = Matrix4X4.CreateTranslation(_position.X, _position.Y, 0.0f);
         _transformationMatrix = scale * rotation * translation;
-        OnPropertyChanged(nameof(TransformationMatrix));
+        OnPropertyChanged(nameof(LocalTransform));
+        OnPropertyChanged(nameof(WorldTransform));
     }
 }

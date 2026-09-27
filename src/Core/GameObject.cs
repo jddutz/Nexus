@@ -1,4 +1,4 @@
-namespace Nexus.Game;
+namespace Nexus.Core;
 
 /// <summary>
 /// Provides the default implementation of a game object.
@@ -173,6 +173,8 @@ public class GameObject : ObservableObject, IGameObject
         if (child is GameObject gameObject)
         {
             gameObject.Parent = this;
+            PropertyChanged += gameObject.OnParentPropertyChanged;
+            gameObject.OnWorldTransformChanged();
             if (GameModel is not null)
                 gameObject.SetGameModel(GameModel);
         }
@@ -200,7 +202,11 @@ public class GameObject : ObservableObject, IGameObject
         _children.Remove(child);
         StopListeningToChild(child);
         if (child is GameObject gameObject)
+        {
+            PropertyChanged -= gameObject.OnParentPropertyChanged;
             gameObject.Parent = null;
+            gameObject.OnWorldTransformChanged();
+        }
 
         return true;
     }
@@ -288,6 +294,29 @@ public class GameObject : ObservableObject, IGameObject
     {
         if (IsActive)
             ComponentRemoved?.Invoke(component);
+    }
+
+    /// <summary>
+    /// Updates this object's world transform when its parent transform changes.
+    /// </summary>
+    /// <param name="sender">The parent that changed.</param>
+    /// <param name="e">The property change event data.</param>
+    private void OnParentPropertyChanged(
+        object? sender,
+        System.ComponentModel.PropertyChangedEventArgs e
+    )
+    {
+        if (e.PropertyName == nameof(IGameObject2D.WorldTransform))
+            OnWorldTransformChanged();
+    }
+
+    /// <summary>
+    /// Raises the world-transform change for spatial game objects.
+    /// </summary>
+    private void OnWorldTransformChanged()
+    {
+        if (this is IGameObject2D or IGameObject3D)
+            OnPropertyChanged(nameof(IGameObject2D.WorldTransform));
     }
 
     /// <summary>

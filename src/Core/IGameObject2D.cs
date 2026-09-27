@@ -2,14 +2,18 @@ namespace Nexus.Core;
 
 public interface IGameObject2D : IGameObject
 {
-    /// <summary>
-    /// Gets the transformation matrix composed from this object's position, rotation, and scale.
-    /// </summary>
-    Matrix4X4<float> TransformationMatrix { get; }
+    /// <summary>Gets the transform relative to the parent.</summary>
+    Matrix4X4<float> LocalTransform { get; }
 
+    /// <summary>Gets the local transform composed with spatial ancestors.</summary>
+    Matrix4X4<float> WorldTransform { get; }
+
+    /// <summary>Gets or sets the position relative to the parent.</summary>
     Vector2D<float> Position { get; set; }
 
+    /// <summary>Gets or sets the rotation relative to the parent.</summary>
     float Rotation { get; set; }
 
+    /// <summary>Gets or sets the scale relative to the parent.</summary>
     Vector2D<float> Scale { get; set; }
 }
