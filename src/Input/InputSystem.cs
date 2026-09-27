@@ -1,5 +1,7 @@
 namespace Nexus.Input;
 
+using Nexus.Input.Events;
+
 /// <summary>
 /// Provides the default input system implementation.
 /// </summary>

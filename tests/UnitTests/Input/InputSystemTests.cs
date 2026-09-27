@@ -3,6 +3,7 @@ namespace Tests;
 using Nexus.Core.Events;
 using Nexus.Input;
 using Nexus.Input.Devices;
+using Nexus.Input.Events;
 using SilkKey = Silk.NET.Input.Key;
 
 /// <summary>
