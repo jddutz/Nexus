@@ -3,6 +3,11 @@ namespace Nexus.Input;
 public interface IInputSystem
 {
     /// <summary>
+    /// Gets or sets the scene input map that receives dispatched keyboard events.
+    /// </summary>
+    SceneInputMap? CurrentMap { get; set; }
+
+    /// <summary>
     /// Aggregated keyboard state. Reads the overall state from all currently connected keyboards.
     /// </summary>
     IKeyboardInputState Keyboard { get; }

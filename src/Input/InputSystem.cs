@@ -11,8 +11,31 @@ public sealed class InputSystem : IInputSystem, IDisposable
     private readonly IInputAdapter? _inputAdapter;
     private readonly KeyboardInputState _keyboard = new();
     private readonly Dictionary<InputDeviceId, IKeyboardInputDevice> _keyboards = [];
+    private SceneInputMap? _currentMap;
     private bool _initialized;
     private bool _disposed;
+
+    /// <summary>
+    /// Gets or sets the scene input map that receives dispatched keyboard events.
+    /// </summary>
+    /// <exception cref="ObjectDisposedException">The input system has been disposed.</exception>
+    public SceneInputMap? CurrentMap
+    {
+        get => _currentMap;
+        set
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (ReferenceEquals(_currentMap, value))
+                return;
+
+            if (_currentMap is not null)
+                _eventHub.Unregister(_currentMap);
+
+            _currentMap = value;
+            if (_currentMap is not null)
+                _eventHub.Register(_currentMap);
+        }
+    }
 
     /// <summary>
     /// Gets aggregate state for all registered keyboards.
@@ -65,6 +88,12 @@ public sealed class InputSystem : IInputSystem, IDisposable
             return;
 
         _disposed = true;
+        if (_currentMap is not null)
+        {
+            _eventHub.Unregister(_currentMap);
+            _currentMap = null;
+        }
+
         if (_inputAdapter is not null && _initialized)
         {
             _inputAdapter.KeyboardConnected -= OnKeyboardConnected;

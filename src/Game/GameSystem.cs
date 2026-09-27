@@ -9,10 +9,12 @@ public class GameSystem(
     IContentProvider<Texture> textureProvider,
     IContentManifest contentManifest,
     IFontBuilder fontBuilder,
-    ILogger<GameSystem> logger
+    ILogger<GameSystem> logger,
+    IInputSystem? inputSystem = null
 ) : IGameSystem, IGameModel
 {
     private readonly IEventHub _eventHub = eventHub;
+    private readonly IInputSystem? _inputSystem = inputSystem;
     private readonly IContentManifest _contentManifest = contentManifest;
     private readonly IFontBuilder _fontBuilder = fontBuilder;
     private readonly ILogger<GameSystem> _logger = logger;
@@ -47,6 +49,9 @@ public class GameSystem(
                 _eventHub.Publish(new SceneUnloadedEvent(previousScene));
 
             _currentScene = value;
+
+            if (_currentScene is Scene scene)
+                scene.SetInputSystem(_inputSystem);
 
             if (_currentScene != null)
             {

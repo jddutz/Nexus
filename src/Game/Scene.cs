@@ -7,6 +7,8 @@ public class Scene : IScene
 {
     private readonly List<IGameObject> _children = [];
     private IGameModel? _gameModel;
+    private IInputSystem? _inputSystem;
+    private SceneInputMap? _inputMap;
     private bool _isActive;
 
     /// <summary>
@@ -35,6 +37,29 @@ public class Scene : IScene
     public bool IsActive => _isActive;
 
     /// <summary>
+    /// Gets or sets the input map selected while this scene is active.
+    /// </summary>
+    public SceneInputMap? InputMap
+    {
+        get => _inputMap;
+        set
+        {
+            if (ReferenceEquals(_inputMap, value))
+                return;
+
+            var previousMap = _inputMap;
+            _inputMap = value;
+
+            if (
+                _isActive
+                && _inputSystem is not null
+                && ReferenceEquals(_inputSystem.CurrentMap, previousMap)
+            )
+                _inputSystem.CurrentMap = value;
+        }
+    }
+
+    /// <summary>
     /// Occurs when a component is added to a game object in this scene.
     /// </summary>
     public event Action<IComponent>? ComponentAdded;
@@ -58,15 +83,31 @@ public class Scene : IScene
     /// Initializes a new instance of the <see cref="Scene"/> class with a generated identifier.
     /// </summary>
     public Scene()
-        : this(SceneId.New()) { }
+        : this(SceneId.New(), null) { }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="Scene"/> class with the specified input system.
+    /// </summary>
+    /// <param name="inputSystem">The input system used to select this scene's input map.</param>
+    public Scene(IInputSystem inputSystem)
+        : this(SceneId.New(), inputSystem) { }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="Scene"/> class with the specified identifier.
     /// </summary>
     /// <param name="sceneId">The identifier for the scene.</param>
     public Scene(SceneId sceneId)
+        : this(sceneId, null) { }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="Scene"/> class with the specified identifier and input system.
+    /// </summary>
+    /// <param name="sceneId">The identifier for the scene.</param>
+    /// <param name="inputSystem">The input system used to select this scene's input map.</param>
+    public Scene(SceneId sceneId, IInputSystem? inputSystem)
     {
         Id = sceneId;
+        _inputSystem = inputSystem;
 
         Layers = new RenderLayerCollection();
         Layers.Create("GUI", RenderPasses.Main);
@@ -94,6 +135,27 @@ public class Scene : IScene
         _gameModel = gameModel;
         foreach (var child in _children.OfType<GameObject>())
             child.SetGameModel(gameModel);
+    }
+
+    /// <summary>
+    /// Associates this scene with the input system that selects its map during activation.
+    /// </summary>
+    /// <param name="inputSystem">The input system to associate, or <see langword="null"/>.</param>
+    internal void SetInputSystem(IInputSystem? inputSystem)
+    {
+        if (ReferenceEquals(_inputSystem, inputSystem))
+            return;
+
+        var wasSelected =
+            _isActive
+            && _inputSystem is not null
+            && ReferenceEquals(_inputSystem.CurrentMap, _inputMap);
+        if (wasSelected)
+            _inputSystem!.CurrentMap = null;
+
+        _inputSystem = inputSystem;
+        if (_isActive && _inputSystem is not null)
+            _inputSystem.CurrentMap = _inputMap;
     }
 
     /// <summary>
@@ -162,6 +224,9 @@ public class Scene : IScene
             return;
 
         _isActive = true;
+        if (_inputSystem is not null)
+            _inputSystem.CurrentMap = _inputMap;
+
         foreach (var child in _children)
         {
             GameObjectAdded?.Invoke(child);
@@ -186,6 +251,9 @@ public class Scene : IScene
     {
         if (!_isActive)
             return;
+
+        if (_inputSystem is not null && ReferenceEquals(_inputSystem.CurrentMap, _inputMap))
+            _inputSystem.CurrentMap = null;
 
         foreach (var child in _children)
         {

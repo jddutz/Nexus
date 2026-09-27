@@ -100,7 +100,7 @@ public sealed class EventHub : IEventHub
                 if (!_subscriptions.TryGetValue(@event.GetType(), out var eventSubs))
                     continue;
 
-                foreach (var sub in eventSubs)
+                foreach (var sub in eventSubs.ToArray())
                 {
                     try
                     {

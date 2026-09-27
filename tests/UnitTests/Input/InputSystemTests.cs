@@ -1,6 +1,7 @@
 namespace Tests;
 
 using Nexus.Core.Events;
+using Nexus.Game;
 using Nexus.Input;
 using Nexus.Input.Devices;
 using Nexus.Input.Events;
@@ -110,6 +111,163 @@ public class InputSystemTests
         first.Release(KeyEnum.Space);
 
         Assert.True(inputSystem.Keyboard.IsKeyDown(KeyEnum.Space));
+    }
+
+    /// <summary>
+    /// Verifies press and release bindings execute in registration order only during dispatch.
+    /// </summary>
+    [Fact]
+    public void SceneInputMap_dispatchesMatchingBindingsInOrder()
+    {
+        var eventHub = new EventHub();
+        var keyboard = new FakeKeyboard(7);
+        var inputSystem = new InputSystem(eventHub);
+        var calls = new List<string>();
+        var map = new SceneInputMap(eventHub);
+        map.OnKeyPressed(KeyEnum.Escape).Invoke(() => calls.Add("first"));
+        map.OnKeyPressed(KeyEnum.Escape).Invoke(() => calls.Add("second"));
+        map.OnKeyReleased(KeyEnum.Escape).Invoke(() => calls.Add("release"));
+        inputSystem.CurrentMap = map;
+
+        eventHub.Publish(new KeyPressedEvent(keyboard, KeyEnum.A));
+        eventHub.Publish(new KeyPressedEvent(keyboard, KeyEnum.Escape));
+        Assert.Empty(calls);
+        eventHub.Drain();
+
+        Assert.Equal(["first", "second"], calls);
+
+        eventHub.Publish(new KeyReleasedEvent(keyboard, KeyEnum.Escape));
+        eventHub.Drain();
+
+        Assert.Equal(["first", "second", "release"], calls);
+        inputSystem.Dispose();
+    }
+
+    /// <summary>
+    /// Verifies event bindings create fresh events and defer their delivery to the next drain.
+    /// </summary>
+    [Fact]
+    public void SceneInputMap_raiseAndFactoryPublishOnFollowingDrain()
+    {
+        var eventHub = new EventHub();
+        var keyboard = new FakeKeyboard(8);
+        var collector = new InputMapEventCollector();
+        eventHub.Register(collector);
+        var inputSystem = new InputSystem(eventHub);
+        var factoryCalls = 0;
+        var map = new SceneInputMap(eventHub);
+        map.OnKeyPressed(KeyEnum.Escape).Raise<TestInputEvent>();
+        map.OnKeyPressed(KeyEnum.A).Raise(() => new FactoryInputEvent(++factoryCalls));
+        inputSystem.CurrentMap = map;
+
+        eventHub.Publish(new KeyPressedEvent(keyboard, KeyEnum.Escape));
+        eventHub.Publish(new KeyPressedEvent(keyboard, KeyEnum.A));
+        eventHub.Drain();
+
+        Assert.Equal(1, factoryCalls);
+        Assert.Empty(collector.CreatedEvents);
+        Assert.Empty(collector.FactoryEvents);
+
+        eventHub.Drain();
+
+        Assert.Single(collector.CreatedEvents);
+        Assert.Collection(collector.FactoryEvents, message => Assert.Equal(1, message.Value));
+        inputSystem.Dispose();
+    }
+
+    /// <summary>
+    /// Verifies actions execute once and a scene switch affects subsequent queued events.
+    /// </summary>
+    [Fact]
+    public void SceneInputMap_executesActionsAndSwitchesMapsDuringDrain()
+    {
+        var eventHub = new EventHub();
+        var keyboard = new FakeKeyboard(9);
+        var inputSystem = new InputSystem(eventHub);
+        var calls = new List<string>();
+        var firstMap = new SceneInputMap(eventHub);
+        var secondMap = new SceneInputMap(eventHub);
+        firstMap
+            .OnKeyPressed(KeyEnum.Escape)
+            .Execute(
+                new TestInputAction(() =>
+                {
+                    calls.Add("action");
+                    inputSystem.CurrentMap = secondMap;
+                })
+            );
+        secondMap.OnKeyPressed(KeyEnum.A).Invoke(() => calls.Add("second map"));
+        inputSystem.CurrentMap = firstMap;
+
+        eventHub.Publish(new KeyPressedEvent(keyboard, KeyEnum.Escape));
+        eventHub.Publish(new KeyPressedEvent(keyboard, KeyEnum.A));
+        eventHub.Drain();
+
+        Assert.Equal(["action", "second map"], calls);
+        inputSystem.CurrentMap = null;
+        eventHub.Publish(new KeyPressedEvent(keyboard, KeyEnum.A));
+        eventHub.Drain();
+        Assert.Equal(["action", "second map"], calls);
+
+        inputSystem.Dispose();
+    }
+
+    /// <summary>
+    /// Verifies selecting the same map twice does not duplicate delivery and disposal unregisters it.
+    /// </summary>
+    [Fact]
+    public void InputSystem_currentMapIsIdempotentAndUnregisteredOnDispose()
+    {
+        var eventHub = new EventHub();
+        var keyboard = new FakeKeyboard(10);
+        var inputSystem = new InputSystem(eventHub);
+        var calls = 0;
+        var map = new SceneInputMap(eventHub);
+        map.OnKeyPressed(KeyEnum.Escape).Invoke(() => calls++);
+        inputSystem.CurrentMap = map;
+        inputSystem.CurrentMap = map;
+
+        eventHub.Publish(new KeyPressedEvent(keyboard, KeyEnum.Escape));
+        eventHub.Drain();
+        Assert.Equal(1, calls);
+
+        inputSystem.Dispose();
+        eventHub.Publish(new KeyPressedEvent(keyboard, KeyEnum.Escape));
+        eventHub.Drain();
+        Assert.Equal(1, calls);
+    }
+
+    /// <summary>
+    /// Verifies scene activation selects its input map and deactivation clears only that selection.
+    /// </summary>
+    [Fact]
+    public void Scene_activationAndDeactivationSelectItsInputMap()
+    {
+        var eventHub = new EventHub();
+        var keyboard = new FakeKeyboard(11);
+        using var inputSystem = new InputSystem(eventHub);
+        var calls = 0;
+        var firstMap = new SceneInputMap(eventHub);
+        firstMap.OnKeyPressed(KeyEnum.Escape).Invoke(() => calls++);
+        var firstScene = new Scene(inputSystem) { InputMap = firstMap };
+
+        firstScene.Activate();
+        Assert.Same(firstMap, inputSystem.CurrentMap);
+        eventHub.Publish(new KeyPressedEvent(keyboard, KeyEnum.Escape));
+        eventHub.Drain();
+        Assert.Equal(1, calls);
+
+        var secondMap = new SceneInputMap(eventHub);
+        var secondScene = new Scene(inputSystem) { InputMap = secondMap };
+        secondScene.Activate();
+        firstScene.Deactivate();
+        Assert.Same(secondMap, inputSystem.CurrentMap);
+
+        secondScene.Deactivate();
+        Assert.Null(inputSystem.CurrentMap);
+        eventHub.Publish(new KeyPressedEvent(keyboard, KeyEnum.Escape));
+        eventHub.Drain();
+        Assert.Equal(1, calls);
     }
 
     /// <summary>
@@ -226,6 +384,49 @@ public class InputSystemTests
             _pressedKeys.Remove(key);
             KeyReleased?.Invoke(this, key);
         }
+    }
+
+    /// <summary>
+    /// Represents a parameterless event used to verify generic input-map event creation.
+    /// </summary>
+    private sealed class TestInputEvent : IEvent;
+
+    /// <summary>
+    /// Represents an event created by a binding factory.
+    /// </summary>
+    private sealed class FactoryInputEvent(int value) : IEvent
+    {
+        /// <summary>Gets the value supplied by the binding factory.</summary>
+        public int Value { get; } = value;
+    }
+
+    /// <summary>
+    /// Provides an action callback for input-map execution tests.
+    /// </summary>
+    private sealed class TestInputAction(Action callback) : IGameInputAction
+    {
+        /// <inheritdoc />
+        public void Execute() => callback();
+    }
+
+    /// <summary>
+    /// Collects events raised by input-map bindings.
+    /// </summary>
+    private sealed class InputMapEventCollector
+    {
+        /// <summary>Gets generic events published by input bindings.</summary>
+        public List<TestInputEvent> CreatedEvents { get; } = [];
+
+        /// <summary>Gets factory-created events published by input bindings.</summary>
+        public List<FactoryInputEvent> FactoryEvents { get; } = [];
+
+        /// <summary>Collects a generic input-map event.</summary>
+        /// <param name="message">The event to collect.</param>
+        public void Handle(TestInputEvent message) => CreatedEvents.Add(message);
+
+        /// <summary>Collects a factory-created input-map event.</summary>
+        /// <param name="message">The event to collect.</param>
+        public void Handle(FactoryInputEvent message) => FactoryEvents.Add(message);
     }
 
     /// <summary>
