@@ -10,7 +10,9 @@ public sealed class InputSystem : IInputSystem, IDisposable
     private readonly IEventHub _eventHub;
     private readonly IInputAdapter? _inputAdapter;
     private readonly KeyboardInputState _keyboard = new();
+    private readonly MouseInputState _mouse = new();
     private readonly Dictionary<InputDeviceId, IKeyboardInputDevice> _keyboards = [];
+    private readonly Dictionary<InputDeviceId, IMouseInputDevice> _mice = [];
     private SceneInputMap? _currentMap;
     private bool _initialized;
     private bool _disposed;
@@ -43,6 +45,11 @@ public sealed class InputSystem : IInputSystem, IDisposable
     public IKeyboardInputState Keyboard => _keyboard;
 
     /// <summary>
+    /// Gets aggregate state for all registered mice.
+    /// </summary>
+    public IMouseInputState Mouse => _mouse;
+
+    /// <summary>
     /// Initializes the input system with an event hub and an optional input adapter.
     /// </summary>
     /// <param name="eventHub">The global event hub.</param>
@@ -71,9 +78,14 @@ public sealed class InputSystem : IInputSystem, IDisposable
 
         _inputAdapter.KeyboardConnected += OnKeyboardConnected;
         _inputAdapter.KeyboardDisconnected += OnKeyboardDisconnected;
+        _inputAdapter.MouseConnected += OnMouseConnected;
+        _inputAdapter.MouseDisconnected += OnMouseDisconnected;
 
         foreach (var keyboard in _inputAdapter.Keyboards)
             RegisterKeyboard(keyboard);
+
+        foreach (var mouse in _inputAdapter.Mice)
+            RegisterMouse(mouse);
     }
 
     /// <inheritdoc />
@@ -98,6 +110,8 @@ public sealed class InputSystem : IInputSystem, IDisposable
         {
             _inputAdapter.KeyboardConnected -= OnKeyboardConnected;
             _inputAdapter.KeyboardDisconnected -= OnKeyboardDisconnected;
+            _inputAdapter.MouseConnected -= OnMouseConnected;
+            _inputAdapter.MouseDisconnected -= OnMouseDisconnected;
         }
 
         foreach (var keyboard in _keyboards.Values)
@@ -107,6 +121,14 @@ public sealed class InputSystem : IInputSystem, IDisposable
         }
 
         _keyboards.Clear();
+
+        foreach (var mouse in _mice.Values)
+            UnsubscribeFromMouse(mouse);
+
+        foreach (var mouse in _mouse.Mice.ToArray())
+            _mouse.Unregister(mouse);
+
+        _mice.Clear();
     }
 
     /// <summary>
@@ -175,5 +197,99 @@ public sealed class InputSystem : IInputSystem, IDisposable
     {
         keyboard.KeyPressed -= OnKeyPressed;
         keyboard.KeyReleased -= OnKeyReleased;
+    }
+
+    /// <summary>
+    /// Registers a connected mouse and publishes its connection event once.
+    /// </summary>
+    /// <param name="mouse">The mouse that connected.</param>
+    private void OnMouseConnected(IMouseInputDevice mouse) => RegisterMouse(mouse);
+
+    /// <summary>
+    /// Unregisters a disconnected mouse and publishes its disconnection event.
+    /// </summary>
+    /// <param name="mouse">The mouse that disconnected.</param>
+    private void OnMouseDisconnected(IMouseInputDevice mouse)
+    {
+        if (!_mice.Remove(mouse.Id, out var registeredMouse))
+            return;
+
+        UnsubscribeFromMouse(registeredMouse);
+        _mouse.Unregister(registeredMouse);
+        _eventHub.Publish(new MouseDisconnectedEvent(registeredMouse));
+    }
+
+    /// <summary>
+    /// Adds a mouse to aggregate state and subscribes to its transitions.
+    /// </summary>
+    /// <param name="mouse">The mouse to register.</param>
+    private void RegisterMouse(IMouseInputDevice mouse)
+    {
+        ArgumentNullException.ThrowIfNull(mouse);
+        if (!_mice.TryAdd(mouse.Id, mouse))
+            return;
+
+        _mouse.Register(mouse);
+        mouse.Moved += OnMouseMoved;
+        mouse.ButtonPressed += OnMouseButtonPressed;
+        mouse.ButtonReleased += OnMouseButtonReleased;
+        mouse.WheelMoved += OnMouseWheelMoved;
+        _eventHub.Publish(new MouseConnectedEvent(mouse));
+    }
+
+    /// <summary>
+    /// Publishes a position change reported by a registered mouse.
+    /// </summary>
+    /// <param name="mouse">The mouse reporting movement.</param>
+    /// <param name="position">The new mouse position.</param>
+    private void OnMouseMoved(IMouseInputDevice mouse, Vector2D<float> position)
+    {
+        if (_mice.ContainsKey(mouse.Id))
+            _eventHub.Publish(new MouseMovedEvent(mouse, position));
+    }
+
+    /// <summary>
+    /// Publishes a button press reported by a registered mouse.
+    /// </summary>
+    /// <param name="mouse">The mouse reporting the button.</param>
+    /// <param name="button">The button that was pressed.</param>
+    private void OnMouseButtonPressed(IMouseInputDevice mouse, MouseButtonEnum button)
+    {
+        if (_mice.ContainsKey(mouse.Id))
+            _eventHub.Publish(new MouseButtonPressedEvent(mouse, button));
+    }
+
+    /// <summary>
+    /// Publishes a button release reported by a registered mouse.
+    /// </summary>
+    /// <param name="mouse">The mouse reporting the button.</param>
+    /// <param name="button">The button that was released.</param>
+    private void OnMouseButtonReleased(IMouseInputDevice mouse, MouseButtonEnum button)
+    {
+        if (_mice.ContainsKey(mouse.Id))
+            _eventHub.Publish(new MouseButtonReleasedEvent(mouse, button));
+    }
+
+    /// <summary>
+    /// Publishes a wheel movement reported by a registered mouse.
+    /// </summary>
+    /// <param name="mouse">The mouse reporting the wheel movement.</param>
+    /// <param name="delta">The scroll delta.</param>
+    private void OnMouseWheelMoved(IMouseInputDevice mouse, Vector2D<float> delta)
+    {
+        if (_mice.ContainsKey(mouse.Id))
+            _eventHub.Publish(new MouseWheelEvent(mouse, delta));
+    }
+
+    /// <summary>
+    /// Removes this system's callbacks from a mouse.
+    /// </summary>
+    /// <param name="mouse">The mouse to unsubscribe from.</param>
+    private void UnsubscribeFromMouse(IMouseInputDevice mouse)
+    {
+        mouse.Moved -= OnMouseMoved;
+        mouse.ButtonPressed -= OnMouseButtonPressed;
+        mouse.ButtonReleased -= OnMouseButtonReleased;
+        mouse.WheelMoved -= OnMouseWheelMoved;
     }
 }

@@ -227,6 +227,9 @@ public class BasicRuntimeTests
 
         public IKeyboardInputState Keyboard { get; } = new KeyboardInputState();
 
+        /// <summary>Gets aggregate mouse state.</summary>
+        public IMouseInputState Mouse { get; } = new MouseInputState();
+
         public void Initialize() { }
 
         public void Update(double deltaTime) { }

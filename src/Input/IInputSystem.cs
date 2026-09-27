@@ -13,6 +13,11 @@ public interface IInputSystem
     IKeyboardInputState Keyboard { get; }
 
     /// <summary>
+    /// Aggregated mouse state with device-specific access by identifier.
+    /// </summary>
+    IMouseInputState Mouse { get; }
+
+    /// <summary>
     /// Initializes the input system before the update loop begins.
     /// </summary>
     void Initialize();

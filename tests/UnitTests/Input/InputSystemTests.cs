@@ -5,6 +5,7 @@ using Nexus.Game;
 using Nexus.Input;
 using Nexus.Input.Devices;
 using Nexus.Input.Events;
+using Silk.NET.Maths;
 using SilkKey = Silk.NET.Input.Key;
 
 /// <summary>
@@ -54,6 +55,78 @@ public class InputSystemTests
         Assert.Throws<KeyNotFoundException>(() => inputSystem.Keyboard[keyboard.Id]);
         Assert.Collection(events.Connected, item => Assert.Same(keyboard, item.Keyboard));
         Assert.Collection(events.Disconnected, item => Assert.Same(keyboard, item.Keyboard));
+    }
+
+    /// <summary>
+    /// Verifies mouse connections, state, and transitions are exposed through the input system.
+    /// </summary>
+    [Fact]
+    public void MouseConnectionsAndTransitions_updateStateAndPublishEvents()
+    {
+        var adapter = new FakeInputAdapter();
+        var eventHub = new EventHub();
+        var events = new InputEventCollector();
+        eventHub.Register(events);
+        using var inputSystem = new InputSystem(eventHub, adapter);
+        inputSystem.Initialize();
+        var mouse = new FakeMouse(12);
+
+        adapter.Connect(mouse);
+        Assert.Same(mouse, inputSystem.Mouse[mouse.Id]);
+        mouse.Move(new Vector2D<float>(4, 9));
+        mouse.Press(MouseButtonEnum.Left);
+        mouse.Wheel(new Vector2D<float>(0, 1));
+        Assert.Equal(new Vector2D<float>(4, 9), inputSystem.Mouse.Position);
+        Assert.True(inputSystem.Mouse.IsButtonDown(MouseButtonEnum.Left));
+        mouse.Release(MouseButtonEnum.Left);
+        adapter.Disconnect(mouse);
+        eventHub.Drain();
+
+        Assert.Throws<KeyNotFoundException>(() => inputSystem.Mouse[mouse.Id]);
+        Assert.Collection(events.MouseConnected, item => Assert.Same(mouse, item.Mouse));
+        Assert.Collection(events.MouseDisconnected, item => Assert.Same(mouse, item.Mouse));
+        Assert.Collection(
+            events.MouseMoved,
+            item => Assert.Equal(new Vector2D<float>(4, 9), item.Position)
+        );
+        Assert.Collection(
+            events.MouseButtonPressed,
+            item => Assert.Equal(MouseButtonEnum.Left, item.Button)
+        );
+        Assert.Collection(
+            events.MouseButtonReleased,
+            item => Assert.Equal(MouseButtonEnum.Left, item.Button)
+        );
+        Assert.Collection(
+            events.MouseWheels,
+            item => Assert.Equal(new Vector2D<float>(0, 1), item.Delta)
+        );
+    }
+
+    /// <summary>
+    /// Verifies mouse button and wheel bindings invoke configured actions.
+    /// </summary>
+    [Fact]
+    public void SceneInputMap_dispatchesMouseButtonAndWheelBindings()
+    {
+        var eventHub = new EventHub();
+        var mouse = new FakeMouse(13);
+        var inputSystem = new InputSystem(eventHub);
+        var calls = new List<string>();
+        var map = new SceneInputMap(eventHub);
+        map.OnMouseButtonPressed(MouseButtonEnum.Left).Invoke(() => calls.Add("pressed"));
+        map.OnMouseButtonReleased(MouseButtonEnum.Left)
+            .Execute(new TestInputAction(() => calls.Add("released")));
+        map.OnMouseWheel().Invoke(() => calls.Add("wheel"));
+        inputSystem.CurrentMap = map;
+
+        eventHub.Publish(new MouseButtonPressedEvent(mouse, MouseButtonEnum.Left));
+        eventHub.Publish(new MouseButtonReleasedEvent(mouse, MouseButtonEnum.Left));
+        eventHub.Publish(new MouseWheelEvent(mouse, new Vector2D<float>(0, 1)));
+        eventHub.Drain();
+
+        Assert.Equal(["pressed", "released", "wheel"], calls);
+        inputSystem.Dispose();
     }
 
     /// <summary>
@@ -309,15 +382,25 @@ public class InputSystemTests
     private sealed class FakeInputAdapter(params IKeyboardInputDevice[] keyboards) : IInputAdapter
     {
         private readonly List<IKeyboardInputDevice> _keyboards = [.. keyboards];
+        private readonly List<IMouseInputDevice> _mice = [];
 
         /// <inheritdoc />
         public IReadOnlyCollection<IKeyboardInputDevice> Keyboards => _keyboards;
+
+        /// <inheritdoc />
+        public IReadOnlyCollection<IMouseInputDevice> Mice => _mice;
 
         /// <inheritdoc />
         public event Action<IKeyboardInputDevice>? KeyboardConnected;
 
         /// <inheritdoc />
         public event Action<IKeyboardInputDevice>? KeyboardDisconnected;
+
+        /// <inheritdoc />
+        public event Action<IMouseInputDevice>? MouseConnected;
+
+        /// <inheritdoc />
+        public event Action<IMouseInputDevice>? MouseDisconnected;
 
         /// <summary>
         /// Adds a keyboard and raises its connection callback.
@@ -338,6 +421,97 @@ public class InputSystemTests
             _keyboards.Remove(keyboard);
             KeyboardDisconnected?.Invoke(keyboard);
         }
+
+        /// <summary>
+        /// Adds a mouse and raises its connection callback.
+        /// </summary>
+        /// <param name="mouse">The mouse to connect.</param>
+        public void Connect(IMouseInputDevice mouse)
+        {
+            _mice.Add(mouse);
+            MouseConnected?.Invoke(mouse);
+        }
+
+        /// <summary>
+        /// Removes a mouse and raises its disconnection callback.
+        /// </summary>
+        /// <param name="mouse">The mouse to disconnect.</param>
+        public void Disconnect(IMouseInputDevice mouse)
+        {
+            _mice.Remove(mouse);
+            MouseDisconnected?.Invoke(mouse);
+        }
+    }
+
+    /// <summary>
+    /// Provides controllable mouse state and callbacks for input-system tests.
+    /// </summary>
+    private sealed class FakeMouse(ulong id) : IMouseInputDevice
+    {
+        private readonly HashSet<MouseButtonEnum> _pressedButtons = [];
+
+        /// <inheritdoc />
+        public InputDeviceId Id { get; } = new(id);
+
+        /// <inheritdoc />
+        public string Name => $"Mouse {id}";
+
+        /// <inheritdoc />
+        public bool IsConnected { get; private set; } = true;
+
+        /// <inheritdoc />
+        public Vector2D<float> Position { get; private set; }
+
+        /// <inheritdoc />
+        public event Action<IMouseInputDevice, Vector2D<float>>? Moved;
+
+        /// <inheritdoc />
+        public event Action<IMouseInputDevice, MouseButtonEnum>? ButtonPressed;
+
+        /// <inheritdoc />
+        public event Action<IMouseInputDevice, MouseButtonEnum>? ButtonReleased;
+
+        /// <inheritdoc />
+        public event Action<IMouseInputDevice, Vector2D<float>>? WheelMoved;
+
+        /// <inheritdoc />
+        public bool IsButtonDown(MouseButtonEnum button) => _pressedButtons.Contains(button);
+
+        /// <summary>
+        /// Updates position and raises the movement callback.
+        /// </summary>
+        /// <param name="position">The new mouse position.</param>
+        public void Move(Vector2D<float> position)
+        {
+            Position = position;
+            Moved?.Invoke(this, position);
+        }
+
+        /// <summary>
+        /// Marks a button as pressed and raises its callback.
+        /// </summary>
+        /// <param name="button">The button to press.</param>
+        public void Press(MouseButtonEnum button)
+        {
+            _pressedButtons.Add(button);
+            ButtonPressed?.Invoke(this, button);
+        }
+
+        /// <summary>
+        /// Marks a button as released and raises its callback.
+        /// </summary>
+        /// <param name="button">The button to release.</param>
+        public void Release(MouseButtonEnum button)
+        {
+            _pressedButtons.Remove(button);
+            ButtonReleased?.Invoke(this, button);
+        }
+
+        /// <summary>
+        /// Raises a wheel-movement callback.
+        /// </summary>
+        /// <param name="delta">The wheel delta.</param>
+        public void Wheel(Vector2D<float> delta) => WheelMoved?.Invoke(this, delta);
     }
 
     /// <summary>
@@ -446,6 +620,24 @@ public class InputSystemTests
         /// <summary>Gets key-released messages.</summary>
         public List<KeyReleasedEvent> Released { get; } = [];
 
+        /// <summary>Gets mouse connection messages.</summary>
+        public List<MouseConnectedEvent> MouseConnected { get; } = [];
+
+        /// <summary>Gets mouse disconnection messages.</summary>
+        public List<MouseDisconnectedEvent> MouseDisconnected { get; } = [];
+
+        /// <summary>Gets mouse movement messages.</summary>
+        public List<MouseMovedEvent> MouseMoved { get; } = [];
+
+        /// <summary>Gets mouse button press messages.</summary>
+        public List<MouseButtonPressedEvent> MouseButtonPressed { get; } = [];
+
+        /// <summary>Gets mouse button release messages.</summary>
+        public List<MouseButtonReleasedEvent> MouseButtonReleased { get; } = [];
+
+        /// <summary>Gets mouse-wheel messages.</summary>
+        public List<MouseWheelEvent> MouseWheels { get; } = [];
+
         /// <summary>Collects a keyboard connection message.</summary>
         /// <param name="message">The message to collect.</param>
         public void Handle(KeyboardConnectedEvent message) => Connected.Add(message);
@@ -461,5 +653,29 @@ public class InputSystemTests
         /// <summary>Collects a key-released message.</summary>
         /// <param name="message">The message to collect.</param>
         public void Handle(KeyReleasedEvent message) => Released.Add(message);
+
+        /// <summary>Collects a mouse connection message.</summary>
+        /// <param name="message">The message to collect.</param>
+        public void Handle(MouseConnectedEvent message) => MouseConnected.Add(message);
+
+        /// <summary>Collects a mouse disconnection message.</summary>
+        /// <param name="message">The message to collect.</param>
+        public void Handle(MouseDisconnectedEvent message) => MouseDisconnected.Add(message);
+
+        /// <summary>Collects a mouse movement message.</summary>
+        /// <param name="message">The message to collect.</param>
+        public void Handle(MouseMovedEvent message) => MouseMoved.Add(message);
+
+        /// <summary>Collects a mouse button press message.</summary>
+        /// <param name="message">The message to collect.</param>
+        public void Handle(MouseButtonPressedEvent message) => MouseButtonPressed.Add(message);
+
+        /// <summary>Collects a mouse button release message.</summary>
+        /// <param name="message">The message to collect.</param>
+        public void Handle(MouseButtonReleasedEvent message) => MouseButtonReleased.Add(message);
+
+        /// <summary>Collects a mouse-wheel message.</summary>
+        /// <param name="message">The message to collect.</param>
+        public void Handle(MouseWheelEvent message) => MouseWheels.Add(message);
     }
 }
