@@ -418,21 +418,21 @@ public class CommandFactoryTests
         public int UpdateCount { get; private set; }
         public int ReleaseCount { get; private set; }
 
-        public IEnumerable<IVulkanCommand> Create(ITexture texture, ColorFormatEnum format)
+        public IEnumerable<IVulkanCommand> Create(ITexture texture)
         {
             CreateCount++;
             return [];
         }
 
-        public ImageView Get(ITexture texture, ColorFormatEnum format) => new(12);
+        public ImageView Get(ITexture texture) => new(12);
 
-        public IEnumerable<IVulkanCommand> Update(ITexture texture, ColorFormatEnum format)
+        public IEnumerable<IVulkanCommand> Update(ITexture texture)
         {
             UpdateCount++;
             return [];
         }
 
-        public IEnumerable<IVulkanCommand> Release(ITexture texture, ColorFormatEnum format)
+        public IEnumerable<IVulkanCommand> Release(ITexture texture)
         {
             ReleaseCount++;
             return [];
@@ -549,6 +549,7 @@ public class CommandFactoryTests
         public uint Width => 1;
         public uint Height => 1;
         public ulong Count => 1;
+        public ColorFormatEnum TextureFormat => ColorFormatEnum.RGBA8UNorm;
 
         public void WriteTo(ulong start, ulong count, ColorFormatEnum format, Span<byte> target) { }
     }

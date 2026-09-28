@@ -105,7 +105,6 @@ internal static class Program
         var backgroundTexture = new TextureComponent
         {
             Texture = textureProvider.Get((ContentId)"hello_nexus_background_image"),
-            TextureFormat = ColorFormatEnum.RGBA8Srgb,
             Size = new(mainWindow.Size.X, mainWindow.Size.Y),
         };
         var backgroundElement = new Element(
@@ -122,9 +121,10 @@ internal static class Program
         {
             Text = "Welcome to the Nexus",
         };
-        var textGameObject = scene.CreateChild<GameObject2D>();
-        textGameObject.AddComponent(textComponent);
-        textGameObject.Position = new(mainWindow.Size.X / 2f - 48f, mainWindow.Size.Y / 2f - 8f);
+        var textElement = new Element();
+        textElement.AddComponent(textComponent);
+        textElement.Position = new(mainWindow.Size.X / 2f - 48f, mainWindow.Size.Y / 2f - 8f);
+        scene.AddChild(textElement);
 
         return scene;
     }

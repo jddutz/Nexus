@@ -12,5 +12,9 @@ public interface ITexture
     public uint Height { get; }
 
     ulong Count { get; }
+
+    /// <summary>Gets the pixel format used to store and sample this texture.</summary>
+    ColorFormatEnum TextureFormat { get; }
+
     void WriteTo(ulong start, ulong count, ColorFormatEnum format, Span<byte> target);
 }

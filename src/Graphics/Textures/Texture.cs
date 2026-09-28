@@ -1,5 +1,6 @@
 namespace Nexus.Graphics.Textures;
 
+/// <summary>Stores pixel data and its intended GPU sampling format.</summary>
 public sealed class Texture : ITexture
 {
     private readonly Color[] _colorData;
@@ -9,13 +10,29 @@ public sealed class Texture : ITexture
     public uint Width { get; }
     public uint Height { get; }
 
+    /// <inheritdoc />
+    public ColorFormatEnum TextureFormat { get; }
+
     public ulong Count { get; }
 
-    public Texture(ContentId contentId, uint width, uint height, Color[] colorData)
+    /// <summary>Creates a texture with the specified pixels and sampling format.</summary>
+    /// <param name="contentId">The content identifier assigned to the texture.</param>
+    /// <param name="width">The texture width in pixels.</param>
+    /// <param name="height">The texture height in pixels.</param>
+    /// <param name="colorData">The texture's pixel colors.</param>
+    /// <param name="textureFormat">The GPU storage and sampling format.</param>
+    public Texture(
+        ContentId contentId,
+        uint width,
+        uint height,
+        Color[] colorData,
+        ColorFormatEnum textureFormat = ColorFormatEnum.RGBA8UNorm
+    )
     {
         ContentId = contentId;
         Width = width;
         Height = height;
+        TextureFormat = textureFormat;
 
         _colorData = colorData;
         Count = (ulong)_colorData.Length;

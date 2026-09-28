@@ -44,7 +44,8 @@ public sealed class TextureProvider(IContentManifest manifest, ILogger<TexturePr
                 contentId: contentId,
                 width: (uint)image.Width,
                 height: (uint)image.Height,
-                colorData: colors
+                colorData: colors,
+                textureFormat: ColorFormatEnum.RGBA8Srgb
             );
 
             _textures[contentId] = texture;

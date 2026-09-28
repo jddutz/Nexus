@@ -56,11 +56,6 @@ public interface IDrawable
     ITexture Texture { get; }
 
     /// <summary>
-    /// Gets the pixel format used to store and sample the drawable's texture.
-    /// </summary>
-    ColorFormatEnum TextureFormat { get; }
-
-    /// <summary>
     /// Gets the number of instances represented by the drawable.
     /// </summary>
     ulong InstanceCount { get; }

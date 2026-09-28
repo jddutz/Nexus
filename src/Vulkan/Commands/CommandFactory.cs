@@ -62,8 +62,6 @@ public unsafe class CommandFactory(
         if (drawable.FragmentShader is null)
             throw new InvalidOperationException("Drawables must define a fragment shader.");
 
-        var textureFormat = drawable.TextureFormat;
-
         if (_allocations.ContainsKey(drawable.Id))
             throw new InvalidOperationException(
                 $"Drawable '{drawable.Id}' already has a Vulkan allocation."
@@ -84,13 +82,12 @@ public unsafe class CommandFactory(
             allocation.InstanceLayout = vertexShader.InstanceLayout;
         }
 
-        foreach (var command in imageRegistry.Create(drawable.Texture, textureFormat))
+        foreach (var command in imageRegistry.Create(drawable.Texture))
         {
             yield return command;
         }
 
         allocation.Texture = drawable.Texture;
-        allocation.TextureFormat = textureFormat;
 
         var pipelineDefinition = CreatePipelineDefinition(drawable, renderPassMask, vertexShader);
 
@@ -186,7 +183,7 @@ public unsafe class CommandFactory(
                         descriptorSetPool.WriteCombinedImageSampler(
                             descriptorSet,
                             binding.Binding,
-                            imageRegistry.Get(drawable.Texture, textureFormat),
+                            imageRegistry.Get(drawable.Texture),
                             samplerRegistry.Get(drawable.SamplingBehavior.Id)
                         );
                         break;
@@ -780,20 +777,20 @@ public unsafe class CommandFactory(
         if (drawable.FragmentShader is null)
             throw new InvalidOperationException("Drawables must define a fragment shader.");
 
-        var textureFormat = drawable.TextureFormat;
         var uploadCommands = new List<IVulkanCommand>();
 
-        if (texture.Id == allocation.Texture.Id && textureFormat == allocation.TextureFormat)
+        if (
+            texture.Id == allocation.Texture.Id
+            && texture.TextureFormat == allocation.Texture.TextureFormat
+        )
         {
             if (!ReferenceEquals(texture, allocation.Texture))
-                uploadCommands.AddRange(imageRegistry.Update(texture, textureFormat));
+                uploadCommands.AddRange(imageRegistry.Update(texture));
         }
         else
         {
-            uploadCommands.AddRange(imageRegistry.Create(texture, textureFormat));
-            uploadCommands.AddRange(
-                imageRegistry.Release(allocation.Texture, allocation.TextureFormat)
-            );
+            uploadCommands.AddRange(imageRegistry.Create(texture));
+            uploadCommands.AddRange(imageRegistry.Release(allocation.Texture));
         }
 
         var samplingBehavior = drawable.SamplingBehavior;
@@ -813,13 +810,12 @@ public unsafe class CommandFactory(
             descriptorSetPool.WriteCombinedImageSampler(
                 binding.DescriptorSet,
                 binding.Binding,
-                imageRegistry.Get(texture, textureFormat),
+                imageRegistry.Get(texture),
                 samplerRegistry.Get(samplingBehavior.Id)
             );
         }
 
         allocation.Texture = texture;
-        allocation.TextureFormat = textureFormat;
         return uploadCommands;
     }
 
@@ -866,7 +862,6 @@ public unsafe class CommandFactory(
         if (drawable.FragmentShader is null)
             throw new InvalidOperationException("Drawables must define a fragment shader.");
 
-        var textureFormat = drawable.TextureFormat;
         var pipelineDefinition = CreatePipelineDefinition(
             drawable,
             RenderPasses.Main,
@@ -915,21 +910,13 @@ public unsafe class CommandFactory(
                 allocation.InstanceLayout
             );
 
-        var uploadCommands = new List<IVulkanCommand>();
-        if (textureFormat != allocation.TextureFormat)
-        {
-            uploadCommands.AddRange(imageRegistry.Create(allocation.Texture, textureFormat));
-            imageRegistry.Release(allocation.Texture, allocation.TextureFormat);
-            allocation.TextureFormat = textureFormat;
-        }
-
         UpdateUniformData(drawable);
         foreach (var binding in allocation.ImageSamplerBindings)
         {
             descriptorSetPool.WriteCombinedImageSampler(
                 binding.DescriptorSet,
                 binding.Binding,
-                imageRegistry.Get(allocation.Texture, allocation.TextureFormat),
+                imageRegistry.Get(allocation.Texture),
                 samplerRegistry.Get(binding.SamplingBehavior.Id)
             );
         }
@@ -937,7 +924,7 @@ public unsafe class CommandFactory(
         if (oldPipelineId != allocation.PipelineId)
             pipelineRegistry.Release(oldPipelineId);
 
-        return uploadCommands.Concat(RebuildCommands(allocation));
+        return RebuildCommands(allocation);
     }
 
     /// <inheritdoc />
@@ -962,7 +949,7 @@ public unsafe class CommandFactory(
             instanceBufferRegistry.Release(drawable.Id);
 
         vertexBufferRegistry.Release(allocation.Mesh, allocation.VertexFormat);
-        return imageRegistry.Release(allocation.Texture, allocation.TextureFormat);
+        return imageRegistry.Release(allocation.Texture);
     }
 
     /// <param name="drawable">The drawable whose allocation is required.</param>
@@ -1140,7 +1127,6 @@ public unsafe class CommandFactory(
         public VertexShader VertexShader = null!;
         public ShaderInput[]? InstanceLayout;
         public ITexture Texture = null!;
-        public ColorFormatEnum TextureFormat;
         public PipelineId PipelineId;
         public Pipeline Pipeline;
         public PipelineLayout PipelineLayout;

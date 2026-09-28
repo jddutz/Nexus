@@ -12,7 +12,6 @@ public class TextureComponent : Nexus.Core.Component, IGraphicsComponent, IDrawa
 
     private ulong _renderLayerMask = 1;
     private Texture? _texture;
-    private ColorFormatEnum _textureFormat = ColorFormatEnum.RGBA8UNorm;
     private Vector2D<float> _size = new(1f, 1f);
     private Matrix4X4<float> _transformationMatrix = Matrix4X4<float>.Identity;
     private Vector4D<float> _texCoord = new(0f, 0f, 1f, 1f);
@@ -58,9 +57,6 @@ public class TextureComponent : Nexus.Core.Component, IGraphicsComponent, IDrawa
 
     /// <inheritdoc />
     ITexture IDrawable.Texture => _texture ?? global::Nexus.Graphics.Textures.Texture.Invalid;
-
-    /// <inheritdoc />
-    ColorFormatEnum IDrawable.TextureFormat => TextureFormat;
 
     /// <inheritdoc />
     ulong IDrawable.InstanceCount => checked((ulong)InstanceCount);
@@ -128,17 +124,6 @@ public class TextureComponent : Nexus.Core.Component, IGraphicsComponent, IDrawa
         {
             ValidateTextureInput(value, TexCoord);
             if (SetProperty(ref _texture, value))
-                TextureChanged?.Invoke(this, EventArgs.Empty);
-        }
-    }
-
-    /// <summary>Gets or sets the storage and sampling format of the texture.</summary>
-    public ColorFormatEnum TextureFormat
-    {
-        get => _textureFormat;
-        set
-        {
-            if (SetProperty(ref _textureFormat, value))
                 TextureChanged?.Invoke(this, EventArgs.Empty);
         }
     }

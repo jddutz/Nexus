@@ -1,5 +1,5 @@
 using Nexus.Graphics;
-using Nexus.Graphics.Components;
+using Nexus.Graphics.Textures;
 using Nexus.Graphics.Vulkan;
 using Silk.NET.Vulkan;
 
@@ -10,12 +10,18 @@ public sealed class TextureFormatTests
 {
     /// <summary>Verifies RGBA sRGB texture data retains the source channel bytes.</summary>
     [Fact]
-    public void Rgba8_srgb_preserves_source_bytes()
+    public void Rgba8_srgb_texture_write_preserves_source_bytes()
     {
-        var color = new Color(6, 14, 29);
+        var texture = new Texture(
+            "source",
+            1,
+            1,
+            [new Color(6, 14, 29)],
+            ColorFormatEnum.RGBA8Srgb
+        );
         Span<byte> bytes = stackalloc byte[4];
 
-        color.WriteColorData(ColorFormatEnum.RGBA8Srgb, bytes);
+        texture.WriteTo(0, 1, texture.TextureFormat, bytes);
 
         Assert.Equal(new byte[] { 6, 14, 29, 255 }, bytes.ToArray());
     }
@@ -27,19 +33,12 @@ public sealed class TextureFormatTests
         Assert.Equal(Format.R8G8B8A8Srgb, ColorFormatEnum.RGBA8Srgb.ToVulkanFormat());
     }
 
-    /// <summary>Verifies texture components remain UNorm unless explicitly configured otherwise.</summary>
+    /// <summary>Verifies generated textures default to linear UNorm sampling.</summary>
     [Fact]
-    public void Texture_component_texture_format_defaults_to_unorm_and_is_changeable()
+    public void Texture_format_defaults_to_unorm()
     {
-        var component = new TextureComponent();
-        var textureChanged = 0;
-        component.TextureChanged += (_, _) => textureChanged++;
+        var texture = new Texture("generated", 1, 1, [Colors.White]);
 
-        Assert.Equal(ColorFormatEnum.RGBA8UNorm, ((IDrawable)component).TextureFormat);
-
-        component.TextureFormat = ColorFormatEnum.RGBA8Srgb;
-
-        Assert.Equal(ColorFormatEnum.RGBA8Srgb, ((IDrawable)component).TextureFormat);
-        Assert.Equal(1, textureChanged);
+        Assert.Equal(ColorFormatEnum.RGBA8UNorm, texture.TextureFormat);
     }
 }

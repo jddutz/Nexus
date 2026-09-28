@@ -316,10 +316,11 @@ public unsafe class ImageRegistry : IImageRegistry
     }
 
     /// <inheritdoc/>
-    public IEnumerable<IVulkanCommand> Create(ITexture texture, ColorFormatEnum format)
+    public IEnumerable<IVulkanCommand> Create(ITexture texture)
     {
         ArgumentNullException.ThrowIfNull(texture);
 
+        var format = texture.TextureFormat;
         var id = ComputeImageId(texture.Id, format);
 
         if (_images.TryGetValue(id, out var image))
@@ -407,10 +408,11 @@ public unsafe class ImageRegistry : IImageRegistry
     }
 
     /// <inheritdoc/>
-    public VkImageView Get(ITexture texture, ColorFormatEnum format)
+    public VkImageView Get(ITexture texture)
     {
         ArgumentNullException.ThrowIfNull(texture);
 
+        var format = texture.TextureFormat;
         var imageId = ComputeImageId(texture.Id, format);
 
         if (!_images.TryGetValue(imageId, out var image))
@@ -447,13 +449,14 @@ public unsafe class ImageRegistry : IImageRegistry
     }
 
     /// <inheritdoc/>
-    public IEnumerable<IVulkanCommand> Update(ITexture texture, ColorFormatEnum format)
+    public IEnumerable<IVulkanCommand> Update(ITexture texture)
     {
         ArgumentNullException.ThrowIfNull(texture);
 
+        var format = texture.TextureFormat;
         var id = ComputeImageId(texture.Id, format);
         if (!_images.TryGetValue(id, out var image))
-            return Create(texture, format);
+            return Create(texture);
 
         var data = new byte[checked((int)(texture.Count * (ulong)format.GetBytesPerPixel()))];
         texture.WriteTo(0, texture.Count, format, data);
@@ -483,10 +486,11 @@ public unsafe class ImageRegistry : IImageRegistry
     }
 
     /// <inheritdoc/>
-    public IEnumerable<IVulkanCommand> Release(ITexture texture, ColorFormatEnum format)
+    public IEnumerable<IVulkanCommand> Release(ITexture texture)
     {
         ArgumentNullException.ThrowIfNull(texture);
 
+        var format = texture.TextureFormat;
         var id = ComputeImageId(texture.Id, format);
 
         if (!_images.TryGetValue(id, out var image))
