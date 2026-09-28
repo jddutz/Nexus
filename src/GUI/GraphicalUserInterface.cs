@@ -96,7 +96,10 @@ public sealed class GraphicalUserInterface(IEventHub eventHub, IWindowService? w
         foreach (var element in EnumerateElements(gameObjects))
         {
             if (element.IsActive && _subscribedElements.Add(element))
+            {
                 element.PropertyChanged += OnElementPropertyChanged;
+                element.InputMap.Register(_eventHub);
+            }
         }
     }
 
@@ -109,7 +112,10 @@ public sealed class GraphicalUserInterface(IEventHub eventHub, IWindowService? w
         foreach (var element in elements)
         {
             if (_subscribedElements.Remove(element))
+            {
                 element.PropertyChanged -= OnElementPropertyChanged;
+                element.InputMap.Unregister(_eventHub);
+            }
         }
     }
 

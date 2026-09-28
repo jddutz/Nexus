@@ -17,7 +17,7 @@ public sealed class InputSystem : IInputSystem, IDisposable
     private readonly Dictionary<InputDeviceId, IController> _controllers = [];
     private readonly List<IController> _controllerList = [];
     private readonly ReadOnlyCollection<IController> _controllerView;
-    private SceneInputMap? _currentMap;
+    private InputMap? _currentMap;
     private bool _initialized;
     private bool _disposed;
 
@@ -25,7 +25,7 @@ public sealed class InputSystem : IInputSystem, IDisposable
     /// Gets or sets the scene input map that receives dispatched keyboard events.
     /// </summary>
     /// <exception cref="ObjectDisposedException">The input system has been disposed.</exception>
-    public SceneInputMap? CurrentMap
+    public InputMap? CurrentMap
     {
         get => _currentMap;
         set

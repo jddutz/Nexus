@@ -45,7 +45,7 @@ internal static class Program
             {
                 var eventHub = serviceProvider.GetRequiredService<IEventHub>();
                 var windowService = serviceProvider.GetRequiredService<IWindowService>();
-                var inputMap = new SceneInputMap(eventHub);
+                var inputMap = new InputMap(eventHub);
                 var window = windowService.GetMainWindow();
                 eventHub.Register(new ControllerDiagnostics());
                 inputMap.OnKeyPressed(KeyEnum.Escape).Invoke(() => window.Close());
@@ -93,7 +93,7 @@ internal static class Program
         IContentManifest contentManifest,
         IFontBuilder fontBuilder,
         IContentProvider<Texture> textureProvider,
-        SceneInputMap inputMap
+        InputMap inputMap
     )
     {
         var mainWindow = windowService.GetMainWindow();

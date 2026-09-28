@@ -1,4 +1,5 @@
 using Nexus.Core;
+using Nexus.Input;
 
 namespace Nexus.GUI;
 
@@ -19,6 +20,7 @@ public class Element(
     private float? _height = height;
     private float? _width = width;
     private Rectangle<float> _bounds;
+    private InputMap? _inputMap;
 
     /// <summary>
     /// Gets or sets the element's height.
@@ -46,6 +48,17 @@ public class Element(
         get => _bounds;
         set => SetProperty(ref _bounds, value);
     }
+
+    /// <summary>Gets the input bindings associated with this element.</summary>
+    public InputMap InputMap =>
+        _inputMap ??= new InputMap(hitTest: position =>
+            Bounds.Size.X > 0f
+            && Bounds.Size.Y > 0f
+            && position.X >= Bounds.Origin.X
+            && position.X < Bounds.Max.X
+            && position.Y >= Bounds.Origin.Y
+            && position.Y < Bounds.Max.Y
+        );
 
     private MeasurementRule _measurementRule = measure ?? MeasurementRules.Default;
 

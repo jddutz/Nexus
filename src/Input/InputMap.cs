@@ -3,11 +3,12 @@ namespace Nexus.Input;
 using Nexus.Input.Events;
 
 /// <summary>
-/// Translates keyboard events into callbacks configured for a scene.
+/// Translates global input events into callbacks configured for a scene or GUI element.
 /// </summary>
-public sealed class SceneInputMap
+public sealed class InputMap
 {
-    private readonly IEventHub _eventHub;
+    private IEventHub? _eventHub;
+    private readonly Func<Vector2D<float>, bool>? _hitTest;
     private readonly Dictionary<KeyEnum, List<Action>> _keyPressedBindings = [];
     private readonly Dictionary<KeyEnum, List<Action>> _keyReleasedBindings = [];
     private readonly Dictionary<MouseButtonEnum, List<Action>> _mousePressedBindings = [];
@@ -27,16 +28,56 @@ public sealed class SceneInputMap
     > _controllerAnalogBindings = [];
 
     /// <summary>
-    /// Initializes a scene input map that publishes raised events through the specified event hub.
+    /// Initializes an input map with an optional event hub and mouse hit test.
     /// </summary>
     /// <param name="eventHub">The event hub used to publish events raised by bindings.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="eventHub"/> is <see langword="null"/>.</exception>
-    public SceneInputMap(IEventHub eventHub)
+    /// <param name="hitTest">Determines whether a mouse position is handled by this map.</param>
+    public InputMap(IEventHub? eventHub = null, Func<Vector2D<float>, bool>? hitTest = null)
+    {
+        _eventHub = eventHub;
+        _hitTest = hitTest;
+    }
+
+    /// <summary>Registers this map with an event hub and associates it with that hub.</summary>
+    /// <param name="eventHub">The event hub that dispatches global input events.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="eventHub"/> is null.</exception>
+    /// <exception cref="InvalidOperationException">The map is already associated with another event hub.</exception>
+    public void Register(IEventHub eventHub)
     {
         ArgumentNullException.ThrowIfNull(eventHub);
+        if (_eventHub is not null && !ReferenceEquals(_eventHub, eventHub))
+            throw new InvalidOperationException(
+                "The input map is already associated with another event hub."
+            );
 
         _eventHub = eventHub;
+        eventHub.Register(this);
     }
+
+    /// <summary>Unregisters this map from an event hub.</summary>
+    /// <param name="eventHub">The event hub from which to unregister.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="eventHub"/> is null.</exception>
+    public void Unregister(IEventHub eventHub)
+    {
+        ArgumentNullException.ThrowIfNull(eventHub);
+        eventHub.Unregister(this);
+        if (ReferenceEquals(_eventHub, eventHub))
+            _eventHub = null;
+    }
+
+    /// <summary>Gets the event hub used by event-producing bindings.</summary>
+    /// <exception cref="InvalidOperationException">The input map has not been registered with an event hub.</exception>
+    private IEventHub EventHub =>
+        _eventHub
+        ?? throw new InvalidOperationException(
+            "The input map must be registered with an event hub before it can raise events."
+        );
+
+    /// <summary>Checks whether the mouse position belongs to this map's target.</summary>
+    /// <param name="position">The position from a mouse input event.</param>
+    /// <returns>True when there is no hit test or the hit test accepts the position.</returns>
+    private bool ContainsMousePosition(Vector2D<float> position) =>
+        _hitTest is null || _hitTest(position);
 
     /// <summary>
     /// Gets or sets whether this map suppresses scene input events from global input events.
@@ -171,7 +212,7 @@ public sealed class SceneInputMap
     /// <param name="message">The mouse-button press event to handle.</param>
     public void Handle(MouseButtonPressedEvent message)
     {
-        if (!SuppressSceneInputEvents)
+        if (!SuppressSceneInputEvents && ContainsMousePosition(message.Position))
             Dispatch(_mousePressedBindings, message.Button);
     }
 
@@ -181,7 +222,7 @@ public sealed class SceneInputMap
     /// <param name="message">The mouse-button release event to handle.</param>
     public void Handle(MouseButtonReleasedEvent message)
     {
-        if (!SuppressSceneInputEvents)
+        if (!SuppressSceneInputEvents && ContainsMousePosition(message.Position))
             Dispatch(_mouseReleasedBindings, message.Button);
     }
 
@@ -191,7 +232,7 @@ public sealed class SceneInputMap
     /// <param name="message">The mouse-wheel event to handle.</param>
     public void Handle(MouseWheelEvent message)
     {
-        if (SuppressSceneInputEvents)
+        if (SuppressSceneInputEvents || !ContainsMousePosition(message.Position))
             return;
 
         foreach (var callback in _mouseWheelBindings.ToArray())
@@ -330,7 +371,7 @@ public sealed class SceneInputMap
     /// </summary>
     public sealed class KeyBinding
     {
-        private readonly SceneInputMap _inputMap;
+        private readonly InputMap _inputMap;
         private readonly Dictionary<KeyEnum, List<Action>> _bindings;
         private readonly KeyEnum _key;
 
@@ -341,7 +382,7 @@ public sealed class SceneInputMap
         /// <param name="bindings">The press or release bindings.</param>
         /// <param name="key">The key being configured.</param>
         internal KeyBinding(
-            SceneInputMap inputMap,
+            InputMap inputMap,
             Dictionary<KeyEnum, List<Action>> bindings,
             KeyEnum key
         )
@@ -357,7 +398,7 @@ public sealed class SceneInputMap
         /// <param name="callback">The callback to invoke.</param>
         /// <returns>The owning input map.</returns>
         /// <exception cref="ArgumentNullException"><paramref name="callback"/> is <see langword="null"/>.</exception>
-        public SceneInputMap Invoke(Action callback)
+        public InputMap Invoke(Action callback)
         {
             ArgumentNullException.ThrowIfNull(callback);
 
@@ -370,8 +411,8 @@ public sealed class SceneInputMap
         /// </summary>
         /// <typeparam name="TEvent">The event type to publish.</typeparam>
         /// <returns>The owning input map.</returns>
-        public SceneInputMap Raise<TEvent>()
-            where TEvent : IEvent, new() => Invoke(() => _inputMap._eventHub.Publish(new TEvent()));
+        public InputMap Raise<TEvent>()
+            where TEvent : IEvent, new() => Invoke(() => _inputMap.EventHub.Publish(new TEvent()));
 
         /// <summary>
         /// Adds an effect that creates and publishes an event whenever this binding matches.
@@ -380,7 +421,7 @@ public sealed class SceneInputMap
         /// <param name="factory">Creates the event to publish.</param>
         /// <returns>The owning input map.</returns>
         /// <exception cref="ArgumentNullException"><paramref name="factory"/> is <see langword="null"/>.</exception>
-        public SceneInputMap Raise<TEvent>(Func<TEvent> factory)
+        public InputMap Raise<TEvent>(Func<TEvent> factory)
             where TEvent : IEvent
         {
             ArgumentNullException.ThrowIfNull(factory);
@@ -389,7 +430,7 @@ public sealed class SceneInputMap
             {
                 var @event = factory();
                 if (@event is not null)
-                    _inputMap._eventHub.Publish(@event);
+                    _inputMap.EventHub.Publish(@event);
             });
         }
 
@@ -399,7 +440,7 @@ public sealed class SceneInputMap
         /// <param name="action">The action to execute.</param>
         /// <returns>The owning input map.</returns>
         /// <exception cref="ArgumentNullException"><paramref name="action"/> is <see langword="null"/>.</exception>
-        public SceneInputMap Execute(IGameInputAction action)
+        public InputMap Execute(IGameInputAction action)
         {
             ArgumentNullException.ThrowIfNull(action);
 
@@ -412,7 +453,7 @@ public sealed class SceneInputMap
     /// </summary>
     public sealed class MouseButtonBinding
     {
-        private readonly SceneInputMap _inputMap;
+        private readonly InputMap _inputMap;
         private readonly Dictionary<MouseButtonEnum, List<Action>> _bindings;
         private readonly MouseButtonEnum _button;
 
@@ -423,7 +464,7 @@ public sealed class SceneInputMap
         /// <param name="bindings">The press or release bindings.</param>
         /// <param name="button">The button being configured.</param>
         internal MouseButtonBinding(
-            SceneInputMap inputMap,
+            InputMap inputMap,
             Dictionary<MouseButtonEnum, List<Action>> bindings,
             MouseButtonEnum button
         )
@@ -439,7 +480,7 @@ public sealed class SceneInputMap
         /// <param name="callback">The callback to invoke.</param>
         /// <returns>The owning input map.</returns>
         /// <exception cref="ArgumentNullException"><paramref name="callback"/> is <see langword="null"/>.</exception>
-        public SceneInputMap Invoke(Action callback)
+        public InputMap Invoke(Action callback)
         {
             ArgumentNullException.ThrowIfNull(callback);
             _inputMap.AddBinding(_bindings, _button, callback);
@@ -451,8 +492,8 @@ public sealed class SceneInputMap
         /// </summary>
         /// <typeparam name="TEvent">The event type to publish.</typeparam>
         /// <returns>The owning input map.</returns>
-        public SceneInputMap Raise<TEvent>()
-            where TEvent : IEvent, new() => Invoke(() => _inputMap._eventHub.Publish(new TEvent()));
+        public InputMap Raise<TEvent>()
+            where TEvent : IEvent, new() => Invoke(() => _inputMap.EventHub.Publish(new TEvent()));
 
         /// <summary>
         /// Adds an effect that creates and publishes an event whenever this binding matches.
@@ -461,7 +502,7 @@ public sealed class SceneInputMap
         /// <param name="factory">Creates the event to publish.</param>
         /// <returns>The owning input map.</returns>
         /// <exception cref="ArgumentNullException"><paramref name="factory"/> is <see langword="null"/>.</exception>
-        public SceneInputMap Raise<TEvent>(Func<TEvent> factory)
+        public InputMap Raise<TEvent>(Func<TEvent> factory)
             where TEvent : IEvent
         {
             ArgumentNullException.ThrowIfNull(factory);
@@ -470,7 +511,7 @@ public sealed class SceneInputMap
             {
                 var @event = factory();
                 if (@event is not null)
-                    _inputMap._eventHub.Publish(@event);
+                    _inputMap.EventHub.Publish(@event);
             });
         }
 
@@ -480,7 +521,7 @@ public sealed class SceneInputMap
         /// <param name="action">The action to execute.</param>
         /// <returns>The owning input map.</returns>
         /// <exception cref="ArgumentNullException"><paramref name="action"/> is <see langword="null"/>.</exception>
-        public SceneInputMap Execute(IGameInputAction action)
+        public InputMap Execute(IGameInputAction action)
         {
             ArgumentNullException.ThrowIfNull(action);
             return Invoke(action.Execute);
@@ -492,13 +533,13 @@ public sealed class SceneInputMap
     /// </summary>
     public sealed class MouseWheelBinding
     {
-        private readonly SceneInputMap _inputMap;
+        private readonly InputMap _inputMap;
 
         /// <summary>
         /// Initializes a mouse-wheel binding builder.
         /// </summary>
         /// <param name="inputMap">The owning input map.</param>
-        internal MouseWheelBinding(SceneInputMap inputMap)
+        internal MouseWheelBinding(InputMap inputMap)
         {
             _inputMap = inputMap;
         }
@@ -509,7 +550,7 @@ public sealed class SceneInputMap
         /// <param name="callback">The callback to invoke.</param>
         /// <returns>The owning input map.</returns>
         /// <exception cref="ArgumentNullException"><paramref name="callback"/> is <see langword="null"/>.</exception>
-        public SceneInputMap Invoke(Action callback)
+        public InputMap Invoke(Action callback)
         {
             ArgumentNullException.ThrowIfNull(callback);
             _inputMap.AddWheelBinding(callback);
@@ -521,8 +562,8 @@ public sealed class SceneInputMap
         /// </summary>
         /// <typeparam name="TEvent">The event type to publish.</typeparam>
         /// <returns>The owning input map.</returns>
-        public SceneInputMap Raise<TEvent>()
-            where TEvent : IEvent, new() => Invoke(() => _inputMap._eventHub.Publish(new TEvent()));
+        public InputMap Raise<TEvent>()
+            where TEvent : IEvent, new() => Invoke(() => _inputMap.EventHub.Publish(new TEvent()));
 
         /// <summary>
         /// Adds an effect that creates and publishes an event whenever the mouse wheel moves.
@@ -531,7 +572,7 @@ public sealed class SceneInputMap
         /// <param name="factory">Creates the event to publish.</param>
         /// <returns>The owning input map.</returns>
         /// <exception cref="ArgumentNullException"><paramref name="factory"/> is <see langword="null"/>.</exception>
-        public SceneInputMap Raise<TEvent>(Func<TEvent> factory)
+        public InputMap Raise<TEvent>(Func<TEvent> factory)
             where TEvent : IEvent
         {
             ArgumentNullException.ThrowIfNull(factory);
@@ -540,7 +581,7 @@ public sealed class SceneInputMap
             {
                 var @event = factory();
                 if (@event is not null)
-                    _inputMap._eventHub.Publish(@event);
+                    _inputMap.EventHub.Publish(@event);
             });
         }
 
@@ -550,7 +591,7 @@ public sealed class SceneInputMap
         /// <param name="action">The action to execute.</param>
         /// <returns>The owning input map.</returns>
         /// <exception cref="ArgumentNullException"><paramref name="action"/> is <see langword="null"/>.</exception>
-        public SceneInputMap Execute(IGameInputAction action)
+        public InputMap Execute(IGameInputAction action)
         {
             ArgumentNullException.ThrowIfNull(action);
             return Invoke(action.Execute);
@@ -560,7 +601,7 @@ public sealed class SceneInputMap
     /// <summary>Configures effects for one controller button press or release.</summary>
     public sealed class ControllerButtonBinding
     {
-        private readonly SceneInputMap _inputMap;
+        private readonly InputMap _inputMap;
         private readonly Dictionary<
             (InputDeviceId? ControllerId, int ButtonIndex),
             List<Action>
@@ -574,7 +615,7 @@ public sealed class SceneInputMap
         /// <param name="controllerId">The selected controller, or null for any controller.</param>
         /// <param name="buttonIndex">The selected controller-local button index.</param>
         internal ControllerButtonBinding(
-            SceneInputMap inputMap,
+            InputMap inputMap,
             Dictionary<(InputDeviceId? ControllerId, int ButtonIndex), List<Action>> bindings,
             InputDeviceId? controllerId,
             int buttonIndex
@@ -589,7 +630,7 @@ public sealed class SceneInputMap
         /// <summary>Adds a callback to invoke when this binding matches.</summary>
         /// <param name="callback">The callback to invoke.</param>
         /// <returns>The owning input map.</returns>
-        public SceneInputMap Invoke(Action callback)
+        public InputMap Invoke(Action callback)
         {
             ArgumentNullException.ThrowIfNull(callback);
             _inputMap.AddBinding(_bindings, (_controllerId, _buttonIndex), callback);
@@ -599,14 +640,14 @@ public sealed class SceneInputMap
         /// <summary>Adds an effect that publishes a new event instance when this binding matches.</summary>
         /// <typeparam name="TEvent">The event type to publish.</typeparam>
         /// <returns>The owning input map.</returns>
-        public SceneInputMap Raise<TEvent>()
-            where TEvent : IEvent, new() => Invoke(() => _inputMap._eventHub.Publish(new TEvent()));
+        public InputMap Raise<TEvent>()
+            where TEvent : IEvent, new() => Invoke(() => _inputMap.EventHub.Publish(new TEvent()));
 
         /// <summary>Adds an effect that creates and publishes an event when this binding matches.</summary>
         /// <typeparam name="TEvent">The event type to publish.</typeparam>
         /// <param name="factory">Creates the event to publish.</param>
         /// <returns>The owning input map.</returns>
-        public SceneInputMap Raise<TEvent>(Func<TEvent> factory)
+        public InputMap Raise<TEvent>(Func<TEvent> factory)
             where TEvent : IEvent
         {
             ArgumentNullException.ThrowIfNull(factory);
@@ -614,14 +655,14 @@ public sealed class SceneInputMap
             {
                 var @event = factory();
                 if (@event is not null)
-                    _inputMap._eventHub.Publish(@event);
+                    _inputMap.EventHub.Publish(@event);
             });
         }
 
         /// <summary>Adds an effect that executes a game input action when this binding matches.</summary>
         /// <param name="action">The action to execute.</param>
         /// <returns>The owning input map.</returns>
-        public SceneInputMap Execute(IGameInputAction action)
+        public InputMap Execute(IGameInputAction action)
         {
             ArgumentNullException.ThrowIfNull(action);
             return Invoke(action.Execute);
@@ -631,7 +672,7 @@ public sealed class SceneInputMap
     /// <summary>Configures effects for one controller analog input change.</summary>
     public sealed class ControllerAnalogBinding
     {
-        private readonly SceneInputMap _inputMap;
+        private readonly InputMap _inputMap;
         private readonly Dictionary<
             (InputDeviceId? ControllerId, int AnalogInputIndex),
             List<Action<ControllerAnalogChangedEvent>>
@@ -645,7 +686,7 @@ public sealed class SceneInputMap
         /// <param name="controllerId">The selected controller, or null for any controller.</param>
         /// <param name="analogInputIndex">The selected controller-local analog index.</param>
         internal ControllerAnalogBinding(
-            SceneInputMap inputMap,
+            InputMap inputMap,
             Dictionary<
                 (InputDeviceId? ControllerId, int AnalogInputIndex),
                 List<Action<ControllerAnalogChangedEvent>>
@@ -663,7 +704,7 @@ public sealed class SceneInputMap
         /// <summary>Adds a callback that receives the captured analog-change event.</summary>
         /// <param name="callback">The callback to invoke.</param>
         /// <returns>The owning input map.</returns>
-        public SceneInputMap Invoke(Action<ControllerAnalogChangedEvent> callback)
+        public InputMap Invoke(Action<ControllerAnalogChangedEvent> callback)
         {
             ArgumentNullException.ThrowIfNull(callback);
             _inputMap.AddBinding(_bindings, (_controllerId, _analogInputIndex), callback);
@@ -673,14 +714,14 @@ public sealed class SceneInputMap
         /// <summary>Adds an effect that publishes a new event instance when this binding matches.</summary>
         /// <typeparam name="TEvent">The event type to publish.</typeparam>
         /// <returns>The owning input map.</returns>
-        public SceneInputMap Raise<TEvent>()
-            where TEvent : IEvent, new() => Invoke(_ => _inputMap._eventHub.Publish(new TEvent()));
+        public InputMap Raise<TEvent>()
+            where TEvent : IEvent, new() => Invoke(_ => _inputMap.EventHub.Publish(new TEvent()));
 
         /// <summary>Adds an effect that creates and publishes an event when this binding matches.</summary>
         /// <typeparam name="TEvent">The event type to publish.</typeparam>
         /// <param name="factory">Creates the event to publish.</param>
         /// <returns>The owning input map.</returns>
-        public SceneInputMap Raise<TEvent>(Func<TEvent> factory)
+        public InputMap Raise<TEvent>(Func<TEvent> factory)
             where TEvent : IEvent
         {
             ArgumentNullException.ThrowIfNull(factory);
@@ -688,14 +729,14 @@ public sealed class SceneInputMap
             {
                 var @event = factory();
                 if (@event is not null)
-                    _inputMap._eventHub.Publish(@event);
+                    _inputMap.EventHub.Publish(@event);
             });
         }
 
         /// <summary>Adds an effect that executes a game input action when this binding matches.</summary>
         /// <param name="action">The action to execute.</param>
         /// <returns>The owning input map.</returns>
-        public SceneInputMap Execute(IGameInputAction action)
+        public InputMap Execute(IGameInputAction action)
         {
             ArgumentNullException.ThrowIfNull(action);
             return Invoke(_ => action.Execute());

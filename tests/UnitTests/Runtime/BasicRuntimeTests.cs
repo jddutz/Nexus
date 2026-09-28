@@ -226,7 +226,7 @@ public class BasicRuntimeTests
     private sealed class NoOpInputSystem : IInputSystem
     {
         /// <summary>Gets or sets the current scene input map.</summary>
-        public SceneInputMap? CurrentMap { get; set; }
+        public InputMap? CurrentMap { get; set; }
 
         public IKeyboardInputState Keyboard { get; } = new KeyboardInputState();
 

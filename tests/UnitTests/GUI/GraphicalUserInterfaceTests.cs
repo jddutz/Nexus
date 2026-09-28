@@ -5,6 +5,8 @@ using Nexus.Game;
 using Nexus.Graphics;
 using Nexus.Graphics.Events;
 using Nexus.GUI;
+using Nexus.Input;
+using Nexus.Input.Events;
 using Silk.NET.Maths;
 using Silk.NET.Windowing;
 
@@ -114,6 +116,45 @@ public class GraphicalUserInterfaceTests
 
         Assert.Equal(4, layoutCount);
         Assert.Equal(1, childArrangementCount);
+    }
+
+    /// <summary>
+    /// Verifies active Element input maps are registered, hit-test mouse input, and unregister on deactivation.
+    /// </summary>
+    [Fact]
+    public void ElementInputMaps_registerByLifecycleAndHitTestMouseInput()
+    {
+        var eventHub = new EventHub();
+        var gui = new GraphicalUserInterface(eventHub);
+        var element = new Element { Bounds = new Rectangle<float>(new(10f, 20f), new(100f, 50f)) };
+        var pressCount = 0;
+        element.InputMap.OnMouseButtonPressed(MouseButtonEnum.Left).Invoke(() => pressCount++);
+
+        var scene = new Scene();
+        scene.AddChild(element);
+        scene.Activate();
+        gui.Initialize();
+        eventHub.Publish(new SceneLoadedEvent(scene));
+        eventHub.Drain();
+
+        eventHub.Publish(new MouseButtonPressedEvent(null!, MouseButtonEnum.Left, new(5f, 25f)));
+        eventHub.Publish(new MouseButtonPressedEvent(null!, MouseButtonEnum.Left, new(50f, 40f)));
+        eventHub.Drain();
+        Assert.Equal(1, pressCount);
+
+        element.Deactivate();
+        eventHub.Publish(new GameObjectDeactivatedEvent(element));
+        eventHub.Drain();
+        eventHub.Publish(new MouseButtonPressedEvent(null!, MouseButtonEnum.Left, new(50f, 40f)));
+        eventHub.Drain();
+        Assert.Equal(1, pressCount);
+
+        element.Activate();
+        eventHub.Publish(new GameObjectActivatedEvent(element));
+        eventHub.Drain();
+        eventHub.Publish(new MouseButtonPressedEvent(null!, MouseButtonEnum.Left, new(50f, 40f)));
+        eventHub.Drain();
+        Assert.Equal(2, pressCount);
     }
 
     /// <summary>

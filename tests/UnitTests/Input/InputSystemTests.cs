@@ -143,7 +143,7 @@ public class InputSystemTests
 
         var calls = new List<string>();
         var analogPositions = new List<Vector2D<float>>();
-        var map = new SceneInputMap(eventHub);
+        var map = new InputMap(eventHub);
         map.OnControllerButtonPressed(first.Id, 0).Invoke(() => calls.Add("first"));
         map.OnAnyControllerButtonPressed(0).Invoke(() => calls.Add("any"));
         map.OnControllerButtonReleased(second.Id, 0)
@@ -333,13 +333,13 @@ public class InputSystemTests
     /// Verifies mouse button and wheel bindings invoke configured actions.
     /// </summary>
     [Fact]
-    public void SceneInputMap_dispatchesMouseButtonAndWheelBindings()
+    public void InputMap_dispatchesMouseButtonAndWheelBindings()
     {
         var eventHub = new EventHub();
         var mouse = new FakeMouse(13);
         var inputSystem = new InputSystem(eventHub);
         var calls = new List<string>();
-        var map = new SceneInputMap(eventHub);
+        var map = new InputMap(eventHub);
         map.OnMouseButtonPressed(MouseButtonEnum.Left).Invoke(() => calls.Add("pressed"));
         map.OnMouseButtonReleased(MouseButtonEnum.Left)
             .Execute(new TestInputAction(() => calls.Add("released")));
@@ -359,14 +359,14 @@ public class InputSystemTests
     /// Verifies suppressing scene input events skips all bindings until suppression is cleared.
     /// </summary>
     [Fact]
-    public void SceneInputMap_suppressesGlobalInputEventProcessing()
+    public void InputMap_suppressesGlobalInputEventProcessing()
     {
         var eventHub = new EventHub();
         var keyboard = new FakeKeyboard(14);
         var mouse = new FakeMouse(15);
         var inputSystem = new InputSystem(eventHub);
         var calls = new List<string>();
-        var map = new SceneInputMap(eventHub) { SuppressSceneInputEvents = true };
+        var map = new InputMap(eventHub) { SuppressSceneInputEvents = true };
         map.OnKeyPressed(KeyEnum.A).Invoke(() => calls.Add("key pressed"));
         map.OnKeyReleased(KeyEnum.A).Invoke(() => calls.Add("key released"));
         map.OnMouseButtonPressed(MouseButtonEnum.Left).Invoke(() => calls.Add("button pressed"));
@@ -459,13 +459,13 @@ public class InputSystemTests
     /// Verifies press and release bindings execute in registration order only during dispatch.
     /// </summary>
     [Fact]
-    public void SceneInputMap_dispatchesMatchingBindingsInOrder()
+    public void InputMap_dispatchesMatchingBindingsInOrder()
     {
         var eventHub = new EventHub();
         var keyboard = new FakeKeyboard(7);
         var inputSystem = new InputSystem(eventHub);
         var calls = new List<string>();
-        var map = new SceneInputMap(eventHub);
+        var map = new InputMap(eventHub);
         map.OnKeyPressed(KeyEnum.Escape).Invoke(() => calls.Add("first"));
         map.OnKeyPressed(KeyEnum.Escape).Invoke(() => calls.Add("second"));
         map.OnKeyReleased(KeyEnum.Escape).Invoke(() => calls.Add("release"));
@@ -489,7 +489,7 @@ public class InputSystemTests
     /// Verifies event bindings create fresh events and defer their delivery to the next drain.
     /// </summary>
     [Fact]
-    public void SceneInputMap_raiseAndFactoryPublishOnFollowingDrain()
+    public void InputMap_raiseAndFactoryPublishOnFollowingDrain()
     {
         var eventHub = new EventHub();
         var keyboard = new FakeKeyboard(8);
@@ -497,7 +497,7 @@ public class InputSystemTests
         eventHub.Register(collector);
         var inputSystem = new InputSystem(eventHub);
         var factoryCalls = 0;
-        var map = new SceneInputMap(eventHub);
+        var map = new InputMap(eventHub);
         map.OnKeyPressed(KeyEnum.Escape).Raise<TestInputEvent>();
         map.OnKeyPressed(KeyEnum.A).Raise(() => new FactoryInputEvent(++factoryCalls));
         inputSystem.CurrentMap = map;
@@ -521,14 +521,14 @@ public class InputSystemTests
     /// Verifies actions execute once and a scene switch affects subsequent queued events.
     /// </summary>
     [Fact]
-    public void SceneInputMap_executesActionsAndSwitchesMapsDuringDrain()
+    public void InputMap_executesActionsAndSwitchesMapsDuringDrain()
     {
         var eventHub = new EventHub();
         var keyboard = new FakeKeyboard(9);
         var inputSystem = new InputSystem(eventHub);
         var calls = new List<string>();
-        var firstMap = new SceneInputMap(eventHub);
-        var secondMap = new SceneInputMap(eventHub);
+        var firstMap = new InputMap(eventHub);
+        var secondMap = new InputMap(eventHub);
         firstMap
             .OnKeyPressed(KeyEnum.Escape)
             .Execute(
@@ -564,7 +564,7 @@ public class InputSystemTests
         var keyboard = new FakeKeyboard(10);
         var inputSystem = new InputSystem(eventHub);
         var calls = 0;
-        var map = new SceneInputMap(eventHub);
+        var map = new InputMap(eventHub);
         map.OnKeyPressed(KeyEnum.Escape).Invoke(() => calls++);
         inputSystem.CurrentMap = map;
         inputSystem.CurrentMap = map;
@@ -589,7 +589,7 @@ public class InputSystemTests
         var keyboard = new FakeKeyboard(11);
         using var inputSystem = new InputSystem(eventHub);
         var calls = 0;
-        var firstMap = new SceneInputMap(eventHub);
+        var firstMap = new InputMap(eventHub);
         firstMap.OnKeyPressed(KeyEnum.Escape).Invoke(() => calls++);
         var firstScene = new Scene(inputSystem) { InputMap = firstMap };
 
@@ -599,7 +599,7 @@ public class InputSystemTests
         eventHub.Drain();
         Assert.Equal(1, calls);
 
-        var secondMap = new SceneInputMap(eventHub);
+        var secondMap = new InputMap(eventHub);
         var secondScene = new Scene(inputSystem) { InputMap = secondMap };
         secondScene.Activate();
         firstScene.Deactivate();

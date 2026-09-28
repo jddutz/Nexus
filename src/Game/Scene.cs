@@ -8,7 +8,7 @@ public class Scene : IScene
     private readonly List<IGameObject> _children = [];
     private IGameModel? _gameModel;
     private IInputSystem? _inputSystem;
-    private SceneInputMap? _inputMap;
+    private InputMap? _inputMap;
     private bool _isActive;
 
     /// <summary>
@@ -39,7 +39,7 @@ public class Scene : IScene
     /// <summary>
     /// Gets or sets the input map selected while this scene is active.
     /// </summary>
-    public SceneInputMap? InputMap
+    public InputMap? InputMap
     {
         get => _inputMap;
         set
