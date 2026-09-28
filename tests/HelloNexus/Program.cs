@@ -43,13 +43,14 @@ internal static class Program
                 var gameSystem = ActivatorUtilities.CreateInstance<GameSystem>(serviceProvider);
 
                 var sceneRegistry = serviceProvider.GetRequiredService<ISceneRegistry>();
-                var initialSceneId = (SceneId)gameSystem.Settings.InitialScene;
+                const string helloNexusSceneIdValue = "WelcomeScreen";
+                var helloNexusSceneId = (SceneId)helloNexusSceneIdValue;
                 var sceneFactory = ActivatorUtilities.CreateInstance<HelloNexusSceneFactory>(
                     serviceProvider
                 );
                 sceneRegistry.Register(
-                    initialSceneId,
-                    () => sceneFactory.Create(initialSceneId, gameSystem, inputMap)
+                    helloNexusSceneId,
+                    () => sceneFactory.Create(helloNexusSceneId, gameSystem, inputMap)
                 );
 
                 return gameSystem;

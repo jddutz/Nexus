@@ -26,9 +26,9 @@ public class GameSystem(
     public GameSettings Settings { get; } = gameSettings.Value;
 
     /// <summary>
-    /// Gets the configured initial scene after initialization.
+    /// Gets the configured initial scene after initialization, or <see langword="null"/> beforehand.
     /// </summary>
-    public IScene InitialScene { get; private set; } = new Scene();
+    public IScene? InitialScene { get; private set; }
 
     /// <summary>
     /// Gets the currently active scene.

@@ -49,6 +49,8 @@ public class GameSystemEventRegistrationTests
             new GameSettings { InitialScene = "WelcomeScreen" }
         );
 
+        Assert.Null(gameSystem.InitialScene);
+
         gameSystem.Initialize();
 
         Assert.Same(scene, gameSystem.InitialScene);

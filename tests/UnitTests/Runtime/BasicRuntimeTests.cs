@@ -214,7 +214,7 @@ public class BasicRuntimeTests
 
     private sealed class NoOpGameSystem : IGameSystem
     {
-        public IScene InitialScene { get; } = new Scene();
+        public IScene? InitialScene { get; }
 
         public IScene? CurrentScene => null;
 

@@ -11,10 +11,22 @@ public class SceneRegistry : ISceneRegistry
     public void Register(SceneId sceneId, Func<IScene> factory)
     {
         ArgumentNullException.ThrowIfNull(factory);
-        _sceneFactories[sceneId] = factory;
+        if (!_sceneFactories.TryAdd(sceneId, factory))
+            throw new ArgumentException(
+                $"A factory is already registered for scene '{sceneId}'.",
+                nameof(sceneId)
+            );
     }
 
     /// <inheritdoc/>
-    public IScene? Load(SceneId sceneId) =>
-        _sceneFactories.TryGetValue(sceneId, out var factory) ? factory() : null;
+    public IScene? Load(SceneId sceneId)
+    {
+        if (!_sceneFactories.TryGetValue(sceneId, out var factory))
+            return null;
+
+        return factory()
+            ?? throw new InvalidOperationException(
+                $"The factory for scene '{sceneId}' returned null."
+            );
+    }
 }
