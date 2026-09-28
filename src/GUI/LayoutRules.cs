@@ -1,4 +1,5 @@
 using System.Threading.Channels;
+using Nexus.Core;
 
 namespace Nexus.GUI;
 
@@ -47,9 +48,32 @@ public static class ArrangementRules
     {
         element.Bounds = bounds;
 
-        foreach (var child in element.Children.OfType<Element>().Where(child => child.IsActive))
-        {
+        foreach (var child in EnumerateActiveElementChildren(element.Children))
             child.Arrange(bounds);
+    }
+
+    /// <summary>
+    /// Finds the nearest active Element descendants, traversing ordinary active game objects.
+    /// </summary>
+    /// <param name="gameObjects">The child hierarchies to inspect.</param>
+    /// <returns>The effective Element children in hierarchy order.</returns>
+    private static IEnumerable<Element> EnumerateActiveElementChildren(
+        IEnumerable<IGameObject> gameObjects
+    )
+    {
+        foreach (var gameObject in gameObjects)
+        {
+            if (!gameObject.IsActive)
+                continue;
+
+            if (gameObject is Element element)
+            {
+                yield return element;
+                continue;
+            }
+
+            foreach (var child in EnumerateActiveElementChildren(gameObject.Children))
+                yield return child;
         }
     }
 }
