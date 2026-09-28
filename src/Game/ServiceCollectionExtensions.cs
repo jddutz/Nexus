@@ -1,5 +1,6 @@
 namespace Nexus.Game;
 
+using Microsoft.Extensions.Configuration;
 using Nexus.Assets.Fonts;
 
 /// <summary>
@@ -11,9 +12,17 @@ public static class ServiceCollectionExtensions
     /// Registers the game system and its default dependencies.
     /// </summary>
     /// <param name="services">The service collection to update.</param>
+    /// <param name="configuration">The application configuration.</param>
     /// <returns>The updated service collection.</returns>
-    public static IServiceCollection AddGameSystemServices(this IServiceCollection services)
+    public static IServiceCollection AddGameServices(
+        this IServiceCollection services,
+        IConfiguration configuration
+    )
     {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
+
+        services.AddOptions<GameSettings>().Bind(configuration.GetSection("Game"));
         services.TryAddSingleton<IFontBuilder, FontBuilder>();
         services.TryAddSingleton<IGameSystem, GameSystem>();
         services.TryAddSingleton<IGameModel>(serviceProvider =>

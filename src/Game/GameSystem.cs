@@ -3,21 +3,32 @@ namespace Nexus.Game;
 /// <summary>
 /// Provides the default implementation of the game system lifecycle.
 /// </summary>
+/// <param name="eventHub">The event hub used to register handlers and publish lifecycle events.</param>
+/// <param name="logger">The logger used for game-system diagnostics.</param>
+/// <param name="sceneRegistry">The registry used to load the configured initial scene.</param>
+/// <param name="gameSettings">The settings bound from the Game configuration section.</param>
+/// <param name="inputSystem">The optional input system assigned to active scenes.</param>
 public class GameSystem(
     IEventHub eventHub,
     ILogger<GameSystem> logger,
+    ISceneRegistry sceneRegistry,
+    IOptions<GameSettings> gameSettings,
     IInputSystem? inputSystem = null
 ) : IGameSystem, IGameModel
 {
     private readonly IEventHub _eventHub = eventHub;
     private readonly IInputSystem? _inputSystem = inputSystem;
     private readonly ILogger<GameSystem> _logger = logger;
+    private readonly ISceneRegistry _sceneRegistry = sceneRegistry;
     private readonly Dictionary<GameObjectId, IGameObject> _gameObjects = [];
 
+    /// <summary>Gets the settings bound to the Game configuration section.</summary>
+    public GameSettings Settings { get; } = gameSettings.Value;
+
     /// <summary>
-    /// Gets or sets the scene activated when the game starts.
+    /// Gets the configured initial scene after initialization.
     /// </summary>
-    public IScene InitialScene { get; set; } = new Scene();
+    public IScene InitialScene { get; private set; } = new Scene();
 
     /// <summary>
     /// Gets the currently active scene.
@@ -91,16 +102,24 @@ public class GameSystem(
     /// </summary>
     public void Initialize()
     {
+        var initialSceneId = (SceneId)Settings.InitialScene;
+        var initialScene =
+            _sceneRegistry.Load(initialSceneId)
+            ?? throw new InvalidOperationException(
+                $"Initial scene '{Settings.InitialScene}' is not registered."
+            );
+        InitialScene = initialScene;
+
         _logger.LogInformation(
             "Initializing game system. InitialSceneType={InitialSceneType}",
-            InitialScene.GetType().Name
+            initialScene.GetType().Name
         );
 
-        InitialScene.SetGameModel(this);
-        CurrentScene = InitialScene;
+        initialScene.SetGameModel(this);
+        CurrentScene = initialScene;
 
         _logger.LogTrace("Activating scene...");
-        CurrentScene.Activate();
+        initialScene.Activate();
         _logger.LogTrace("Scene activation complete.");
         _logger.LogInformation("Game system initialized and initial scene activated.");
     }

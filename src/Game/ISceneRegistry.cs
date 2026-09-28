@@ -6,6 +6,13 @@ namespace Nexus.Game;
 public interface ISceneRegistry
 {
     /// <summary>
+    /// Registers a factory for the specified scene identifier.
+    /// </summary>
+    /// <param name="sceneId">The identifier associated with the factory.</param>
+    /// <param name="factory">Creates the scene when it is loaded.</param>
+    void Register(SceneId sceneId, Func<IScene> factory);
+
+    /// <summary>
     /// Loads the scene with the specified identifier.
     /// </summary>
     /// <param name="sceneId">The identifier of the scene to load.</param>

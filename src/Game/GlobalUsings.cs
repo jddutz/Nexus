@@ -1,6 +1,7 @@
 global using Microsoft.Extensions.DependencyInjection;
 global using Microsoft.Extensions.DependencyInjection.Extensions;
 global using Microsoft.Extensions.Logging;
+global using Microsoft.Extensions.Options;
 global using Nexus.Assets.Fonts;
 global using Nexus.Audio;
 global using Nexus.Audio.Components;

@@ -18,14 +18,14 @@ public class GameObjectTests
     [Fact]
     public void Scene_isTopLevelEntityWithSceneId()
     {
-        var scene = new Scene(42);
+        var scene = new Scene("main");
         var defaultView = Assert.IsType<GameObject2D>(Assert.Single(scene.Children));
         var defaultCamera = Assert.IsType<StaticCamera>(
             Assert.Single(defaultView.Components.OfType<StaticCamera>())
         );
         var viewComponent = Assert.Single(defaultView.Components.OfType<ViewComponent>());
 
-        Assert.Equal(new SceneId(42), scene.Id);
+        Assert.Equal(new SceneId("main"), scene.Id);
         Assert.Contains(defaultView, scene.Children);
         Assert.Contains(
             defaultView.Components,

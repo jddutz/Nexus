@@ -1,6 +1,9 @@
 namespace Tests;
 
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Nexus.Core;
 using Nexus.Core.Events;
 using Nexus.Game;
@@ -10,6 +13,66 @@ using Nexus.Game;
 /// </summary>
 public class GameSystemEventRegistrationTests
 {
+    /// <summary>
+    /// Verifies Game settings bind from the Game configuration section.
+    /// </summary>
+    [Fact]
+    public void AddGameServices_bindsGameSettingsFromConfiguration()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(
+                new Dictionary<string, string?> { ["Game:InitialScene"] = "ConfiguredScene" }
+            )
+            .Build();
+        var services = new ServiceCollection();
+        services.AddGameServices(configuration);
+
+        using var serviceProvider = services.BuildServiceProvider();
+        var settings = serviceProvider.GetRequiredService<IOptions<GameSettings>>().Value;
+
+        Assert.Equal("ConfiguredScene", settings.InitialScene);
+    }
+
+    /// <summary>
+    /// Verifies initialization loads the scene identified by game settings.
+    /// </summary>
+    [Fact]
+    public void Initialize_loadsTheConfiguredInitialScene()
+    {
+        var sceneId = (SceneId)"WelcomeScreen";
+        var scene = new Scene(sceneId);
+        var sceneRegistry = new SceneRegistry();
+        sceneRegistry.Register(sceneId, () => scene);
+        var gameSystem = CreateGameSystem(
+            new EventHub(),
+            sceneRegistry,
+            new GameSettings { InitialScene = "WelcomeScreen" }
+        );
+
+        gameSystem.Initialize();
+
+        Assert.Same(scene, gameSystem.InitialScene);
+        Assert.Same(scene, gameSystem.CurrentScene);
+    }
+
+    /// <summary>
+    /// Verifies initialization propagates a failure when the configured scene is absent.
+    /// </summary>
+    [Fact]
+    public void Initialize_throwsWhenConfiguredInitialSceneIsNotRegistered()
+    {
+        var gameSystem = CreateGameSystem(
+            new EventHub(),
+            new SceneRegistry(),
+            new GameSettings { InitialScene = "MissingScene" }
+        );
+
+        var exception = Assert.Throws<InvalidOperationException>(gameSystem.Initialize);
+
+        Assert.Contains("MissingScene", exception.Message);
+        Assert.Null(gameSystem.CurrentScene);
+    }
+
     /// <summary>
     /// Verifies model registration wires an object tree and unregistering removes its handlers.
     /// </summary>
@@ -84,8 +147,17 @@ public class GameSystemEventRegistrationTests
     /// </summary>
     /// <param name="eventHub">The event hub to test.</param>
     /// <returns>A game system using the specified event hub.</returns>
-    private static GameSystem CreateGameSystem(IEventHub eventHub) =>
-        new(eventHub, NullLogger<GameSystem>.Instance);
+    private static GameSystem CreateGameSystem(
+        IEventHub eventHub,
+        ISceneRegistry? sceneRegistry = null,
+        GameSettings? gameSettings = null
+    ) =>
+        new(
+            eventHub,
+            NullLogger<GameSystem>.Instance,
+            sceneRegistry ?? new SceneRegistry(),
+            Options.Create(gameSettings ?? new GameSettings())
+        );
 
     /// <summary>
     /// Represents an event used to verify global event dispatch.

@@ -24,6 +24,7 @@ public sealed class Application : IApplication, IDisposable
 
             var vulkanSettings =
                 configuration.GetSection("Vulkan").Get<VulkanSettings>() ?? new VulkanSettings();
+
             if (vulkanSettings.EnableValidationLayers)
             {
                 builder.AddFilter(typeof(Validation).FullName, LogLevel.Debug);

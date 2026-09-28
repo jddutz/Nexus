@@ -48,7 +48,7 @@ public static class ServiceCollectionExtensions
             ?? new ApplicationSettings();
 
         services.AddCoreServices(configuration, applicationSettings.ContentManifestLocation);
-        services.AddGameSystemServices();
+        services.AddGameServices(configuration);
         services.AddNexusGui();
         services.AddAudioServices();
         services.AddInputServices();
