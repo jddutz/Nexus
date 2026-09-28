@@ -1,4 +1,5 @@
 using Nexus.GUI;
+using Nexus.GUI.Elements;
 using Silk.NET.Maths;
 
 namespace Tests;

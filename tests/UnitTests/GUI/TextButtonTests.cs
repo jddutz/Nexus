@@ -4,72 +4,66 @@ using Nexus.Graphics;
 using Nexus.Graphics.Text;
 using Nexus.Graphics.Textures;
 using Nexus.GUI;
+using Nexus.GUI.Elements;
 using Silk.NET.Maths;
 
 namespace Tests;
 
 /// <summary>
-/// Tests template-created text button composition, initialization, layout, and attachment.
+/// Tests the text button's owned composition, layout, and hierarchy lifecycle.
 /// </summary>
-public sealed class TextButtonTemplateTests
+public sealed class TextButtonTests
 {
     /// <summary>
-    /// Verifies each call creates a detached composition and applies its initializer once.
+    /// Verifies separate buttons own distinct components and independent labels.
     /// </summary>
     [Fact]
-    public void Create_returnsFreshDetachedElementsAndInitializesAfterComposition()
+    public void Constructor_createsDetachedButtonsWithFreshComponents()
     {
-        var template = CreateTemplate();
-        ITemplate<IGameObject> covariantTemplate = template;
-        var initializerCalls = 0;
-        var first = template.Create(button =>
-        {
-            initializerCalls++;
-            Assert.Null(button.Parent);
-            Assert.Null(button.GameModel);
-            Assert.False(button.IsActive);
-            Assert.Equal(2, button.Components.Count());
-            Assert.Single(button.Components.OfType<NinePatchComponent>());
-            Assert.Single(button.Components.OfType<TextComponent>());
-            button.GetComponent<TextComponent>()!.Text = "B";
-        });
-        var second = Assert.IsType<Element>(covariantTemplate.Create());
+        var first = CreateButton("A");
+        var second = CreateButton("A");
 
-        Assert.Equal(1, initializerCalls);
+        first.Label = "B";
+
+        Assert.Null(first.Parent);
+        Assert.Null(first.GameModel);
+        Assert.False(first.IsActive);
+        Assert.Equal(2, first.Components.Count());
         Assert.NotSame(first, second);
         Assert.NotSame(
             first.GetComponent<NinePatchComponent>(),
             second.GetComponent<NinePatchComponent>()
         );
         Assert.NotSame(first.GetComponent<TextComponent>(), second.GetComponent<TextComponent>());
+        Assert.Equal("B", first.Label);
         Assert.Equal("B", first.GetComponent<TextComponent>()?.Text);
+        Assert.Equal("A", second.Label);
         Assert.Equal("A", second.GetComponent<TextComponent>()?.Text);
-        Assert.Equal("A", template.DefaultLabel);
     }
 
     /// <summary>
     /// Verifies fitting the displayed label does not replace its complete measured source.
     /// </summary>
     [Fact]
-    public void Arrange_preservesInitializerLabelForLaterMeasurement()
+    public void Arrange_preservesLabelForLaterMeasurement()
     {
-        var element = CreateTemplate()
-            .Create(button => button.GetComponent<TextComponent>()!.Text = "AB");
+        var button = CreateButton("AB");
 
-        Assert.Equal(new Vector2D<float>(10f, 7f), element.Measure(new(100f, 100f)));
-        element.Arrange(new Rectangle<float>(0f, 0f, 9f, 7f));
-        Assert.Equal("A", element.GetComponent<TextComponent>()?.Text);
+        Assert.Equal(new Vector2D<float>(10f, 7f), button.Measure(new(100f, 100f)));
+        button.Arrange(new Rectangle<float>(0f, 0f, 9f, 7f));
+        Assert.Equal("AB", button.Label);
+        Assert.Equal("A", button.GetComponent<TextComponent>()?.Text);
 
-        Assert.Equal(new Vector2D<float>(10f, 7f), element.Measure(new(100f, 100f)));
+        Assert.Equal(new Vector2D<float>(10f, 7f), button.Measure(new(100f, 100f)));
     }
 
     /// <summary>
-    /// Verifies arranging keeps the complete button bounds independent of glyph bounds.
+    /// Verifies the background and hit area use the complete arranged bounds.
     /// </summary>
     [Fact]
     public void Arrange_keepsFullBoundsForBackgroundAndHitArea()
     {
-        var button = CreateTemplate().Create();
+        var button = CreateButton("A");
         var bounds = new Rectangle<float>(4f, 5f, 60f, 24f);
 
         button.Arrange(bounds);
@@ -83,25 +77,38 @@ public sealed class TextButtonTemplateTests
     }
 
     /// <summary>
-    /// Verifies a throwing initializer cannot attach a partially created object.
+    /// Verifies padding affects measured size and alignment changes label placement.
     /// </summary>
     [Fact]
-    public void Create_initializerFailureLeavesParentUnchanged()
+    public void PaddingAndAlignment_controlMeasurementAndLabelPosition()
     {
-        var parent = new GameObject();
+        var button = CreateButton("A");
+        var measuredSize = button.Measure(new(100f, 100f));
+        var bounds = new Rectangle<float>(0f, 0f, 60f, 24f);
 
-        Assert.Throws<InvalidOperationException>(() =>
-            parent.AddChild(CreateTemplate().Create(_ => throw new InvalidOperationException()))
+        button.Arrange(bounds);
+        var centeredPosition = button.Position.X;
+        button.LabelAlignment = TextButtonLabelAlignment.Start;
+        button.Arrange(bounds);
+        var startPosition = button.Position.X;
+        button.LabelAlignment = TextButtonLabelAlignment.End;
+        button.Arrange(bounds);
+        var endPosition = button.Position.X;
+        button.Padding = new(8f, 6f);
+
+        Assert.NotEqual(centeredPosition, startPosition);
+        Assert.True(startPosition < endPosition);
+        Assert.Equal(
+            new Vector2D<float>(measuredSize.X + 8f, measuredSize.Y + 6f),
+            button.Measure(new(100f, 100f))
         );
-
-        Assert.Empty(parent.Children);
     }
 
     /// <summary>
-    /// Verifies AddChild performs model registration and activation for a created button.
+    /// Verifies AddChild performs model registration and activation for a new button.
     /// </summary>
     [Fact]
-    public void AddChild_registersAndActivatesTemplateCreatedElement()
+    public void AddChild_registersAndActivatesButton()
     {
         var parent = new GameObject();
         var gameModel = new TestGameModel();
@@ -109,7 +116,7 @@ public sealed class TextButtonTemplateTests
         parent.Activate();
         var addedComponents = new List<IComponent>();
         parent.ComponentAdded += addedComponents.Add;
-        var button = CreateTemplate().Create();
+        var button = CreateButton("A");
 
         parent.AddChild(button);
 
@@ -123,21 +130,22 @@ public sealed class TextButtonTemplateTests
     }
 
     /// <summary>
-    /// Creates a template with small in-memory resources suitable for layout tests.
+    /// Creates a button with small in-memory resources suitable for layout tests.
     /// </summary>
-    /// <returns>The configured text button template.</returns>
-    private static TextButtonTemplate CreateTemplate() =>
+    /// <param name="label">The initial label for the button.</param>
+    /// <returns>The configured button.</returns>
+    private static TextButton CreateButton(string label) =>
         new(
+            label,
             new TestTextStyle(),
             new Texture("button", 8, 8, new Color[64]),
-            "A",
             horizontalPadding: 4f,
             verticalPadding: 3f,
             sourceBorders: new Vector4D<float>(1f, 1f, 1f, 1f)
         );
 
     /// <summary>
-    /// Provides a minimal game model for verifying template-created object registration.
+    /// Provides a minimal game model for verifying button registration.
     /// </summary>
     private sealed class TestGameModel : IGameModel
     {

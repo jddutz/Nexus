@@ -5,6 +5,7 @@ using Nexus.Game;
 using Nexus.Graphics;
 using Nexus.Graphics.Events;
 using Nexus.GUI;
+using Nexus.GUI.Elements;
 using Nexus.Input;
 using Nexus.Input.Events;
 using Silk.NET.Maths;
@@ -26,13 +27,7 @@ public class GraphicalUserInterfaceTests
         var eventHub = new EventHub();
         var gui = new GraphicalUserInterface(eventHub, new TestWindowService(new(800, 600)));
         var layoutCount = 0;
-        var element = new Element(
-            arrange: (currentElement, bounds) =>
-            {
-                layoutCount++;
-                ArrangementRules.Default(currentElement, bounds);
-            }
-        );
+        var element = new LayoutProbeElement(arrange: (_, _) => layoutCount++);
         var scene = new Scene();
         scene.AddChild(element);
         scene.Activate();
@@ -61,15 +56,18 @@ public class GraphicalUserInterfaceTests
         var gui = new GraphicalUserInterface(eventHub, new TestWindowService(new(800, 600)));
         var layoutCount = 0;
         var childArrangementCount = 0;
-        var root = new Element(
+        var root = new LayoutProbeElement(
             arrange: (element, bounds) =>
             {
                 layoutCount++;
-                ArrangementRules.Default(element, bounds);
+                foreach (
+                    var child in element.Children.OfType<Element>().Where(child => child.IsActive)
+                )
+                    child.Arrange(bounds);
             }
         );
         var initiallyDiscoveredChildArrangementCount = 0;
-        var initiallyDiscoveredChild = new Element(
+        var initiallyDiscoveredChild = new LayoutProbeElement(
             arrange: (_, _) => initiallyDiscoveredChildArrangementCount++
         );
         root.AddChild(initiallyDiscoveredChild);
@@ -93,7 +91,7 @@ public class GraphicalUserInterfaceTests
         Assert.Equal(2, layoutCount);
         Assert.Equal(1, initiallyDiscoveredChildArrangementCount);
 
-        var child = new Element(arrange: (_, _) => childArrangementCount++);
+        var child = new LayoutProbeElement(arrange: (_, _) => childArrangementCount++);
         root.AddChild(child);
         eventHub.Publish(new GameObjectActivatedEvent(child));
         eventHub.Drain();
@@ -167,7 +165,7 @@ public class GraphicalUserInterfaceTests
         var gui = new GraphicalUserInterface(eventHub, new TestWindowService(new(1920, 1080)));
         Vector2D<float>? measuredSize = null;
         Rectangle<float>? arrangedBounds = null;
-        var element = new Element(
+        var element = new LayoutProbeElement(
             measure: (_, available) =>
             {
                 measuredSize = available;
@@ -189,54 +187,19 @@ public class GraphicalUserInterfaceTests
     }
 
     /// <summary>
-    /// Verifies default arrangement traverses active non-Element objects and skips inactive branches.
+    /// Verifies a concrete container chooses how its child element is arranged.
     /// </summary>
     [Fact]
-    public void DefaultArrangement_traversesActiveOrdinaryGameObjects()
+    public void ContainerElement_arrangesItsOwnChildren()
     {
-        var eventHub = new EventHub();
-        var gui = new GraphicalUserInterface(eventHub, new TestWindowService(new(640, 480)));
-        var arrangementOrder = new List<string>();
-        var inactiveArrangementCount = 0;
-        var root = new Element(
-            arrange: (element, bounds) =>
-            {
-                arrangementOrder.Add("root");
-                ArrangementRules.Default(element, bounds);
-            }
-        );
-        var ordinaryChild = new GameObject();
-        var nested = new Element(
-            arrange: (element, bounds) =>
-            {
-                arrangementOrder.Add("nested");
-                ArrangementRules.Default(element, bounds);
-            }
-        );
-        var nestedChild = new Element(arrange: (_, _) => arrangementOrder.Add("nested child"));
-        var inactiveChild = new Element(arrange: (_, _) => inactiveArrangementCount++);
-        var inactiveOrdinaryChild = new GameObject();
-        var secondRoot = new Element(arrange: (_, _) => arrangementOrder.Add("second root"));
-        nested.AddChild(nestedChild);
-        ordinaryChild.AddChild(nested);
-        inactiveOrdinaryChild.AddChild(inactiveChild);
-        root.AddChild(ordinaryChild);
-        root.AddChild(inactiveOrdinaryChild);
-        var scene = new Scene();
-        scene.AddChild(root);
-        scene.AddChild(secondRoot);
-        scene.Activate();
-        gui.Initialize();
-        eventHub.Publish(new SceneLoadedEvent(scene));
-        eventHub.Drain();
-        inactiveOrdinaryChild.Deactivate();
-        eventHub.Publish(new GameObjectDeactivatedEvent(inactiveOrdinaryChild));
-        eventHub.Drain();
+        var child = new LayoutProbeElement();
+        var container = new ContainerProbeElement(child);
+        var bounds = new Rectangle<float>(2f, 3f, 40f, 20f);
 
-        gui.Update(0);
+        container.Arrange(bounds);
 
-        Assert.Equal(new[] { "root", "nested", "nested child", "second root" }, arrangementOrder);
-        Assert.Equal(0, inactiveArrangementCount);
+        Assert.Equal(bounds, container.Bounds);
+        Assert.Equal(new Rectangle<float>(2f, 3f, 20f, 20f), child.Bounds);
     }
 
     /// <summary>
@@ -248,11 +211,10 @@ public class GraphicalUserInterfaceTests
         var eventHub = new EventHub();
         var gui = new GraphicalUserInterface(eventHub, new TestWindowService(new(800, 600)));
         var arrangementCount = 0;
-        var element = new Element(
+        var element = new LayoutProbeElement(
             arrange: (currentElement, bounds) =>
             {
                 arrangementCount++;
-                ArrangementRules.Default(currentElement, bounds);
                 if (arrangementCount == 1)
                     currentElement.Width = 100;
             }
@@ -280,7 +242,7 @@ public class GraphicalUserInterfaceTests
         var windowService = new TestWindowService(new(800, 600));
         var gui = new GraphicalUserInterface(eventHub, windowService);
         var arrangedBounds = new List<Rectangle<float>>();
-        var element = new Element(arrange: (_, bounds) => arrangedBounds.Add(bounds));
+        var element = new LayoutProbeElement(arrange: (_, bounds) => arrangedBounds.Add(bounds));
         var scene = new Scene();
         scene.AddChild(element);
         scene.Activate();
@@ -351,6 +313,70 @@ public class GraphicalUserInterfaceTests
         /// </summary>
         /// <param name="size">The new window size.</param>
         public void SetSize(Vector2D<int> size) => ((TestWindow)(object)_window).Size = size;
+    }
+
+    /// <summary>
+    /// Records custom layout observations while retaining Element's default behavior.
+    /// </summary>
+    private sealed class LayoutProbeElement : Element
+    {
+        private readonly Action<Element, Rectangle<float>>? _arrange;
+        private readonly Func<Element, Vector2D<float>, Vector2D<float>>? _measure;
+
+        /// <summary>
+        /// Initializes a layout probe with optional measurement and arrangement observations.
+        /// </summary>
+        /// <param name="arrange">The action invoked before default arrangement.</param>
+        /// <param name="measure">The measurement override, if any.</param>
+        public LayoutProbeElement(
+            Action<Element, Rectangle<float>>? arrange = null,
+            Func<Element, Vector2D<float>, Vector2D<float>>? measure = null
+        )
+        {
+            _arrange = arrange;
+            _measure = measure;
+        }
+
+        /// <inheritdoc />
+        public override Vector2D<float> Measure(Vector2D<float> constraint) =>
+            _measure?.Invoke(this, constraint) ?? base.Measure(constraint);
+
+        /// <inheritdoc />
+        public override void Arrange(Rectangle<float> bounds)
+        {
+            _arrange?.Invoke(this, bounds);
+            base.Arrange(bounds);
+        }
+    }
+
+    /// <summary>
+    /// Arranges its child into the leading half of its own bounds.
+    /// </summary>
+    private sealed class ContainerProbeElement : Element
+    {
+        private readonly Element _child;
+
+        /// <summary>
+        /// Initializes the probe container with its child element.
+        /// </summary>
+        /// <param name="child">The element arranged by this container.</param>
+        public ContainerProbeElement(Element child)
+        {
+            _child = child;
+            AddChild(child);
+        }
+
+        /// <inheritdoc />
+        public override void Arrange(Rectangle<float> bounds)
+        {
+            base.Arrange(bounds);
+            _child.Arrange(
+                new Rectangle<float>(
+                    bounds.Origin,
+                    new Vector2D<float>(bounds.Size.X / 2f, bounds.Size.Y)
+                )
+            );
+        }
     }
 
     /// <summary>

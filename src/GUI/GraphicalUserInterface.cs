@@ -1,11 +1,5 @@
 namespace Nexus.GUI;
 
-using System.ComponentModel;
-using Nexus.Core;
-using Nexus.Core.Events;
-using Nexus.Graphics;
-using Nexus.Graphics.Events;
-
 /// <summary>
 /// Tracks active GUI elements and updates their layouts in response to game lifecycle events.
 /// </summary>
@@ -126,7 +120,15 @@ public sealed class GraphicalUserInterface(IEventHub eventHub, IWindowService? w
     /// <param name="eventArgs">The property-change details.</param>
     private void OnElementPropertyChanged(object? sender, PropertyChangedEventArgs eventArgs)
     {
-        if (eventArgs.PropertyName is null or nameof(Element.Width) or nameof(Element.Height))
+        if (
+            eventArgs.PropertyName
+            is null
+                or nameof(Element.Width)
+                or nameof(Element.Height)
+                or nameof(TextButton.Label)
+                or nameof(TextButton.Padding)
+                or nameof(TextButton.LabelAlignment)
+        )
             _layoutInvalidated = true;
     }
 

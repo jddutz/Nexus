@@ -10,6 +10,7 @@ using Nexus.Graphics.Components;
 using Nexus.Graphics.Text;
 using Nexus.Graphics.Textures;
 using Nexus.GUI;
+using Nexus.GUI.Elements;
 using Nexus.Input;
 using Silk.NET.Maths;
 
@@ -62,28 +63,7 @@ internal sealed class HelloNexusSceneFactory(
             Size = new(mainWindow.Size.X, mainWindow.Size.Y),
             RenderLayerMask = backgroundLayer,
         };
-        var backgroundElement = new Element(
-            arrange: (element, bounds) =>
-            {
-                ArrangementRules.Default(element, bounds);
-                var texture = backgroundTexture.Texture!;
-                var boundsAspectRatio = bounds.Size.X / bounds.Size.Y;
-                var textureAspectRatio = (float)texture.Width / texture.Height;
-                var imageSize =
-                    boundsAspectRatio > textureAspectRatio
-                        ? new Vector2D<float>(bounds.Size.X, bounds.Size.X / textureAspectRatio)
-                        : new Vector2D<float>(bounds.Size.Y * textureAspectRatio, bounds.Size.Y);
-
-                element.Position = bounds.Origin;
-                backgroundTexture.Size = imageSize;
-                backgroundTexture.TransformationMatrix = Matrix4X4.CreateTranslation(
-                    (bounds.Size.X - imageSize.X) / 2f,
-                    (bounds.Size.Y - imageSize.Y) / 2f,
-                    0f
-                );
-            },
-            components: [backgroundTexture]
-        );
+        var backgroundElement = new BackgroundElement(backgroundTexture);
         scene.AddChild(backgroundElement);
 
         var textStyle = CreateRobotoTextStyle();
@@ -93,11 +73,7 @@ internal sealed class HelloNexusSceneFactory(
             RenderLayerMask = foregroundLayer,
             Text = pressText,
         };
-        var pressTextElement = new Element(
-            measure: (_, availableSize) => MeasureText(pressText, textStyle, availableSize, 1),
-            arrange: (element, bounds) => ArrangeText(element, bounds, pressTextComponent),
-            components: [pressTextComponent]
-        );
+        var pressTextElement = new TextContentElement(pressTextComponent, textStyle, 1);
 
         const string welcomeText = "Welcome to the Nexus";
         var welcomeTextComponent = new TextComponent(textStyle)
@@ -105,171 +81,47 @@ internal sealed class HelloNexusSceneFactory(
             RenderLayerMask = foregroundLayer,
             Text = welcomeText,
         };
-        var welcomeTextElement = new Element(
-            measure: (_, availableSize) =>
-                MeasureText(
-                    welcomeText,
-                    textStyle,
-                    availableSize,
-                    GetMaximumLineCount(textStyle, availableSize.Y)
-                ),
-            arrange: (element, bounds) => ArrangeText(element, bounds, welcomeTextComponent),
-            components: [welcomeTextComponent]
-        );
+        var welcomeTextElement = new TextContentElement(welcomeTextComponent, textStyle);
 
         const string buttonLabel = "Start Physics Test";
-        var buttonTemplate = new TextButtonTemplate(
+        var buttonElement = new TextButton(
+            buttonLabel,
             textStyle,
             textureProvider.Get((ContentId)"button_texture"),
-            buttonLabel,
             horizontalPadding: 16f,
             verticalPadding: 10f,
             backgroundRenderLayerMask: backgroundLayer,
             textRenderLayerMask: foregroundLayer
         );
-        var buttonElement = buttonTemplate.Create();
         const float buttonLabelGap = 10f;
 
         var audioTexture = textureProvider.Get((ContentId)"icon_audio_on");
         var leftIcon = CreateAudioIconElement(audioTexture, foregroundLayer);
         var rightIcon = CreateAudioIconElement(audioTexture, foregroundLayer);
-        var middleHeader = new Element(
-            arrange: (element, bounds) =>
-            {
-                element.Bounds = bounds;
-                var visiblePressText = FitTextToWidth(textStyle, pressText, bounds.Size.X);
-                if (pressTextComponent.Text != visiblePressText)
-                    pressTextComponent.Text = visiblePressText;
-
-                pressTextElement.Arrange(bounds);
-            }
+        var middleHeader = new MiddleHeaderElement(
+            textStyle,
+            pressText,
+            pressTextComponent,
+            pressTextElement
         );
         middleHeader.AddChild(pressTextElement);
 
-        var header = new Element(
-            measure: (_, availableSize) =>
-                new Vector2D<float>(availableSize.X, MathF.Min(48f, availableSize.Y)),
-            arrange: (element, bounds) =>
-            {
-                element.Bounds = bounds;
-
-                const float sectionPadding = 10f;
-                const float iconSize = 48f;
-                var gutter = MathF.Min(sectionPadding, bounds.Size.X / 2f);
-                var sideWidth = MathF.Min(
-                    iconSize,
-                    MathF.Max(0f, bounds.Size.X - gutter * 2f) / 2f
-                );
-                var middleWidth = MathF.Max(0f, bounds.Size.X - sideWidth * 2f - gutter * 2f);
-
-                leftIcon.Arrange(
-                    new Rectangle<float>(
-                        bounds.Origin,
-                        new Vector2D<float>(sideWidth, bounds.Size.Y)
-                    )
-                );
-                var middleBounds = new Rectangle<float>(
-                    new Vector2D<float>(bounds.Origin.X + sideWidth + gutter, bounds.Origin.Y),
-                    new Vector2D<float>(middleWidth, bounds.Size.Y)
-                );
-                middleHeader.Arrange(middleBounds);
-
-                rightIcon.Arrange(
-                    new Rectangle<float>(
-                        new Vector2D<float>(
-                            bounds.Origin.X + bounds.Size.X - sideWidth,
-                            bounds.Origin.Y
-                        ),
-                        new Vector2D<float>(sideWidth, bounds.Size.Y)
-                    )
-                );
-            }
-        );
+        var header = new HeaderElement(leftIcon, middleHeader, rightIcon);
         header.AddChild(leftIcon);
         header.AddChild(middleHeader);
         header.AddChild(rightIcon);
 
-        var main = new Element(
-            measure: (_, availableSize) => availableSize,
-            arrange: (element, bounds) =>
-            {
-                element.Bounds = bounds;
-                var buttonSize = buttonElement.Measure(bounds.Size);
-                var welcomeAvailableHeight = MathF.Max(
-                    0f,
-                    bounds.Size.Y - buttonSize.Y - buttonLabelGap
-                );
-                var wrappedText = WrapText(
-                    welcomeText,
-                    textStyle,
-                    bounds.Size.X,
-                    GetMaximumLineCount(textStyle, welcomeAvailableHeight)
-                );
-                if (welcomeTextComponent.Text != wrappedText)
-                    welcomeTextComponent.Text = wrappedText;
-
-                var welcomeSize = MeasureWrappedText(textStyle, wrappedText);
-                var groupHeight = welcomeSize.Y + buttonLabelGap + buttonSize.Y;
-                var groupTop = bounds.Origin.Y + (bounds.Size.Y - groupHeight) / 2f;
-                welcomeTextElement.Arrange(
-                    new Rectangle<float>(
-                        new Vector2D<float>(bounds.Origin.X, groupTop),
-                        new Vector2D<float>(bounds.Size.X, welcomeSize.Y)
-                    )
-                );
-                buttonElement.Arrange(
-                    new Rectangle<float>(
-                        new Vector2D<float>(
-                            MathF.Round(bounds.Origin.X + (bounds.Size.X - buttonSize.X) / 2f),
-                            MathF.Round(groupTop + welcomeSize.Y + buttonLabelGap)
-                        ),
-                        buttonSize
-                    )
-                );
-            }
+        var main = new MainContentElement(
+            textStyle,
+            welcomeText,
+            welcomeTextElement,
+            buttonElement,
+            buttonLabelGap
         );
         main.AddChild(welcomeTextElement);
         main.AddChild(buttonElement);
 
-        var textLayout = new Element(
-            arrange: (element, bounds) =>
-            {
-                element.Bounds = bounds;
-
-                const float headerMargin = 10f;
-                const float mainMargin = 24f;
-                const float sectionPadding = 10f;
-                var headerAvailable = new Vector2D<float>(
-                    MathF.Max(0f, bounds.Size.X - headerMargin * 2f),
-                    MathF.Max(0f, bounds.Size.Y - headerMargin * 2f)
-                );
-                var headerSize = header.Measure(headerAvailable);
-                header.Arrange(
-                    new Rectangle<float>(
-                        new Vector2D<float>(
-                            bounds.Origin.X + headerMargin,
-                            bounds.Origin.Y + headerMargin
-                        ),
-                        headerSize
-                    )
-                );
-
-                var mainOriginY = bounds.Origin.Y + headerMargin + headerSize.Y + sectionPadding;
-                var mainHeight = MathF.Max(
-                    0f,
-                    bounds.Size.Y - (mainOriginY - bounds.Origin.Y) - mainMargin
-                );
-                main.Arrange(
-                    new Rectangle<float>(
-                        new Vector2D<float>(bounds.Origin.X + mainMargin, mainOriginY),
-                        new Vector2D<float>(
-                            MathF.Max(0f, bounds.Size.X - mainMargin * 2f),
-                            mainHeight
-                        )
-                    )
-                );
-            }
-        );
+        var textLayout = new TextLayoutElement(header, main);
         textLayout.AddChild(header);
         textLayout.AddChild(main);
         scene.AddChild(textLayout);
@@ -440,52 +292,7 @@ internal sealed class HelloNexusSceneFactory(
     /// <returns>The arranged icon element.</returns>
     private static Element CreateAudioIconElement(Texture texture, ulong renderLayerMask)
     {
-        const float iconSize = 48f;
-        var textureComponent = new TextureComponent
-        {
-            Texture = texture,
-            Size = new Vector2D<float>(iconSize, iconSize),
-            RenderLayerMask = renderLayerMask,
-        };
-        var element = new Element(
-            measure: (_, availableSize) =>
-                new Vector2D<float>(
-                    MathF.Min(iconSize, availableSize.X),
-                    MathF.Min(iconSize, availableSize.Y)
-                ),
-            arrange: (arrangedElement, bounds) =>
-            {
-                var visibleSize = new Vector2D<float>(
-                    MathF.Min(iconSize, bounds.Size.X),
-                    MathF.Min(iconSize, bounds.Size.Y)
-                );
-                var cropRatio = new Vector2D<float>(
-                    visibleSize.X / iconSize,
-                    visibleSize.Y / iconSize
-                );
-                var cropOrigin = new Vector2D<float>(
-                    (1f - cropRatio.X) / 2f,
-                    (1f - cropRatio.Y) / 2f
-                );
-                arrangedElement.Bounds = new Rectangle<float>(
-                    new Vector2D<float>(
-                        bounds.Origin.X + (bounds.Size.X - visibleSize.X) / 2f,
-                        bounds.Origin.Y + (bounds.Size.Y - visibleSize.Y) / 2f
-                    ),
-                    visibleSize
-                );
-                arrangedElement.Position = arrangedElement.Bounds.Origin;
-                textureComponent.Size = visibleSize;
-                textureComponent.TexCoord = new(
-                    cropOrigin.X,
-                    cropOrigin.Y,
-                    cropRatio.X,
-                    cropRatio.Y
-                );
-            },
-            components: [textureComponent]
-        );
-        return element;
+        return new AudioIconElement(texture, renderLayerMask);
     }
 
     /// <summary>Centers visible glyphs and assigns their actual bounds to a text element.</summary>
@@ -498,7 +305,7 @@ internal sealed class HelloNexusSceneFactory(
         TextComponent textComponent
     )
     {
-        ArrangementRules.Default(element, bounds);
+        element.Bounds = bounds;
         var textBounds = textComponent.LayoutBounds;
         var textOrigin = new Vector2D<float>(
             bounds.Origin.X + (bounds.Size.X - textBounds.Size.X) / 2f,
@@ -509,6 +316,386 @@ internal sealed class HelloNexusSceneFactory(
             textOrigin.X - textBounds.Origin.X,
             textOrigin.Y - textBounds.Origin.Y
         );
+    }
+
+    /// <summary>
+    /// Covers the available bounds with a centered aspect-preserving background texture.
+    /// </summary>
+    private sealed class BackgroundElement : Element
+    {
+        private readonly TextureComponent _texture;
+
+        /// <summary>
+        /// Initializes the background element with its texture component.
+        /// </summary>
+        /// <param name="texture">The background texture component.</param>
+        public BackgroundElement(TextureComponent texture)
+            : base(components: [texture])
+        {
+            _texture = texture;
+        }
+
+        /// <inheritdoc />
+        public override void Arrange(Rectangle<float> bounds)
+        {
+            base.Arrange(bounds);
+            var texture = _texture.Texture!;
+            var boundsAspectRatio = bounds.Size.X / bounds.Size.Y;
+            var textureAspectRatio = (float)texture.Width / texture.Height;
+            var imageSize =
+                boundsAspectRatio > textureAspectRatio
+                    ? new Vector2D<float>(bounds.Size.X, bounds.Size.X / textureAspectRatio)
+                    : new Vector2D<float>(bounds.Size.Y * textureAspectRatio, bounds.Size.Y);
+
+            Position = bounds.Origin;
+            _texture.Size = imageSize;
+            _texture.TransformationMatrix = Matrix4X4.CreateTranslation(
+                (bounds.Size.X - imageSize.X) / 2f,
+                (bounds.Size.Y - imageSize.Y) / 2f,
+                0f
+            );
+        }
+    }
+
+    /// <summary>
+    /// Measures and arranges a text component as a centered text element.
+    /// </summary>
+    private sealed class TextContentElement : Element
+    {
+        private readonly ITextStyle _style;
+        private readonly int? _maximumLines;
+
+        /// <summary>
+        /// Gets the text component owned by this element.
+        /// </summary>
+        public TextComponent TextComponent { get; }
+
+        /// <summary>
+        /// Initializes the text element with its style and optional line limit.
+        /// </summary>
+        /// <param name="textComponent">The text component owned by the element.</param>
+        /// <param name="style">The style used for text measurement.</param>
+        /// <param name="maximumLines">The fixed maximum line count, or <see langword="null"/> to fit the height.</param>
+        public TextContentElement(
+            TextComponent textComponent,
+            ITextStyle style,
+            int? maximumLines = null
+        )
+            : base(components: [textComponent])
+        {
+            TextComponent = textComponent;
+            _style = style;
+            _maximumLines = maximumLines;
+        }
+
+        /// <inheritdoc />
+        public override Vector2D<float> Measure(Vector2D<float> constraint) =>
+            MeasureText(
+                TextComponent.Text,
+                _style,
+                constraint,
+                _maximumLines ?? GetMaximumLineCount(_style, constraint.Y)
+            );
+
+        /// <inheritdoc />
+        public override void Arrange(Rectangle<float> bounds)
+        {
+            base.Arrange(bounds);
+            ArrangeText(this, bounds, TextComponent);
+        }
+    }
+
+    /// <summary>
+    /// Fits the header's press instruction and arranges its text element.
+    /// </summary>
+    private sealed class MiddleHeaderElement : Element
+    {
+        private readonly ITextStyle _style;
+        private readonly string _label;
+        private readonly TextComponent _text;
+        private readonly TextContentElement _textElement;
+
+        /// <summary>
+        /// Initializes the middle header around its text element.
+        /// </summary>
+        /// <param name="style">The style used to fit the label.</param>
+        /// <param name="label">The complete press instruction.</param>
+        /// <param name="text">The text component to update.</param>
+        /// <param name="textElement">The element that arranges the text.</param>
+        public MiddleHeaderElement(
+            ITextStyle style,
+            string label,
+            TextComponent text,
+            TextContentElement textElement
+        )
+        {
+            _style = style;
+            _label = label;
+            _text = text;
+            _textElement = textElement;
+            AddChild(textElement);
+        }
+
+        /// <inheritdoc />
+        public override void Arrange(Rectangle<float> bounds)
+        {
+            Bounds = bounds;
+            var visibleText = FitTextToWidth(_style, _label, bounds.Size.X);
+            if (_text.Text != visibleText)
+                _text.Text = visibleText;
+
+            _textElement.Arrange(bounds);
+        }
+    }
+
+    /// <summary>
+    /// Arranges the two audio icons around the centered middle header.
+    /// </summary>
+    private sealed class HeaderElement : Element
+    {
+        private readonly Element _leftIcon;
+        private readonly Element _middle;
+        private readonly Element _rightIcon;
+
+        /// <summary>
+        /// Initializes the header with its three arranged children.
+        /// </summary>
+        /// <param name="leftIcon">The leading audio icon.</param>
+        /// <param name="middle">The centered instruction element.</param>
+        /// <param name="rightIcon">The trailing audio icon.</param>
+        public HeaderElement(Element leftIcon, Element middle, Element rightIcon)
+        {
+            _leftIcon = leftIcon;
+            _middle = middle;
+            _rightIcon = rightIcon;
+            AddChild(leftIcon);
+            AddChild(middle);
+            AddChild(rightIcon);
+        }
+
+        /// <inheritdoc />
+        public override Vector2D<float> Measure(Vector2D<float> constraint) =>
+            new(constraint.X, MathF.Min(48f, constraint.Y));
+
+        /// <inheritdoc />
+        public override void Arrange(Rectangle<float> bounds)
+        {
+            Bounds = bounds;
+
+            const float sectionPadding = 10f;
+            const float iconSize = 48f;
+            var gutter = MathF.Min(sectionPadding, bounds.Size.X / 2f);
+            var sideWidth = MathF.Min(iconSize, MathF.Max(0f, bounds.Size.X - gutter * 2f) / 2f);
+            var middleWidth = MathF.Max(0f, bounds.Size.X - sideWidth * 2f - gutter * 2f);
+
+            _leftIcon.Arrange(
+                new Rectangle<float>(bounds.Origin, new Vector2D<float>(sideWidth, bounds.Size.Y))
+            );
+            _middle.Arrange(
+                new Rectangle<float>(
+                    new Vector2D<float>(bounds.Origin.X + sideWidth + gutter, bounds.Origin.Y),
+                    new Vector2D<float>(middleWidth, bounds.Size.Y)
+                )
+            );
+            _rightIcon.Arrange(
+                new Rectangle<float>(
+                    new Vector2D<float>(
+                        bounds.Origin.X + bounds.Size.X - sideWidth,
+                        bounds.Origin.Y
+                    ),
+                    new Vector2D<float>(sideWidth, bounds.Size.Y)
+                )
+            );
+        }
+    }
+
+    /// <summary>
+    /// Centers the welcome text and Physics button as one content group.
+    /// </summary>
+    private sealed class MainContentElement : Element
+    {
+        private readonly ITextStyle _style;
+        private readonly string _welcomeText;
+        private readonly TextContentElement _welcomeElement;
+        private readonly TextButton _button;
+        private readonly float _buttonGap;
+
+        /// <summary>
+        /// Initializes the content group with its text and button children.
+        /// </summary>
+        /// <param name="style">The style used to wrap the welcome text.</param>
+        /// <param name="welcomeText">The complete welcome message.</param>
+        /// <param name="welcomeElement">The text element arranged above the button.</param>
+        /// <param name="button">The Physics button.</param>
+        /// <param name="buttonGap">The vertical gap between text and button.</param>
+        public MainContentElement(
+            ITextStyle style,
+            string welcomeText,
+            TextContentElement welcomeElement,
+            TextButton button,
+            float buttonGap
+        )
+        {
+            _style = style;
+            _welcomeText = welcomeText;
+            _welcomeElement = welcomeElement;
+            _button = button;
+            _buttonGap = buttonGap;
+            AddChild(welcomeElement);
+            AddChild(button);
+        }
+
+        /// <inheritdoc />
+        public override Vector2D<float> Measure(Vector2D<float> constraint) => constraint;
+
+        /// <inheritdoc />
+        public override void Arrange(Rectangle<float> bounds)
+        {
+            Bounds = bounds;
+            var buttonSize = _button.Measure(bounds.Size);
+            var welcomeAvailableHeight = MathF.Max(0f, bounds.Size.Y - buttonSize.Y - _buttonGap);
+            var wrappedText = WrapText(
+                _welcomeText,
+                _style,
+                bounds.Size.X,
+                GetMaximumLineCount(_style, welcomeAvailableHeight)
+            );
+            if (_welcomeElement.TextComponent.Text != wrappedText)
+                _welcomeElement.TextComponent.Text = wrappedText;
+
+            var welcomeSize = MeasureWrappedText(_style, wrappedText);
+            var groupHeight = welcomeSize.Y + _buttonGap + buttonSize.Y;
+            var groupTop = bounds.Origin.Y + (bounds.Size.Y - groupHeight) / 2f;
+            _welcomeElement.Arrange(
+                new Rectangle<float>(
+                    new Vector2D<float>(bounds.Origin.X, groupTop),
+                    new Vector2D<float>(bounds.Size.X, welcomeSize.Y)
+                )
+            );
+            _button.Arrange(
+                new Rectangle<float>(
+                    new Vector2D<float>(
+                        MathF.Round(bounds.Origin.X + (bounds.Size.X - buttonSize.X) / 2f),
+                        MathF.Round(groupTop + welcomeSize.Y + _buttonGap)
+                    ),
+                    buttonSize
+                )
+            );
+        }
+    }
+
+    /// <summary>
+    /// Places the header and main content within the welcome screen bounds.
+    /// </summary>
+    private sealed class TextLayoutElement : Element
+    {
+        private readonly HeaderElement _header;
+        private readonly MainContentElement _main;
+
+        /// <summary>
+        /// Initializes the screen layout with its header and main content.
+        /// </summary>
+        /// <param name="header">The top header.</param>
+        /// <param name="main">The centered main content.</param>
+        public TextLayoutElement(HeaderElement header, MainContentElement main)
+        {
+            _header = header;
+            _main = main;
+            AddChild(header);
+            AddChild(main);
+        }
+
+        /// <inheritdoc />
+        public override void Arrange(Rectangle<float> bounds)
+        {
+            Bounds = bounds;
+
+            const float headerMargin = 10f;
+            const float mainMargin = 24f;
+            const float sectionPadding = 10f;
+            var headerAvailable = new Vector2D<float>(
+                MathF.Max(0f, bounds.Size.X - headerMargin * 2f),
+                MathF.Max(0f, bounds.Size.Y - headerMargin * 2f)
+            );
+            var headerSize = _header.Measure(headerAvailable);
+            _header.Arrange(
+                new Rectangle<float>(
+                    new Vector2D<float>(
+                        bounds.Origin.X + headerMargin,
+                        bounds.Origin.Y + headerMargin
+                    ),
+                    headerSize
+                )
+            );
+
+            var mainOriginY = bounds.Origin.Y + headerMargin + headerSize.Y + sectionPadding;
+            var mainHeight = MathF.Max(
+                0f,
+                bounds.Size.Y - (mainOriginY - bounds.Origin.Y) - mainMargin
+            );
+            _main.Arrange(
+                new Rectangle<float>(
+                    new Vector2D<float>(bounds.Origin.X + mainMargin, mainOriginY),
+                    new Vector2D<float>(MathF.Max(0f, bounds.Size.X - mainMargin * 2f), mainHeight)
+                )
+            );
+        }
+    }
+
+    /// <summary>
+    /// Measures and crops an audio icon within a square maximum size.
+    /// </summary>
+    private sealed class AudioIconElement : Element
+    {
+        private const float IconSize = 48f;
+        private readonly TextureComponent _texture;
+
+        /// <summary>
+        /// Initializes an audio icon with its texture and render layer.
+        /// </summary>
+        /// <param name="texture">The icon texture.</param>
+        /// <param name="renderLayerMask">The render layer selected by the header view.</param>
+        public AudioIconElement(Texture texture, ulong renderLayerMask)
+            : this(
+                new TextureComponent
+                {
+                    Texture = texture,
+                    Size = new Vector2D<float>(IconSize, IconSize),
+                    RenderLayerMask = renderLayerMask,
+                }
+            ) { }
+
+        /// <summary>
+        /// Initializes the icon from its owned texture component.
+        /// </summary>
+        /// <param name="texture">The owned icon texture component.</param>
+        private AudioIconElement(TextureComponent texture)
+            : base(components: [texture]) => _texture = texture;
+
+        /// <inheritdoc />
+        public override Vector2D<float> Measure(Vector2D<float> constraint) =>
+            new(MathF.Min(IconSize, constraint.X), MathF.Min(IconSize, constraint.Y));
+
+        /// <inheritdoc />
+        public override void Arrange(Rectangle<float> bounds)
+        {
+            var visibleSize = new Vector2D<float>(
+                MathF.Min(IconSize, bounds.Size.X),
+                MathF.Min(IconSize, bounds.Size.Y)
+            );
+            var cropRatio = new Vector2D<float>(visibleSize.X / IconSize, visibleSize.Y / IconSize);
+            var cropOrigin = new Vector2D<float>((1f - cropRatio.X) / 2f, (1f - cropRatio.Y) / 2f);
+            Bounds = new Rectangle<float>(
+                new Vector2D<float>(
+                    bounds.Origin.X + (bounds.Size.X - visibleSize.X) / 2f,
+                    bounds.Origin.Y + (bounds.Size.Y - visibleSize.Y) / 2f
+                ),
+                visibleSize
+            );
+            Position = Bounds.Origin;
+            _texture.Size = visibleSize;
+            _texture.TexCoord = new(cropOrigin.X, cropOrigin.Y, cropRatio.X, cropRatio.Y);
+        }
     }
 
     /// <summary>Builds the Roboto text style from the font registered as <c>ui.default</c>.</summary>

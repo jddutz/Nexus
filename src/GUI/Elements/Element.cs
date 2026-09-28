@@ -1,28 +1,31 @@
-using Nexus.Core;
-using Nexus.Input;
-
-namespace Nexus.GUI;
+namespace Nexus.GUI.Elements;
 
 /// <summary>
-/// Represents a two-dimensional user-interface element with configurable layout rules.
+/// Represents a two-dimensional user-interface element with virtual layout behavior.
 /// </summary>
-/// <param name="width">The initial width of the element.</param>
-/// <param name="height">The initial height of the element.</param>
-/// <param name="measure">The rule used to measure the element.</param>
-/// <param name="arrange">The rule used to arrange the element.</param>
-/// <param name="components">The components owned by the element.</param>
-public class Element(
-    float? width = null,
-    float? height = null,
-    MeasurementRule? measure = null,
-    ArrangementRule? arrange = null,
-    IEnumerable<Nexus.Core.IComponent>? components = null
-) : GameObject2D(components ?? []), IElement
+public class Element : GameObject2D, IElement
 {
-    private float? _height = height;
-    private float? _width = width;
+    private float? _height;
+    private float? _width;
     private Rectangle<float> _bounds;
     private InputMap? _inputMap;
+
+    /// <summary>
+    /// Initializes an element with optional explicit dimensions and owned components.
+    /// </summary>
+    /// <param name="width">The initial width of the element.</param>
+    /// <param name="height">The initial height of the element.</param>
+    /// <param name="components">The components owned by the element.</param>
+    public Element(
+        float? width = null,
+        float? height = null,
+        IEnumerable<Nexus.Core.IComponent>? components = null
+    )
+        : base(components ?? [])
+    {
+        _width = width;
+        _height = height;
+    }
 
     /// <summary>
     /// Gets or sets the element's height.
@@ -62,21 +65,17 @@ public class Element(
             && position.Y < Bounds.Max.Y
         );
 
-    private MeasurementRule _measurementRule = measure ?? MeasurementRules.Default;
-
     /// <summary>
     /// Measures the element within the specified constraint.
     /// </summary>
     /// <param name="constraint">The available size constraint.</param>
     /// <returns>The measured size.</returns>
-    public Vector2D<float> Measure(Vector2D<float> constraint) =>
-        _measurementRule(this, constraint);
-
-    private ArrangementRule _arrangementRule = arrange ?? ArrangementRules.Default;
+    public virtual Vector2D<float> Measure(Vector2D<float> constraint) =>
+        new(Width ?? constraint.X, Height ?? constraint.Y);
 
     /// <summary>
     /// Arranges the element within the specified bounds.
     /// </summary>
     /// <param name="bounds">The bounds assigned to the element.</param>
-    public void Arrange(Rectangle<float> bounds) => _arrangementRule(this, bounds);
+    public virtual void Arrange(Rectangle<float> bounds) => Bounds = bounds;
 }
