@@ -118,70 +118,17 @@ internal sealed class HelloNexusSceneFactory(
         );
 
         const string buttonLabel = "Start Physics Test";
-        const float buttonHorizontalPadding = 16f;
-        const float buttonVerticalPadding = 10f;
+        var buttonTemplate = new TextButtonTemplate(
+            textStyle,
+            textureProvider.Get((ContentId)"button_texture"),
+            buttonLabel,
+            horizontalPadding: 16f,
+            verticalPadding: 10f,
+            backgroundRenderLayerMask: backgroundLayer,
+            textRenderLayerMask: foregroundLayer
+        );
+        var buttonElement = buttonTemplate.Create();
         const float buttonLabelGap = 10f;
-        var buttonLabelSize = MeasureWrappedText(textStyle, buttonLabel);
-        var buttonDesiredSize = new Vector2D<float>(
-            MathF.Ceiling(buttonLabelSize.X) + buttonHorizontalPadding * 2f,
-            MathF.Ceiling(buttonLabelSize.Y) + buttonVerticalPadding * 2f
-        );
-        var buttonTextComponent = new TextComponent(textStyle)
-        {
-            RenderLayerMask = foregroundLayer,
-            Text = buttonLabel,
-        };
-        var buttonTextureComponent = new NinePatchComponent
-        {
-            Texture = textureProvider.Get((ContentId)"button_texture"),
-            Size = buttonDesiredSize,
-            RenderLayerMask = backgroundLayer,
-            SamplingBehavior = SamplingBehaviors.PixelPerfect,
-            SourceBorders = new(12f, 12f, 12f, 12f),
-        };
-
-        var buttonElement = new Element(
-            measure: (_, availableSize) =>
-                new Vector2D<float>(
-                    MathF.Min(buttonDesiredSize.X, availableSize.X),
-                    MathF.Min(buttonDesiredSize.Y, availableSize.Y)
-                ),
-            arrange: (element, bounds) =>
-            {
-                element.Bounds = bounds;
-
-                var labelBounds = new Rectangle<float>(
-                    new Vector2D<float>(
-                        bounds.Origin.X + buttonHorizontalPadding,
-                        bounds.Origin.Y + buttonVerticalPadding
-                    ),
-                    new Vector2D<float>(
-                        MathF.Max(0f, bounds.Size.X - buttonHorizontalPadding * 2f),
-                        MathF.Max(0f, bounds.Size.Y - buttonVerticalPadding * 2f)
-                    )
-                );
-                var visibleButtonLabel = FitTextToWidth(textStyle, buttonLabel, labelBounds.Size.X);
-                if (buttonTextComponent.Text != visibleButtonLabel)
-                    buttonTextComponent.Text = visibleButtonLabel;
-
-                var textBounds = buttonTextComponent.LayoutBounds;
-                var textOrigin = new Vector2D<float>(
-                    MathF.Round(bounds.Origin.X + (bounds.Size.X - textBounds.Size.X) / 2f),
-                    MathF.Round(bounds.Origin.Y + (bounds.Size.Y - textBounds.Size.Y) / 2f)
-                );
-                element.Position = new(
-                    textOrigin.X - textBounds.Origin.X,
-                    textOrigin.Y - textBounds.Origin.Y
-                );
-                buttonTextureComponent.Size = bounds.Size;
-                buttonTextureComponent.TransformationMatrix = Matrix4X4.CreateTranslation(
-                    bounds.Origin.X - element.Position.X,
-                    bounds.Origin.Y - element.Position.Y,
-                    0f
-                );
-            },
-            components: [buttonTextureComponent, buttonTextComponent]
-        );
 
         var audioTexture = textureProvider.Get((ContentId)"icon_audio_on");
         var leftIcon = CreateAudioIconElement(audioTexture, foregroundLayer);
