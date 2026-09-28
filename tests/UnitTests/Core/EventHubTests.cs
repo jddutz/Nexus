@@ -91,21 +91,31 @@ public class EventHubTests
     }
 
     /// <summary>
-    /// Verifies noisy events are suppressed by default without suppressing their dispatch.
+    /// Verifies an event type is suppressed after the count limit without suppressing dispatch or other event types.
     /// </summary>
     [Fact]
-    public void Drain_suppressesNoisyEventsUnlessEnabled()
+    public void Drain_suppressesFrequentEventTypeAndLogsTransition()
     {
         var logger = new CapturingLogger<EventHub>();
         var eventHub = new EventHub(logger, diagnosticsEnabled: true);
-        var handler = new MouseMovedHandler();
+        var handler = new ProbeHandler();
 
         eventHub.Register(handler);
-        eventHub.Publish(new MouseMovedEvent(new TestMouse(Vector2D<float>.Zero), new(12, 34)));
+        for (var i = 0; i < 22; i++)
+            eventHub.Publish(new ProbeEvent(i));
+
         eventHub.Drain();
 
-        Assert.Equal(1, handler.EventCount);
-        Assert.Empty(logger.Messages);
+        Assert.Equal(22, handler.EventCount);
+        Assert.Equal(21, logger.Messages.Count);
+        Assert.Contains("Suppressing diagnostic logging", logger.Messages[^1]);
+        Assert.Contains(nameof(ProbeEvent), logger.Messages[^1]);
+
+        eventHub.Publish(new OtherProbeEvent());
+        eventHub.Drain();
+
+        Assert.Equal(22, logger.Messages.Count);
+        Assert.Contains(nameof(OtherProbeEvent), logger.Messages[^1]);
     }
 
     /// <summary>
@@ -123,6 +133,11 @@ public class EventHubTests
         /// </summary>
         public ProbeEvent? Self { get; set; }
     }
+
+    /// <summary>
+    /// Represents an event with an independent diagnostic suppression identity.
+    /// </summary>
+    private sealed class OtherProbeEvent : IEvent { }
 
     /// <summary>
     /// Counts handled probe events.
@@ -188,23 +203,6 @@ public class EventHubTests
 
         /// <inheritdoc />
         public bool IsButtonDown(MouseButtonEnum button) => false;
-    }
-
-    /// <summary>
-    /// Counts mouse movement events delivered to a registered handler.
-    /// </summary>
-    private sealed class MouseMovedHandler
-    {
-        /// <summary>
-        /// Gets the number of mouse movement events handled.
-        /// </summary>
-        public int EventCount { get; private set; }
-
-        /// <summary>
-        /// Handles a mouse movement event.
-        /// </summary>
-        /// <param name="message">The event being handled.</param>
-        public void Handle(MouseMovedEvent message) => EventCount++;
     }
 
     /// <summary>

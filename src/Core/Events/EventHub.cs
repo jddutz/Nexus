@@ -12,6 +12,7 @@ namespace Nexus.Core.Events;
 public sealed class EventHub : IEventHub
 {
     private const string HANDLE_METHOD_NAME = "Handle";
+    private const int EVENT_LOG_LIMIT = 20;
     private static readonly JsonSerializerOptions EventJsonOptions = new()
     {
         ReferenceHandler = ReferenceHandler.IgnoreCycles,
@@ -24,6 +25,7 @@ public sealed class EventHub : IEventHub
     private readonly HashSet<object> _registeredHandlers = new(ReferenceEqualityComparer.Instance);
 
     private readonly Dictionary<Type, List<EventSubscription>> _subscriptions = [];
+    private readonly Dictionary<Type, int> _eventLogCounts = [];
     private readonly ConcurrentQueue<IEvent> _events = new();
 
     /// <summary>
@@ -31,7 +33,7 @@ public sealed class EventHub : IEventHub
     /// </summary>
     /// <param name="logger">The logger used to record event type and JSON payload data.</param>
     /// <param name="diagnosticsEnabled">Whether event diagnostic logging is enabled.</param>
-    /// <param name="logHighFrequencyEvents">Whether frequently occurring events are logged.</param>
+    /// <param name="logHighFrequencyEvents">Whether automatic high-frequency event log suppression is bypassed.</param>
     public EventHub(
         ILogger<EventHub>? logger = null,
         bool diagnosticsEnabled = false,
@@ -186,15 +188,13 @@ public sealed class EventHub : IEventHub
     /// <param name="event">The event being dispatched.</param>
     private void LogEvent(IEvent @event)
     {
-        if (
-            !_diagnosticsEnabled
-            || (!_logHighFrequencyEvents && @event is INoisyEvent)
-            || _logger is null
-            || !_logger.IsEnabled(LogLevel.Information)
-        )
+        if (!_diagnosticsEnabled || _logger is null || !_logger.IsEnabled(LogLevel.Information))
             return;
 
         var eventType = @event.GetType();
+        if (!_logHighFrequencyEvents && !ShouldLogEvent(eventType))
+            return;
+
         string eventJson;
         try
         {
@@ -215,6 +215,31 @@ public sealed class EventHub : IEventHub
             eventType.FullName,
             eventJson
         );
+    }
+
+    /// <summary>
+    /// Determines whether diagnostic logging for an event type remains below the event-count limit.
+    /// </summary>
+    /// <param name="eventType">The concrete event type used as the event identifier.</param>
+    /// <returns><see langword="true"/> when this event should be logged.</returns>
+    private bool ShouldLogEvent(Type eventType)
+    {
+        _eventLogCounts.TryGetValue(eventType, out var eventCount);
+        if (eventCount > EVENT_LOG_LIMIT)
+            return false;
+
+        eventCount++;
+        _eventLogCounts[eventType] = eventCount;
+
+        if (eventCount <= EVENT_LOG_LIMIT)
+            return true;
+
+        _logger!.LogInformation(
+            "Suppressing diagnostic logging for event {EventType} after {EventCount} events.",
+            eventType.FullName ?? eventType.Name,
+            eventCount
+        );
+        return false;
     }
 
     /// <summary>

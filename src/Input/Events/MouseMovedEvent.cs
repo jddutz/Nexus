@@ -5,7 +5,7 @@ namespace Nexus.Input.Events;
 /// </summary>
 /// <param name="mouse">The mouse that moved.</param>
 /// <param name="position">The new mouse position.</param>
-public sealed class MouseMovedEvent(IMouseInputDevice mouse, Vector2D<float> position) : INoisyEvent
+public sealed class MouseMovedEvent(IMouseInputDevice mouse, Vector2D<float> position) : IEvent
 {
     /// <summary>
     /// Gets the mouse that moved.
