@@ -81,9 +81,9 @@ internal sealed class HelloNexusSceneFactory(
                     (bounds.Size.Y - imageSize.Y) / 2f,
                     0f
                 );
-            }
+            },
+            components: [backgroundTexture]
         );
-        backgroundElement.AddComponent(backgroundTexture);
         scene.AddChild(backgroundElement);
 
         var textStyle = CreateRobotoTextStyle();
@@ -95,9 +95,9 @@ internal sealed class HelloNexusSceneFactory(
         };
         var pressTextElement = new Element(
             measure: (_, availableSize) => MeasureText(pressText, textStyle, availableSize, 1),
-            arrange: (element, bounds) => ArrangeText(element, bounds, pressTextComponent)
+            arrange: (element, bounds) => ArrangeText(element, bounds, pressTextComponent),
+            components: [pressTextComponent]
         );
-        pressTextElement.AddComponent(pressTextComponent);
 
         const string welcomeText = "Welcome to the Nexus";
         var welcomeTextComponent = new TextComponent(textStyle)
@@ -113,9 +113,9 @@ internal sealed class HelloNexusSceneFactory(
                     availableSize,
                     GetMaximumLineCount(textStyle, availableSize.Y)
                 ),
-            arrange: (element, bounds) => ArrangeText(element, bounds, welcomeTextComponent)
+            arrange: (element, bounds) => ArrangeText(element, bounds, welcomeTextComponent),
+            components: [welcomeTextComponent]
         );
-        welcomeTextElement.AddComponent(welcomeTextComponent);
 
         const string buttonLabel = "Start Physics Test";
         const float buttonHorizontalPadding = 16f;
@@ -123,41 +123,22 @@ internal sealed class HelloNexusSceneFactory(
         const float buttonLabelGap = 10f;
         var buttonLabelSize = MeasureWrappedText(textStyle, buttonLabel);
         var buttonDesiredSize = new Vector2D<float>(
-            buttonLabelSize.X + buttonHorizontalPadding * 2f,
-            buttonLabelSize.Y + buttonVerticalPadding * 2f
+            MathF.Ceiling(buttonLabelSize.X) + buttonHorizontalPadding * 2f,
+            MathF.Ceiling(buttonLabelSize.Y) + buttonVerticalPadding * 2f
         );
         var buttonTextComponent = new TextComponent(textStyle)
         {
             RenderLayerMask = foregroundLayer,
             Text = buttonLabel,
         };
-        var buttonTextElement = new Element(
-            measure: (_, availableSize) =>
-                new Vector2D<float>(
-                    MathF.Min(buttonLabelSize.X, availableSize.X),
-                    MathF.Min(buttonLabelSize.Y, availableSize.Y)
-                ),
-            arrange: (element, bounds) => ArrangeText(element, bounds, buttonTextComponent)
-        );
-        buttonTextElement.AddComponent(buttonTextComponent);
-
-        var buttonTexture = textureProvider.Get((ContentId)"button_texture");
-        var buttonNinePatch = new NinePatchComponent
+        var buttonTextureComponent = new NinePatchComponent
         {
-            Texture = buttonTexture,
+            Texture = textureProvider.Get((ContentId)"button_texture"),
             Size = buttonDesiredSize,
-            RenderLayerMask = foregroundLayer,
+            RenderLayerMask = backgroundLayer,
+            SamplingBehavior = SamplingBehaviors.PixelPerfect,
             SourceBorders = new(12f, 12f, 12f, 12f),
         };
-        var buttonSurfaceElement = new Element(
-            arrange: (element, bounds) =>
-            {
-                ArrangementRules.Default(element, bounds);
-                element.Position = bounds.Origin;
-                buttonNinePatch.Size = bounds.Size;
-            }
-        );
-        buttonSurfaceElement.AddComponent(buttonNinePatch);
 
         var buttonElement = new Element(
             measure: (_, availableSize) =>
@@ -168,7 +149,6 @@ internal sealed class HelloNexusSceneFactory(
             arrange: (element, bounds) =>
             {
                 element.Bounds = bounds;
-                buttonSurfaceElement.Arrange(bounds);
 
                 var labelBounds = new Rectangle<float>(
                     new Vector2D<float>(
@@ -184,11 +164,24 @@ internal sealed class HelloNexusSceneFactory(
                 if (buttonTextComponent.Text != visibleButtonLabel)
                     buttonTextComponent.Text = visibleButtonLabel;
 
-                buttonTextElement.Arrange(labelBounds);
-            }
+                var textBounds = buttonTextComponent.LayoutBounds;
+                var textOrigin = new Vector2D<float>(
+                    MathF.Round(bounds.Origin.X + (bounds.Size.X - textBounds.Size.X) / 2f),
+                    MathF.Round(bounds.Origin.Y + (bounds.Size.Y - textBounds.Size.Y) / 2f)
+                );
+                element.Position = new(
+                    textOrigin.X - textBounds.Origin.X,
+                    textOrigin.Y - textBounds.Origin.Y
+                );
+                buttonTextureComponent.Size = bounds.Size;
+                buttonTextureComponent.TransformationMatrix = Matrix4X4.CreateTranslation(
+                    bounds.Origin.X - element.Position.X,
+                    bounds.Origin.Y - element.Position.Y,
+                    0f
+                );
+            },
+            components: [buttonTextureComponent, buttonTextComponent]
         );
-        buttonElement.AddChild(buttonSurfaceElement);
-        buttonElement.AddChild(buttonTextElement);
 
         var audioTexture = textureProvider.Get((ContentId)"icon_audio_on");
         var leftIcon = CreateAudioIconElement(audioTexture, foregroundLayer);
@@ -280,8 +273,8 @@ internal sealed class HelloNexusSceneFactory(
                 buttonElement.Arrange(
                     new Rectangle<float>(
                         new Vector2D<float>(
-                            bounds.Origin.X + (bounds.Size.X - buttonSize.X) / 2f,
-                            groupTop + welcomeSize.Y + buttonLabelGap
+                            MathF.Round(bounds.Origin.X + (bounds.Size.X - buttonSize.X) / 2f),
+                            MathF.Round(groupTop + welcomeSize.Y + buttonLabelGap)
                         ),
                         buttonSize
                     )
@@ -542,9 +535,9 @@ internal sealed class HelloNexusSceneFactory(
                     cropRatio.X,
                     cropRatio.Y
                 );
-            }
+            },
+            components: [textureComponent]
         );
-        element.AddComponent(textureComponent);
         return element;
     }
 

@@ -10,12 +10,14 @@ namespace Nexus.GUI;
 /// <param name="height">The initial height of the element.</param>
 /// <param name="measure">The rule used to measure the element.</param>
 /// <param name="arrange">The rule used to arrange the element.</param>
+/// <param name="components">The components owned by the element.</param>
 public class Element(
     float? width = null,
     float? height = null,
     MeasurementRule? measure = null,
-    ArrangementRule? arrange = null
-) : GameObject2D, IElement
+    ArrangementRule? arrange = null,
+    IEnumerable<IComponent>? components = null
+) : GameObject2D(components ?? []), IElement
 {
     private float? _height = height;
     private float? _width = width;

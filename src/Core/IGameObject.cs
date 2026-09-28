@@ -11,7 +11,7 @@ public interface IGameObject : INotifyPropertyChanged
     /// when a child is added or removed.
     /// </summary>
     IReadOnlyList<IGameObject> Children { get; }
-    IReadOnlyList<IComponent> Components { get; }
+    IEnumerable<IComponent> Components { get; }
 
     /// <summary>
     /// Gets the game model that owns this game object. Raises
@@ -27,26 +27,7 @@ public interface IGameObject : INotifyPropertyChanged
 
     bool IsActive { get; }
 
-    TComponent AddComponent<TComponent>()
-        where TComponent : class, IComponent;
-
-    /// <summary>
-    /// Attaches an existing component to this game object.
-    /// </summary>
-    /// <param name="component">The component to attach.</param>
-    void AddComponent(IComponent component);
-
     TComponent? GetComponent<TComponent>()
-        where TComponent : class, IComponent;
-
-    /// <summary>
-    /// Removes the specified component from this game object.
-    /// </summary>
-    /// <param name="component">The component to remove.</param>
-    /// <returns><see langword="true"/> when a component was removed; otherwise, <see langword="false"/>.</returns>
-    bool RemoveComponent(IComponent component);
-
-    bool RemoveComponent<TComponent>()
         where TComponent : class, IComponent;
 
     event Action<IComponent>? ComponentAdded;

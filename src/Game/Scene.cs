@@ -112,12 +112,9 @@ public class Scene : IScene
         Layers = new RenderLayerCollection();
         Layers.Create("GUI", RenderPasses.Main);
 
-        var defaultView = new GameObject2D();
-        var defaultCamera = defaultView.AddComponent<StaticCamera>();
-
+        var defaultCamera = new StaticCamera();
         var viewComponent = new ViewComponent() { Camera = defaultCamera, LayerMask = 1 };
-
-        defaultView.AddComponent(viewComponent);
+        var defaultView = new GameObject2D([defaultCamera, viewComponent]);
 
         AddChild(defaultView);
     }

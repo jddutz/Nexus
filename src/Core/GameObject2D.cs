@@ -123,7 +123,13 @@ public class GameObject2D : GameObject, IGameObject2D
     /// <summary>
     /// Initializes a new instance of the <see cref="GameObject2D"/> class.
     /// </summary>
-    public GameObject2D() { }
+    public GameObject2D()
+        : this([]) { }
+
+    /// <summary>Initializes a two-dimensional game object with the specified components.</summary>
+    /// <param name="components">The components owned by this game object.</param>
+    public GameObject2D(IEnumerable<IComponent> components)
+        : base(components) { }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="GameObject2D"/> class with the specified identifier.
@@ -131,6 +137,12 @@ public class GameObject2D : GameObject, IGameObject2D
     /// <param name="id">The identifier for the game object.</param>
     public GameObject2D(uint id)
         : base(id) { }
+
+    /// <summary>Initializes a two-dimensional game object with the specified identifier and components.</summary>
+    /// <param name="id">The identifier for the game object.</param>
+    /// <param name="components">The components owned by this game object.</param>
+    public GameObject2D(uint id, IEnumerable<IComponent> components)
+        : base(id, components) { }
 
     /// <summary>
     /// Updates the transformation matrix from the position, rotation, and scale.

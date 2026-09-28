@@ -83,13 +83,11 @@ public class GameSystemEventRegistrationTests
     {
         var eventHub = new EventHub();
         var gameSystem = CreateGameSystem(eventHub);
-        var root = new EventHandlingGameObject();
-        var child = new EventHandlingGameObject();
         var rootComponent = new EventHandlingComponent();
+        var root = new EventHandlingGameObject([rootComponent]);
         var childComponent = new EventHandlingComponent();
-        root.AddComponent(rootComponent);
+        var child = new EventHandlingGameObject([childComponent]);
         root.AddChild(child);
-        child.AddComponent(childComponent);
 
         root.SetGameModel(gameSystem);
         eventHub.Publish(new ProbeEvent());
@@ -119,10 +117,9 @@ public class GameSystemEventRegistrationTests
         var eventHub = new EventHub();
         var gameSystem = CreateGameSystem(eventHub);
         var root = new EventHandlingGameObject();
-        var child = new EventHandlingGameObject();
         var component = new EventHandlingComponent();
+        var child = new EventHandlingGameObject([component]);
         root.AddChild(child);
-        child.AddComponent(component);
 
         gameSystem.ActivateGameObject(root);
         gameSystem.ActivateComponent(component);
@@ -171,6 +168,14 @@ public class GameSystemEventRegistrationTests
     /// </summary>
     private sealed class EventHandlingGameObject : GameObject
     {
+        /// <summary>Initializes an event-handling game object with its components.</summary>
+        /// <param name="components">The components owned by this game object.</param>
+        public EventHandlingGameObject(IEnumerable<IComponent> components)
+            : base(components) { }
+
+        /// <summary>Initializes an event-handling game object without components.</summary>
+        public EventHandlingGameObject() { }
+
         /// <summary>Gets the number of global probe events received.</summary>
         public int GlobalEventCount { get; private set; }
 

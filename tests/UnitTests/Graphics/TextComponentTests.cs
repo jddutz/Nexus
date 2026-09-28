@@ -31,6 +31,25 @@ public sealed class TextComponentTests
     }
 
     /// <summary>
+    /// Verifies text spans and component drawables use the same unique identifier source.
+    /// </summary>
+    [Fact]
+    public void Drawable_ids_are_unique_across_text_and_texture_drawables()
+    {
+        IDrawable[] drawables =
+        [
+            new TextureComponent(),
+            new TextureComponent(),
+            new TextSpan(CreateStyle(), "A"),
+        ];
+
+        Assert.Equal(
+            drawables.Length,
+            drawables.Select(drawable => drawable.Id).Distinct().Count()
+        );
+    }
+
+    /// <summary>
     /// Verifies text layout bounds include glyph plane bounds and accumulated advances.
     /// </summary>
     [Fact]
@@ -67,11 +86,10 @@ public sealed class TextComponentTests
     public void Owner_transform_is_applied_to_spans_and_glyph_instances()
     {
         var style = CreateStyle();
-        var gameObject = new GameObject2D();
+        var component = new TextComponent(style) { Text = "AB" };
+        var gameObject = new GameObject2D([component]);
         gameObject.SetGameModel(new TestGameModel());
         gameObject.Position = new Vector2D<float>(3f, 4f);
-        var component = new TextComponent(style) { Text = "AB" };
-        gameObject.AddComponent(component);
         var span = Assert.IsType<TextSpan>(Assert.Single(component.Drawables));
 
         Assert.Equal(gameObject.WorldTransform, span.TransformationMatrix);
@@ -108,9 +126,8 @@ public sealed class TextComponentTests
     [Fact]
     public void Initialize_refreshes_span_transform_after_game_model_assignment()
     {
-        var gameObject = new GameObject2D { Position = new Vector2D<float>(10f, 20f) };
         var component = new TextComponent(CreateStyle()) { Text = "A" };
-        gameObject.AddComponent(component);
+        var gameObject = new GameObject2D([component]) { Position = new Vector2D<float>(10f, 20f) };
         gameObject.SetGameModel(new TestGameModel());
         var span = Assert.IsType<TextSpan>(Assert.Single(component.Drawables));
 

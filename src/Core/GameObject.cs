@@ -6,7 +6,7 @@ namespace Nexus.Core;
 public class GameObject : ObservableObject, IGameObject
 {
     private readonly List<IGameObject> _children = [];
-    private readonly List<IComponent> _components = [];
+    private readonly IComponent[] _components;
     private bool _isActive;
 
     /// <summary>
@@ -27,7 +27,7 @@ public class GameObject : ObservableObject, IGameObject
     /// <summary>
     /// Gets the components attached to this game object.
     /// </summary>
-    public IReadOnlyList<IComponent> Components => _components.AsReadOnly();
+    public IEnumerable<IComponent> Components => EnumerateComponents();
 
     /// <summary>
     /// Gets the game model that owns this game object.
@@ -43,14 +43,10 @@ public class GameObject : ObservableObject, IGameObject
         internal set => SetProperty(ref _isActive, value);
     }
 
-    /// <summary>
-    /// Occurs when a component is added to this game object or one of its descendants.
-    /// </summary>
+    /// <summary>Occurs when an attached component becomes active on this object or a descendant.</summary>
     public event Action<IComponent>? ComponentAdded;
 
-    /// <summary>
-    /// Occurs when a component is removed from this game object or one of its descendants.
-    /// </summary>
+    /// <summary>Occurs when an attached component becomes inactive on this object or a descendant.</summary>
     public event Action<IComponent>? ComponentRemoved;
 
     /// <summary>
@@ -67,51 +63,55 @@ public class GameObject : ObservableObject, IGameObject
     /// Initializes a new instance of the <see cref="GameObject"/> class with a generated identifier.
     /// </summary>
     public GameObject()
-    {
-        Id = GameObjectId.New();
-    }
+        : this(GameObjectId.New(), []) { }
+
+    /// <summary>Initializes a game object with a generated identifier and the specified components.</summary>
+    /// <param name="components">The components owned by this game object.</param>
+    public GameObject(IEnumerable<IComponent> components)
+        : this(GameObjectId.New(), components) { }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="GameObject"/> class with the specified identifier.
     /// </summary>
     /// <param name="id">The identifier for the game object.</param>
     public GameObject(uint id)
+        : this(new GameObjectId(id), []) { }
+
+    /// <summary>Initializes a game object with the specified identifier and components.</summary>
+    /// <param name="id">The identifier for the game object.</param>
+    /// <param name="components">The components owned by this game object.</param>
+    public GameObject(uint id, IEnumerable<IComponent> components)
+        : this(new GameObjectId(id), components) { }
+
+    /// <summary>Initializes a game object from a validated identifier and component sequence.</summary>
+    /// <param name="id">The identifier for the game object.</param>
+    /// <param name="components">The components owned by this game object.</param>
+    private GameObject(GameObjectId id, IEnumerable<IComponent> components)
     {
+        ArgumentNullException.ThrowIfNull(components);
         Id = id;
-    }
+        _components = components.ToArray();
 
-    /// <summary>
-    /// Creates and adds a component of the specified type.
-    /// </summary>
-    /// <typeparam name="TComponent">The type of component to add.</typeparam>
-    /// <returns>The added component.</returns>
-    public TComponent AddComponent<TComponent>()
-        where TComponent : class, IComponent
-    {
-        var component = Activator.CreateInstance<TComponent>();
-        AddComponent(component);
-        return component;
-    }
-
-    /// <inheritdoc/>
-    public void AddComponent(IComponent component)
-    {
-        ArgumentNullException.ThrowIfNull(component);
-        if (_components.Contains(component))
-            return;
-
-        if (component.GameObjectId != GameObjectId.Invalid)
+        var uniqueComponents = new HashSet<IComponent>(ReferenceEqualityComparer.Instance);
+        foreach (var component in _components)
         {
-            var previousOwner = component.GameModel?.GetGameObject(component.GameObjectId);
-            previousOwner?.RemoveComponent(component);
+            ArgumentNullException.ThrowIfNull(component);
+            if (!uniqueComponents.Add(component))
+                throw new ArgumentException(
+                    "A component can only be supplied once.",
+                    nameof(components)
+                );
+            if (component.GameObjectId != GameObjectId.Invalid)
+                throw new ArgumentException(
+                    "A component can only be owned by one game object.",
+                    nameof(components)
+                );
         }
 
-        _components.Add(component);
-        component.SetGameObject(this);
-        component.Initialize();
-        if (IsActive)
+        foreach (var component in _components)
         {
-            ComponentAdded?.Invoke(component);
+            component.SetGameObject(this);
+            component.Initialize();
         }
     }
 
@@ -123,31 +123,12 @@ public class GameObject : ObservableObject, IGameObject
     public TComponent? GetComponent<TComponent>()
         where TComponent : class, IComponent => _components.OfType<TComponent>().FirstOrDefault();
 
-    /// <summary>
-    /// Removes the first component of the specified type.
-    /// </summary>
-    /// <typeparam name="TComponent">The type of component to remove.</typeparam>
-    /// <returns><see langword="true"/> when a component was removed; otherwise, <see langword="false"/>.</returns>
-    public bool RemoveComponent<TComponent>()
-        where TComponent : class, IComponent
+    /// <summary>Enumerates the fixed components without exposing the backing array.</summary>
+    /// <returns>The components supplied when this game object was created.</returns>
+    private IEnumerable<IComponent> EnumerateComponents()
     {
-        var component = GetComponent<TComponent>();
-        return component is not null && RemoveComponent(component);
-    }
-
-    /// <inheritdoc/>
-    public bool RemoveComponent(IComponent component)
-    {
-        if (!_components.Remove(component))
-            return false;
-
-        if (IsActive)
-        {
-            ComponentRemoved?.Invoke(component);
-        }
-
-        component.SetGameObject(null);
-        return true;
+        foreach (var component in _components)
+            yield return component;
     }
 
     /// <inheritdoc/>

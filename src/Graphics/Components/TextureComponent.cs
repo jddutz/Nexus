@@ -5,6 +5,7 @@ namespace Nexus.Graphics.Components;
 /// <summary>Draws one texture region over an explicitly sized rectangular destination.</summary>
 public class TextureComponent : Nexus.Core.Component, IGraphicsComponent, IDrawable
 {
+    private readonly DrawableId _drawableId = DrawableId.New();
     private static readonly int InstanceDataSize =
         System.Runtime.CompilerServices.Unsafe.SizeOf<Matrix4X4<float>>()
         + System.Runtime.CompilerServices.Unsafe.SizeOf<Vector4D<float>>()
@@ -50,7 +51,7 @@ public class TextureComponent : Nexus.Core.Component, IGraphicsComponent, IDrawa
     public event EventHandler<DrawableEventArgs>? DrawableRemoved;
 
     /// <inheritdoc />
-    DrawableId IDrawable.Id => new(Id.Value);
+    DrawableId IDrawable.Id => _drawableId;
 
     /// <inheritdoc />
     ulong IDrawable.RenderLayerMask => RenderLayerMask;

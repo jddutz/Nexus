@@ -14,9 +14,9 @@ public class View : GameObject
     /// Initializes a new instance of the <see cref="View"/> class.
     /// </summary>
     public View()
+        : base([new ViewComponent()])
     {
-        ViewComponent = new ViewComponent();
-        AddComponent(ViewComponent);
+        ViewComponent = Components.OfType<ViewComponent>().Single();
     }
 
     /// <summary>
@@ -24,9 +24,8 @@ public class View : GameObject
     /// </summary>
     /// <param name="id">The identifier for the view.</param>
     public View(uint id)
-        : base(id)
+        : base(id, [new ViewComponent()])
     {
-        ViewComponent = new ViewComponent();
-        AddComponent(ViewComponent);
+        ViewComponent = Components.OfType<ViewComponent>().Single();
     }
 }

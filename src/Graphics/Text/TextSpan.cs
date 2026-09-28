@@ -13,8 +13,7 @@ public sealed class TextSpan : IDrawable, IMeshInstance
         + Marshal.SizeOf<Color>()
         + sizeof(float);
 
-    private static ulong _nextId;
-    private readonly DrawableId _id = new(Interlocked.Increment(ref _nextId));
+    private readonly DrawableId _id = DrawableId.New();
     private Matrix4X4<float> _transformationMatrix = Matrix4X4<float>.Identity;
     private Matrix4X4<float> _view = Matrix4X4<float>.Identity;
     private ulong _renderLayerMask = ulong.MaxValue;

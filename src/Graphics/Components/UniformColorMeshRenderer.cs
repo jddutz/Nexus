@@ -5,6 +5,7 @@ namespace Nexus.Graphics.Components;
 /// </summary>
 public class UniformColorMeshRenderer() : Component, IGraphicsComponent, IDrawable, IMeshInstance
 {
+    private readonly DrawableId _drawableId = DrawableId.New();
     private static readonly int InstanceDataSize =
         System.Runtime.CompilerServices.Unsafe.SizeOf<Matrix4X4<float>>() + Marshal.SizeOf<Color>();
 
@@ -65,7 +66,7 @@ public class UniformColorMeshRenderer() : Component, IGraphicsComponent, IDrawab
     }
 
     /// <inheritdoc/>
-    DrawableId IDrawable.Id => new(Id.Value);
+    DrawableId IDrawable.Id => _drawableId;
 
     /// <inheritdoc/>
     ulong IDrawable.RenderLayerMask => RenderLayerMask;

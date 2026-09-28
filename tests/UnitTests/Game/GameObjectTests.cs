@@ -70,8 +70,9 @@ public class GameObjectTests
     {
         var scene = new Scene();
         var parent = scene.CreateChild<GameObject>();
-        var child = parent.CreateChild<GameObject>();
         var component = new TestComponent();
+        var child = new GameObject([component]);
+        parent.AddChild(child);
         var addedGameObjects = new List<IGameObject>();
         var removedGameObjects = new List<IGameObject>();
         var addedComponents = new List<IComponent>();
@@ -82,7 +83,6 @@ public class GameObjectTests
         scene.ComponentAdded += addedComponents.Add;
         scene.ComponentRemoved += removedComponents.Add;
 
-        child.AddComponent(component);
         scene.Activate();
 
         Assert.Contains(parent, addedGameObjects);
@@ -98,14 +98,13 @@ public class GameObjectTests
     /// Verifies that components can resolve their owner through the assigned game model.
     /// </summary>
     [Fact]
-    public void AddComponent_assignsOwnerAndGameModel()
+    public void ConstructorComponents_assignOwnerAndGameModel()
     {
         var gameModel = new TestGameModel();
-        var gameObject = new GameObject(1);
         var component = new TestComponent();
+        var gameObject = new GameObject(1, [component]);
 
         gameObject.SetGameModel(gameModel);
-        gameObject.AddComponent(component);
 
         var componentGameModel = Assert.IsAssignableFrom<IGameModel>(component.GameModel);
 
@@ -281,17 +280,14 @@ public class GameObjectTests
     [Fact]
     public void Activate_setsTreeStateTopDownAndNotifiesComponentsBottomUp()
     {
-        var root = new GameObject(20);
-        var child = new GameObject(21);
-        var leaf = new GameObject(22);
         var rootComponent = new TestComponent();
         var childComponent = new TestComponent();
         var leafComponent = new TestComponent();
+        var root = new GameObject(20, [rootComponent]);
+        var child = new GameObject(21, [childComponent]);
+        var leaf = new GameObject(22, [leafComponent]);
         root.AddChild(child);
         child.AddChild(leaf);
-        root.AddComponent(rootComponent);
-        child.AddComponent(childComponent);
-        leaf.AddComponent(leafComponent);
         var activationOrder = new List<IComponent>();
         var entireTreeIsActiveAtNotification = true;
 
@@ -308,13 +304,13 @@ public class GameObjectTests
     }
 
     /// <summary>
-    /// Verifies adding initializes a component and object activation only notifies listeners.
+    /// Verifies constructor-supplied components initialize before activation notifications.
     /// </summary>
     [Fact]
-    public void AddComponent_initializesBeforeGameObjectActivationNotification()
+    public void ConstructorComponents_initializeBeforeGameObjectActivationNotification()
     {
-        var gameObject = new GameObject();
-        var component = gameObject.AddComponent<TestComponent>();
+        var component = new TestComponent();
+        var gameObject = new GameObject([component]);
         Assert.Equal(1, component.InitializationCount);
         Assert.False(component.IsActivated);
         var initializedAtNotification = false;
@@ -339,49 +335,41 @@ public class GameObjectTests
     }
 
     /// <summary>
-    /// Verifies a component added to an active object initializes without changing activation state.
+    /// Verifies the constructor snapshots its input and exposes components through a read-only view.
     /// </summary>
     [Fact]
-    public void AddComponent_toActiveObject_initializesBeforeNotification()
+    public void ConstructorComponents_areImmutableAfterConstruction()
     {
-        var gameObject = new GameObject();
-        gameObject.Activate();
         var component = new TestComponent();
-        var activeAtNotification = true;
-        gameObject.ComponentAdded += addedComponent =>
-        {
-            if (ReferenceEquals(addedComponent, component))
-                activeAtNotification = component.IsActivated;
-        };
+        var suppliedComponents = new List<IComponent> { component };
+        var gameObject = new GameObject(suppliedComponents);
+        suppliedComponents.Clear();
 
-        gameObject.AddComponent(component);
+        Assert.Same(component, Assert.Single(gameObject.Components));
+        Assert.IsNotAssignableFrom<IList<IComponent>>(gameObject.Components);
+        Assert.IsNotAssignableFrom<IComponent[]>(gameObject.Components);
 
         Assert.Equal(1, component.InitializationCount);
         Assert.False(component.IsActivated);
-        Assert.False(activeAtNotification);
     }
 
     /// <summary>
-    /// Verifies that attaching a component to a new game object detaches it from its prior owner.
+    /// Verifies that a component already owned by another object cannot be reused.
     /// </summary>
     [Fact]
-    public void AddComponent_transfersComponentFromPreviousOwner()
+    public void Constructor_rejectsComponentAlreadyOwnedByAnotherObject()
     {
         var gameModel = new TestGameModel();
-        var previousOwner = new GameObject(1);
-        var nextOwner = new GameObject(2);
         var component = new TestComponent();
+        var previousOwner = new GameObject(1, [component]);
 
         previousOwner.SetGameModel(gameModel);
-        nextOwner.SetGameModel(gameModel);
-        previousOwner.AddComponent(component);
+        var exception = Assert.Throws<ArgumentException>(() => new GameObject(2, [component]));
 
-        nextOwner.AddComponent(component);
-
-        Assert.Empty(previousOwner.Components);
-        Assert.Contains(component, nextOwner.Components);
-        Assert.Equal(nextOwner.Id, component.GameObjectId);
-        Assert.Same(nextOwner, component.GameModel?.GetGameObject(component.GameObjectId));
+        Assert.Contains(component, previousOwner.Components);
+        Assert.Equal(previousOwner.Id, component.GameObjectId);
+        Assert.Same(previousOwner, component.GameModel?.GetGameObject(component.GameObjectId));
+        Assert.Contains("one game object", exception.Message);
     }
 
     /// <summary>

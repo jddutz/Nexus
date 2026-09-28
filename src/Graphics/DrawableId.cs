@@ -6,6 +6,13 @@ namespace Nexus.Graphics;
 /// <param name="Value">The underlying unsigned integer value of the identifier.</param>
 public readonly record struct DrawableId(ulong Value) : IEquatable<DrawableId>, IUniqueId
 {
+    private static long _nextId;
+
+    /// <summary>
+    /// Creates a unique graphics identifier.
+    /// </summary>
+    public static DrawableId New() => new((ulong)Interlocked.Increment(ref _nextId));
+
     /// <summary>
     /// Creates a graphics identifier from an unsigned integer value.
     /// </summary>
