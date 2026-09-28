@@ -2,6 +2,7 @@ namespace Nexus.Input;
 
 using System.Collections.ObjectModel;
 using Nexus.Input.Events;
+using Silk.NET.Windowing;
 
 /// <summary>
 /// Provides the default input system implementation.
@@ -10,6 +11,7 @@ public sealed class InputSystem : IInputSystem, IDisposable
 {
     private readonly IEventHub _eventHub;
     private readonly IInputAdapter? _inputAdapter;
+    private readonly IWindow? _window;
     private readonly KeyboardInputState _keyboard = new();
     private readonly MouseInputState _mouse = new();
     private readonly Dictionary<InputDeviceId, IKeyboardInputDevice> _keyboards = [];
@@ -62,12 +64,17 @@ public sealed class InputSystem : IInputSystem, IDisposable
     /// <param name="eventHub">The global event hub.</param>
     /// <param name="inputAdapter">The adapter that reports keyboard connections and key transitions.</param>
     /// <exception cref="ArgumentNullException"><paramref name="eventHub"/> is <see langword="null"/>.</exception>
-    public InputSystem(IEventHub eventHub, IInputAdapter? inputAdapter = null)
+    public InputSystem(
+        IEventHub eventHub,
+        IInputAdapter? inputAdapter = null,
+        IWindow? window = null
+    )
     {
         ArgumentNullException.ThrowIfNull(eventHub);
 
         _eventHub = eventHub;
         _inputAdapter = inputAdapter;
+        _window = window;
         _controllerView = _controllerList.AsReadOnly();
     }
 
@@ -88,6 +95,9 @@ public sealed class InputSystem : IInputSystem, IDisposable
             return;
 
         _initialized = true;
+        if (_window is not null)
+            _window.FocusChanged += OnWindowFocusChanged;
+
         if (_inputAdapter is null)
             return;
 
@@ -120,6 +130,9 @@ public sealed class InputSystem : IInputSystem, IDisposable
             return;
 
         _disposed = true;
+        if (_window is not null && _initialized)
+            _window.FocusChanged -= OnWindowFocusChanged;
+
         if (_currentMap is not null)
         {
             _eventHub.Unregister(_currentMap);
@@ -306,6 +319,17 @@ public sealed class InputSystem : IInputSystem, IDisposable
     {
         if (_mice.ContainsKey(mouse.Id))
             _eventHub.Publish(new MouseWheelEvent(mouse, delta, mouse.Position));
+    }
+
+    /// <summary>Cancels current mouse interactions when the application window loses focus.</summary>
+    /// <param name="isFocused">Whether the application window currently has focus.</param>
+    private void OnWindowFocusChanged(bool isFocused)
+    {
+        if (isFocused)
+            return;
+
+        foreach (var mouse in _mice.Values)
+            _eventHub.Publish(new MouseCanceledEvent(mouse, mouse.Position));
     }
 
     /// <summary>

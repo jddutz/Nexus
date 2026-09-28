@@ -107,6 +107,7 @@ public sealed class GraphicalUserInterface(IEventHub eventHub, IWindowService? w
         {
             if (_subscribedElements.Remove(element))
             {
+                element.CancelPointerInput();
                 element.PropertyChanged -= OnElementPropertyChanged;
                 element.InputMap.Unregister(_eventHub);
             }

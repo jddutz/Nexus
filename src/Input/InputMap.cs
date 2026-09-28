@@ -14,6 +14,21 @@ public sealed class InputMap
     private readonly Dictionary<MouseButtonEnum, List<Action>> _mousePressedBindings = [];
     private readonly Dictionary<MouseButtonEnum, List<Action>> _mouseReleasedBindings = [];
     private readonly List<Action> _mouseWheelBindings = [];
+
+    /// <summary>Occurs when a raw mouse-movement event reaches this registered input map.</summary>
+    public event Action<MouseMovedEvent>? PointerMoved;
+
+    /// <summary>Occurs when a raw mouse-button press reaches this registered input map.</summary>
+    public event Action<MouseButtonPressedEvent>? PointerPressed;
+
+    /// <summary>Occurs when a raw mouse-button release reaches this registered input map.</summary>
+    public event Action<MouseButtonReleasedEvent>? PointerReleased;
+
+    /// <summary>Occurs when a mouse-disconnection event reaches this registered input map.</summary>
+    public event Action<MouseDisconnectedEvent>? PointerDisconnected;
+
+    /// <summary>Occurs when mouse interaction is canceled by focus loss.</summary>
+    public event Action<MouseCanceledEvent>? PointerCanceled;
     private readonly Dictionary<
         (InputDeviceId? ControllerId, int ButtonIndex),
         List<Action>
@@ -212,6 +227,7 @@ public sealed class InputMap
     /// <param name="message">The mouse-button press event to handle.</param>
     public void Handle(MouseButtonPressedEvent message)
     {
+        PointerPressed?.Invoke(message);
         if (!SuppressSceneInputEvents && ContainsMousePosition(message.Position))
             Dispatch(_mousePressedBindings, message.Button);
     }
@@ -222,6 +238,7 @@ public sealed class InputMap
     /// <param name="message">The mouse-button release event to handle.</param>
     public void Handle(MouseButtonReleasedEvent message)
     {
+        PointerReleased?.Invoke(message);
         if (!SuppressSceneInputEvents && ContainsMousePosition(message.Position))
             Dispatch(_mouseReleasedBindings, message.Button);
     }
@@ -238,6 +255,18 @@ public sealed class InputMap
         foreach (var callback in _mouseWheelBindings.ToArray())
             callback();
     }
+
+    /// <summary>Forwards mouse movement to the owning GUI element.</summary>
+    /// <param name="message">The raw mouse-movement event.</param>
+    public void Handle(MouseMovedEvent message) => PointerMoved?.Invoke(message);
+
+    /// <summary>Forwards mouse disconnection to the owning GUI element.</summary>
+    /// <param name="message">The mouse-disconnection event.</param>
+    public void Handle(MouseDisconnectedEvent message) => PointerDisconnected?.Invoke(message);
+
+    /// <summary>Forwards mouse interaction cancellation to the owning GUI element.</summary>
+    /// <param name="message">The mouse-cancellation event.</param>
+    public void Handle(MouseCanceledEvent message) => PointerCanceled?.Invoke(message);
 
     /// <summary>Dispatches effects configured for a pressed controller button.</summary>
     /// <param name="message">The controller button event to handle.</param>

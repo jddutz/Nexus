@@ -1,11 +1,13 @@
 namespace Tests;
 
+using System.Reflection;
 using Nexus.Core.Events;
 using Nexus.Game;
 using Nexus.Input;
 using Nexus.Input.Devices;
 using Nexus.Input.Events;
 using Silk.NET.Maths;
+using Silk.NET.Windowing;
 using SilkKey = Silk.NET.Input.Key;
 
 /// <summary>
@@ -31,6 +33,38 @@ public class InputSystemTests
 
         Assert.Same(keyboard, inputSystem.Keyboard[keyboard.Id]);
         Assert.Collection(events.Connected, item => Assert.Same(keyboard, item.Keyboard));
+    }
+
+    /// <summary>Verifies focus loss publishes cancellation instead of a normal mouse release.</summary>
+    [Fact]
+    public void WindowFocusLoss_publishesMouseCancellationThroughEventHub()
+    {
+        var eventHub = new EventHub();
+        var mouse = new FakeMouse(12);
+        mouse.Move(new(12f, 34f));
+        var adapter = new FakeInputAdapter();
+        adapter.Connect(mouse);
+        var window = DispatchProxy.Create<IWindow, TestFocusWindow>();
+        var focusWindow = (TestFocusWindow)(object)window;
+        var cancellations = new List<MouseCanceledEvent>();
+        var collector = new MouseCancellationCollector(cancellations);
+        eventHub.Register(collector);
+        using var inputSystem = new InputSystem(eventHub, adapter, window);
+        inputSystem.Initialize();
+
+        focusWindow.ChangeFocus(false);
+        eventHub.Drain();
+        focusWindow.ChangeFocus(true);
+        eventHub.Drain();
+
+        Assert.Collection(
+            cancellations,
+            message =>
+            {
+                Assert.Same(mouse, message.Mouse);
+                Assert.Equal(new Vector2D<float>(12f, 34f), message.Position);
+            }
+        );
     }
 
     /// <summary>Verifies controller mappings, normalized state, transitions, and disconnection behavior.</summary>
@@ -745,6 +779,38 @@ public class InputSystemTests
                 disposable.Dispose();
             ControllerDisconnected?.Invoke(controller);
         }
+    }
+
+    /// <summary>Captures focus-change subscriptions for the InputSystem test.</summary>
+    private class TestFocusWindow : DispatchProxy
+    {
+        private Action<bool>? _focusChanged;
+
+        /// <summary>Raises a focus transition.</summary>
+        /// <param name="isFocused">Whether the window is focused.</param>
+        public void ChangeFocus(bool isFocused) => _focusChanged?.Invoke(isFocused);
+
+        /// <inheritdoc />
+        protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
+        {
+            if (targetMethod?.Name == "add_FocusChanged")
+                _focusChanged += (Action<bool>)args![0]!;
+            else if (targetMethod?.Name == "remove_FocusChanged")
+                _focusChanged -= (Action<bool>)args![0]!;
+
+            return targetMethod?.ReturnType == typeof(void) ? null
+                : targetMethod?.ReturnType.IsValueType == true
+                    ? Activator.CreateInstance(targetMethod.ReturnType)
+                : null;
+        }
+    }
+
+    /// <summary>Collects mouse-cancellation events published by the input system.</summary>
+    private sealed class MouseCancellationCollector(List<MouseCanceledEvent> events)
+    {
+        /// <summary>Records one mouse-cancellation event.</summary>
+        /// <param name="message">The cancellation event.</param>
+        public void Handle(MouseCanceledEvent message) => events.Add(message);
     }
 
     /// <summary>Holds mutable physical values for a fake controller source.</summary>

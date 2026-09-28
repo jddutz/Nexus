@@ -93,6 +93,7 @@ internal sealed class HelloNexusSceneFactory(
             backgroundRenderLayerMask: backgroundLayer,
             textRenderLayerMask: foregroundLayer
         );
+        buttonElement.Activated += (_, _) => buttonElement.Label = "Physics Test Started";
         const float buttonLabelGap = 10f;
 
         var audioTexture = textureProvider.Get((ContentId)"icon_audio_on");
@@ -104,12 +105,8 @@ internal sealed class HelloNexusSceneFactory(
             pressTextComponent,
             pressTextElement
         );
-        middleHeader.AddChild(pressTextElement);
 
         var header = new HeaderElement(leftIcon, middleHeader, rightIcon);
-        header.AddChild(leftIcon);
-        header.AddChild(middleHeader);
-        header.AddChild(rightIcon);
 
         var main = new MainContentElement(
             textStyle,
@@ -118,12 +115,8 @@ internal sealed class HelloNexusSceneFactory(
             buttonElement,
             buttonLabelGap
         );
-        main.AddChild(welcomeTextElement);
-        main.AddChild(buttonElement);
 
         var textLayout = new TextLayoutElement(header, main);
-        textLayout.AddChild(header);
-        textLayout.AddChild(main);
         scene.AddChild(textLayout);
 
         return scene;

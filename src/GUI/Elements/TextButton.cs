@@ -4,6 +4,7 @@ using System.Text;
 using Nexus.Graphics.Components;
 using Nexus.Graphics.Text;
 using Nexus.Graphics.Textures;
+using Nexus.Input.Events;
 
 /// <summary>
 /// Specifies the horizontal alignment of a text button's label.
@@ -32,6 +33,27 @@ public sealed class TextButton : Element
     private float _verticalPadding;
     private string _label;
     private TextButtonLabelAlignment _labelAlignment = TextButtonLabelAlignment.Center;
+    private InputDeviceId? _activePointerId;
+    private readonly HashSet<InputDeviceId> _insidePointers = [];
+    private readonly Dictionary<InputDeviceId, Vector2D<float>> _pointerPositions = [];
+
+    /// <summary>Occurs when a pointer enters the button bounds.</summary>
+    public event EventHandler<PointerEventArgs>? PointerEntered;
+
+    /// <summary>Occurs when a pointer exits the button bounds.</summary>
+    public event EventHandler<PointerEventArgs>? PointerExited;
+
+    /// <summary>Occurs when an eligible pointer press begins inside the button.</summary>
+    public event EventHandler<PointerEventArgs>? Pressed;
+
+    /// <summary>Occurs when the active pointer press ends normally.</summary>
+    public event EventHandler<PointerReleasedEventArgs>? Released;
+
+    /// <summary>Occurs after a press is released inside the button.</summary>
+    public event EventHandler<PointerEventArgs>? Activated;
+
+    /// <summary>Occurs when the active pointer press is interrupted.</summary>
+    public event EventHandler<PointerEventArgs>? Canceled;
 
     /// <summary>
     /// Gets or sets the complete label, before any width-based display fitting.
@@ -151,6 +173,191 @@ public sealed class TextButton : Element
         _label = composition.Label;
         _horizontalPadding = composition.HorizontalPadding;
         _verticalPadding = composition.VerticalPadding;
+        InputMap.PointerMoved += OnInputPointerMoved;
+        InputMap.PointerPressed += OnInputPointerPressed;
+        InputMap.PointerReleased += OnInputPointerReleased;
+        InputMap.PointerDisconnected += OnInputPointerDisconnected;
+        InputMap.PointerCanceled += OnInputPointerCanceled;
+    }
+
+    /// <inheritdoc />
+    internal override void OnPointerEntered(PointerEventArgs eventArgs)
+    {
+        _pointerPositions[eventArgs.PointerId] = eventArgs.Position;
+        if (_insidePointers.Add(eventArgs.PointerId))
+            PointerEntered?.Invoke(this, eventArgs);
+    }
+
+    /// <inheritdoc />
+    internal override void OnPointerExited(PointerEventArgs eventArgs)
+    {
+        var wasInside = _insidePointers.Remove(eventArgs.PointerId);
+        if (_activePointerId == eventArgs.PointerId)
+            _pointerPositions[eventArgs.PointerId] = eventArgs.Position;
+        else
+            _pointerPositions.Remove(eventArgs.PointerId);
+
+        if (wasInside)
+            PointerExited?.Invoke(this, eventArgs);
+    }
+
+    /// <inheritdoc />
+    internal override bool TryPointerDown(PointerEventArgs eventArgs)
+    {
+        if (_activePointerId.HasValue || !ContainsPointerPosition(eventArgs.Position))
+            return false;
+
+        _activePointerId = eventArgs.PointerId;
+        _pointerPositions[eventArgs.PointerId] = eventArgs.Position;
+        _insidePointers.Add(eventArgs.PointerId);
+        Pressed?.Invoke(this, eventArgs);
+        return true;
+    }
+
+    /// <inheritdoc />
+    internal override void OnPointerMoved(PointerEventArgs eventArgs)
+    {
+        if (_activePointerId == eventArgs.PointerId)
+        {
+            _pointerPositions[eventArgs.PointerId] = eventArgs.Position;
+            UpdateActivePointerInside(eventArgs);
+        }
+    }
+
+    /// <inheritdoc />
+    internal override void OnPointerUp(PointerEventArgs eventArgs)
+    {
+        if (_activePointerId != eventArgs.PointerId)
+            return;
+
+        var isInside = ContainsPointerPosition(eventArgs.Position);
+        UpdateActivePointerInside(eventArgs, isInside);
+        _activePointerId = null;
+        if (!isInside)
+            _pointerPositions.Remove(eventArgs.PointerId);
+        Released?.Invoke(
+            this,
+            new PointerReleasedEventArgs(
+                eventArgs.PointerId,
+                eventArgs.Position,
+                isInside,
+                eventArgs.Button
+            )
+        );
+        if (isInside)
+            Activated?.Invoke(this, eventArgs);
+    }
+
+    /// <inheritdoc />
+    internal override void OnPointerCanceled(PointerEventArgs eventArgs)
+    {
+        if (_activePointerId != eventArgs.PointerId)
+            return;
+
+        _activePointerId = null;
+        Canceled?.Invoke(this, eventArgs);
+    }
+
+    /// <inheritdoc />
+    internal override void CancelPointerInput()
+    {
+        if (_activePointerId is { } activePointerId)
+        {
+            var position = _pointerPositions.GetValueOrDefault(activePointerId);
+            OnPointerCanceled(new PointerEventArgs(activePointerId, position));
+        }
+
+        foreach (var pointerId in _insidePointers.ToArray())
+        {
+            var position = _pointerPositions.GetValueOrDefault(pointerId);
+            OnPointerExited(new PointerEventArgs(pointerId, position));
+        }
+
+        _pointerPositions.Clear();
+    }
+
+    /// <summary>Receives raw movement and updates this button's own hover and press state.</summary>
+    /// <param name="message">The mouse movement event.</param>
+    private void OnInputPointerMoved(MouseMovedEvent message)
+    {
+        var pointerId = message.Mouse?.Id ?? InputDeviceId.Invalid;
+        var eventArgs = new PointerEventArgs(pointerId, message.Position);
+        var isInside = ContainsPointerPosition(message.Position);
+        if (isInside)
+            OnPointerEntered(eventArgs);
+        else
+            OnPointerExited(eventArgs);
+
+        OnPointerMoved(eventArgs);
+    }
+
+    /// <summary>Receives raw presses and accepts only primary-button presses within current bounds.</summary>
+    /// <param name="message">The mouse-button press event.</param>
+    private void OnInputPointerPressed(MouseButtonPressedEvent message)
+    {
+        if (message.Button != MouseButtonEnum.Left)
+            return;
+
+        var pointerId = message.Mouse?.Id ?? InputDeviceId.Invalid;
+        var eventArgs = new PointerEventArgs(pointerId, message.Position, message.Button);
+        if (ContainsPointerPosition(message.Position))
+            OnPointerEntered(eventArgs);
+        TryPointerDown(eventArgs);
+    }
+
+    /// <summary>Receives raw releases and only releases this button's captured pointer.</summary>
+    /// <param name="message">The mouse-button release event.</param>
+    private void OnInputPointerReleased(MouseButtonReleasedEvent message)
+    {
+        if (message.Button != MouseButtonEnum.Left)
+            return;
+
+        var pointerId = message.Mouse?.Id ?? InputDeviceId.Invalid;
+        var eventArgs = new PointerEventArgs(pointerId, message.Position, message.Button);
+        OnPointerMoved(eventArgs);
+        OnPointerUp(eventArgs);
+    }
+
+    /// <summary>Cancels this button's press when its pointer device disconnects.</summary>
+    /// <param name="message">The mouse-disconnection event.</param>
+    private void OnInputPointerDisconnected(MouseDisconnectedEvent message)
+    {
+        var eventArgs = new PointerEventArgs(message.Mouse.Id, message.Position);
+        OnPointerCanceled(eventArgs);
+        OnPointerExited(eventArgs);
+        _pointerPositions.Remove(message.Mouse.Id);
+    }
+
+    /// <summary>Cancels this button's press and hover when the application loses focus.</summary>
+    /// <param name="message">The mouse-cancellation event.</param>
+    private void OnInputPointerCanceled(MouseCanceledEvent message)
+    {
+        var eventArgs = new PointerEventArgs(message.Mouse.Id, message.Position);
+        OnPointerCanceled(eventArgs);
+        OnPointerExited(eventArgs);
+        _pointerPositions.Remove(message.Mouse.Id);
+    }
+
+    /// <summary>Updates the active pointer's inside state and emits a crossing action.</summary>
+    /// <param name="eventArgs">The current pointer event data.</param>
+    /// <param name="isInside">The current inside state, or null to test current bounds.</param>
+    private void UpdateActivePointerInside(PointerEventArgs eventArgs, bool? isInside = null)
+    {
+        var nowInside = isInside ?? ContainsPointerPosition(eventArgs.Position);
+        var wasInside = _insidePointers.Contains(eventArgs.PointerId);
+        if (wasInside == nowInside)
+            return;
+
+        if (nowInside)
+        {
+            _insidePointers.Add(eventArgs.PointerId);
+            PointerEntered?.Invoke(this, eventArgs);
+        }
+        else
+        {
+            _insidePointers.Remove(eventArgs.PointerId);
+            PointerExited?.Invoke(this, eventArgs);
+        }
     }
 
     /// <summary>

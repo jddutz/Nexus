@@ -1,10 +1,15 @@
 using Nexus.Assets.Fonts;
 using Nexus.Core;
+using Nexus.Core.Events;
+using Nexus.Game;
 using Nexus.Graphics;
 using Nexus.Graphics.Text;
 using Nexus.Graphics.Textures;
 using Nexus.GUI;
 using Nexus.GUI.Elements;
+using Nexus.Input;
+using Nexus.Input.Devices;
+using Nexus.Input.Events;
 using Silk.NET.Maths;
 
 namespace Tests;
@@ -129,6 +134,175 @@ public sealed class TextButtonTests
         Assert.Contains(button.GetComponent<TextComponent>(), addedComponents);
     }
 
+    /// <summary>Verifies event ordering and hit testing across the complete button bounds.</summary>
+    [Fact]
+    public void PointerPressAndReleaseInside_raiseOrderedActionsAcrossFullBounds()
+    {
+        var (eventHub, button) = CreateAttachedButton();
+        var mouse = new TestMouse(1);
+        var actions = new List<string>();
+        button.PointerEntered += (_, _) => actions.Add("entered");
+        button.Pressed += (_, _) => actions.Add("pressed");
+        button.Released += (_, args) => actions.Add($"released:{args.IsInside}");
+        button.Activated += (_, _) => actions.Add("activated");
+
+        Publish(eventHub, new MouseMovedEvent(mouse, new(63f, 28f)));
+        Publish(eventHub, new MouseButtonPressedEvent(mouse, MouseButtonEnum.Left, new(63f, 28f)));
+        Publish(eventHub, new MouseButtonReleasedEvent(mouse, MouseButtonEnum.Left, new(63f, 28f)));
+
+        Assert.Equal(["entered", "pressed", "released:True", "activated"], actions);
+    }
+
+    /// <summary>Verifies capture persists outside bounds and outside release does not activate.</summary>
+    [Fact]
+    public void CapturedReleaseOutside_raisesExitAndReleaseWithoutActivation()
+    {
+        var (eventHub, button) = CreateAttachedButton();
+        var mouse = new TestMouse(2);
+        var actions = new List<string>();
+        button.Pressed += (_, _) => actions.Add("pressed");
+        button.PointerExited += (_, _) => actions.Add("exited");
+        button.Released += (_, args) => actions.Add($"released:{args.IsInside}");
+        button.Activated += (_, _) => actions.Add("activated");
+
+        Publish(eventHub, new MouseButtonPressedEvent(mouse, MouseButtonEnum.Left, new(10f, 10f)));
+        Publish(eventHub, new MouseMovedEvent(mouse, new(100f, 100f)));
+        Publish(
+            eventHub,
+            new MouseButtonReleasedEvent(mouse, MouseButtonEnum.Left, new(100f, 100f))
+        );
+
+        Assert.Equal(["pressed", "exited", "released:False"], actions);
+    }
+
+    /// <summary>Verifies capture survives crossings and release uses the current arranged bounds.</summary>
+    [Fact]
+    public void CapturedPointer_reentersAndUsesResizedBoundsAtRelease()
+    {
+        var (eventHub, button) = CreateAttachedButton();
+        var mouse = new TestMouse(5);
+        var actions = new List<string>();
+        button.Pressed += (_, _) => actions.Add("pressed");
+        button.PointerExited += (_, _) => actions.Add("exited");
+        button.PointerEntered += (_, _) => actions.Add("entered");
+        button.Released += (_, args) => actions.Add($"released:{args.IsInside}");
+        button.Activated += (_, _) => actions.Add("activated");
+
+        Publish(eventHub, new MouseButtonPressedEvent(mouse, MouseButtonEnum.Left, new(10f, 10f)));
+        Publish(eventHub, new MouseMovedEvent(mouse, new(100f, 100f)));
+        Publish(eventHub, new MouseMovedEvent(mouse, new(10f, 10f)));
+        button.Arrange(new Rectangle<float>(8f, 8f, 4f, 4f));
+        Publish(eventHub, new MouseButtonReleasedEvent(mouse, MouseButtonEnum.Left, new(10f, 10f)));
+
+        Assert.Equal(
+            ["entered", "pressed", "exited", "entered", "released:True", "activated"],
+            actions
+        );
+    }
+
+    /// <summary>Verifies another pointer cannot release or steal an active press and detach cancels it.</summary>
+    [Fact]
+    public void ActivePress_ignoresOtherPointerAndDeactivationCancels()
+    {
+        var (eventHub, button, scene) = CreateAttachedButtonWithScene();
+        var firstMouse = new TestMouse(3);
+        var secondMouse = new TestMouse(4);
+        var actions = new List<string>();
+        button.Pressed += (_, args) => actions.Add($"pressed:{args.PointerId.Value}");
+        button.Released += (_, _) => actions.Add("released");
+        button.Canceled += (_, args) => actions.Add($"canceled:{args.PointerId.Value}");
+        button.Activated += (_, _) => actions.Add("activated");
+
+        Publish(
+            eventHub,
+            new MouseButtonPressedEvent(firstMouse, MouseButtonEnum.Left, new(10f, 10f))
+        );
+        Publish(
+            eventHub,
+            new MouseButtonPressedEvent(secondMouse, MouseButtonEnum.Left, new(10f, 10f))
+        );
+        Publish(
+            eventHub,
+            new MouseButtonReleasedEvent(secondMouse, MouseButtonEnum.Left, new(10f, 10f))
+        );
+        Assert.True(scene.RemoveChild(button));
+        eventHub.Publish(new GameObjectDeactivatedEvent(button));
+        eventHub.Drain();
+
+        Assert.Equal(["pressed:3", "canceled:3"], actions);
+        scene.AddChild(button);
+        eventHub.Publish(new GameObjectActivatedEvent(button));
+        eventHub.Drain();
+        Publish(
+            eventHub,
+            new MouseButtonPressedEvent(firstMouse, MouseButtonEnum.Left, new(10f, 10f))
+        );
+        Publish(
+            eventHub,
+            new MouseButtonReleasedEvent(firstMouse, MouseButtonEnum.Left, new(10f, 10f))
+        );
+
+        Assert.Equal(["pressed:3", "canceled:3", "pressed:3", "released", "activated"], actions);
+    }
+
+    /// <summary>Verifies input cancellation clears a press without release or activation.</summary>
+    [Fact]
+    public void MouseCancellation_cancelsButtonPressAndAllowsFreshActivation()
+    {
+        var (eventHub, button) = CreateAttachedButton();
+        var mouse = new TestMouse(6);
+        var actions = new List<string>();
+        button.Pressed += (_, _) => actions.Add("pressed");
+        button.Released += (_, _) => actions.Add("released");
+        button.Canceled += (_, _) => actions.Add("canceled");
+        button.Activated += (_, _) => actions.Add("activated");
+
+        Publish(eventHub, new MouseButtonPressedEvent(mouse, MouseButtonEnum.Left, new(10f, 10f)));
+        Publish(eventHub, new MouseCanceledEvent(mouse, new(10f, 10f)));
+        Publish(eventHub, new MouseButtonPressedEvent(mouse, MouseButtonEnum.Left, new(10f, 10f)));
+        Publish(eventHub, new MouseButtonReleasedEvent(mouse, MouseButtonEnum.Left, new(10f, 10f)));
+
+        Assert.Equal(["pressed", "canceled", "pressed", "released", "activated"], actions);
+    }
+
+    /// <summary>Creates and activates a button with its element input map registered on an event hub.</summary>
+    /// <returns>The event hub and button.</returns>
+    private static (EventHub EventHub, TextButton Button) CreateAttachedButton()
+    {
+        var (eventHub, button, _) = CreateAttachedButtonWithScene();
+        return (eventHub, button);
+    }
+
+    /// <summary>Creates an event hub, scene, and registered button for pointer tests.</summary>
+    /// <returns>The event hub, button, and containing scene.</returns>
+    private static (
+        EventHub EventHub,
+        TextButton Button,
+        Scene Scene
+    ) CreateAttachedButtonWithScene()
+    {
+        var eventHub = new EventHub();
+        var gui = new GraphicalUserInterface(eventHub);
+        var button = CreateButton("A");
+        button.Arrange(new Rectangle<float>(4f, 5f, 60f, 24f));
+        var scene = new Scene();
+        scene.AddChild(button);
+        scene.Activate();
+        gui.Initialize();
+        eventHub.Publish(new SceneLoadedEvent(scene));
+        eventHub.Drain();
+        return (eventHub, button, scene);
+    }
+
+    /// <summary>Publishes one raw input event and drains the event hub once.</summary>
+    /// <param name="eventHub">The event hub receiving the event.</param>
+    /// <param name="inputEvent">The raw input event.</param>
+    private static void Publish(EventHub eventHub, IEvent inputEvent)
+    {
+        eventHub.Publish(inputEvent);
+        eventHub.Drain();
+    }
+
     /// <summary>
     /// Creates a button with small in-memory resources suitable for layout tests.
     /// </summary>
@@ -162,6 +336,53 @@ public sealed class TextButtonTests
         /// <inheritdoc/>
         public void UnregisterGameObject(IGameObject gameObject) =>
             _gameObjects.Remove(gameObject.Id);
+    }
+
+    /// <summary>Provides a distinct mouse pointer identity for input-routing tests.</summary>
+    private sealed class TestMouse(ulong id) : IMouseInputDevice
+    {
+        /// <inheritdoc />
+        public InputDeviceId Id { get; } = id;
+
+        /// <inheritdoc />
+        public string Name => "Test mouse";
+
+        /// <inheritdoc />
+        public bool IsConnected => true;
+
+        /// <inheritdoc />
+        public Vector2D<float> Position => Vector2D<float>.Zero;
+
+        /// <inheritdoc />
+        public event Action<IMouseInputDevice, Vector2D<float>>? Moved
+        {
+            add { }
+            remove { }
+        }
+
+        /// <inheritdoc />
+        public event Action<IMouseInputDevice, MouseButtonEnum>? ButtonPressed
+        {
+            add { }
+            remove { }
+        }
+
+        /// <inheritdoc />
+        public event Action<IMouseInputDevice, MouseButtonEnum>? ButtonReleased
+        {
+            add { }
+            remove { }
+        }
+
+        /// <inheritdoc />
+        public event Action<IMouseInputDevice, Vector2D<float>>? WheelMoved
+        {
+            add { }
+            remove { }
+        }
+
+        /// <inheritdoc />
+        public bool IsButtonDown(MouseButtonEnum button) => false;
     }
 
     /// <summary>
