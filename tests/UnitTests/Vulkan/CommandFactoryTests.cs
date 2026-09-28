@@ -599,6 +599,7 @@ public class CommandFactoryTests
         public ulong RenderLayerMask => ulong.MaxValue;
         public Mesh Mesh => mesh;
         public ITexture Texture { get; set; } = texture;
+        public ColorFormatEnum TextureFormat => ColorFormatEnum.RGBA8UNorm;
         public ulong InstanceCount { get; set; } = 1;
         public ISamplingBehavior SamplingBehavior => samplingBehavior;
 

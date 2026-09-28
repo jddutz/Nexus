@@ -127,6 +127,8 @@ public class DefaultBatchStrategyTests
 
         public ITexture Texture => null!;
 
+        public ColorFormatEnum TextureFormat => ColorFormatEnum.RGBA8UNorm;
+
         public ulong InstanceCount => 1;
 
         public ISamplingBehavior SamplingBehavior => null!;
