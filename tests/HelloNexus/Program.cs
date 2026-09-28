@@ -9,6 +9,7 @@ using Nexus.Graphics.Cameras;
 using Nexus.Graphics.Components;
 using Nexus.Graphics.Text;
 using Nexus.Graphics.Textures;
+using Nexus.GUI;
 using Nexus.Input;
 using Nexus.Input.Events;
 
@@ -54,6 +55,7 @@ internal static class Program
                     windowService,
                     serviceProvider.GetRequiredService<IContentManifest>(),
                     serviceProvider.GetRequiredService<IFontBuilder>(),
+                    serviceProvider.GetRequiredService<IContentProvider<Texture>>(),
                     inputMap
                 );
                 return gameSystem;
@@ -80,6 +82,7 @@ internal static class Program
     /// <param name="gameModel">Associates game objects with their owner before components are attached.</param>
     /// <param name="contentManifest">Describes the content available to the application.</param>
     /// <param name="fontBuilder">Builds font data for the welcome text.</param>
+    /// <param name="textureProvider">Loads textures from the content library.</param>
     /// <param name="inputMap">The scene's keyboard bindings.</param>
     /// <returns>The configured initial scene.</returns>
     private static Scene CreateHelloNexusScene(
@@ -87,6 +90,7 @@ internal static class Program
         IWindowService windowService,
         IContentManifest contentManifest,
         IFontBuilder fontBuilder,
+        IContentProvider<Texture> textureProvider,
         SceneInputMap inputMap
     )
     {
@@ -97,6 +101,21 @@ internal static class Program
         var camera = new StaticCamera();
         camera.SetViewportSize(mainWindow.Size.X, mainWindow.Size.Y);
         scene.CreateChild<GameObject>().AddComponent(camera);
+
+        var backgroundTexture = new TextureComponent
+        {
+            Texture = textureProvider.Get((ContentId)"hello_nexus_background_image"),
+            Size = new(mainWindow.Size.X, mainWindow.Size.Y),
+        };
+        var backgroundElement = new Element(
+            arrange: (element, bounds) =>
+            {
+                ArrangementRules.Default(element, bounds);
+                backgroundTexture.Size = bounds.Size;
+            }
+        );
+        backgroundElement.AddComponent(backgroundTexture);
+        scene.AddChild(backgroundElement);
 
         var textComponent = new TextComponent(CreateRobotoTextStyle(contentManifest, fontBuilder))
         {

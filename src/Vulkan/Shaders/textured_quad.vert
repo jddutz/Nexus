@@ -1,7 +1,5 @@
 #version 450
 
-#extension GL_EXT_debug_printf : enable
-
 layout(location = 0) in vec2 inPos;
 layout(location = 1) in vec2 inTexCoord;
 
@@ -22,8 +20,6 @@ layout(set = 0, binding = 0) uniform ViewProjectionUBO
 
 void main()
 {
-    debugPrintfEXT("VERTEX SHADER EXECUTED\n");
-
     mat4 world = mat4(
         inWorld0,
         inWorld1,
