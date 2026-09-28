@@ -1,5 +1,6 @@
 ﻿namespace HelloNexus;
 
+using System.Text;
 using Nexus.Assets.Fonts;
 using Nexus.Core;
 using Nexus.Core.Events;
@@ -145,29 +146,212 @@ internal static class Program
         backgroundElement.AddComponent(backgroundTexture);
         scene.AddChild(backgroundElement);
 
-        var textComponent = new TextComponent(CreateRobotoTextStyle(contentManifest, fontBuilder))
+        var textStyle = CreateRobotoTextStyle(contentManifest, fontBuilder);
+        const string pressText = "Press ESC to quit";
+        var pressTextComponent = new TextComponent(textStyle)
         {
             RenderLayerMask = foregroundLayer,
-            Text = "Welcome to the Nexus",
+            Text = pressText,
         };
-        var textSpan = textComponent.Drawables.OfType<TextSpan>().Single();
-        var textElement = new Element(
+        var pressTextElement = new Element(
+            measure: (_, availableSize) =>
+                MeasureText(pressTextComponent, pressText, textStyle, availableSize, 2),
+            arrange: (element, bounds) => ArrangeText(element, bounds, pressTextComponent)
+        );
+        pressTextElement.AddComponent(pressTextComponent);
+
+        const string welcomeText = "Welcome to the Nexus";
+        var welcomeTextComponent = new TextComponent(textStyle)
+        {
+            RenderLayerMask = foregroundLayer,
+            Text = welcomeText,
+        };
+        var welcomeTextElement = new Element(
+            measure: (_, availableSize) =>
+                MeasureText(
+                    welcomeTextComponent,
+                    welcomeText,
+                    textStyle,
+                    availableSize,
+                    int.MaxValue
+                ),
+            arrange: (element, bounds) => ArrangeText(element, bounds, welcomeTextComponent)
+        );
+        welcomeTextElement.AddComponent(welcomeTextComponent);
+
+        var textLayout = new Element(
             arrange: (element, bounds) =>
             {
-                ArrangementRules.Default(element, bounds);
-                var textBounds = textSpan.LayoutBounds;
-                element.Position = new(
-                    bounds.Origin.X
-                        + (bounds.Size.X - textBounds.Size.X) / 2f
-                        - textBounds.Origin.X,
-                    bounds.Origin.Y + (bounds.Size.Y - textBounds.Size.Y) / 2f - textBounds.Origin.Y
+                element.Bounds = bounds;
+
+                const float margin = 24f;
+                const float spacing = 16f;
+                const float bottomPadding = 24f;
+                var contentWidth = MathF.Max(0f, bounds.Size.X - margin * 2f);
+                var contentHeight = MathF.Max(0f, bounds.Size.Y - margin - bottomPadding);
+                var pressSize = pressTextElement.Measure(
+                    new Vector2D<float>(contentWidth, contentHeight)
+                );
+                var welcomeHeight = MathF.Max(0f, contentHeight - pressSize.Y - spacing);
+                welcomeTextElement.Measure(new Vector2D<float>(contentWidth, welcomeHeight));
+
+                pressTextElement.Arrange(
+                    new Rectangle<float>(
+                        new Vector2D<float>(bounds.Origin.X + margin, bounds.Origin.Y + margin),
+                        new Vector2D<float>(contentWidth, pressSize.Y)
+                    )
+                );
+                welcomeTextElement.Arrange(
+                    new Rectangle<float>(
+                        new Vector2D<float>(
+                            bounds.Origin.X + margin,
+                            bounds.Origin.Y + margin + pressSize.Y + spacing
+                        ),
+                        new Vector2D<float>(contentWidth, welcomeHeight)
+                    )
                 );
             }
         );
-        textElement.AddComponent(textComponent);
-        scene.AddChild(textElement);
+        textLayout.AddChild(pressTextElement);
+        textLayout.AddChild(welcomeTextElement);
+        scene.AddChild(textLayout);
 
         return scene;
+    }
+
+    /// <summary>Wraps and measures text within the available layout size.</summary>
+    /// <param name="textComponent">The component receiving one span per wrapped line.</param>
+    /// <param name="text">The complete source text.</param>
+    /// <param name="style">The font metrics used for wrapping.</param>
+    /// <param name="availableSize">The maximum available size.</param>
+    /// <param name="maximumLines">The maximum allowed line count.</param>
+    /// <returns>The visible glyph bounds size after wrapping.</returns>
+    private static Vector2D<float> MeasureText(
+        TextComponent textComponent,
+        string text,
+        ITextStyle style,
+        Vector2D<float> availableSize,
+        int maximumLines
+    )
+    {
+        var scale = style.FontMetrics.EmSize == 0 ? 1.0 : style.Size / style.FontMetrics.EmSize;
+        var lineHeight = (float)(style.FontMetrics.LineHeight * scale);
+        if (!float.IsFinite(lineHeight) || lineHeight <= 0f)
+            lineHeight = (float)style.Size;
+
+        var lineCount =
+            lineHeight > 0f
+                ? Math.Min(maximumLines, (int)MathF.Floor(availableSize.Y / lineHeight))
+                : 0;
+        var wrappedText = WrapText(text, style, availableSize.X, lineCount);
+        if (textComponent.Text != wrappedText)
+            textComponent.Text = wrappedText;
+
+        return textComponent.LayoutBounds.Size;
+    }
+
+    /// <summary>Wraps words to the available width and crops the last line at glyph boundaries.</summary>
+    /// <param name="text">The complete source text.</param>
+    /// <param name="style">The font metrics used to measure glyphs.</param>
+    /// <param name="availableWidth">The maximum line width.</param>
+    /// <param name="maximumLines">The maximum number of lines.</param>
+    /// <returns>The visible lines joined by newline characters.</returns>
+    private static string WrapText(
+        string text,
+        ITextStyle style,
+        float availableWidth,
+        int maximumLines
+    )
+    {
+        if (availableWidth <= 0f || maximumLines <= 0)
+            return string.Empty;
+
+        var lines = new List<string>();
+        var currentLine = string.Empty;
+        foreach (var word in text.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var candidate = currentLine.Length == 0 ? word : $"{currentLine} {word}";
+            if (MeasureTextWidth(style, candidate) <= availableWidth)
+            {
+                currentLine = candidate;
+                continue;
+            }
+
+            if (currentLine.Length > 0)
+            {
+                if (lines.Count + 1 >= maximumLines)
+                {
+                    lines.Add(FitTextToWidth(style, candidate, availableWidth));
+                    return string.Join('\n', lines);
+                }
+
+                lines.Add(currentLine);
+                currentLine = word;
+            }
+
+            if (MeasureTextWidth(style, currentLine) > availableWidth)
+            {
+                lines.Add(FitTextToWidth(style, currentLine, availableWidth));
+                currentLine = string.Empty;
+                if (lines.Count >= maximumLines)
+                    return string.Join('\n', lines);
+            }
+        }
+
+        if (currentLine.Length > 0 && lines.Count < maximumLines)
+            lines.Add(currentLine);
+
+        return string.Join('\n', lines);
+    }
+
+    /// <summary>Measures the visible glyph width of a candidate line.</summary>
+    /// <param name="style">The font metrics used to measure glyphs.</param>
+    /// <param name="text">The candidate line.</param>
+    /// <returns>The candidate's visible glyph width.</returns>
+    private static float MeasureTextWidth(ITextStyle style, string text) =>
+        new TextSpan(style, text).LayoutBounds.Size.X;
+
+    /// <summary>Returns the longest leading rune sequence that fits in a line.</summary>
+    /// <param name="style">The font metrics used to measure glyphs.</param>
+    /// <param name="text">The text to crop.</param>
+    /// <param name="availableWidth">The maximum line width.</param>
+    /// <returns>The fitting text prefix.</returns>
+    private static string FitTextToWidth(ITextStyle style, string text, float availableWidth)
+    {
+        var prefix = new StringBuilder();
+        foreach (var rune in text.EnumerateRunes())
+        {
+            var candidate = prefix.ToString() + rune;
+            if (MeasureTextWidth(style, candidate) > availableWidth)
+                break;
+
+            prefix.Append(rune);
+        }
+
+        return prefix.ToString();
+    }
+
+    /// <summary>Centers visible glyphs and assigns their actual bounds to a text element.</summary>
+    /// <param name="element">The text element being arranged.</param>
+    /// <param name="bounds">The rectangle assigned by the parent.</param>
+    /// <param name="textComponent">The component containing the visible spans.</param>
+    private static void ArrangeText(
+        Element element,
+        Rectangle<float> bounds,
+        TextComponent textComponent
+    )
+    {
+        ArrangementRules.Default(element, bounds);
+        var textBounds = textComponent.LayoutBounds;
+        var textOrigin = new Vector2D<float>(
+            bounds.Origin.X + (bounds.Size.X - textBounds.Size.X) / 2f,
+            bounds.Origin.Y + (bounds.Size.Y - textBounds.Size.Y) / 2f
+        );
+        element.Bounds = new Rectangle<float>(textOrigin, textBounds.Size);
+        element.Position = new(
+            textOrigin.X - textBounds.Origin.X,
+            textOrigin.Y - textBounds.Origin.Y
+        );
     }
 
     /// <summary>

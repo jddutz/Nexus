@@ -174,6 +174,23 @@ public sealed class TextComponentTests
     }
 
     /// <summary>
+    /// Verifies multiline text uses one span per line and reports combined glyph bounds.
+    /// </summary>
+    [Fact]
+    public void Multiline_text_creates_offset_spans_and_combined_layout_bounds()
+    {
+        var component = new TextComponent(CreateStyle()) { Text = "AB\nA" };
+
+        var spans = component.Drawables.Cast<TextSpan>().ToArray();
+
+        Assert.Equal(2, spans.Length);
+        Assert.Equal("AB", spans[0].Text);
+        Assert.Equal("A", spans[1].Text);
+        Assert.Equal(1f, spans[1].TransformationMatrix.M42);
+        Assert.Equal(new Rectangle<float>(0f, 0f, 2f, 2f), component.LayoutBounds);
+    }
+
+    /// <summary>
     /// Verifies changing visible text to empty text removes its drawable.
     /// </summary>
     [Fact]
