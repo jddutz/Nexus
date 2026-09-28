@@ -25,6 +25,11 @@ public interface IComponent : INotifyPropertyChanged
     void SetGameObject(IGameObject? gameObject);
 
     /// <summary>
+    /// Initializes this component before its owning game object activates it.
+    /// </summary>
+    void Initialize();
+
+    /// <summary>
     /// Gets the unique identifier for this component.
     /// </summary>
     ComponentId Id { get; }

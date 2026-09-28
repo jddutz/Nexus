@@ -118,6 +118,7 @@ public class GameSystem(
     /// <param name="component">The component to activate.</param>
     public void ActivateComponent(IComponent component)
     {
+        component.IsActivated = true;
         _eventHub.Register(component);
 
         _logger.LogTrace(
@@ -132,6 +133,7 @@ public class GameSystem(
     /// <param name="component">The component to deactivate.</param>
     public void DeactivateComponent(IComponent component)
     {
+        component.IsActivated = false;
         _eventHub.Unregister(component);
 
         _logger.LogTrace(

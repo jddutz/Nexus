@@ -34,6 +34,7 @@ public unsafe class Renderer(
     private CommandBuffer _commandBuffer;
     private Rect2D _renderArea;
     private bool _disposed;
+    private bool _hasRenderedThisFrame;
 
     /// <summary>
     /// Occurs after a frame is acquired and before command recording begins.
@@ -68,6 +69,7 @@ public unsafe class Renderer(
         if (!BeginCommandBuffer())
             return null;
 
+        _hasRenderedThisFrame = false;
         _diagnostics?.BeginFrame();
         TransitionToColorAttachment();
 
@@ -125,11 +127,18 @@ public unsafe class Renderer(
         if (!configuration.ShouldRender)
             return;
 
-        BeginRendering(configuration);
+        if (_hasRenderedThisFrame)
+            SynchronizeColorAttachmentWrites();
+
+        BeginRendering(
+            configuration,
+            _hasRenderedThisFrame ? AttachmentLoadOp.Load : configuration.ColorLoadOp
+        );
 
         RecordCommands(batch);
 
         EndRendering();
+        _hasRenderedThisFrame = true;
     }
 
     /// <summary>
@@ -158,7 +167,7 @@ public unsafe class Renderer(
     /// <summary>
     /// Begins dynamic rendering for the specified render pass.
     /// </summary>
-    private void BeginRendering(RenderPassConfiguration configuration)
+    private void BeginRendering(RenderPassConfiguration configuration, AttachmentLoadOp colorLoadOp)
     {
         var clearValue =
             configuration.ClearValues.Length > 0 ? configuration.ClearValues[0] : default;
@@ -168,7 +177,7 @@ public unsafe class Renderer(
             SType = StructureType.RenderingAttachmentInfo,
             ImageView = _swapChain.ImageViews[_imageIndex],
             ImageLayout = ImageLayout.ColorAttachmentOptimal,
-            LoadOp = configuration.ColorLoadOp,
+            LoadOp = colorLoadOp,
             StoreOp = configuration.ColorStoreOp,
             ClearValue = clearValue,
         };
@@ -186,6 +195,44 @@ public unsafe class Renderer(
         };
 
         _context.VulkanApi.CmdBeginRendering(_commandBuffer, &renderingInfo);
+    }
+
+    /// <summary>Orders prior color-attachment writes before the next view loads the image.</summary>
+    private void SynchronizeColorAttachmentWrites()
+    {
+        var barrier = new ImageMemoryBarrier
+        {
+            SType = StructureType.ImageMemoryBarrier,
+            OldLayout = ImageLayout.ColorAttachmentOptimal,
+            NewLayout = ImageLayout.ColorAttachmentOptimal,
+            SrcQueueFamilyIndex = Vk.QueueFamilyIgnored,
+            DstQueueFamilyIndex = Vk.QueueFamilyIgnored,
+            Image = _swapChain.Images[_imageIndex],
+            SubresourceRange = new ImageSubresourceRange
+            {
+                AspectMask = ImageAspectFlags.ColorBit,
+                BaseMipLevel = 0,
+                LevelCount = 1,
+                BaseArrayLayer = 0,
+                LayerCount = 1,
+            },
+            SrcAccessMask = AccessFlags.ColorAttachmentWriteBit,
+            DstAccessMask =
+                AccessFlags.ColorAttachmentReadBit | AccessFlags.ColorAttachmentWriteBit,
+        };
+
+        _context.VulkanApi.CmdPipelineBarrier(
+            _commandBuffer,
+            PipelineStageFlags.ColorAttachmentOutputBit,
+            PipelineStageFlags.ColorAttachmentOutputBit,
+            0,
+            0,
+            null,
+            0,
+            null,
+            1,
+            in barrier
+        );
     }
 
     /// <summary>

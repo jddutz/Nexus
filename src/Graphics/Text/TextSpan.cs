@@ -164,6 +164,38 @@ public sealed class TextSpan : IDrawable, IMeshInstance
     /// <summary>Gets the first glyph tint for the mesh-instance compatibility contract.</summary>
     public Color Color => Style.Color;
 
+    /// <summary>Gets the visible glyph bounds in the span's local layout coordinates.</summary>
+    public Rectangle<float> LayoutBounds
+    {
+        get
+        {
+            var glyphs = BuildGlyphs();
+            if (glyphs.Count == 0)
+                return new Rectangle<float>(0f, 0f, 0f, 0f);
+
+            var scale = Style.FontMetrics.EmSize == 0 ? 1.0 : Style.Size / Style.FontMetrics.EmSize;
+            var baselineOffset = (float)(Style.FontMetrics.Ascender * scale);
+            var left = float.PositiveInfinity;
+            var top = float.PositiveInfinity;
+            var right = float.NegativeInfinity;
+            var bottom = float.NegativeInfinity;
+
+            foreach (var (glyph, penX) in glyphs)
+            {
+                var glyphLeft = penX + (float)(glyph.PlaneBounds.Left * scale);
+                var glyphRight = penX + (float)(glyph.PlaneBounds.Right * scale);
+                var glyphTop = baselineOffset - (float)(glyph.PlaneBounds.Top * scale);
+                var glyphBottom = baselineOffset - (float)(glyph.PlaneBounds.Bottom * scale);
+                left = MathF.Min(left, glyphLeft);
+                top = MathF.Min(top, glyphTop);
+                right = MathF.Max(right, glyphRight);
+                bottom = MathF.Max(bottom, glyphBottom);
+            }
+
+            return new Rectangle<float>(left, top, right - left, bottom - top);
+        }
+    }
+
     /// <summary>Gets the packed uniform data required by the textured-quad shader.</summary>
     /// <param name="layout">The requested uniform layout.</param>
     /// <returns>The view matrix.</returns>

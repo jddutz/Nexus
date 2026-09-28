@@ -12,6 +12,7 @@ using Nexus.Graphics.Textures;
 using Nexus.GUI;
 using Nexus.Input;
 using Nexus.Input.Events;
+using Silk.NET.Maths;
 
 /// <summary>
 /// Entry point for the Hello Nexus application.
@@ -98,20 +99,47 @@ internal static class Program
         var scene = new Scene { InputMap = inputMap };
         scene.SetGameModel(gameModel);
 
-        var camera = new StaticCamera();
+        var sceneView = scene.Children.Single();
+        var camera = sceneView.Components.OfType<StaticCamera>().Single();
         camera.SetViewportSize(mainWindow.Size.X, mainWindow.Size.Y);
-        scene.CreateChild<GameObject>().AddComponent(camera);
+
+        const ulong backgroundLayer = 1;
+        const ulong foregroundLayer = 2;
+        var backgroundView = sceneView.Components.OfType<ViewComponent>().Single();
+        backgroundView.Name = "Background";
+        backgroundView.LayerMask = backgroundLayer;
+
+        var foregroundView = scene.CreateChild<View>();
+        foregroundView.ViewComponent.Name = "Foreground";
+        foregroundView.ViewComponent.Camera = camera;
+        foregroundView.ViewComponent.LayerMask = foregroundLayer;
+        foregroundView.ViewComponent.RenderOrder = 1;
 
         var backgroundTexture = new TextureComponent
         {
             Texture = textureProvider.Get((ContentId)"hello_nexus_background_image"),
             Size = new(mainWindow.Size.X, mainWindow.Size.Y),
+            RenderLayerMask = backgroundLayer,
         };
         var backgroundElement = new Element(
             arrange: (element, bounds) =>
             {
                 ArrangementRules.Default(element, bounds);
-                backgroundTexture.Size = bounds.Size;
+                var texture = backgroundTexture.Texture!;
+                var boundsAspectRatio = bounds.Size.X / bounds.Size.Y;
+                var textureAspectRatio = (float)texture.Width / texture.Height;
+                var imageSize =
+                    boundsAspectRatio > textureAspectRatio
+                        ? new Vector2D<float>(bounds.Size.X, bounds.Size.X / textureAspectRatio)
+                        : new Vector2D<float>(bounds.Size.Y * textureAspectRatio, bounds.Size.Y);
+
+                element.Position = bounds.Origin;
+                backgroundTexture.Size = imageSize;
+                backgroundTexture.TransformationMatrix = Matrix4X4.CreateTranslation(
+                    (bounds.Size.X - imageSize.X) / 2f,
+                    (bounds.Size.Y - imageSize.Y) / 2f,
+                    0f
+                );
             }
         );
         backgroundElement.AddComponent(backgroundTexture);
@@ -119,11 +147,24 @@ internal static class Program
 
         var textComponent = new TextComponent(CreateRobotoTextStyle(contentManifest, fontBuilder))
         {
+            RenderLayerMask = foregroundLayer,
             Text = "Welcome to the Nexus",
         };
-        var textElement = new Element();
+        var textSpan = textComponent.Drawables.OfType<TextSpan>().Single();
+        var textElement = new Element(
+            arrange: (element, bounds) =>
+            {
+                ArrangementRules.Default(element, bounds);
+                var textBounds = textSpan.LayoutBounds;
+                element.Position = new(
+                    bounds.Origin.X
+                        + (bounds.Size.X - textBounds.Size.X) / 2f
+                        - textBounds.Origin.X,
+                    bounds.Origin.Y + (bounds.Size.Y - textBounds.Size.Y) / 2f - textBounds.Origin.Y
+                );
+            }
+        );
         textElement.AddComponent(textComponent);
-        textElement.Position = new(mainWindow.Size.X / 2f - 48f, mainWindow.Size.Y / 2f - 8f);
         scene.AddChild(textElement);
 
         return scene;

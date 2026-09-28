@@ -61,6 +61,7 @@ public class GameSystemEventRegistrationTests
 
         gameSystem.ActivateGameObject(root);
         gameSystem.ActivateComponent(component);
+        Assert.True(component.IsActivated);
         eventHub.Drain();
 
         Assert.Equal(1, root.GameObjectActivationCount);
@@ -69,6 +70,7 @@ public class GameSystemEventRegistrationTests
 
         gameSystem.DeactivateGameObject(root);
         gameSystem.DeactivateComponent(component);
+        Assert.False(component.IsActivated);
         eventHub.Publish(new ProbeEvent());
         eventHub.Drain();
 

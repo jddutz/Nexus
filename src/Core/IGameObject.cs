@@ -14,7 +14,8 @@ public interface IGameObject : INotifyPropertyChanged
     IReadOnlyList<IComponent> Components { get; }
 
     /// <summary>
-    /// Gets the game model that owns this game object.
+    /// Gets the game model that owns this game object. Raises
+    /// <see cref="INotifyPropertyChanged.PropertyChanged"/> when the association changes.
     /// </summary>
     IGameModel? GameModel { get; }
 

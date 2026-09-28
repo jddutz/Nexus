@@ -10,10 +10,25 @@ public class TextComponent : Nexus.Core.Component, IGraphicsComponent
 {
     private readonly List<TextSpan> _spans = [];
     private readonly ITextStyle _textStyle;
+    private ulong _renderLayerMask = ulong.MaxValue;
     private string _text = string.Empty;
 
     /// <inheritdoc />
     public override string DisplayName => "Text";
+
+    /// <summary>Gets or sets the mask of render layers in which this text participates.</summary>
+    public ulong RenderLayerMask
+    {
+        get => _renderLayerMask;
+        set
+        {
+            if (!SetProperty(ref _renderLayerMask, value))
+                return;
+
+            foreach (var span in _spans)
+                span.RenderLayerMask = value;
+        }
+    }
 
     /// <inheritdoc/>
     public event EventHandler<DrawableEventArgs>? DrawableAdded;
@@ -27,6 +42,9 @@ public class TextComponent : Nexus.Core.Component, IGraphicsComponent
     {
         _textStyle = textStyle ?? throw new ArgumentNullException(nameof(textStyle));
     }
+
+    /// <inheritdoc />
+    protected override void OnInitialize() => UpdateTransformationMatrix();
 
     /// <summary>Gets or sets the text represented by this component.</summary>
     public string Text
@@ -42,6 +60,7 @@ public class TextComponent : Nexus.Core.Component, IGraphicsComponent
 
             // TODO: Parse multiline and rich text into glyph spans.
             var span = new TextSpan(_textStyle, _text);
+            span.RenderLayerMask = RenderLayerMask;
             if (((IDrawable)span).InstanceCount > 0)
             {
                 span.TransformationMatrix = GetOwnerTransformationMatrix();
@@ -69,7 +88,10 @@ public class TextComponent : Nexus.Core.Component, IGraphicsComponent
     /// <inheritdoc/>
     protected override void OnOwnerPropertyChanged(PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(IGameObject2D.WorldTransform))
+        if (
+            e.PropertyName == nameof(IGameObject2D.WorldTransform)
+            || e.PropertyName == nameof(IGameObject.GameModel)
+        )
             UpdateTransformationMatrix();
 
         base.OnOwnerPropertyChanged(e);

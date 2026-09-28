@@ -31,6 +31,36 @@ public sealed class TextComponentTests
     }
 
     /// <summary>
+    /// Verifies text layout bounds include glyph plane bounds and accumulated advances.
+    /// </summary>
+    [Fact]
+    public void Layout_bounds_include_glyph_advances_and_plane_bounds()
+    {
+        var span = new TextSpan(CreateStyle(), "AB");
+
+        Assert.Equal(new Rectangle<float>(0f, 0f, 2f, 1f), span.LayoutBounds);
+    }
+
+    /// <summary>
+    /// Verifies the component's render-layer mask is applied to current and future spans.
+    /// </summary>
+    [Fact]
+    public void Render_layer_mask_is_applied_to_existing_and_future_spans()
+    {
+        var component = new TextComponent(CreateStyle()) { Text = "A" };
+        var firstSpan = Assert.IsType<TextSpan>(Assert.Single(component.Drawables));
+
+        component.RenderLayerMask = 2;
+
+        Assert.Equal((ulong)2, firstSpan.RenderLayerMask);
+
+        component.Text = "B";
+
+        var secondSpan = Assert.IsType<TextSpan>(Assert.Single(component.Drawables));
+        Assert.Equal((ulong)2, secondSpan.RenderLayerMask);
+    }
+
+    /// <summary>
     /// Verifies an owning 2D transform reaches the text span and every packed glyph instance.
     /// </summary>
     [Fact]
@@ -70,6 +100,21 @@ public sealed class TextComponentTests
 
         var replacementSpan = Assert.IsType<TextSpan>(Assert.Single(component.Drawables));
         Assert.Equal(gameObject.WorldTransform, replacementSpan.TransformationMatrix);
+    }
+
+    /// <summary>
+    /// Verifies initialization refreshes text transforms after game-model assignment.
+    /// </summary>
+    [Fact]
+    public void Initialize_refreshes_span_transform_after_game_model_assignment()
+    {
+        var gameObject = new GameObject2D { Position = new Vector2D<float>(10f, 20f) };
+        var component = new TextComponent(CreateStyle()) { Text = "A" };
+        gameObject.AddComponent(component);
+        gameObject.SetGameModel(new TestGameModel());
+        var span = Assert.IsType<TextSpan>(Assert.Single(component.Drawables));
+
+        Assert.Equal(gameObject.WorldTransform, span.TransformationMatrix);
     }
 
     /// <summary>

@@ -108,8 +108,11 @@ public class GameObject : ObservableObject, IGameObject
 
         _components.Add(component);
         component.SetGameObject(this);
+        component.Initialize();
         if (IsActive)
+        {
             ComponentAdded?.Invoke(component);
+        }
     }
 
     /// <summary>
@@ -139,7 +142,9 @@ public class GameObject : ObservableObject, IGameObject
             return false;
 
         if (IsActive)
+        {
             ComponentRemoved?.Invoke(component);
+        }
 
         component.SetGameObject(null);
         return true;
@@ -155,6 +160,7 @@ public class GameObject : ObservableObject, IGameObject
         GameModel?.UnregisterGameObject(this);
         GameModel = gameModel;
         GameModel.RegisterGameObject(this);
+        OnPropertyChanged(nameof(GameModel));
 
         foreach (var child in _children.OfType<GameObject>())
             child.SetGameModel(gameModel);
@@ -233,7 +239,9 @@ public class GameObject : ObservableObject, IGameObject
             child.Activate();
 
         foreach (var component in _components)
+        {
             ComponentAdded?.Invoke(component);
+        }
     }
 
     /// <inheritdoc/>
@@ -249,7 +257,9 @@ public class GameObject : ObservableObject, IGameObject
             child.Deactivate();
 
         foreach (var component in _components)
+        {
             ComponentRemoved?.Invoke(component);
+        }
 
         IsActive = false;
         OnDeactivated();

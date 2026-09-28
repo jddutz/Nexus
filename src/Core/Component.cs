@@ -4,6 +4,7 @@ public abstract class Component : ObservableObject, IComponent
 {
     private IGameObject? _gameObject;
     private bool _isActivated;
+    private bool _isInitialized;
 
     /// <inheritdoc />
     public abstract string DisplayName { get; }
@@ -33,6 +34,16 @@ public abstract class Component : ObservableObject, IComponent
             _gameObject.PropertyChanged += OnGameObjectPropertyChanged;
 
         OnOwnerChanged();
+    }
+
+    /// <inheritdoc />
+    public void Initialize()
+    {
+        if (_isInitialized)
+            return;
+
+        OnInitialize();
+        _isInitialized = true;
     }
 
     /// <summary>
@@ -77,6 +88,11 @@ public abstract class Component : ObservableObject, IComponent
     /// Responds when this component is attached to or detached from a game object.
     /// </summary>
     protected virtual void OnOwnerChanged() => OnChanged();
+
+    /// <summary>
+    /// Performs one-time initialization before this component is activated.
+    /// </summary>
+    protected virtual void OnInitialize() { }
 
     /// <summary>
     /// Raises <see cref="Changed"/>.

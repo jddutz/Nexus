@@ -308,6 +308,60 @@ public class GameObjectTests
     }
 
     /// <summary>
+    /// Verifies adding initializes a component and object activation only notifies listeners.
+    /// </summary>
+    [Fact]
+    public void AddComponent_initializesBeforeGameObjectActivationNotification()
+    {
+        var gameObject = new GameObject();
+        var component = gameObject.AddComponent<TestComponent>();
+        Assert.Equal(1, component.InitializationCount);
+        Assert.False(component.IsActivated);
+        var initializedAtNotification = false;
+        var activeAtNotification = true;
+        gameObject.ComponentAdded += addedComponent =>
+        {
+            if (!ReferenceEquals(addedComponent, component))
+                return;
+
+            initializedAtNotification = component.InitializationCount == 1;
+            activeAtNotification = component.IsActivated;
+        };
+
+        gameObject.Activate();
+        gameObject.Deactivate();
+        gameObject.Activate();
+
+        Assert.Equal(1, component.InitializationCount);
+        Assert.True(initializedAtNotification);
+        Assert.False(activeAtNotification);
+        Assert.False(component.IsActivated);
+    }
+
+    /// <summary>
+    /// Verifies a component added to an active object initializes without changing activation state.
+    /// </summary>
+    [Fact]
+    public void AddComponent_toActiveObject_initializesBeforeNotification()
+    {
+        var gameObject = new GameObject();
+        gameObject.Activate();
+        var component = new TestComponent();
+        var activeAtNotification = true;
+        gameObject.ComponentAdded += addedComponent =>
+        {
+            if (ReferenceEquals(addedComponent, component))
+                activeAtNotification = component.IsActivated;
+        };
+
+        gameObject.AddComponent(component);
+
+        Assert.Equal(1, component.InitializationCount);
+        Assert.False(component.IsActivated);
+        Assert.False(activeAtNotification);
+    }
+
+    /// <summary>
     /// Verifies that attaching a component to a new game object detaches it from its prior owner.
     /// </summary>
     [Fact]
@@ -361,7 +415,13 @@ public class GameObjectTests
     /// </summary>
     private sealed class TestComponent : Component
     {
+        /// <summary>Gets the number of times this component has initialized.</summary>
+        public int InitializationCount { get; private set; }
+
         /// <inheritdoc />
         public override string DisplayName => "Test Component";
+
+        /// <inheritdoc />
+        protected override void OnInitialize() => InitializationCount++;
     }
 }
