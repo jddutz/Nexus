@@ -74,6 +74,9 @@ public class UniformColorMeshRenderer() : Component, IGraphicsComponent, IDrawab
 
     ITexture IDrawable.Texture => global::Nexus.Graphics.Textures.Texture.Uniform;
 
+    /// <inheritdoc />
+    ColorFormatEnum IDrawable.TextureFormat => ColorFormatEnum.RGBA8UNorm;
+
     ISamplingBehavior IDrawable.SamplingBehavior => SamplingBehavior;
 
     ulong IDrawable.InstanceCount => checked((ulong)InstanceCount);

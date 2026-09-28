@@ -105,6 +105,7 @@ internal static class Program
         var backgroundTexture = new TextureComponent
         {
             Texture = textureProvider.Get((ContentId)"hello_nexus_background_image"),
+            TextureFormat = ColorFormatEnum.RGBA8Srgb,
             Size = new(mainWindow.Size.X, mainWindow.Size.Y),
         };
         var backgroundElement = new Element(

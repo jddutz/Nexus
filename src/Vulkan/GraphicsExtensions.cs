@@ -84,6 +84,7 @@ public static class GraphicsExtensions
         {
             ColorFormatEnum.RGB8UNorm => Format.R8G8B8Unorm,
             ColorFormatEnum.RGBA8UNorm => Format.R8G8B8A8Unorm,
+            ColorFormatEnum.RGBA8Srgb => Format.R8G8B8A8Srgb,
             ColorFormatEnum.RGB16UNorm => Format.R16G16B16Unorm,
             ColorFormatEnum.RGBA16UNorm => Format.R16G16B16A16Unorm,
             ColorFormatEnum.RGB16Float => Format.R16G16B16Sfloat,

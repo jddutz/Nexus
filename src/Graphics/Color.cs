@@ -88,7 +88,7 @@ public readonly struct Color(float red, float green, float blue, float alpha = 1
                 default,
                 3
             ),
-            ColorFormatEnum.RGBA8UNorm => WriteChannels(
+            ColorFormatEnum.RGBA8UNorm or ColorFormatEnum.RGBA8Srgb => WriteChannels(
                 destination,
                 ToUNorm8(R),
                 ToUNorm8(G),

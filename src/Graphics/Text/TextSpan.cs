@@ -97,6 +97,9 @@ public sealed class TextSpan : IDrawable, IMeshInstance
     /// <summary>Gets the texture atlas sampled by the glyphs.</summary>
     public ITexture Texture => Style.Texture;
 
+    /// <inheritdoc />
+    ColorFormatEnum IDrawable.TextureFormat => ColorFormatEnum.RGBA8UNorm;
+
     /// <summary>Gets the sampling behavior used when sampling the texture atlas.</summary>
     public ISamplingBehavior SamplingBehavior
     {
