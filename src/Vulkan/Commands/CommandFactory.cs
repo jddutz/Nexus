@@ -1067,8 +1067,7 @@ public unsafe class CommandFactory(
             .WithDescriptorSchema(DescriptorSchemas.Textured)
             .WithRenderPass(swapChain.Passes[RenderPasses.GetIndex(renderPassMask)]);
 
-        if (drawable is TextSpan)
-            pipelineDefinitionBuilder.WithBlending();
+        pipelineDefinitionBuilder.WithBlending();
 
         if (drawable.TessellationControlShader is not null)
             pipelineDefinitionBuilder.WithShader(drawable.TessellationControlShader);

@@ -154,8 +154,7 @@ internal static class Program
             Text = pressText,
         };
         var pressTextElement = new Element(
-            measure: (_, availableSize) =>
-                MeasureText(pressTextComponent, pressText, textStyle, availableSize, 2),
+            measure: (_, availableSize) => MeasureText(pressText, textStyle, availableSize, 1),
             arrange: (element, bounds) => ArrangeText(element, bounds, pressTextComponent)
         );
         pressTextElement.AddComponent(pressTextComponent);
@@ -169,65 +168,242 @@ internal static class Program
         var welcomeTextElement = new Element(
             measure: (_, availableSize) =>
                 MeasureText(
-                    welcomeTextComponent,
                     welcomeText,
                     textStyle,
                     availableSize,
-                    int.MaxValue
+                    GetMaximumLineCount(textStyle, availableSize.Y)
                 ),
             arrange: (element, bounds) => ArrangeText(element, bounds, welcomeTextComponent)
         );
         welcomeTextElement.AddComponent(welcomeTextComponent);
+
+        const string buttonLabel = "Start Physics Test";
+        const float buttonHorizontalPadding = 16f;
+        const float buttonVerticalPadding = 10f;
+        const float buttonLabelGap = 10f;
+        var buttonLabelSize = MeasureWrappedText(textStyle, buttonLabel);
+        var buttonDesiredSize = new Vector2D<float>(
+            buttonLabelSize.X + buttonHorizontalPadding * 2f,
+            buttonLabelSize.Y + buttonVerticalPadding * 2f
+        );
+        var buttonTextComponent = new TextComponent(textStyle)
+        {
+            RenderLayerMask = foregroundLayer,
+            Text = buttonLabel,
+        };
+        var buttonTextElement = new Element(
+            measure: (_, availableSize) =>
+                new Vector2D<float>(
+                    MathF.Min(buttonLabelSize.X, availableSize.X),
+                    MathF.Min(buttonLabelSize.Y, availableSize.Y)
+                ),
+            arrange: (element, bounds) => ArrangeText(element, bounds, buttonTextComponent)
+        );
+        buttonTextElement.AddComponent(buttonTextComponent);
+
+        var buttonTexture = textureProvider.Get((ContentId)"button_texture");
+        var buttonNinePatch = new NinePatchComponent
+        {
+            Texture = buttonTexture,
+            Size = buttonDesiredSize,
+            RenderLayerMask = foregroundLayer,
+            SourceBorders = new(12f, 12f, 12f, 12f),
+        };
+        var buttonSurfaceElement = new Element(
+            arrange: (element, bounds) =>
+            {
+                ArrangementRules.Default(element, bounds);
+                element.Position = bounds.Origin;
+                buttonNinePatch.Size = bounds.Size;
+            }
+        );
+        buttonSurfaceElement.AddComponent(buttonNinePatch);
+
+        var buttonElement = new Element(
+            measure: (_, availableSize) =>
+                new Vector2D<float>(
+                    MathF.Min(buttonDesiredSize.X, availableSize.X),
+                    MathF.Min(buttonDesiredSize.Y, availableSize.Y)
+                ),
+            arrange: (element, bounds) =>
+            {
+                element.Bounds = bounds;
+                buttonSurfaceElement.Arrange(bounds);
+
+                var labelBounds = new Rectangle<float>(
+                    new Vector2D<float>(
+                        bounds.Origin.X + buttonHorizontalPadding,
+                        bounds.Origin.Y + buttonVerticalPadding
+                    ),
+                    new Vector2D<float>(
+                        MathF.Max(0f, bounds.Size.X - buttonHorizontalPadding * 2f),
+                        MathF.Max(0f, bounds.Size.Y - buttonVerticalPadding * 2f)
+                    )
+                );
+                var visibleButtonLabel = FitTextToWidth(textStyle, buttonLabel, labelBounds.Size.X);
+                if (buttonTextComponent.Text != visibleButtonLabel)
+                    buttonTextComponent.Text = visibleButtonLabel;
+
+                buttonTextElement.Arrange(labelBounds);
+            }
+        );
+        buttonElement.AddChild(buttonSurfaceElement);
+        buttonElement.AddChild(buttonTextElement);
+
+        var audioTexture = textureProvider.Get((ContentId)"icon_audio_on");
+        var leftIcon = CreateAudioIconElement(audioTexture, foregroundLayer);
+        var rightIcon = CreateAudioIconElement(audioTexture, foregroundLayer);
+        var middleHeader = new Element(
+            arrange: (element, bounds) =>
+            {
+                element.Bounds = bounds;
+                var visiblePressText = FitTextToWidth(textStyle, pressText, bounds.Size.X);
+                if (pressTextComponent.Text != visiblePressText)
+                    pressTextComponent.Text = visiblePressText;
+
+                pressTextElement.Arrange(bounds);
+            }
+        );
+        middleHeader.AddChild(pressTextElement);
+
+        var header = new Element(
+            measure: (_, availableSize) =>
+                new Vector2D<float>(availableSize.X, MathF.Min(48f, availableSize.Y)),
+            arrange: (element, bounds) =>
+            {
+                element.Bounds = bounds;
+
+                const float sectionPadding = 10f;
+                const float iconSize = 48f;
+                var gutter = MathF.Min(sectionPadding, bounds.Size.X / 2f);
+                var sideWidth = MathF.Min(
+                    iconSize,
+                    MathF.Max(0f, bounds.Size.X - gutter * 2f) / 2f
+                );
+                var middleWidth = MathF.Max(0f, bounds.Size.X - sideWidth * 2f - gutter * 2f);
+
+                leftIcon.Arrange(
+                    new Rectangle<float>(
+                        bounds.Origin,
+                        new Vector2D<float>(sideWidth, bounds.Size.Y)
+                    )
+                );
+                var middleBounds = new Rectangle<float>(
+                    new Vector2D<float>(bounds.Origin.X + sideWidth + gutter, bounds.Origin.Y),
+                    new Vector2D<float>(middleWidth, bounds.Size.Y)
+                );
+                middleHeader.Arrange(middleBounds);
+
+                rightIcon.Arrange(
+                    new Rectangle<float>(
+                        new Vector2D<float>(
+                            bounds.Origin.X + bounds.Size.X - sideWidth,
+                            bounds.Origin.Y
+                        ),
+                        new Vector2D<float>(sideWidth, bounds.Size.Y)
+                    )
+                );
+            }
+        );
+        header.AddChild(leftIcon);
+        header.AddChild(middleHeader);
+        header.AddChild(rightIcon);
+
+        var main = new Element(
+            measure: (_, availableSize) => availableSize,
+            arrange: (element, bounds) =>
+            {
+                element.Bounds = bounds;
+                var buttonSize = buttonElement.Measure(bounds.Size);
+                var welcomeAvailableHeight = MathF.Max(
+                    0f,
+                    bounds.Size.Y - buttonSize.Y - buttonLabelGap
+                );
+                var wrappedText = WrapText(
+                    welcomeText,
+                    textStyle,
+                    bounds.Size.X,
+                    GetMaximumLineCount(textStyle, welcomeAvailableHeight)
+                );
+                if (welcomeTextComponent.Text != wrappedText)
+                    welcomeTextComponent.Text = wrappedText;
+
+                var welcomeSize = MeasureWrappedText(textStyle, wrappedText);
+                var groupHeight = welcomeSize.Y + buttonLabelGap + buttonSize.Y;
+                var groupTop = bounds.Origin.Y + (bounds.Size.Y - groupHeight) / 2f;
+                welcomeTextElement.Arrange(
+                    new Rectangle<float>(
+                        new Vector2D<float>(bounds.Origin.X, groupTop),
+                        new Vector2D<float>(bounds.Size.X, welcomeSize.Y)
+                    )
+                );
+                buttonElement.Arrange(
+                    new Rectangle<float>(
+                        new Vector2D<float>(
+                            bounds.Origin.X + (bounds.Size.X - buttonSize.X) / 2f,
+                            groupTop + welcomeSize.Y + buttonLabelGap
+                        ),
+                        buttonSize
+                    )
+                );
+            }
+        );
+        main.AddChild(welcomeTextElement);
+        main.AddChild(buttonElement);
 
         var textLayout = new Element(
             arrange: (element, bounds) =>
             {
                 element.Bounds = bounds;
 
-                const float margin = 24f;
-                const float spacing = 16f;
-                const float bottomPadding = 24f;
-                var contentWidth = MathF.Max(0f, bounds.Size.X - margin * 2f);
-                var contentHeight = MathF.Max(0f, bounds.Size.Y - margin - bottomPadding);
-                var pressSize = pressTextElement.Measure(
-                    new Vector2D<float>(contentWidth, contentHeight)
+                const float headerMargin = 10f;
+                const float mainMargin = 24f;
+                const float sectionPadding = 10f;
+                var headerAvailable = new Vector2D<float>(
+                    MathF.Max(0f, bounds.Size.X - headerMargin * 2f),
+                    MathF.Max(0f, bounds.Size.Y - headerMargin * 2f)
                 );
-                var welcomeHeight = MathF.Max(0f, contentHeight - pressSize.Y - spacing);
-                welcomeTextElement.Measure(new Vector2D<float>(contentWidth, welcomeHeight));
-
-                pressTextElement.Arrange(
-                    new Rectangle<float>(
-                        new Vector2D<float>(bounds.Origin.X + margin, bounds.Origin.Y + margin),
-                        new Vector2D<float>(contentWidth, pressSize.Y)
-                    )
-                );
-                welcomeTextElement.Arrange(
+                var headerSize = header.Measure(headerAvailable);
+                header.Arrange(
                     new Rectangle<float>(
                         new Vector2D<float>(
-                            bounds.Origin.X + margin,
-                            bounds.Origin.Y + margin + pressSize.Y + spacing
+                            bounds.Origin.X + headerMargin,
+                            bounds.Origin.Y + headerMargin
                         ),
-                        new Vector2D<float>(contentWidth, welcomeHeight)
+                        headerSize
+                    )
+                );
+
+                var mainOriginY = bounds.Origin.Y + headerMargin + headerSize.Y + sectionPadding;
+                var mainHeight = MathF.Max(
+                    0f,
+                    bounds.Size.Y - (mainOriginY - bounds.Origin.Y) - mainMargin
+                );
+                main.Arrange(
+                    new Rectangle<float>(
+                        new Vector2D<float>(bounds.Origin.X + mainMargin, mainOriginY),
+                        new Vector2D<float>(
+                            MathF.Max(0f, bounds.Size.X - mainMargin * 2f),
+                            mainHeight
+                        )
                     )
                 );
             }
         );
-        textLayout.AddChild(pressTextElement);
-        textLayout.AddChild(welcomeTextElement);
+        textLayout.AddChild(header);
+        textLayout.AddChild(main);
         scene.AddChild(textLayout);
 
         return scene;
     }
 
-    /// <summary>Wraps and measures text within the available layout size.</summary>
-    /// <param name="textComponent">The component receiving one span per wrapped line.</param>
+    /// <summary>Measures wrapped text without changing the text component or element.</summary>
     /// <param name="text">The complete source text.</param>
     /// <param name="style">The font metrics used for wrapping.</param>
     /// <param name="availableSize">The maximum available size.</param>
     /// <param name="maximumLines">The maximum allowed line count.</param>
     /// <returns>The visible glyph bounds size after wrapping.</returns>
     private static Vector2D<float> MeasureText(
-        TextComponent textComponent,
         string text,
         ITextStyle style,
         Vector2D<float> availableSize,
@@ -244,13 +420,53 @@ internal static class Program
                 ? Math.Min(maximumLines, (int)MathF.Floor(availableSize.Y / lineHeight))
                 : 0;
         var wrappedText = WrapText(text, style, availableSize.X, lineCount);
-        if (textComponent.Text != wrappedText)
-            textComponent.Text = wrappedText;
-
-        return textComponent.LayoutBounds.Size;
+        return MeasureWrappedText(style, wrappedText);
     }
 
-    /// <summary>Wraps words to the available width and crops the last line at glyph boundaries.</summary>
+    /// <summary>Measures the combined glyph bounds of newline-separated text spans.</summary>
+    /// <param name="style">The font metrics used to measure glyphs.</param>
+    /// <param name="text">The wrapped text.</param>
+    /// <returns>The combined glyph bounds size.</returns>
+    private static Vector2D<float> MeasureWrappedText(ITextStyle style, string text)
+    {
+        if (string.IsNullOrEmpty(text))
+            return Vector2D<float>.Zero;
+
+        var scale = style.FontMetrics.EmSize == 0 ? 1.0 : style.Size / style.FontMetrics.EmSize;
+        var lineHeight = (float)(style.FontMetrics.LineHeight * scale);
+        var lines = text.Split('\n');
+        var top = float.PositiveInfinity;
+        var bottom = float.NegativeInfinity;
+        var width = 0f;
+
+        for (var lineIndex = 0; lineIndex < lines.Length; lineIndex++)
+        {
+            var bounds = new TextSpan(style, lines[lineIndex]).LayoutBounds;
+            width = MathF.Max(width, bounds.Size.X);
+            top = MathF.Min(top, bounds.Origin.Y + lineIndex * lineHeight);
+            bottom = MathF.Max(bottom, bounds.Max.Y + lineIndex * lineHeight);
+        }
+
+        return float.IsFinite(top) && float.IsFinite(bottom)
+            ? new Vector2D<float>(width, bottom - top)
+            : Vector2D<float>.Zero;
+    }
+
+    /// <summary>Gets the maximum number of text lines that fit vertically.</summary>
+    /// <param name="style">The font metrics used to determine line height.</param>
+    /// <param name="availableHeight">The available vertical space.</param>
+    /// <returns>The maximum number of lines.</returns>
+    private static int GetMaximumLineCount(ITextStyle style, float availableHeight)
+    {
+        var scale = style.FontMetrics.EmSize == 0 ? 1.0 : style.Size / style.FontMetrics.EmSize;
+        var lineHeight = (float)(style.FontMetrics.LineHeight * scale);
+        if (!float.IsFinite(lineHeight) || lineHeight <= 0f)
+            lineHeight = (float)style.Size;
+
+        return lineHeight > 0f ? Math.Max(0, (int)MathF.Floor(availableHeight / lineHeight)) : 0;
+    }
+
+    /// <summary>Wraps words to the available width, cropping the last line at glyph boundaries.</summary>
     /// <param name="text">The complete source text.</param>
     /// <param name="style">The font metrics used to measure glyphs.</param>
     /// <param name="availableWidth">The maximum line width.</param>
@@ -286,16 +502,23 @@ internal static class Program
                 }
 
                 lines.Add(currentLine);
-                currentLine = word;
+                currentLine = string.Empty;
             }
 
-            if (MeasureTextWidth(style, currentLine) > availableWidth)
+            var remainder = word;
+            while (MeasureTextWidth(style, remainder) > availableWidth)
             {
-                lines.Add(FitTextToWidth(style, currentLine, availableWidth));
-                currentLine = string.Empty;
+                var fittingPrefix = FitTextToWidth(style, remainder, availableWidth);
+                if (fittingPrefix.Length == 0)
+                    return string.Join('\n', lines);
+
+                lines.Add(fittingPrefix);
+                remainder = remainder[fittingPrefix.Length..];
                 if (lines.Count >= maximumLines)
                     return string.Join('\n', lines);
             }
+
+            currentLine = remainder;
         }
 
         if (currentLine.Length > 0 && lines.Count < maximumLines)
@@ -329,6 +552,60 @@ internal static class Program
         }
 
         return prefix.ToString();
+    }
+
+    /// <summary>Creates an audio icon element with a nominal fixed 48-by-48 size.</summary>
+    /// <param name="texture">The audio icon texture.</param>
+    /// <param name="renderLayerMask">The render layer selected by the header view.</param>
+    /// <returns>The arranged icon element.</returns>
+    private static Element CreateAudioIconElement(Texture texture, ulong renderLayerMask)
+    {
+        const float iconSize = 48f;
+        var textureComponent = new TextureComponent
+        {
+            Texture = texture,
+            Size = new Vector2D<float>(iconSize, iconSize),
+            RenderLayerMask = renderLayerMask,
+        };
+        var element = new Element(
+            measure: (_, availableSize) =>
+                new Vector2D<float>(
+                    MathF.Min(iconSize, availableSize.X),
+                    MathF.Min(iconSize, availableSize.Y)
+                ),
+            arrange: (arrangedElement, bounds) =>
+            {
+                var visibleSize = new Vector2D<float>(
+                    MathF.Min(iconSize, bounds.Size.X),
+                    MathF.Min(iconSize, bounds.Size.Y)
+                );
+                var cropRatio = new Vector2D<float>(
+                    visibleSize.X / iconSize,
+                    visibleSize.Y / iconSize
+                );
+                var cropOrigin = new Vector2D<float>(
+                    (1f - cropRatio.X) / 2f,
+                    (1f - cropRatio.Y) / 2f
+                );
+                arrangedElement.Bounds = new Rectangle<float>(
+                    new Vector2D<float>(
+                        bounds.Origin.X + (bounds.Size.X - visibleSize.X) / 2f,
+                        bounds.Origin.Y + (bounds.Size.Y - visibleSize.Y) / 2f
+                    ),
+                    visibleSize
+                );
+                arrangedElement.Position = arrangedElement.Bounds.Origin;
+                textureComponent.Size = visibleSize;
+                textureComponent.TexCoord = new(
+                    cropOrigin.X,
+                    cropOrigin.Y,
+                    cropRatio.X,
+                    cropRatio.Y
+                );
+            }
+        );
+        element.AddComponent(textureComponent);
+        return element;
     }
 
     /// <summary>Centers visible glyphs and assigns their actual bounds to a text element.</summary>
