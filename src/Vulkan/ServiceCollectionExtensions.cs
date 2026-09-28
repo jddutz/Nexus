@@ -1,4 +1,5 @@
 namespace Nexus.Graphics.Vulkan;
+using Microsoft.Extensions.Configuration;
 
 /// <summary>
 /// Registers Vulkan graphics services with dependency injection.
@@ -9,10 +10,19 @@ public static class ServiceCollectionExtensions
     /// Registers the Vulkan graphics implementation and its dependencies.
     /// </summary>
     /// <param name="services">The service collection to update.</param>
+    /// <param name="configuration">Optional application configuration for Vulkan settings.</param>
     /// <returns>The updated service collection.</returns>
-    public static IServiceCollection AddVkGraphicsServices(this IServiceCollection services)
+    public static IServiceCollection AddVkGraphicsServices(
+        this IServiceCollection services,
+        IConfiguration? configuration = null
+    )
     {
         ArgumentNullException.ThrowIfNull(services);
+
+        if (configuration is not null)
+        {
+            services.AddOptions<VulkanSettings>().Bind(configuration.GetSection("Vulkan"));
+        }
 
         services.TryAddSingleton<IWindowService, VulkanWindowService>();
         services.TryAddSingleton(sp => sp.GetRequiredService<IWindowService>().GetMainWindow());

@@ -6,6 +6,10 @@ public interface IGameObject : INotifyPropertyChanged
 
     IGameObject? Parent { get; }
 
+    /// <summary>
+    /// Gets the direct children of this game object. Raises <see cref="INotifyPropertyChanged.PropertyChanged"/>
+    /// when a child is added or removed.
+    /// </summary>
     IReadOnlyList<IGameObject> Children { get; }
     IReadOnlyList<IComponent> Components { get; }
 

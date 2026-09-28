@@ -181,7 +181,7 @@ public class BasicRuntimeTests
 
     private static void AddRuntimeServices(IServiceCollection services)
     {
-        services.AddGuiServices();
+        services.AddNexusGui();
         services.AddSingleton<IInputSystem, NoOpInputSystem>();
         services.AddSingleton<IGameSystem, NoOpGameSystem>();
         services.AddSingleton<IPhysicsSystem, NoOpPhysicsSystem>();

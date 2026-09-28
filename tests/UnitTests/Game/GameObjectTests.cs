@@ -149,12 +149,130 @@ public class GameObjectTests
         };
 
         Assert.Equal(child.LocalTransform * parent.WorldTransform, child.WorldTransform);
+        parent.Position = new Vector2D<float>(5f, 6f);
+        Assert.Equal(0, worldTransformChanges);
+
+        parent.Activate();
+        worldTransformChanges = 0;
         var initialWorldTransform = child.WorldTransform;
 
         parent.Position = new Vector2D<float>(8f, 9f);
 
         Assert.NotEqual(initialWorldTransform, child.WorldTransform);
         Assert.Equal(1, worldTransformChanges);
+    }
+
+    /// <summary>
+    /// Verifies spatial transforms and notifications pass through non-spatial game objects.
+    /// </summary>
+    [Fact]
+    public void SpatialTransforms_inheritThroughNonSpatialAncestors()
+    {
+        var parent = new GameObject2D { Position = new Vector2D<float>(3f, 4f) };
+        var intermediary = new GameObject();
+        var child = new GameObject2D { Position = new Vector2D<float>(1f, 2f) };
+        parent.AddChild(intermediary);
+        intermediary.AddChild(child);
+        var childWorldTransformChanges = 0;
+        child.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(IGameObject2D.WorldTransform))
+                childWorldTransformChanges++;
+        };
+
+        Assert.Equal(child.LocalTransform * parent.WorldTransform, child.WorldTransform);
+        parent.Position = new Vector2D<float>(5f, 6f);
+        Assert.Equal(0, childWorldTransformChanges);
+
+        parent.Activate();
+        childWorldTransformChanges = 0;
+        var initialWorldTransform = child.WorldTransform;
+
+        parent.Position = new Vector2D<float>(8f, 9f);
+
+        Assert.NotEqual(initialWorldTransform, child.WorldTransform);
+        Assert.Equal(child.LocalTransform * parent.WorldTransform, child.WorldTransform);
+        Assert.Equal(1, childWorldTransformChanges);
+
+        var newParent = new GameObject2D { Position = new Vector2D<float>(12f, 13f) };
+        Assert.True(parent.RemoveChild(intermediary));
+        newParent.AddChild(intermediary);
+        childWorldTransformChanges = 0;
+
+        parent.Position = new Vector2D<float>(18f, 19f);
+        Assert.Equal(0, childWorldTransformChanges);
+
+        newParent.Activate();
+        childWorldTransformChanges = 0;
+        newParent.Position = new Vector2D<float>(20f, 21f);
+        Assert.Equal(1, childWorldTransformChanges);
+        Assert.Equal(child.LocalTransform * newParent.WorldTransform, child.WorldTransform);
+
+        newParent.Deactivate();
+        newParent.Position = new Vector2D<float>(22f, 23f);
+        Assert.Equal(1, childWorldTransformChanges);
+    }
+
+    /// <summary>
+    /// Verifies three-dimensional objects subscribe to spatial ancestors when activated.
+    /// </summary>
+    [Fact]
+    public void SpatialTransforms3D_subscribeToNearestAncestorOnActivation()
+    {
+        var parent = new GameObject3D { Position = new Vector3D<float>(3f, 4f, 5f) };
+        var intermediary = new GameObject();
+        var child = new GameObject3D { Position = new Vector3D<float>(1f, 2f, 3f) };
+        parent.AddChild(intermediary);
+        intermediary.AddChild(child);
+        var worldTransformChanges = 0;
+        child.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(IGameObject3D.WorldTransform))
+                worldTransformChanges++;
+        };
+
+        parent.Position = new Vector3D<float>(6f, 7f, 8f);
+        Assert.Equal(0, worldTransformChanges);
+
+        parent.Activate();
+        worldTransformChanges = 0;
+        parent.Position = new Vector3D<float>(9f, 10f, 11f);
+
+        Assert.Equal(1, worldTransformChanges);
+        Assert.Equal(child.LocalTransform * parent.WorldTransform, child.WorldTransform);
+
+        parent.Deactivate();
+        parent.Position = new Vector3D<float>(12f, 13f, 14f);
+
+        Assert.Equal(1, worldTransformChanges);
+    }
+
+    /// <summary>
+    /// Verifies direct child collection changes notify listeners after the collection is updated.
+    /// </summary>
+    [Fact]
+    public void AddChildAndRemoveChild_raisePropertyChangedForChildren()
+    {
+        var parent = new GameObject();
+        var child = new GameObject();
+        var changedProperties = new List<string?>();
+        var childCountsAtNotification = new List<int>();
+        parent.PropertyChanged += (_, args) =>
+        {
+            changedProperties.Add(args.PropertyName);
+            if (args.PropertyName == nameof(IGameObject.Children))
+                childCountsAtNotification.Add(parent.Children.Count);
+        };
+
+        parent.AddChild(child);
+        Assert.True(parent.RemoveChild(child));
+        Assert.False(parent.RemoveChild(child));
+
+        Assert.Equal(
+            [nameof(IGameObject.Children), nameof(IGameObject.Children)],
+            changedProperties
+        );
+        Assert.Equal([1, 0], childCountsAtNotification);
     }
 
     /// <summary>

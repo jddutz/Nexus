@@ -42,30 +42,7 @@ public class RuntimeBuilder : IRuntimeBuilder
     {
         var configuration = _configuration ?? new ConfigurationBuilder().Build();
         _services.TryAddSingleton(configuration);
-        _services.AddOptions<ApplicationSettings>().Bind(configuration.GetSection("Application"));
-        _services.TryAddSingleton<IContentManifest, ContentManifest>();
-        _services.TryAddSingleton<IInputSystem, InputSystem>();
-        _services.TryAddSingleton<IGameSystem, GameSystem>();
-        _services.TryAddSingleton<IGameModel>(serviceProvider =>
-            (GameSystem)serviceProvider.GetRequiredService<IGameSystem>()
-        );
-        _services.AddGuiServices();
-        _services.TryAddSingleton<IPhysicsSystem, PhysicsSystem>();
-        _services.TryAddSingleton<IContentProvider<Texture>, TextureProvider>();
-        _services.TryAddSingleton<IGraphicsSystem, VulkanGraphicsSystem>();
-        _services.TryAddSingleton<IAudioSystem, AudioSystem>();
-        _services.TryAddSingleton<IEventHub>(serviceProvider =>
-        {
-            var applicationSettings = serviceProvider
-                .GetRequiredService<IOptions<ApplicationSettings>>()
-                .Value;
-            return new EventHub(
-                serviceProvider.GetService<ILogger<EventHub>>(),
-                applicationSettings.DiagnosticsEnabled,
-                applicationSettings.LogHighFrequencyEvents
-            );
-        });
-        _services.TryAddSingleton<INexusRuntime, NexusRuntime>();
+        _services.AddNexusServices(configuration);
 
         var serviceProvider = _services.BuildServiceProvider();
 

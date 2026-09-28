@@ -30,20 +30,9 @@ public class TestRuntimeBuilder : IRuntimeBuilder
     {
         var configuration = Configuration ?? new ConfigurationBuilder().Build();
         Services.TryAddSingleton(configuration);
-        Services.AddOptions<ApplicationSettings>().Bind(configuration.GetSection("Application"));
-        Services.AddGuiServices();
-        Services.TryAddSingleton<IEventHub>(serviceProvider =>
-        {
-            var applicationSettings = serviceProvider
-                .GetRequiredService<IOptions<ApplicationSettings>>()
-                .Value;
-            return new EventHub(
-                serviceProvider.GetService<ILogger<EventHub>>(),
-                applicationSettings.DiagnosticsEnabled,
-                applicationSettings.LogHighFrequencyEvents
-            );
-        });
-        Services.TryAddSingleton<INexusRuntime, NexusRuntime>();
+        Services.AddNexusGui();
+        Services.AddEventHub(configuration);
+        Services.AddRuntimeServices(configuration);
 
         var serviceProvider = Services.BuildServiceProvider();
 

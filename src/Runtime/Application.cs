@@ -1,7 +1,5 @@
 namespace Nexus.Runtime;
 
-using Silk.NET.Input;
-
 /// <summary>
 /// Implements the main application entry point for the Nexus Game Engine runtime.
 /// </summary>
@@ -16,44 +14,7 @@ public sealed class Application : IApplication, IDisposable
     {
         services ??= new ServiceCollection();
 
-        services.AddSingleton<IContentManifest, ContentManifest>(sp =>
-            BuildContentManifest(configuration)
-        );
-
-        services.AddOptions<ApplicationSettings>().Bind(configuration.GetSection("Application"));
-        services.AddOptions<DiagnosticsSettings>().Bind(configuration.GetSection("Diagnostics"));
-        services.AddOptions<VulkanSettings>().Bind(configuration.GetSection("Vulkan"));
-        services.AddOptions<WindowSettings>().Bind(configuration.GetSection("Window"));
-        services.AddOptions<ContentSettings>().Bind(configuration.GetSection("Content"));
-
-        services.AddGameSystemServices();
-        services.AddGuiServices();
-
-        services.TryAddSingleton<IEventHub>(serviceProvider =>
-        {
-            var applicationSettings = serviceProvider
-                .GetRequiredService<IOptions<ApplicationSettings>>()
-                .Value;
-            return new EventHub(
-                serviceProvider.GetService<ILogger<EventHub>>(),
-                applicationSettings.DiagnosticsEnabled,
-                applicationSettings.LogHighFrequencyEvents
-            );
-        });
-        services.TryAddSingleton<IAudioSystem, AudioSystem>();
-        services.TryAddSingleton<IInputContext>(sp =>
-            sp.GetRequiredService<IWindow>().CreateInput()
-        );
-        services.TryAddSingleton<IInputAdapter, InputAdapter>();
-        services.TryAddSingleton<IInputSystem, InputSystem>();
-        services.TryAddSingleton<IPhysicsSystem, PhysicsSystem>();
-        services.TryAddSingleton<IContentProvider<Texture>, TextureProvider>();
-        services.TryAddSingleton<INexusRuntime, NexusRuntime>();
-
-        if (!services.Any(x => x.ServiceType == typeof(IGraphicsSystem)))
-        {
-            services.AddVkGraphicsServices();
-        }
+        services.AddNexusServices(configuration);
 
         services.AddLogging(builder =>
         {
@@ -70,19 +31,6 @@ public sealed class Application : IApplication, IDisposable
         });
         _serviceProvider = services.BuildServiceProvider();
         _logger = _serviceProvider.GetRequiredService<ILogger<Application>>();
-    }
-
-    private static ContentManifest BuildContentManifest(IConfiguration appConfig)
-    {
-        var appSettings =
-            appConfig.GetSection("Application").Get<ApplicationSettings>()
-            ?? new ApplicationSettings();
-        var manifestPath = Path.IsPathRooted(appSettings.ContentManifestLocation)
-            ? appSettings.ContentManifestLocation
-            : Path.Combine(AppContext.BaseDirectory, appSettings.ContentManifestLocation);
-        var contentLibraryPath = Path.GetDirectoryName(Path.GetFullPath(manifestPath))!;
-
-        return new ContentManifest(contentLibraryPath, appConfig);
     }
 
     /// <inheritdoc />

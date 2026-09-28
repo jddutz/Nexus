@@ -173,8 +173,7 @@ public class GameObject : ObservableObject, IGameObject
         if (child is GameObject gameObject)
         {
             gameObject.Parent = this;
-            PropertyChanged += gameObject.OnParentPropertyChanged;
-            gameObject.OnWorldTransformChanged();
+            gameObject.NotifyHierarchyChanged();
             if (GameModel is not null)
                 gameObject.SetGameModel(GameModel);
         }
@@ -184,6 +183,8 @@ public class GameObject : ObservableObject, IGameObject
             ChildAdded?.Invoke(child);
             child.Activate();
         }
+
+        OnPropertyChanged(nameof(Children));
     }
 
     /// <inheritdoc/>
@@ -203,11 +204,11 @@ public class GameObject : ObservableObject, IGameObject
         StopListeningToChild(child);
         if (child is GameObject gameObject)
         {
-            PropertyChanged -= gameObject.OnParentPropertyChanged;
             gameObject.Parent = null;
-            gameObject.OnWorldTransformChanged();
+            gameObject.NotifyHierarchyChanged();
         }
 
+        OnPropertyChanged(nameof(Children));
         return true;
     }
 
@@ -227,6 +228,7 @@ public class GameObject : ObservableObject, IGameObject
             return;
 
         IsActive = true;
+        OnActivated();
         foreach (var child in _children)
             child.Activate();
 
@@ -250,6 +252,7 @@ public class GameObject : ObservableObject, IGameObject
             ComponentRemoved?.Invoke(component);
 
         IsActive = false;
+        OnDeactivated();
     }
 
     /// <summary>
@@ -297,27 +300,30 @@ public class GameObject : ObservableObject, IGameObject
     }
 
     /// <summary>
-    /// Updates this object's world transform when its parent transform changes.
+    /// Notifies this object and its descendants that their parent chain changed.
     /// </summary>
-    /// <param name="sender">The parent that changed.</param>
-    /// <param name="e">The property change event data.</param>
-    private void OnParentPropertyChanged(
-        object? sender,
-        System.ComponentModel.PropertyChangedEventArgs e
-    )
+    private void NotifyHierarchyChanged()
     {
-        if (e.PropertyName == nameof(IGameObject2D.WorldTransform))
-            OnWorldTransformChanged();
+        OnHierarchyChanged();
+
+        foreach (var child in _children.OfType<GameObject>())
+            child.NotifyHierarchyChanged();
     }
 
     /// <summary>
-    /// Raises the world-transform change for spatial game objects.
+    /// Handles a change to this object's parent or ancestor chain.
     /// </summary>
-    private void OnWorldTransformChanged()
-    {
-        if (this is IGameObject2D or IGameObject3D)
-            OnPropertyChanged(nameof(IGameObject2D.WorldTransform));
-    }
+    protected virtual void OnHierarchyChanged() { }
+
+    /// <summary>
+    /// Handles this object becoming active.
+    /// </summary>
+    protected virtual void OnActivated() { }
+
+    /// <summary>
+    /// Handles this object becoming inactive.
+    /// </summary>
+    protected virtual void OnDeactivated() { }
 
     /// <summary>
     /// Propagates a child-added notification from a descendant.

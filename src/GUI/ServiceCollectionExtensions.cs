@@ -10,7 +10,7 @@ public static class ServiceCollectionExtensions
     /// </summary>
     /// <param name="services">The service collection to update.</param>
     /// <returns>The updated service collection.</returns>
-    public static IServiceCollection AddGuiServices(this IServiceCollection services)
+    public static IServiceCollection AddNexusGui(this IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(services);
 
