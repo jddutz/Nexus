@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Nexus.Core;
+
 using Microsoft.Extensions.Logging;
 using Nexus.Core.Events;
 

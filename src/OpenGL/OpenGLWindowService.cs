@@ -94,11 +94,7 @@ public sealed class OpenGLWindowService : IWindowService, IDisposable
     /// <param name="windowId">The identifier of the affected window.</param>
     /// <param name="window">The window whose DPI scale changed.</param>
     /// <param name="framebufferSize">The new framebuffer size in pixels.</param>
-    private void PublishDpiChanged(
-        WindowId windowId,
-        IWindow window,
-        Vector2D<int> framebufferSize
-    )
+    private void PublishDpiChanged(WindowId windowId, IWindow window, Vector2D<int> framebufferSize)
     {
         var windowSize = window.Size;
         if (

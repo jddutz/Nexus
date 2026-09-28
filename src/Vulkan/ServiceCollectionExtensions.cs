@@ -1,4 +1,5 @@
 namespace Nexus.Graphics.Vulkan;
+
 using Microsoft.Extensions.Configuration;
 
 /// <summary>
