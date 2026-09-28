@@ -27,9 +27,8 @@ public static class ColorFormatExtensions
         format switch
         {
             ColorFormatEnum.RGB8UNorm => 3,
-            ColorFormatEnum.RGBA8UNorm
-            or ColorFormatEnum.RGBA8Srgb
-            or ColorFormatEnum.ARGB8UNorm => 4,
+            ColorFormatEnum.RGBA8UNorm or ColorFormatEnum.RGBA8Srgb or ColorFormatEnum.ARGB8UNorm =>
+                4,
             ColorFormatEnum.RGB16UNorm or ColorFormatEnum.RGB16Float => 6,
             ColorFormatEnum.RGBA16UNorm
             or ColorFormatEnum.ARGB16UNorm
