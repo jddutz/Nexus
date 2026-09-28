@@ -26,6 +26,11 @@ public sealed record ApplicationSettings
     public bool LogHighFrequencyEvents { get; set; }
 
     /// <summary>
+    /// Gets or sets the number of diagnostic event payloads logged per event type before suppression.
+    /// </summary>
+    public int EventLogLimit { get; set; } = 20;
+
+    /// <summary>
     /// Gets or sets the location of the content manifest.
     /// </summary>
     public string ContentManifestLocation { get; set; } = ".content/content-manifest.json";

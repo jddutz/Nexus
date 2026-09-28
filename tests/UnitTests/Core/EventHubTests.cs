@@ -119,6 +119,24 @@ public class EventHubTests
     }
 
     /// <summary>
+    /// Verifies the diagnostic event count limit can be configured.
+    /// </summary>
+    [Fact]
+    public void Drain_usesConfiguredEventLogLimit()
+    {
+        var logger = new CapturingLogger<EventHub>();
+        var eventHub = new EventHub(logger, diagnosticsEnabled: true, eventLogLimit: 1);
+
+        eventHub.Publish(new ProbeEvent(1));
+        eventHub.Publish(new ProbeEvent(2));
+        eventHub.Publish(new ProbeEvent(3));
+        eventHub.Drain();
+
+        Assert.Equal(2, logger.Messages.Count);
+        Assert.Contains("Suppressing diagnostic logging", logger.Messages[^1]);
+    }
+
+    /// <summary>
     /// Represents an event with a cyclic reference for JSON diagnostics testing.
     /// </summary>
     private sealed class ProbeEvent(int value) : IEvent

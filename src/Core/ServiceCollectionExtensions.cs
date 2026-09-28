@@ -64,7 +64,8 @@ public static class ServiceCollectionExtensions
             return new EventHub(
                 serviceProvider.GetService<ILogger<EventHub>>(),
                 applicationSettings.GetValue<bool>("DiagnosticsEnabled"),
-                applicationSettings.GetValue<bool>("LogHighFrequencyEvents")
+                applicationSettings.GetValue<bool>("LogHighFrequencyEvents"),
+                applicationSettings.GetValue("EventLogLimit", 20)
             );
         });
 

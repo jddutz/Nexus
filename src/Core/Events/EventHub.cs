@@ -12,7 +12,7 @@ namespace Nexus.Core.Events;
 public sealed class EventHub : IEventHub
 {
     private const string HANDLE_METHOD_NAME = "Handle";
-    private const int EVENT_LOG_LIMIT = 20;
+    private const int DEFAULT_EVENT_LOG_LIMIT = 20;
     private static readonly JsonSerializerOptions EventJsonOptions = new()
     {
         ReferenceHandler = ReferenceHandler.IgnoreCycles,
@@ -22,6 +22,7 @@ public sealed class EventHub : IEventHub
     private readonly ILogger<EventHub>? _logger;
     private readonly bool _diagnosticsEnabled;
     private readonly bool _logHighFrequencyEvents;
+    private readonly int _eventLogLimit;
     private readonly HashSet<object> _registeredHandlers = new(ReferenceEqualityComparer.Instance);
 
     private readonly Dictionary<Type, List<EventSubscription>> _subscriptions = [];
@@ -34,15 +35,20 @@ public sealed class EventHub : IEventHub
     /// <param name="logger">The logger used to record event type and JSON payload data.</param>
     /// <param name="diagnosticsEnabled">Whether event diagnostic logging is enabled.</param>
     /// <param name="logHighFrequencyEvents">Whether automatic high-frequency event log suppression is bypassed.</param>
+    /// <param name="eventLogLimit">The number of event payloads logged per event type before suppression.</param>
     public EventHub(
         ILogger<EventHub>? logger = null,
         bool diagnosticsEnabled = false,
-        bool logHighFrequencyEvents = false
+        bool logHighFrequencyEvents = false,
+        int eventLogLimit = DEFAULT_EVENT_LOG_LIMIT
     )
     {
+        ArgumentOutOfRangeException.ThrowIfNegative(eventLogLimit);
+
         _logger = logger;
         _diagnosticsEnabled = diagnosticsEnabled;
         _logHighFrequencyEvents = logHighFrequencyEvents;
+        _eventLogLimit = eventLogLimit;
     }
 
     /// <summary>
@@ -225,13 +231,13 @@ public sealed class EventHub : IEventHub
     private bool ShouldLogEvent(Type eventType)
     {
         _eventLogCounts.TryGetValue(eventType, out var eventCount);
-        if (eventCount > EVENT_LOG_LIMIT)
+        if (eventCount > _eventLogLimit)
             return false;
 
         eventCount++;
         _eventLogCounts[eventType] = eventCount;
 
-        if (eventCount <= EVENT_LOG_LIMIT)
+        if (eventCount <= _eventLogLimit)
             return true;
 
         _logger!.LogInformation(
