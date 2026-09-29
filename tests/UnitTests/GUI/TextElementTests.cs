@@ -38,6 +38,20 @@ public sealed class TextElementTests
         Assert.Equal(new Vector2D<float>(17f, 25f), element.Bounds.Origin);
     }
 
+    /// <summary>Verifies a measured line remains visible when glyphs are shorter than line height.</summary>
+    [Fact]
+    public void Arrange_keepsTextWhenGlyphHeightIsLessThanLineHeight()
+    {
+        var element = new TextElement("A", new TestTextStyle(lineHeight: 2));
+        var measuredSize = element.Measure(new(10f, 1f));
+
+        element.Arrange(new Rectangle<float>(0f, 0f, measuredSize.X, measuredSize.Y));
+
+        Assert.Equal(new Vector2D<float>(1f, 1f), measuredSize);
+        Assert.Equal("A", element.GetComponent<TextComponent>()!.Text);
+        Assert.Equal(1f, element.Bounds.Size.Y);
+    }
+
     /// <summary>Verifies hiding removes visuals while text and layout survive recreation.</summary>
     [Fact]
     public void AncestorVisibility_recreatesTextComponentFromRetainedState()
@@ -67,12 +81,15 @@ public sealed class TextElementTests
     /// <summary>Creates a text element with deterministic in-memory font data.</summary>
     /// <param name="text">The initial text.</param>
     /// <returns>The configured text element.</returns>
-    private static TextElement CreateTextElement(string text) =>
-        new(text, new TestTextStyle());
+    private static TextElement CreateTextElement(string text) => new(text, new TestTextStyle());
 
     /// <summary>Provides deterministic single-cell glyphs for layout tests.</summary>
     private sealed class TestTextStyle : ITextStyle
     {
+        /// <summary>Initializes the test font metrics.</summary>
+        /// <param name="lineHeight">The font line height.</param>
+        public TestTextStyle(double lineHeight = 1) => FontMetrics = new(1, 1, 0, lineHeight);
+
         /// <inheritdoc />
         public ITexture Texture { get; } = new Texture("font", 2, 1, [Colors.White, Colors.White]);
 
@@ -85,14 +102,16 @@ public sealed class TextElementTests
             };
 
         /// <inheritdoc />
-        public FontMetrics FontMetrics { get; } = new(1, 1, 0, 1);
+        public FontMetrics FontMetrics { get; }
 
         /// <inheritdoc />
         public MsdfMetadata Msdf { get; } = new(4, 1);
 
         /// <inheritdoc />
-        public IReadOnlyDictionary<(int LeftCodepoint, int RightCodepoint), double> Kerning { get; } =
-            new Dictionary<(int, int), double>();
+        public IReadOnlyDictionary<
+            (int LeftCodepoint, int RightCodepoint),
+            double
+        > Kerning { get; } = new Dictionary<(int, int), double>();
 
         /// <inheritdoc />
         public Color Color { get; } = Colors.White;

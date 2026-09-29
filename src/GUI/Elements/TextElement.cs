@@ -160,11 +160,18 @@ public sealed class TextElement : Element
         if (!IsEffectivelyVisible)
             return Vector2D<float>.Zero;
 
-        var lineCount = _maximumLines ?? GetMaximumLineCount(_style, constraint.Y);
-        lineCount = Math.Min(lineCount, GetMaximumLineCount(_style, constraint.Y));
-        var wrappedText = WrapText(_text, _style, constraint.X, lineCount);
+        var wrappedText = WrapTextToBounds(
+            _text,
+            _style,
+            constraint.X,
+            constraint.Y,
+            _maximumLines
+        );
         var measuredSize = MeasureWrappedText(_style, wrappedText);
-        return new(MathF.Min(measuredSize.X, constraint.X), MathF.Min(measuredSize.Y, constraint.Y));
+        return new(
+            MathF.Min(measuredSize.X, constraint.X),
+            MathF.Min(measuredSize.Y, constraint.Y)
+        );
     }
 
     /// <inheritdoc />
@@ -175,9 +182,13 @@ public sealed class TextElement : Element
 
         _layoutBounds = bounds;
         base.Arrange(bounds);
-        var lineCount = _maximumLines ?? GetMaximumLineCount(_style, bounds.Size.Y);
-        lineCount = Math.Min(lineCount, GetMaximumLineCount(_style, bounds.Size.Y));
-        var wrappedText = WrapText(_text, _style, bounds.Size.X, lineCount);
+        var wrappedText = WrapTextToBounds(
+            _text,
+            _style,
+            bounds.Size.X,
+            bounds.Size.Y,
+            _maximumLines
+        );
         if (_textComponent.Text != wrappedText)
             _textComponent.Text = wrappedText;
 
@@ -351,6 +362,43 @@ public sealed class TextElement : Element
             lines.Add(currentLine);
 
         return string.Join('\n', lines);
+    }
+
+    /// <summary>Wraps text and removes trailing lines whose glyph bounds exceed the height.</summary>
+    /// <param name="text">The complete source text.</param>
+    /// <param name="style">The font metrics used for measuring and wrapping.</param>
+    /// <param name="availableWidth">The maximum line width.</param>
+    /// <param name="availableHeight">The maximum visible glyph height.</param>
+    /// <param name="maximumLines">An optional explicit line limit.</param>
+    /// <returns>The wrapped text whose visible glyph bounds fit the available size.</returns>
+    private static string WrapTextToBounds(
+        string text,
+        ITextStyle style,
+        float availableWidth,
+        float availableHeight,
+        int? maximumLines
+    )
+    {
+        if (availableHeight <= 0f)
+            return string.Empty;
+
+        var lineLimit = GetMaximumLineCount(style, availableHeight);
+        if (lineLimit < int.MaxValue)
+            lineLimit++;
+        if (maximumLines.HasValue)
+            lineLimit = Math.Min(lineLimit, maximumLines.Value);
+
+        var wrappedText = WrapText(text, style, availableWidth, lineLimit);
+        while (
+            wrappedText.Length > 0
+            && MeasureWrappedText(style, wrappedText).Y > availableHeight
+        )
+        {
+            var lastLineStart = wrappedText.LastIndexOf('\n');
+            wrappedText = lastLineStart < 0 ? string.Empty : wrappedText[..lastLineStart];
+        }
+
+        return wrappedText;
     }
 
     /// <summary>Measures the visible glyph width of a candidate line.</summary>

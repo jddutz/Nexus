@@ -71,7 +71,11 @@ internal sealed class HelloNexusSceneFactory(
         var pressTextElement = new TextElement(pressText, textStyle, 1, foregroundLayer);
 
         const string welcomeText = "Welcome to the Nexus";
-        var welcomeTextElement = new TextElement(welcomeText, textStyle, renderLayerMask: foregroundLayer);
+        var welcomeTextElement = new TextElement(
+            welcomeText,
+            textStyle,
+            renderLayerMask: foregroundLayer
+        );
 
         const string buttonLabel = "Start Physics Test";
         var buttonElement = new TextButton(
@@ -109,17 +113,11 @@ internal sealed class HelloNexusSceneFactory(
         var audioTexture = textureProvider.Get((ContentId)"icon_audio_on");
         var leftIcon = CreateAudioIconElement(audioTexture, foregroundLayer);
         var rightIcon = CreateAudioIconElement(audioTexture, foregroundLayer);
-        var middleHeader = new MiddleHeaderElement(
-            pressTextElement
-        );
+        var middleHeader = new MiddleHeaderElement(pressTextElement);
 
         var header = new HeaderElement(leftIcon, middleHeader, rightIcon);
 
-        var main = new MainContentElement(
-            welcomeTextElement,
-            buttonElement,
-            buttonLabelGap
-        );
+        var main = new MainContentElement(welcomeTextElement, buttonElement, buttonLabelGap);
 
         var textLayout = new TextLayoutElement(header, main);
         scene.AddChild(textLayout);
