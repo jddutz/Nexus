@@ -94,12 +94,7 @@ public sealed class FontBuilder : IFontBuilder
             var atlasBounds =
                 glyph.Bitmap.Width == 0 || glyph.Bitmap.Height == 0
                     ? default
-                    : new FontBounds(
-                        bitmapBounds.Left + atlasInset,
-                        bitmapBounds.Bottom + atlasInset,
-                        bitmapBounds.Right - atlasInset,
-                        bitmapBounds.Top - atlasInset
-                    );
+                    : CreateAtlasBounds(glyph.PlaneBounds, bitmapBounds, atlasInset);
             glyphs[index] = new FontGlyph(
                 glyph.Codepoint,
                 glyph.Advance,
@@ -123,5 +118,30 @@ public sealed class FontBuilder : IFontBuilder
             new MsdfMetadata(settings.DistanceRange, settings.EmSize)
         );
         return result;
+    }
+
+    /// <summary>
+    /// Aligns the atlas crop with the plane origin and exact plane extent after raster rounding.
+    /// </summary>
+    /// <param name="planeBounds">The glyph's exact layout bounds.</param>
+    /// <param name="bitmapBounds">The integer bounds assigned by the atlas packer.</param>
+    /// <param name="atlasInset">The distance-field padding removed from each leading edge.</param>
+    /// <returns>The atlas bounds matching the plane dimensions.</returns>
+    private static FontBounds CreateAtlasBounds(
+        FontBounds planeBounds,
+        FontBounds bitmapBounds,
+        double atlasInset
+    )
+    {
+        var atlasLeft = bitmapBounds.Left + atlasInset;
+        var atlasTop = bitmapBounds.Top - atlasInset;
+        var planeWidth = planeBounds.Right - planeBounds.Left;
+        var planeHeight = planeBounds.Top - planeBounds.Bottom;
+        return new FontBounds(
+            atlasLeft,
+            atlasTop - planeHeight,
+            atlasLeft + planeWidth,
+            atlasTop
+        );
     }
 }

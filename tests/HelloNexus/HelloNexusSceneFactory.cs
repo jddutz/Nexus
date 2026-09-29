@@ -12,6 +12,7 @@ using Nexus.Graphics.Textures;
 using Nexus.GUI;
 using Nexus.GUI.Elements;
 using Nexus.Input;
+using Nexus.Input.Devices;
 using Silk.NET.Maths;
 
 /// <summary>
@@ -91,9 +92,29 @@ internal sealed class HelloNexusSceneFactory(
             horizontalPadding: 16f,
             verticalPadding: 10f,
             backgroundRenderLayerMask: backgroundLayer,
-            textRenderLayerMask: foregroundLayer
+            textRenderLayerMask: foregroundLayer,
+            sourceBorders: new(64f, 64f, 64f, 64f),
+            destinationBorders: new(19f, 19f, 19f, 19f)
         );
-        buttonElement.Activated += (_, _) => buttonElement.Label = "Physics Test Started";
+        var buttonFocused = false;
+        buttonElement.Action = () => buttonElement.Label = "Physics Test Started";
+        buttonElement
+            .InputMap.OnAnyControllerButtonPressed(ControllerSemanticNames.FaceBottom)
+            .Invoke(() =>
+            {
+                if (buttonFocused)
+                    buttonElement.Action?.Invoke();
+            });
+        foreach (
+            var direction in new[]
+            {
+                ControllerSemanticNames.DPadUp,
+                ControllerSemanticNames.DPadRight,
+                ControllerSemanticNames.DPadDown,
+                ControllerSemanticNames.DPadLeft,
+            }
+        )
+            inputMap.OnAnyControllerButtonPressed(direction).Invoke(() => buttonFocused = true);
         const float buttonLabelGap = 10f;
 
         var audioTexture = textureProvider.Get((ContentId)"icon_audio_on");

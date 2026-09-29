@@ -12,7 +12,11 @@ public sealed class GraphicalUserInterface(IEventHub eventHub, IWindowService? w
     private readonly IWindowService? _windowService = windowService;
     private readonly HashSet<Element> _subscribedElements = [];
     private IScene? _scene;
+    private Element? _focusedElement;
     private bool _layoutInvalidated;
+
+    /// <inheritdoc />
+    public IElement? FocusedElement => _focusedElement;
 
     /// <summary>
     /// Initializes the graphical user interface.
@@ -34,6 +38,69 @@ public sealed class GraphicalUserInterface(IEventHub eventHub, IWindowService? w
         var screenBounds = new Rectangle<float>(Vector2D<float>.Zero, screenSize);
         foreach (var element in EnumerateActiveLayoutRoots(_scene.Children))
             MeasureAndArrange(element, screenSize, screenBounds);
+    }
+
+    /// <inheritdoc />
+    public void SetFocus(IElement? element)
+    {
+        if (
+            element is not null
+            && (
+                element is not Element target
+                || !_subscribedElements.Contains(target)
+                || !target.IsActive
+                || !target.IsEffectivelyVisible
+                || !target.IsEffectivelyEnabled
+                || !target.CanFocus
+            )
+        )
+            throw new ArgumentException(
+                "The focused element must be active, registered with the GUI, and focusable.",
+                nameof(element)
+            );
+
+        var nextElement = (Element?)element;
+        if (ReferenceEquals(_focusedElement, nextElement))
+            return;
+
+        _focusedElement?.SetFocused(false);
+        _focusedElement = nextElement;
+        _focusedElement?.SetFocused(true);
+    }
+
+    /// <inheritdoc />
+    public bool MoveFocus(FocusDirection direction)
+    {
+        if (!Enum.IsDefined(direction))
+            throw new ArgumentOutOfRangeException(nameof(direction));
+
+        var focusableElements = _scene is null
+            ? []
+            : EnumerateElements(_scene.Children)
+                .Where(element =>
+                    element.IsActive
+                    && _subscribedElements.Contains(element)
+                    && element.IsEffectivelyVisible
+                    && element.IsEffectivelyEnabled
+                    && element.CanFocus
+                )
+                .ToArray();
+        if (focusableElements.Length == 0)
+        {
+            SetFocus(null);
+            return false;
+        }
+
+        var currentIndex = Array.IndexOf(focusableElements, _focusedElement);
+        var nextIndex = direction switch
+        {
+            FocusDirection.Next => (currentIndex + 1) % focusableElements.Length,
+            FocusDirection.Previous => (currentIndex <= 0 ? focusableElements.Length : currentIndex)
+                - 1,
+            _ => throw new ArgumentOutOfRangeException(nameof(direction)),
+        };
+        SetFocus(focusableElements[nextIndex]);
+        return true;
     }
 
     /// <summary>
@@ -107,7 +174,9 @@ public sealed class GraphicalUserInterface(IEventHub eventHub, IWindowService? w
         {
             if (_subscribedElements.Remove(element))
             {
-                element.CancelPointerInput();
+                if (ReferenceEquals(_focusedElement, element))
+                    SetFocus(null);
+
                 element.PropertyChanged -= OnElementPropertyChanged;
                 element.InputMap.Unregister(_eventHub);
             }
@@ -121,6 +190,28 @@ public sealed class GraphicalUserInterface(IEventHub eventHub, IWindowService? w
     /// <param name="eventArgs">The property-change details.</param>
     private void OnElementPropertyChanged(object? sender, PropertyChangedEventArgs eventArgs)
     {
+        if (
+            eventArgs.PropertyName is nameof(Element.IsVisible) or nameof(Element.IsEnabled)
+            && sender is Element changedElement
+        )
+        {
+            foreach (var affectedElement in EnumerateElements([changedElement]))
+            {
+                if (affectedElement.IsEffectivelyVisible && affectedElement.IsEffectivelyEnabled)
+                    continue;
+
+                affectedElement.InputMap.CancelPointerCapture();
+                if (ReferenceEquals(_focusedElement, affectedElement))
+                    SetFocus(null);
+            }
+        }
+
+        if (eventArgs.PropertyName == nameof(Element.CanFocus) && sender is Element element)
+        {
+            if (!element.CanFocus && ReferenceEquals(_focusedElement, element))
+                SetFocus(null);
+        }
+
         if (
             eventArgs.PropertyName
             is null

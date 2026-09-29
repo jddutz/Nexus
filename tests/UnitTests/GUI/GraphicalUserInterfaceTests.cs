@@ -7,6 +7,7 @@ using Nexus.Graphics.Events;
 using Nexus.GUI;
 using Nexus.GUI.Elements;
 using Nexus.Input;
+using Nexus.Input.Devices;
 using Nexus.Input.Events;
 using Silk.NET.Maths;
 using Silk.NET.Windowing;
@@ -125,6 +126,7 @@ public class GraphicalUserInterfaceTests
         var eventHub = new EventHub();
         var gui = new GraphicalUserInterface(eventHub);
         var element = new Element { Bounds = new Rectangle<float>(new(10f, 20f), new(100f, 50f)) };
+        var mouse = new TestMouse(1);
         var pressCount = 0;
         element.InputMap.OnMouseButtonPressed(MouseButtonEnum.Left).Invoke(() => pressCount++);
 
@@ -135,24 +137,234 @@ public class GraphicalUserInterfaceTests
         eventHub.Publish(new SceneLoadedEvent(scene));
         eventHub.Drain();
 
-        eventHub.Publish(new MouseButtonPressedEvent(null!, MouseButtonEnum.Left, new(5f, 25f)));
-        eventHub.Publish(new MouseButtonPressedEvent(null!, MouseButtonEnum.Left, new(50f, 40f)));
+        eventHub.Publish(new MouseButtonPressedEvent(mouse, MouseButtonEnum.Left, new(5f, 25f)));
+        eventHub.Publish(new MouseButtonPressedEvent(mouse, MouseButtonEnum.Left, new(50f, 40f)));
         eventHub.Drain();
         Assert.Equal(1, pressCount);
 
         element.Deactivate();
         eventHub.Publish(new GameObjectDeactivatedEvent(element));
         eventHub.Drain();
-        eventHub.Publish(new MouseButtonPressedEvent(null!, MouseButtonEnum.Left, new(50f, 40f)));
+        eventHub.Publish(new MouseButtonPressedEvent(mouse, MouseButtonEnum.Left, new(50f, 40f)));
         eventHub.Drain();
         Assert.Equal(1, pressCount);
 
         element.Activate();
         eventHub.Publish(new GameObjectActivatedEvent(element));
         eventHub.Drain();
-        eventHub.Publish(new MouseButtonPressedEvent(null!, MouseButtonEnum.Left, new(50f, 40f)));
+        eventHub.Publish(new MouseButtonPressedEvent(mouse, MouseButtonEnum.Left, new(50f, 40f)));
         eventHub.Drain();
         Assert.Equal(2, pressCount);
+    }
+
+    /// <summary>Verifies hidden and disabled ancestors prevent interaction and cancel captured presses.</summary>
+    [Fact]
+    public void AncestorVisibilityAndEnabledState_gateInputAndClearFocus()
+    {
+        var eventHub = new EventHub();
+        var gui = new GraphicalUserInterface(eventHub);
+        var parent = new LayoutProbeElement();
+        var child = new LayoutProbeElement
+        {
+            CanFocus = true,
+            Bounds = new Rectangle<float>(new(10f, 20f), new(100f, 50f)),
+        };
+        var mouse = new TestMouse(1);
+        var pressCount = 0;
+        var releaseCount = 0;
+        child.InputMap.OnMouseButtonPressed(MouseButtonEnum.Left).Invoke(() => pressCount++);
+        child.InputMap.OnMouseButtonReleased(MouseButtonEnum.Left).Invoke(() => releaseCount++);
+        parent.AddChild(child);
+        var scene = new Scene();
+        scene.AddChild(parent);
+        scene.Activate();
+        gui.Initialize();
+        eventHub.Publish(new SceneLoadedEvent(scene));
+        eventHub.Drain();
+
+        gui.SetFocus(child);
+        eventHub.Publish(new MouseButtonPressedEvent(mouse, MouseButtonEnum.Left, new(50f, 40f)));
+        eventHub.Drain();
+        parent.IsVisible = false;
+
+        Assert.Null(gui.FocusedElement);
+        eventHub.Publish(new MouseButtonReleasedEvent(mouse, MouseButtonEnum.Left, new(50f, 40f)));
+        eventHub.Drain();
+        Assert.Equal(1, pressCount);
+        Assert.Equal(0, releaseCount);
+
+        parent.IsVisible = true;
+        parent.IsEnabled = false;
+        eventHub.Publish(new MouseButtonPressedEvent(mouse, MouseButtonEnum.Left, new(50f, 40f)));
+        eventHub.Drain();
+        Assert.Equal(1, pressCount);
+        Assert.Throws<ArgumentException>(() => gui.SetFocus(child));
+    }
+
+    /// <summary>Verifies focus eligibility is distinct from focus assignment.</summary>
+    [Fact]
+    public void Focus_requiresCanFocusAndRaisesGainedAndLostEvents()
+    {
+        var eventHub = new EventHub();
+        var gui = new GraphicalUserInterface(eventHub);
+        var element = new LayoutProbeElement { CanFocus = true };
+        var nonFocusableElement = new LayoutProbeElement();
+        var gainedCount = 0;
+        var lostCount = 0;
+        element.FocusGained += (_, _) => gainedCount++;
+        element.FocusLost += (_, _) => lostCount++;
+        var scene = new Scene();
+        scene.AddChild(element);
+        scene.AddChild(nonFocusableElement);
+        scene.Activate();
+        gui.Initialize();
+        eventHub.Publish(new SceneLoadedEvent(scene));
+        eventHub.Drain();
+
+        Assert.Null(gui.FocusedElement);
+        Assert.False(element.IsFocused);
+        Assert.False(nonFocusableElement.CanFocus);
+        Assert.Throws<ArgumentException>(() => gui.SetFocus(nonFocusableElement));
+
+        gui.SetFocus(element);
+
+        Assert.Same(element, gui.FocusedElement);
+        Assert.True(element.IsFocused);
+        Assert.Equal(1, gainedCount);
+        Assert.Equal(0, lostCount);
+
+        gui.SetFocus(null);
+
+        Assert.Null(gui.FocusedElement);
+        Assert.False(element.IsFocused);
+        Assert.Equal(1, lostCount);
+    }
+
+    /// <summary>Verifies focus is cleared when its element becomes ineligible or is deactivated.</summary>
+    [Fact]
+    public void Focus_clearsWhenElementBecomesIneligibleOrIsDeactivated()
+    {
+        var eventHub = new EventHub();
+        var gui = new GraphicalUserInterface(eventHub);
+        var element = new LayoutProbeElement { CanFocus = true };
+        var lostCount = 0;
+        element.FocusLost += (_, _) => lostCount++;
+        var scene = new Scene();
+        scene.AddChild(element);
+        scene.Activate();
+        gui.Initialize();
+        eventHub.Publish(new SceneLoadedEvent(scene));
+        eventHub.Drain();
+
+        gui.SetFocus(element);
+        element.CanFocus = false;
+
+        Assert.Null(gui.FocusedElement);
+        Assert.False(element.IsFocused);
+        Assert.Equal(1, lostCount);
+
+        element.CanFocus = true;
+        gui.SetFocus(element);
+        element.Deactivate();
+        eventHub.Publish(new GameObjectDeactivatedEvent(element));
+        eventHub.Drain();
+
+        Assert.Null(gui.FocusedElement);
+        Assert.False(element.IsFocused);
+        Assert.Equal(2, lostCount);
+    }
+
+    /// <summary>Verifies focus traversal follows child order, skips ineligible elements, and wraps.</summary>
+    [Fact]
+    public void MoveFocus_traversesFocusableElementsInChildOrderAndWraps()
+    {
+        var eventHub = new EventHub();
+        var gui = new GraphicalUserInterface(eventHub);
+        var first = new LayoutProbeElement { CanFocus = true };
+        var skipped = new LayoutProbeElement();
+        var last = new LayoutProbeElement { CanFocus = true };
+        var scene = new Scene();
+        scene.AddChild(first);
+        scene.AddChild(skipped);
+        scene.AddChild(last);
+        scene.Activate();
+        gui.Initialize();
+        eventHub.Publish(new SceneLoadedEvent(scene));
+        eventHub.Drain();
+
+        Assert.True(gui.MoveFocus(FocusDirection.Next));
+        Assert.Same(first, gui.FocusedElement);
+        Assert.True(gui.MoveFocus(FocusDirection.Next));
+        Assert.Same(last, gui.FocusedElement);
+        Assert.True(gui.MoveFocus(FocusDirection.Next));
+        Assert.Same(first, gui.FocusedElement);
+        Assert.True(gui.MoveFocus(FocusDirection.Previous));
+        Assert.Same(last, gui.FocusedElement);
+    }
+
+    /// <summary>Verifies focus traversal reports failure when no eligible element remains.</summary>
+    [Fact]
+    public void MoveFocus_returnsFalseWhenNoFocusableElementsExist()
+    {
+        var eventHub = new EventHub();
+        var gui = new GraphicalUserInterface(eventHub);
+        var element = new LayoutProbeElement();
+        var scene = new Scene();
+        scene.AddChild(element);
+        scene.Activate();
+        gui.Initialize();
+        eventHub.Publish(new SceneLoadedEvent(scene));
+        eventHub.Drain();
+
+        Assert.False(gui.MoveFocus(FocusDirection.Next));
+        Assert.Null(gui.FocusedElement);
+    }
+
+    /// <summary>Provides a stable identity for hit-tested mouse event tests.</summary>
+    private sealed class TestMouse(ulong id) : IMouseInputDevice
+    {
+        /// <inheritdoc />
+        public InputDeviceId Id { get; } = id;
+
+        /// <inheritdoc />
+        public string Name => "Test mouse";
+
+        /// <inheritdoc />
+        public bool IsConnected => true;
+
+        /// <inheritdoc />
+        public Vector2D<float> Position => Vector2D<float>.Zero;
+
+        /// <inheritdoc />
+        public event Action<IMouseInputDevice, Vector2D<float>>? Moved
+        {
+            add { }
+            remove { }
+        }
+
+        /// <inheritdoc />
+        public event Action<IMouseInputDevice, MouseButtonEnum>? ButtonPressed
+        {
+            add { }
+            remove { }
+        }
+
+        /// <inheritdoc />
+        public event Action<IMouseInputDevice, MouseButtonEnum>? ButtonReleased
+        {
+            add { }
+            remove { }
+        }
+
+        /// <inheritdoc />
+        public event Action<IMouseInputDevice, Vector2D<float>>? WheelMoved
+        {
+            add { }
+            remove { }
+        }
+
+        /// <inheritdoc />
+        public bool IsButtonDown(MouseButtonEnum button) => false;
     }
 
     /// <summary>

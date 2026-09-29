@@ -100,6 +100,44 @@ public sealed class FontBuilderTests
     }
 
     /// <summary>
+    /// Verifies fractional raster extents do not stretch atlas data when mapped to plane bounds.
+    /// </summary>
+    [Fact]
+    public void Build_matchesAtlasAndPlaneExtentsForFractionalGeometry()
+    {
+        var fontPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.ttf");
+        File.WriteAllBytes(fontPath, CreateSyntheticRectangularFont());
+
+        try
+        {
+            var result = new FontBuilder().Build(
+                fontPath,
+                ['A'],
+                new FontGenerationSettings
+                {
+                    EmSize = 101,
+                    DistanceRange = 3.5,
+                    Padding = 2,
+                }
+            );
+
+            var glyph = Assert.Single(result.Glyphs);
+            Assert.Equal(
+                glyph.PlaneBounds.Right - glyph.PlaneBounds.Left,
+                glyph.AtlasBounds.Right - glyph.AtlasBounds.Left
+            );
+            Assert.Equal(
+                glyph.PlaneBounds.Top - glyph.PlaneBounds.Bottom,
+                glyph.AtlasBounds.Top - glyph.AtlasBounds.Bottom
+            );
+        }
+        finally
+        {
+            File.Delete(fontPath);
+        }
+    }
+
+    /// <summary>
     /// Finds an explicitly supplied or repository-local font for integration testing.
     /// </summary>
     /// <returns>The font path, or null when local font assets are unavailable.</returns>

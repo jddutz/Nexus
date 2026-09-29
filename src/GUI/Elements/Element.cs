@@ -8,6 +8,10 @@ public class Element : GameObject2D, IElement
     private float? _height;
     private float? _width;
     private Rectangle<float> _bounds;
+    private bool _isVisible = true;
+    private bool _isEnabled = true;
+    private bool _canFocus;
+    private bool _isFocused;
     private InputMap? _inputMap;
 
     /// <summary>
@@ -26,6 +30,36 @@ public class Element : GameObject2D, IElement
         _width = width;
         _height = height;
     }
+
+    /// <summary>Gets or sets whether this element is visible.</summary>
+    public bool IsVisible
+    {
+        get => _isVisible;
+        set => SetProperty(ref _isVisible, value);
+    }
+
+    /// <summary>Gets or sets whether this element is enabled for interaction.</summary>
+    public bool IsEnabled
+    {
+        get => _isEnabled;
+        set => SetProperty(ref _isEnabled, value);
+    }
+
+    /// <summary>Gets or sets whether this element is eligible to receive focus.</summary>
+    public bool CanFocus
+    {
+        get => _canFocus;
+        set => SetProperty(ref _canFocus, value);
+    }
+
+    /// <summary>Gets whether this element currently has focus.</summary>
+    public bool IsFocused => _isFocused;
+
+    /// <summary>Occurs when this element receives focus.</summary>
+    public event EventHandler? FocusGained;
+
+    /// <summary>Occurs when this element loses focus.</summary>
+    public event EventHandler? FocusLost;
 
     /// <summary>
     /// Gets or sets the element's height.
@@ -57,7 +91,9 @@ public class Element : GameObject2D, IElement
     /// <summary>Gets the input bindings associated with this element.</summary>
     public InputMap InputMap =>
         _inputMap ??= new InputMap(hitTest: position =>
-            Bounds.Size.X > 0f
+            IsEffectivelyVisible
+            && IsEffectivelyEnabled
+            && Bounds.Size.X > 0f
             && Bounds.Size.Y > 0f
             && position.X >= Bounds.Origin.X
             && position.X < Bounds.Max.X
@@ -65,44 +101,57 @@ public class Element : GameObject2D, IElement
             && position.Y < Bounds.Max.Y
         );
 
-    /// <summary>Determines whether a window-coordinate position lies within the current bounds.</summary>
-    /// <param name="position">The position to test.</param>
-    /// <returns>True when the element has positive bounds containing the position.</returns>
-    internal bool ContainsPointerPosition(Vector2D<float> position) =>
-        Bounds.Size.X > 0f
-        && Bounds.Size.Y > 0f
-        && position.X >= Bounds.Origin.X
-        && position.X < Bounds.Max.X
-        && position.Y >= Bounds.Origin.Y
-        && position.Y < Bounds.Max.Y;
+    /// <summary>Gets whether this element and all ancestor elements are visible.</summary>
+    internal bool IsEffectivelyVisible => AreAncestorsVisible(this);
 
-    /// <summary>Notifies the element that a pointer entered its bounds.</summary>
-    /// <param name="eventArgs">The pointer event data.</param>
-    internal virtual void OnPointerEntered(PointerEventArgs eventArgs) { }
+    /// <summary>Gets whether this element and all ancestor elements are enabled.</summary>
+    internal bool IsEffectivelyEnabled => AreAncestorsEnabled(this);
 
-    /// <summary>Notifies the element that a pointer exited its bounds.</summary>
-    /// <param name="eventArgs">The pointer event data.</param>
-    internal virtual void OnPointerExited(PointerEventArgs eventArgs) { }
+    /// <summary>Checks local visibility on this element and its ancestors.</summary>
+    /// <param name="gameObject">The element whose ancestor chain is checked.</param>
+    /// <returns>True when no element in the ancestor chain is hidden.</returns>
+    private static bool AreAncestorsVisible(IGameObject gameObject)
+    {
+        for (var current = gameObject; current is not null; current = current.Parent)
+        {
+            if (current is IElement element && !element.IsVisible)
+                return false;
+        }
 
-    /// <summary>Attempts to begin a pointer press owned by this element.</summary>
-    /// <param name="eventArgs">The pointer event data.</param>
-    /// <returns>True when this element accepts and owns the press.</returns>
-    internal virtual bool TryPointerDown(PointerEventArgs eventArgs) => false;
+        return true;
+    }
 
-    /// <summary>Notifies the element of movement for a pointer press it owns.</summary>
-    /// <param name="eventArgs">The pointer event data.</param>
-    internal virtual void OnPointerMoved(PointerEventArgs eventArgs) { }
+    /// <summary>Checks local enabled state on this element and its ancestors.</summary>
+    /// <param name="gameObject">The element whose ancestor chain is checked.</param>
+    /// <returns>True when no element in the ancestor chain is disabled.</returns>
+    private static bool AreAncestorsEnabled(IGameObject gameObject)
+    {
+        for (var current = gameObject; current is not null; current = current.Parent)
+        {
+            if (current is IElement element && !element.IsEnabled)
+                return false;
+        }
 
-    /// <summary>Notifies the element that its owned pointer press ended normally.</summary>
-    /// <param name="eventArgs">The pointer event data.</param>
-    internal virtual void OnPointerUp(PointerEventArgs eventArgs) { }
+        return true;
+    }
 
-    /// <summary>Notifies the element that its owned pointer press was interrupted.</summary>
-    /// <param name="eventArgs">The pointer event data.</param>
-    internal virtual void OnPointerCanceled(PointerEventArgs eventArgs) { }
+    /// <summary>Updates focus state on behalf of the GUI focus manager.</summary>
+    /// <param name="isFocused">Whether this element should be focused.</param>
+    internal void SetFocused(bool isFocused)
+    {
+        if (isFocused && !CanFocus)
+            throw new InvalidOperationException(
+                "An element must be focusable before it can receive focus."
+            );
 
-    /// <summary>Clears pointer state when input dispatch is interrupted or detached.</summary>
-    internal virtual void CancelPointerInput() { }
+        if (!SetProperty(ref _isFocused, isFocused))
+            return;
+
+        if (isFocused)
+            FocusGained?.Invoke(this, EventArgs.Empty);
+        else
+            FocusLost?.Invoke(this, EventArgs.Empty);
+    }
 
     /// <summary>
     /// Measures the element within the specified constraint.

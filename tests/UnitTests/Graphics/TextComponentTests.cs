@@ -293,7 +293,7 @@ public sealed class TextComponentTests
         var secondGlyph = MemoryMarshal.Read<Matrix4X4<float>>(data.Span[(data.Length / 2)..]);
 
         Assert.Equal((ulong)2, ((IDrawable)span).InstanceCount);
-        Assert.Equal(1f, secondGlyph.M41);
+        Assert.Equal(0.75f, secondGlyph.M41);
     }
 
     /// <summary>
@@ -331,15 +331,15 @@ public sealed class TextComponentTests
 
         Assert.Equal(18f, transformation.M11);
         Assert.Equal(15f, transformation.M22);
-        Assert.Equal(-1f, transformation.M41);
+        Assert.Equal(-0.75f, transformation.M41);
         Assert.Equal(0f, transformation.M42);
-        Assert.Equal(17f, transformation.M41 + transformation.M11);
+        Assert.Equal(17.25f, transformation.M41 + transformation.M11);
         Assert.Equal(15f, transformation.M42 + transformation.M22);
         Assert.Equal(new Vector4D<float>(0.5f, 0f, 0.5f, 1f), textureRegion);
     }
 
     /// <summary>
-    /// Verifies axis-aligned glyph origins snap to pixels without changing glyph dimensions.
+    /// Verifies an axis-aligned span origin snaps once without changing glyph dimensions.
     /// </summary>
     [Fact]
     public void GetInstanceData_snaps_axis_aligned_glyph_origin_without_resizing()

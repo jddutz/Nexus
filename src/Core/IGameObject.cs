@@ -27,8 +27,29 @@ public interface IGameObject : INotifyPropertyChanged
 
     bool IsActive { get; }
 
+    /// <summary>Creates and adds a component of the specified type.</summary>
+    /// <typeparam name="TComponent">The component type to create.</typeparam>
+    /// <returns>The added component.</returns>
+    TComponent AddComponent<TComponent>()
+        where TComponent : class, IComponent;
+
+    /// <summary>Attaches an existing component to this game object.</summary>
+    /// <param name="component">The component to attach.</param>
+    void AddComponent(IComponent component);
+
     TComponent? GetComponent<TComponent>()
         where TComponent : class, IComponent;
+
+    /// <summary>Removes the first component of the specified type.</summary>
+    /// <typeparam name="TComponent">The component type to remove.</typeparam>
+    /// <returns>True when a component was removed; otherwise, false.</returns>
+    bool RemoveComponent<TComponent>()
+        where TComponent : class, IComponent;
+
+    /// <summary>Removes the specified component from this game object.</summary>
+    /// <param name="component">The component to remove.</param>
+    /// <returns>True when the component was removed; otherwise, false.</returns>
+    bool RemoveComponent(IComponent component);
 
     event Action<IComponent>? ComponentAdded;
     event Action<IComponent>? ComponentRemoved;

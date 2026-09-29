@@ -33,6 +33,8 @@ public sealed class TextButtonTests
         Assert.Null(first.Parent);
         Assert.Null(first.GameModel);
         Assert.False(first.IsActive);
+        Assert.True(first.CanFocus);
+        Assert.False(first.IsFocused);
         Assert.Equal(2, first.Components.Count());
         Assert.NotSame(first, second);
         Assert.NotSame(
@@ -60,6 +62,64 @@ public sealed class TextButtonTests
         Assert.Equal("A", button.GetComponent<TextComponent>()?.Text);
 
         Assert.Equal(new Vector2D<float>(10f, 7f), button.Measure(new(100f, 100f)));
+    }
+
+    /// <summary>Verifies hiding removes visuals while retaining layout state for fresh components.</summary>
+    [Fact]
+    public void Visibility_removesAndRecreatesVisualComponents()
+    {
+        var parent = new Element();
+        var gameObject = new TestGameModel();
+        var button = CreateButton("AB");
+        var bounds = new Rectangle<float>(4f, 5f, 60f, 24f);
+        button.Arrange(bounds);
+        var originalBackground = button.GetComponent<NinePatchComponent>();
+        var originalText = button.GetComponent<TextComponent>();
+        var addedComponents = new List<IComponent>();
+        var removedComponents = new List<IComponent>();
+        parent.SetGameModel(gameObject);
+        parent.ComponentAdded += addedComponents.Add;
+        parent.ComponentRemoved += removedComponents.Add;
+        parent.Activate();
+        parent.AddChild(button);
+
+        button.IsVisible = false;
+
+        Assert.Empty(button.Components);
+        Assert.Equal(2, removedComponents.Count);
+        Assert.Equal(Vector2D<float>.Zero, button.Measure(new(100f, 100f)));
+        button.Arrange(new Rectangle<float>(0f, 0f, 10f, 10f));
+        Assert.Equal(bounds, button.Bounds);
+        button.Label = "BA";
+        button.Padding = new(6f, 5f);
+
+        button.IsVisible = true;
+
+        var recreatedBackground = button.GetComponent<NinePatchComponent>();
+        var recreatedText = button.GetComponent<TextComponent>();
+        Assert.NotNull(recreatedBackground);
+        Assert.NotNull(recreatedText);
+        Assert.NotSame(originalBackground, recreatedBackground);
+        Assert.NotSame(originalText, recreatedText);
+        Assert.Equal("BA", recreatedText.Text);
+        Assert.Equal(4, addedComponents.Count);
+        Assert.Equal(2, removedComponents.Count);
+        Assert.Equal(bounds, button.Bounds);
+        Assert.Equal(new Vector2D<float>(14f, 11f), button.Measure(new(100f, 100f)));
+    }
+
+    /// <summary>Verifies ancestor visibility removes and restores descendant button visuals.</summary>
+    [Fact]
+    public void AncestorVisibility_updatesDescendantVisualComponents()
+    {
+        var parent = new Element { IsVisible = false };
+        var button = CreateButton("A");
+
+        parent.AddChild(button);
+
+        Assert.Empty(button.Components);
+        parent.IsVisible = true;
+        Assert.Equal(2, button.Components.Count());
     }
 
     /// <summary>
@@ -134,84 +194,69 @@ public sealed class TextButtonTests
         Assert.Contains(button.GetComponent<TextComponent>(), addedComponents);
     }
 
-    /// <summary>Verifies event ordering and hit testing across the complete button bounds.</summary>
+    /// <summary>Verifies the assigned action runs for a click anywhere within the full bounds.</summary>
     [Fact]
-    public void PointerPressAndReleaseInside_raiseOrderedActionsAcrossFullBounds()
+    public void ClickInsideFullBounds_invokesAssignedAction()
     {
         var (eventHub, button) = CreateAttachedButton();
         var mouse = new TestMouse(1);
-        var actions = new List<string>();
-        button.PointerEntered += (_, _) => actions.Add("entered");
-        button.Pressed += (_, _) => actions.Add("pressed");
-        button.Released += (_, args) => actions.Add($"released:{args.IsInside}");
-        button.Activated += (_, _) => actions.Add("activated");
+        var actionCount = 0;
+        button.Action = () => actionCount++;
 
-        Publish(eventHub, new MouseMovedEvent(mouse, new(63f, 28f)));
         Publish(eventHub, new MouseButtonPressedEvent(mouse, MouseButtonEnum.Left, new(63f, 28f)));
         Publish(eventHub, new MouseButtonReleasedEvent(mouse, MouseButtonEnum.Left, new(63f, 28f)));
 
-        Assert.Equal(["entered", "pressed", "released:True", "activated"], actions);
+        Assert.Equal(1, actionCount);
     }
 
-    /// <summary>Verifies capture persists outside bounds and outside release does not activate.</summary>
+    /// <summary>Verifies an outside release or outside-origin press does not invoke the action.</summary>
     [Fact]
-    public void CapturedReleaseOutside_raisesExitAndReleaseWithoutActivation()
+    public void ClickOutsideButton_doesNotInvokeAssignedAction()
     {
         var (eventHub, button) = CreateAttachedButton();
         var mouse = new TestMouse(2);
-        var actions = new List<string>();
-        button.Pressed += (_, _) => actions.Add("pressed");
-        button.PointerExited += (_, _) => actions.Add("exited");
-        button.Released += (_, args) => actions.Add($"released:{args.IsInside}");
-        button.Activated += (_, _) => actions.Add("activated");
+        var actionCount = 0;
+        button.Action = () => actionCount++;
 
         Publish(eventHub, new MouseButtonPressedEvent(mouse, MouseButtonEnum.Left, new(10f, 10f)));
-        Publish(eventHub, new MouseMovedEvent(mouse, new(100f, 100f)));
         Publish(
             eventHub,
             new MouseButtonReleasedEvent(mouse, MouseButtonEnum.Left, new(100f, 100f))
         );
+        Publish(
+            eventHub,
+            new MouseButtonPressedEvent(mouse, MouseButtonEnum.Left, new(100f, 100f))
+        );
+        Publish(eventHub, new MouseButtonReleasedEvent(mouse, MouseButtonEnum.Left, new(10f, 10f)));
 
-        Assert.Equal(["pressed", "exited", "released:False"], actions);
+        Assert.Equal(0, actionCount);
     }
 
-    /// <summary>Verifies capture survives crossings and release uses the current arranged bounds.</summary>
+    /// <summary>Verifies a captured click uses the current bounds when it is released.</summary>
     [Fact]
-    public void CapturedPointer_reentersAndUsesResizedBoundsAtRelease()
+    public void ClickAfterBoundsChange_usesCurrentBounds()
     {
         var (eventHub, button) = CreateAttachedButton();
         var mouse = new TestMouse(5);
-        var actions = new List<string>();
-        button.Pressed += (_, _) => actions.Add("pressed");
-        button.PointerExited += (_, _) => actions.Add("exited");
-        button.PointerEntered += (_, _) => actions.Add("entered");
-        button.Released += (_, args) => actions.Add($"released:{args.IsInside}");
-        button.Activated += (_, _) => actions.Add("activated");
+        var actionCount = 0;
+        button.Action = () => actionCount++;
 
         Publish(eventHub, new MouseButtonPressedEvent(mouse, MouseButtonEnum.Left, new(10f, 10f)));
-        Publish(eventHub, new MouseMovedEvent(mouse, new(100f, 100f)));
-        Publish(eventHub, new MouseMovedEvent(mouse, new(10f, 10f)));
         button.Arrange(new Rectangle<float>(8f, 8f, 4f, 4f));
         Publish(eventHub, new MouseButtonReleasedEvent(mouse, MouseButtonEnum.Left, new(10f, 10f)));
 
-        Assert.Equal(
-            ["entered", "pressed", "exited", "entered", "released:True", "activated"],
-            actions
-        );
+        Assert.Equal(1, actionCount);
     }
 
-    /// <summary>Verifies another pointer cannot release or steal an active press and detach cancels it.</summary>
+    /// <summary>Verifies another pointer cannot release or steal capture and detach clears it.</summary>
     [Fact]
-    public void ActivePress_ignoresOtherPointerAndDeactivationCancels()
+    public void CapturedClick_ignoresOtherPointerAndResetsOnDetach()
     {
         var (eventHub, button, scene) = CreateAttachedButtonWithScene();
         var firstMouse = new TestMouse(3);
         var secondMouse = new TestMouse(4);
-        var actions = new List<string>();
-        button.Pressed += (_, args) => actions.Add($"pressed:{args.PointerId.Value}");
-        button.Released += (_, _) => actions.Add("released");
-        button.Canceled += (_, args) => actions.Add($"canceled:{args.PointerId.Value}");
-        button.Activated += (_, _) => actions.Add("activated");
+        var actionCount = 0;
+        button.Action = () => actionCount++;
 
         Publish(
             eventHub,
@@ -225,11 +270,11 @@ public sealed class TextButtonTests
             eventHub,
             new MouseButtonReleasedEvent(secondMouse, MouseButtonEnum.Left, new(10f, 10f))
         );
+        Assert.Equal(0, actionCount);
         Assert.True(scene.RemoveChild(button));
         eventHub.Publish(new GameObjectDeactivatedEvent(button));
         eventHub.Drain();
 
-        Assert.Equal(["pressed:3", "canceled:3"], actions);
         scene.AddChild(button);
         eventHub.Publish(new GameObjectActivatedEvent(button));
         eventHub.Drain();
@@ -242,27 +287,67 @@ public sealed class TextButtonTests
             new MouseButtonReleasedEvent(firstMouse, MouseButtonEnum.Left, new(10f, 10f))
         );
 
-        Assert.Equal(["pressed:3", "canceled:3", "pressed:3", "released", "activated"], actions);
+        Assert.Equal(1, actionCount);
     }
 
-    /// <summary>Verifies input cancellation clears a press without release or activation.</summary>
+    /// <summary>Verifies input cancellation clears capture and permits a later click.</summary>
     [Fact]
-    public void MouseCancellation_cancelsButtonPressAndAllowsFreshActivation()
+    public void MouseCancellation_clearsCaptureAndAllowsFreshClick()
     {
         var (eventHub, button) = CreateAttachedButton();
         var mouse = new TestMouse(6);
-        var actions = new List<string>();
-        button.Pressed += (_, _) => actions.Add("pressed");
-        button.Released += (_, _) => actions.Add("released");
-        button.Canceled += (_, _) => actions.Add("canceled");
-        button.Activated += (_, _) => actions.Add("activated");
+        var actionCount = 0;
+        button.Action = () => actionCount++;
 
         Publish(eventHub, new MouseButtonPressedEvent(mouse, MouseButtonEnum.Left, new(10f, 10f)));
         Publish(eventHub, new MouseCanceledEvent(mouse, new(10f, 10f)));
+        Publish(eventHub, new MouseButtonReleasedEvent(mouse, MouseButtonEnum.Left, new(10f, 10f)));
         Publish(eventHub, new MouseButtonPressedEvent(mouse, MouseButtonEnum.Left, new(10f, 10f)));
         Publish(eventHub, new MouseButtonReleasedEvent(mouse, MouseButtonEnum.Left, new(10f, 10f)));
 
-        Assert.Equal(["pressed", "canceled", "pressed", "released", "activated"], actions);
+        Assert.Equal(1, actionCount);
+    }
+
+    /// <summary>Verifies the scene map owns focus and the button map owns controller selection.</summary>
+    [Fact]
+    public void ControllerSelection_usesSceneFocusAndButtonInputMaps()
+    {
+        var (eventHub, button) = CreateAttachedButton();
+        var sceneInputMap = new InputMap(eventHub);
+        var actionCount = 0;
+        var buttonFocused = false;
+        button.Action = () => actionCount++;
+        button
+            .InputMap.OnAnyControllerButtonPressed(ControllerSemanticNames.FaceBottom)
+            .Invoke(() =>
+            {
+                if (buttonFocused)
+                    button.Action?.Invoke();
+            });
+        sceneInputMap
+            .OnAnyControllerButtonPressed(ControllerSemanticNames.DPadDown)
+            .Invoke(() => buttonFocused = true);
+        eventHub.Register(sceneInputMap);
+
+        using var controller = new Controller(
+            "Test controller",
+            [
+                new ButtonMapping(0, 0, ControllerSemanticNames.FaceBottom),
+                new ButtonMapping(1, 1, ControllerSemanticNames.DPadDown),
+            ],
+            [],
+            _ => false,
+            _ => 0f,
+            () => true
+        );
+
+        Publish(eventHub, new ControllerButtonPressedEvent(controller, controller.Button(0)));
+        Assert.Equal(0, actionCount);
+
+        Publish(eventHub, new ControllerButtonPressedEvent(controller, controller.Button(1)));
+        Publish(eventHub, new ControllerButtonPressedEvent(controller, controller.Button(0)));
+
+        Assert.Equal(1, actionCount);
     }
 
     /// <summary>Creates and activates a button with its element input map registered on an event hub.</summary>

@@ -4,6 +4,7 @@ using Nexus.Core.Events;
 using Nexus.Game;
 using Nexus.Graphics;
 using Nexus.Input;
+using Nexus.Input.Devices;
 
 /// <summary>
 /// Entry point for the Hello Nexus application.
@@ -38,7 +39,9 @@ internal static class Program
                 var inputMap = new InputMap(eventHub);
                 var window = windowService.GetMainWindow();
                 inputMap.OnKeyPressed(KeyEnum.Escape).Invoke(() => window.Close());
-                inputMap.OnAnyControllerButtonPressed(0).Invoke(() => window.Close());
+                inputMap
+                    .OnAnyControllerButtonPressed(ControllerSemanticNames.Back)
+                    .Invoke(() => window.Close());
 
                 var gameSystem = ActivatorUtilities.CreateInstance<GameSystem>(serviceProvider);
 

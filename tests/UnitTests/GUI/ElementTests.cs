@@ -9,6 +9,16 @@ namespace Tests;
 /// </summary>
 public class ElementTests
 {
+    /// <summary>Verifies element visibility and enabled state default to true.</summary>
+    [Fact]
+    public void InteractionProperties_defaultToTrue()
+    {
+        var element = new Element();
+
+        Assert.True(element.IsVisible);
+        Assert.True(element.IsEnabled);
+    }
+
     /// <summary>
     /// Verifies layout property changes notify listeners once and ignore repeated values.
     /// </summary>

@@ -6,7 +6,7 @@ namespace Nexus.Core;
 public class GameObject : ObservableObject, IGameObject
 {
     private readonly List<IGameObject> _children = [];
-    private readonly IComponent[] _components;
+    private readonly List<IComponent> _components = [];
     private bool _isActive;
 
     /// <summary>
@@ -90,10 +90,10 @@ public class GameObject : ObservableObject, IGameObject
     {
         ArgumentNullException.ThrowIfNull(components);
         Id = id;
-        _components = components.ToArray();
+        var componentArray = components.ToArray();
 
         var uniqueComponents = new HashSet<IComponent>(ReferenceEqualityComparer.Instance);
-        foreach (var component in _components)
+        foreach (var component in componentArray)
         {
             ArgumentNullException.ThrowIfNull(component);
             if (!uniqueComponents.Add(component))
@@ -108,8 +108,9 @@ public class GameObject : ObservableObject, IGameObject
                 );
         }
 
-        foreach (var component in _components)
+        foreach (var component in componentArray)
         {
+            _components.Add(component);
             component.SetGameObject(this);
             component.Initialize();
         }
@@ -122,6 +123,62 @@ public class GameObject : ObservableObject, IGameObject
     /// <returns>The component, or <see langword="null"/> when no matching component is attached.</returns>
     public TComponent? GetComponent<TComponent>()
         where TComponent : class, IComponent => _components.OfType<TComponent>().FirstOrDefault();
+
+    /// <summary>Creates and adds a component of the specified type.</summary>
+    /// <typeparam name="TComponent">The component type to create.</typeparam>
+    /// <returns>The added component.</returns>
+    public TComponent AddComponent<TComponent>()
+        where TComponent : class, IComponent
+    {
+        var component = Activator.CreateInstance<TComponent>();
+        AddComponent(component);
+        return component;
+    }
+
+    /// <inheritdoc/>
+    public void AddComponent(IComponent component)
+    {
+        ArgumentNullException.ThrowIfNull(component);
+        if (_components.Contains(component))
+            return;
+
+        if (component.GameObjectId != GameObjectId.Invalid)
+        {
+            var previousOwner = component.GameModel?.GetGameObject(component.GameObjectId);
+            previousOwner?.RemoveComponent(component);
+        }
+
+        _components.Add(component);
+        component.SetGameObject(this);
+        component.Initialize();
+        OnPropertyChanged(nameof(Components));
+        if (IsActive)
+            ComponentAdded?.Invoke(component);
+    }
+
+    /// <summary>Removes the first component of the specified type.</summary>
+    /// <typeparam name="TComponent">The component type to remove.</typeparam>
+    /// <returns>True when a component was removed; otherwise, false.</returns>
+    public bool RemoveComponent<TComponent>()
+        where TComponent : class, IComponent
+    {
+        var component = GetComponent<TComponent>();
+        return component is not null && RemoveComponent(component);
+    }
+
+    /// <inheritdoc/>
+    public bool RemoveComponent(IComponent component)
+    {
+        if (!_components.Remove(component))
+            return false;
+
+        if (IsActive)
+            ComponentRemoved?.Invoke(component);
+
+        component.SetGameObject(null);
+        OnPropertyChanged(nameof(Components));
+        return true;
+    }
 
     /// <summary>Enumerates the fixed components without exposing the backing array.</summary>
     /// <returns>The components supplied when this game object was created.</returns>

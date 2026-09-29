@@ -4,6 +4,7 @@ namespace Nexus.Graphics.Components;
 public sealed class NinePatchComponent : TextureComponent
 {
     private Vector4D<float> _sourceBorders;
+    private Vector4D<float>? _destinationBorders;
 
     /// <summary>Initializes a nine-patch component with a corner-pivoted quad by default.</summary>
     /// <param name="centered">Whether each patch quad is centered on its origin.</param>
@@ -36,6 +37,21 @@ public sealed class NinePatchComponent : TextureComponent
 
             ValidateSourceBorders(value);
             if (SetProperty(ref _sourceBorders, value))
+                NotifyInstanceDataChanged();
+        }
+    }
+
+    /// <summary>Gets or sets destination border widths in logical units.</summary>
+    /// <remarks>When unset, destination widths match <see cref="SourceBorders"/>.</remarks>
+    public Vector4D<float>? DestinationBorders
+    {
+        get => _destinationBorders;
+        set
+        {
+            if (value is { } borders)
+                ValidateDestinationBorders(borders);
+
+            if (SetProperty(ref _destinationBorders, value))
                 NotifyInstanceDataChanged();
         }
     }
@@ -90,15 +106,16 @@ public sealed class NinePatchComponent : TextureComponent
         var sourceTop = SourceBorders.Y / textureHeight;
         var sourceRight = SourceBorders.Z / textureWidth;
         var sourceBottom = SourceBorders.W / textureHeight;
+        var destinationBorders = DestinationBorders ?? SourceBorders;
         var destinationLeft = FitBorders(
-            SourceBorders.X,
-            SourceBorders.Z,
+            destinationBorders.X,
+            destinationBorders.Z,
             Size.X,
             out var destinationRight
         );
         var destinationTop = FitBorders(
-            SourceBorders.Y,
-            SourceBorders.W,
+            destinationBorders.Y,
+            destinationBorders.W,
             Size.Y,
             out var destinationBottom
         );
@@ -183,6 +200,26 @@ public sealed class NinePatchComponent : TextureComponent
             throw new ArgumentOutOfRangeException(
                 nameof(sourceBorders),
                 "Source borders must fit within the selected texture region."
+            );
+    }
+
+    /// <summary>Ensures destination border widths are finite and non-negative.</summary>
+    /// <param name="destinationBorders">The proposed logical border widths.</param>
+    private static void ValidateDestinationBorders(Vector4D<float> destinationBorders)
+    {
+        if (
+            !float.IsFinite(destinationBorders.X)
+            || !float.IsFinite(destinationBorders.Y)
+            || !float.IsFinite(destinationBorders.Z)
+            || !float.IsFinite(destinationBorders.W)
+            || destinationBorders.X < 0f
+            || destinationBorders.Y < 0f
+            || destinationBorders.Z < 0f
+            || destinationBorders.W < 0f
+        )
+            throw new ArgumentOutOfRangeException(
+                nameof(destinationBorders),
+                "Destination borders must be finite and non-negative."
             );
     }
 }

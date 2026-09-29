@@ -178,6 +178,35 @@ public sealed class TextureComponentInstanceDataTests
         );
     }
 
+    /// <summary>Verifies destination caps can preserve source corner aspect ratio.</summary>
+    [Fact]
+    public void NinePatch_usesIndependentDestinationBorderSizes()
+    {
+        var component = new NinePatchComponent
+        {
+            Texture = new Texture("capsule", 384, 128, new Color[384 * 128]),
+            Size = new(160f, 38f),
+            SourceBorders = new(64f, 64f, 64f, 64f),
+            DestinationBorders = new(19f, 19f, 19f, 19f),
+        };
+        var drawable = (IDrawable)component;
+        var layout = BuiltInShaders.TexturedQuadVertexShader.InstanceLayout;
+        var data = drawable.GetInstanceData(layout).ToArray();
+        var transformOffset = GetOffset(layout, InputSemantics.Transform);
+        var textureRegionOffset = GetOffset(layout, InputSemantics.TextureRegion);
+        var topLeftTransform = MemoryMarshal.Read<Matrix4X4<float>>(
+            data.AsSpan(transformOffset, 64)
+        );
+        var topLeftRegion = MemoryMarshal.Read<Vector4D<float>>(
+            data.AsSpan(textureRegionOffset, 16)
+        );
+
+        Assert.Equal(19f, topLeftTransform.M11);
+        Assert.Equal(19f, topLeftTransform.M22);
+        Assert.Equal(63.5f / 384f, topLeftRegion.Z, 6);
+        Assert.Equal(63.5f / 128f, topLeftRegion.W, 6);
+    }
+
     /// <summary>
     /// Gets the byte offset of an input semantic in an instance layout.
     /// </summary>

@@ -232,6 +232,12 @@ public sealed class TextSpan : IDrawable, IMeshInstance
         var msdfDistanceRangeOffset = colorOffset + Marshal.SizeOf<Color>();
         var scale = Style.FontMetrics.EmSize == 0 ? 1.0 : Style.Size / Style.FontMetrics.EmSize;
         var baselineOffset = (float)(Style.FontMetrics.Ascender * scale);
+        var spanTransform = TransformationMatrix;
+        if (spanTransform.M12 == 0f && spanTransform.M21 == 0f)
+        {
+            spanTransform.M41 = MathF.Round(spanTransform.M41);
+            spanTransform.M42 = MathF.Round(spanTransform.M42);
+        }
         var diagnosticGlyphIndex = glyphs.FindIndex(item => item.Glyph.Codepoint == 'H');
         if (diagnosticGlyphIndex < 0 && glyphs.Count > 0)
             diagnosticGlyphIndex = 0;
@@ -240,14 +246,8 @@ public sealed class TextSpan : IDrawable, IMeshInstance
         {
             var destination = data.AsSpan(index * InstanceDataSize, InstanceDataSize);
             var glyph = glyphs[index].Glyph;
-            var spanTransform = TransformationMatrix;
             var transformationMatrix =
                 CreateTransformation(glyph, glyphs[index].X, baselineOffset) * spanTransform;
-            if (spanTransform.M12 == 0f && spanTransform.M21 == 0f)
-            {
-                transformationMatrix.M41 = MathF.Round(transformationMatrix.M41);
-                transformationMatrix.M42 = MathF.Round(transformationMatrix.M42);
-            }
             var textureRegion = new Vector4D<float>(
                 (float)(glyph.AtlasBounds.Left / Texture.Width),
                 (float)((Texture.Height - glyph.AtlasBounds.Top) / Texture.Height),

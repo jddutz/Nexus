@@ -353,6 +353,46 @@ public class GameObjectTests
         Assert.False(component.IsActivated);
     }
 
+    /// <summary>Verifies runtime additions and removals raise active component lifecycle events.</summary>
+    [Fact]
+    public void RuntimeComponentChanges_addAndRemoveComponents()
+    {
+        var gameObject = new GameObject();
+        var component = new TestComponent();
+        var addedComponents = new List<IComponent>();
+        var removedComponents = new List<IComponent>();
+        gameObject.ComponentAdded += addedComponents.Add;
+        gameObject.ComponentRemoved += removedComponents.Add;
+        gameObject.Activate();
+
+        gameObject.AddComponent(component);
+
+        Assert.Same(component, Assert.Single(gameObject.Components));
+        Assert.Equal(1, component.InitializationCount);
+        Assert.Equal(gameObject.Id, component.GameObjectId);
+        Assert.Same(component, Assert.Single(addedComponents));
+
+        Assert.True(gameObject.RemoveComponent(component));
+
+        Assert.Empty(gameObject.Components);
+        Assert.Equal(GameObjectId.Invalid, component.GameObjectId);
+        Assert.Same(component, Assert.Single(removedComponents));
+        Assert.False(gameObject.RemoveComponent(component));
+    }
+
+    /// <summary>Verifies generic component helpers create and remove the requested type.</summary>
+    [Fact]
+    public void GenericComponentMethods_createAndRemoveRequestedType()
+    {
+        var gameObject = new GameObject();
+
+        var component = gameObject.AddComponent<TestComponent>();
+
+        Assert.Same(component, gameObject.GetComponent<TestComponent>());
+        Assert.True(gameObject.RemoveComponent<TestComponent>());
+        Assert.Null(gameObject.GetComponent<TestComponent>());
+    }
+
     /// <summary>
     /// Verifies that a component already owned by another object cannot be reused.
     /// </summary>

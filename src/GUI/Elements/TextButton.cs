@@ -4,7 +4,6 @@ using System.Text;
 using Nexus.Graphics.Components;
 using Nexus.Graphics.Text;
 using Nexus.Graphics.Textures;
-using Nexus.Input.Events;
 
 /// <summary>
 /// Specifies the horizontal alignment of a text button's label.
@@ -26,34 +25,28 @@ public enum TextButtonLabelAlignment
 /// </summary>
 public sealed class TextButton : Element
 {
-    private readonly NinePatchComponent _background;
-    private readonly TextComponent _text;
+    private readonly List<IGameObject> _visibilityAncestors = [];
+    private readonly Texture _texture;
     private readonly ITextStyle _textStyle;
+    private readonly ulong _backgroundRenderLayerMask;
+    private readonly ulong _textRenderLayerMask;
+    private readonly Vector4D<float> _sourceBorders;
+    private readonly Vector4D<float>? _destinationBorders;
+    private readonly ISamplingBehavior _samplingBehavior;
+    private NinePatchComponent? _background;
+    private TextComponent? _text;
     private float _horizontalPadding;
     private float _verticalPadding;
     private string _label;
     private TextButtonLabelAlignment _labelAlignment = TextButtonLabelAlignment.Center;
-    private InputDeviceId? _activePointerId;
-    private readonly HashSet<InputDeviceId> _insidePointers = [];
-    private readonly Dictionary<InputDeviceId, Vector2D<float>> _pointerPositions = [];
+    private Action? _action;
 
-    /// <summary>Occurs when a pointer enters the button bounds.</summary>
-    public event EventHandler<PointerEventArgs>? PointerEntered;
-
-    /// <summary>Occurs when a pointer exits the button bounds.</summary>
-    public event EventHandler<PointerEventArgs>? PointerExited;
-
-    /// <summary>Occurs when an eligible pointer press begins inside the button.</summary>
-    public event EventHandler<PointerEventArgs>? Pressed;
-
-    /// <summary>Occurs when the active pointer press ends normally.</summary>
-    public event EventHandler<PointerReleasedEventArgs>? Released;
-
-    /// <summary>Occurs after a press is released inside the button.</summary>
-    public event EventHandler<PointerEventArgs>? Activated;
-
-    /// <summary>Occurs when the active pointer press is interrupted.</summary>
-    public event EventHandler<PointerEventArgs>? Canceled;
+    /// <summary>Gets or sets the action invoked when this button is clicked.</summary>
+    public Action? Action
+    {
+        get => _action;
+        set => SetProperty(ref _action, value);
+    }
 
     /// <summary>
     /// Gets or sets the complete label, before any width-based display fitting.
@@ -67,7 +60,8 @@ public sealed class TextButton : Element
             if (!SetProperty(ref _label, value))
                 return;
 
-            _text.Text = value;
+            if (_text is not null)
+                _text.Text = value;
         }
     }
 
@@ -115,7 +109,7 @@ public sealed class TextButton : Element
     }
 
     /// <summary>
-    /// Initializes a text button and creates its owned components.
+    /// Initializes a text button and creates its owned visual components.
     /// </summary>
     /// <param name="label">The complete label shown by the button.</param>
     /// <param name="textStyle">The shared font and text style.</param>
@@ -135,262 +129,10 @@ public sealed class TextButton : Element
         ulong backgroundRenderLayerMask = ulong.MaxValue,
         ulong textRenderLayerMask = ulong.MaxValue,
         Vector4D<float>? sourceBorders = null,
-        ISamplingBehavior? samplingBehavior = null
+        ISamplingBehavior? samplingBehavior = null,
+        Vector4D<float>? destinationBorders = null
     )
-        : this(
-            CreateComponents(
-                label,
-                textStyle,
-                texture,
-                horizontalPadding,
-                verticalPadding,
-                backgroundRenderLayerMask,
-                textRenderLayerMask,
-                sourceBorders,
-                samplingBehavior
-            )
-        ) { }
-
-    /// <summary>
-    /// Initializes the base element from components and layout created for this instance.
-    /// </summary>
-    /// <param name="composition">The fresh components and layout state for this button.</param>
-    private TextButton(
-        (
-            NinePatchComponent Background,
-            TextComponent Text,
-            ITextStyle TextStyle,
-            string Label,
-            float HorizontalPadding,
-            float VerticalPadding
-        ) composition
-    )
-        : base(components: [composition.Background, composition.Text])
-    {
-        _background = composition.Background;
-        _text = composition.Text;
-        _textStyle = composition.TextStyle;
-        _label = composition.Label;
-        _horizontalPadding = composition.HorizontalPadding;
-        _verticalPadding = composition.VerticalPadding;
-        InputMap.PointerMoved += OnInputPointerMoved;
-        InputMap.PointerPressed += OnInputPointerPressed;
-        InputMap.PointerReleased += OnInputPointerReleased;
-        InputMap.PointerDisconnected += OnInputPointerDisconnected;
-        InputMap.PointerCanceled += OnInputPointerCanceled;
-    }
-
-    /// <inheritdoc />
-    internal override void OnPointerEntered(PointerEventArgs eventArgs)
-    {
-        _pointerPositions[eventArgs.PointerId] = eventArgs.Position;
-        if (_insidePointers.Add(eventArgs.PointerId))
-            PointerEntered?.Invoke(this, eventArgs);
-    }
-
-    /// <inheritdoc />
-    internal override void OnPointerExited(PointerEventArgs eventArgs)
-    {
-        var wasInside = _insidePointers.Remove(eventArgs.PointerId);
-        if (_activePointerId == eventArgs.PointerId)
-            _pointerPositions[eventArgs.PointerId] = eventArgs.Position;
-        else
-            _pointerPositions.Remove(eventArgs.PointerId);
-
-        if (wasInside)
-            PointerExited?.Invoke(this, eventArgs);
-    }
-
-    /// <inheritdoc />
-    internal override bool TryPointerDown(PointerEventArgs eventArgs)
-    {
-        if (_activePointerId.HasValue || !ContainsPointerPosition(eventArgs.Position))
-            return false;
-
-        _activePointerId = eventArgs.PointerId;
-        _pointerPositions[eventArgs.PointerId] = eventArgs.Position;
-        _insidePointers.Add(eventArgs.PointerId);
-        Pressed?.Invoke(this, eventArgs);
-        return true;
-    }
-
-    /// <inheritdoc />
-    internal override void OnPointerMoved(PointerEventArgs eventArgs)
-    {
-        if (_activePointerId == eventArgs.PointerId)
-        {
-            _pointerPositions[eventArgs.PointerId] = eventArgs.Position;
-            UpdateActivePointerInside(eventArgs);
-        }
-    }
-
-    /// <inheritdoc />
-    internal override void OnPointerUp(PointerEventArgs eventArgs)
-    {
-        if (_activePointerId != eventArgs.PointerId)
-            return;
-
-        var isInside = ContainsPointerPosition(eventArgs.Position);
-        UpdateActivePointerInside(eventArgs, isInside);
-        _activePointerId = null;
-        if (!isInside)
-            _pointerPositions.Remove(eventArgs.PointerId);
-        Released?.Invoke(
-            this,
-            new PointerReleasedEventArgs(
-                eventArgs.PointerId,
-                eventArgs.Position,
-                isInside,
-                eventArgs.Button
-            )
-        );
-        if (isInside)
-            Activated?.Invoke(this, eventArgs);
-    }
-
-    /// <inheritdoc />
-    internal override void OnPointerCanceled(PointerEventArgs eventArgs)
-    {
-        if (_activePointerId != eventArgs.PointerId)
-            return;
-
-        _activePointerId = null;
-        Canceled?.Invoke(this, eventArgs);
-    }
-
-    /// <inheritdoc />
-    internal override void CancelPointerInput()
-    {
-        if (_activePointerId is { } activePointerId)
-        {
-            var position = _pointerPositions.GetValueOrDefault(activePointerId);
-            OnPointerCanceled(new PointerEventArgs(activePointerId, position));
-        }
-
-        foreach (var pointerId in _insidePointers.ToArray())
-        {
-            var position = _pointerPositions.GetValueOrDefault(pointerId);
-            OnPointerExited(new PointerEventArgs(pointerId, position));
-        }
-
-        _pointerPositions.Clear();
-    }
-
-    /// <summary>Receives raw movement and updates this button's own hover and press state.</summary>
-    /// <param name="message">The mouse movement event.</param>
-    private void OnInputPointerMoved(MouseMovedEvent message)
-    {
-        var pointerId = message.Mouse?.Id ?? InputDeviceId.Invalid;
-        var eventArgs = new PointerEventArgs(pointerId, message.Position);
-        var isInside = ContainsPointerPosition(message.Position);
-        if (isInside)
-            OnPointerEntered(eventArgs);
-        else
-            OnPointerExited(eventArgs);
-
-        OnPointerMoved(eventArgs);
-    }
-
-    /// <summary>Receives raw presses and accepts only primary-button presses within current bounds.</summary>
-    /// <param name="message">The mouse-button press event.</param>
-    private void OnInputPointerPressed(MouseButtonPressedEvent message)
-    {
-        if (message.Button != MouseButtonEnum.Left)
-            return;
-
-        var pointerId = message.Mouse?.Id ?? InputDeviceId.Invalid;
-        var eventArgs = new PointerEventArgs(pointerId, message.Position, message.Button);
-        if (ContainsPointerPosition(message.Position))
-            OnPointerEntered(eventArgs);
-        TryPointerDown(eventArgs);
-    }
-
-    /// <summary>Receives raw releases and only releases this button's captured pointer.</summary>
-    /// <param name="message">The mouse-button release event.</param>
-    private void OnInputPointerReleased(MouseButtonReleasedEvent message)
-    {
-        if (message.Button != MouseButtonEnum.Left)
-            return;
-
-        var pointerId = message.Mouse?.Id ?? InputDeviceId.Invalid;
-        var eventArgs = new PointerEventArgs(pointerId, message.Position, message.Button);
-        OnPointerMoved(eventArgs);
-        OnPointerUp(eventArgs);
-    }
-
-    /// <summary>Cancels this button's press when its pointer device disconnects.</summary>
-    /// <param name="message">The mouse-disconnection event.</param>
-    private void OnInputPointerDisconnected(MouseDisconnectedEvent message)
-    {
-        var eventArgs = new PointerEventArgs(message.Mouse.Id, message.Position);
-        OnPointerCanceled(eventArgs);
-        OnPointerExited(eventArgs);
-        _pointerPositions.Remove(message.Mouse.Id);
-    }
-
-    /// <summary>Cancels this button's press and hover when the application loses focus.</summary>
-    /// <param name="message">The mouse-cancellation event.</param>
-    private void OnInputPointerCanceled(MouseCanceledEvent message)
-    {
-        var eventArgs = new PointerEventArgs(message.Mouse.Id, message.Position);
-        OnPointerCanceled(eventArgs);
-        OnPointerExited(eventArgs);
-        _pointerPositions.Remove(message.Mouse.Id);
-    }
-
-    /// <summary>Updates the active pointer's inside state and emits a crossing action.</summary>
-    /// <param name="eventArgs">The current pointer event data.</param>
-    /// <param name="isInside">The current inside state, or null to test current bounds.</param>
-    private void UpdateActivePointerInside(PointerEventArgs eventArgs, bool? isInside = null)
-    {
-        var nowInside = isInside ?? ContainsPointerPosition(eventArgs.Position);
-        var wasInside = _insidePointers.Contains(eventArgs.PointerId);
-        if (wasInside == nowInside)
-            return;
-
-        if (nowInside)
-        {
-            _insidePointers.Add(eventArgs.PointerId);
-            PointerEntered?.Invoke(this, eventArgs);
-        }
-        else
-        {
-            _insidePointers.Remove(eventArgs.PointerId);
-            PointerExited?.Invoke(this, eventArgs);
-        }
-    }
-
-    /// <summary>
-    /// Creates fresh button components and their instance-specific layout state.
-    /// </summary>
-    /// <param name="label">The complete label shown by the button.</param>
-    /// <param name="textStyle">The shared font and text style.</param>
-    /// <param name="texture">The shared nine-patch texture.</param>
-    /// <param name="horizontalPadding">The horizontal label padding.</param>
-    /// <param name="verticalPadding">The vertical label padding.</param>
-    /// <param name="backgroundRenderLayerMask">The render-layer mask for the background.</param>
-    /// <param name="textRenderLayerMask">The render-layer mask for the text.</param>
-    /// <param name="sourceBorders">The source texture border widths.</param>
-    /// <param name="samplingBehavior">The texture sampling behavior.</param>
-    /// <returns>The new components and immutable layout configuration.</returns>
-    private static (
-        NinePatchComponent Background,
-        TextComponent Text,
-        ITextStyle TextStyle,
-        string Label,
-        float HorizontalPadding,
-        float VerticalPadding
-    ) CreateComponents(
-        string label,
-        ITextStyle textStyle,
-        Texture texture,
-        float horizontalPadding,
-        float verticalPadding,
-        ulong backgroundRenderLayerMask,
-        ulong textRenderLayerMask,
-        Vector4D<float>? sourceBorders,
-        ISamplingBehavior? samplingBehavior
-    )
+        : base()
     {
         ArgumentNullException.ThrowIfNull(label);
         ArgumentNullException.ThrowIfNull(textStyle);
@@ -400,29 +142,127 @@ public sealed class TextButton : Element
         if (!float.IsFinite(verticalPadding) || verticalPadding < 0f)
             throw new ArgumentOutOfRangeException(nameof(verticalPadding));
 
+        _texture = texture;
+        _textStyle = textStyle;
+        _label = label;
+        _horizontalPadding = horizontalPadding;
+        _verticalPadding = verticalPadding;
+        _backgroundRenderLayerMask = backgroundRenderLayerMask;
+        _textRenderLayerMask = textRenderLayerMask;
+        _sourceBorders = sourceBorders ?? new Vector4D<float>(12f, 12f, 12f, 12f);
+        _destinationBorders = destinationBorders;
+        _samplingBehavior = samplingBehavior ?? SamplingBehaviors.PixelPerfect;
+        CanFocus = true;
+        InputMap.OnMouseButtonReleased(MouseButtonEnum.Left).Invoke(InvokeAction);
+        CreateVisualComponents();
+    }
+
+    /// <summary>Invokes the action assigned to this button, if any.</summary>
+    private void InvokeAction() => Action?.Invoke();
+
+    /// <summary>
+    /// <summary>Creates fresh visual components from the button's retained configuration.</summary>
+    private void CreateVisualComponents()
+    {
         var background = new NinePatchComponent
         {
-            Texture = texture,
-            RenderLayerMask = backgroundRenderLayerMask,
-            SamplingBehavior = samplingBehavior ?? SamplingBehaviors.PixelPerfect,
-            SourceBorders = sourceBorders ?? new Vector4D<float>(12f, 12f, 12f, 12f),
+            Texture = _texture,
+            RenderLayerMask = _backgroundRenderLayerMask,
+            SamplingBehavior = _samplingBehavior,
+            SourceBorders = _sourceBorders,
+            DestinationBorders = _destinationBorders,
         };
-        var text = new TextComponent(textStyle)
+        var text = new TextComponent(_textStyle)
         {
-            RenderLayerMask = textRenderLayerMask,
-            Text = label,
+            RenderLayerMask = _textRenderLayerMask,
+            Text = _label,
         };
-        var labelSize = MeasureLabel(textStyle, label);
+        _background = background;
+        _text = text;
+        var labelSize = MeasureLabel(_textStyle, _label);
         background.Size = new Vector2D<float>(
-            MathF.Max(float.Epsilon, MathF.Ceiling(labelSize.X) + horizontalPadding * 2f),
-            MathF.Max(float.Epsilon, MathF.Ceiling(labelSize.Y) + verticalPadding * 2f)
+            MathF.Max(float.Epsilon, MathF.Ceiling(labelSize.X) + _horizontalPadding * 2f),
+            MathF.Max(float.Epsilon, MathF.Ceiling(labelSize.Y) + _verticalPadding * 2f)
         );
-        return (background, text, textStyle, label, horizontalPadding, verticalPadding);
+        AddComponent(background);
+        AddComponent(text);
+        if (Bounds.Size.X > 0f && Bounds.Size.Y > 0f)
+            Arrange(Bounds);
+    }
+
+    /// <summary>Removes the current visual components and releases their references.</summary>
+    private void RemoveVisualComponents()
+    {
+        var background = _background;
+        var text = _text;
+        _background = null;
+        _text = null;
+
+        if (text is not null)
+            RemoveComponent(text);
+        if (background is not null)
+            RemoveComponent(background);
+    }
+
+    /// <summary>Synchronizes component ownership with effective visibility.</summary>
+    private void UpdateVisualComponents()
+    {
+        if (IsEffectivelyVisible)
+        {
+            if (_background is null && _text is null)
+                CreateVisualComponents();
+        }
+        else if (_background is not null || _text is not null)
+        {
+            RemoveVisualComponents();
+        }
+    }
+
+    /// <summary>Subscribes to visibility changes on the current ancestor chain.</summary>
+    private void UpdateVisibilityAncestorSubscriptions()
+    {
+        foreach (var ancestor in _visibilityAncestors)
+            ancestor.PropertyChanged -= OnAncestorPropertyChanged;
+        _visibilityAncestors.Clear();
+
+        for (var ancestor = Parent; ancestor is not null; ancestor = ancestor.Parent)
+        {
+            ancestor.PropertyChanged += OnAncestorPropertyChanged;
+            _visibilityAncestors.Add(ancestor);
+        }
+    }
+
+    /// <summary>Updates components when an ancestor's visibility changes.</summary>
+    /// <param name="sender">The ancestor that changed.</param>
+    /// <param name="eventArgs">The property-change details.</param>
+    private void OnAncestorPropertyChanged(object? sender, PropertyChangedEventArgs eventArgs)
+    {
+        if (eventArgs.PropertyName is null or nameof(IsVisible))
+            UpdateVisualComponents();
+    }
+
+    /// <inheritdoc />
+    protected override void OnHierarchyChanged()
+    {
+        base.OnHierarchyChanged();
+        UpdateVisibilityAncestorSubscriptions();
+        UpdateVisualComponents();
+    }
+
+    /// <inheritdoc />
+    protected override void OnPropertyChanged(string? propertyName = null)
+    {
+        base.OnPropertyChanged(propertyName);
+        if (propertyName == nameof(IsVisible))
+            UpdateVisualComponents();
     }
 
     /// <inheritdoc />
     public override Vector2D<float> Measure(Vector2D<float> constraint)
     {
+        if (!IsEffectivelyVisible)
+            return Vector2D<float>.Zero;
+
         var labelSize = MeasureLabel(_textStyle, _label);
         var desiredSize = new Vector2D<float>(
             MathF.Ceiling(labelSize.X) + _horizontalPadding * 2f,
@@ -435,6 +275,9 @@ public sealed class TextButton : Element
     /// <inheritdoc />
     public override void Arrange(Rectangle<float> bounds)
     {
+        if (!IsEffectivelyVisible || _text is null || _background is null)
+            return;
+
         base.Arrange(bounds);
 
         var labelWidth = MathF.Max(0f, bounds.Size.X - _horizontalPadding * 2f);

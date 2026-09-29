@@ -9,26 +9,14 @@ public sealed class InputMap
 {
     private IEventHub? _eventHub;
     private readonly Func<Vector2D<float>, bool>? _hitTest;
+    private InputDeviceId? _capturedMousePointerId;
     private readonly Dictionary<KeyEnum, List<Action>> _keyPressedBindings = [];
     private readonly Dictionary<KeyEnum, List<Action>> _keyReleasedBindings = [];
     private readonly Dictionary<MouseButtonEnum, List<Action>> _mousePressedBindings = [];
     private readonly Dictionary<MouseButtonEnum, List<Action>> _mouseReleasedBindings = [];
     private readonly List<Action> _mouseWheelBindings = [];
-
-    /// <summary>Occurs when a raw mouse-movement event reaches this registered input map.</summary>
-    public event Action<MouseMovedEvent>? PointerMoved;
-
-    /// <summary>Occurs when a raw mouse-button press reaches this registered input map.</summary>
-    public event Action<MouseButtonPressedEvent>? PointerPressed;
-
-    /// <summary>Occurs when a raw mouse-button release reaches this registered input map.</summary>
-    public event Action<MouseButtonReleasedEvent>? PointerReleased;
-
-    /// <summary>Occurs when a mouse-disconnection event reaches this registered input map.</summary>
-    public event Action<MouseDisconnectedEvent>? PointerDisconnected;
-
-    /// <summary>Occurs when mouse interaction is canceled by focus loss.</summary>
-    public event Action<MouseCanceledEvent>? PointerCanceled;
+    private readonly Dictionary<string, List<Action>> _controllerSemanticPressedBindings = [];
+    private readonly Dictionary<string, List<Action>> _controllerSemanticReleasedBindings = [];
     private readonly Dictionary<
         (InputDeviceId? ControllerId, int ButtonIndex),
         List<Action>
@@ -76,9 +64,13 @@ public sealed class InputMap
     {
         ArgumentNullException.ThrowIfNull(eventHub);
         eventHub.Unregister(this);
+        _capturedMousePointerId = null;
         if (ReferenceEquals(_eventHub, eventHub))
             _eventHub = null;
     }
+
+    /// <summary>Cancels any mouse interaction currently captured by this map.</summary>
+    public void CancelPointerCapture() => _capturedMousePointerId = null;
 
     /// <summary>Gets the event hub used by event-producing bindings.</summary>
     /// <exception cref="InvalidOperationException">The input map has not been registered with an event hub.</exception>
@@ -157,6 +149,12 @@ public sealed class InputMap
         return new(this, _controllerPressedBindings, null, buttonIndex);
     }
 
+    /// <summary>Selects a semantically named button press from any controller.</summary>
+    /// <param name="semanticName">The normalized controller button name.</param>
+    /// <returns>A builder for adding effects to the button press.</returns>
+    public ControllerSemanticButtonBinding OnAnyControllerButtonPressed(string semanticName) =>
+        new(this, _controllerSemanticPressedBindings, ValidateSemanticName(semanticName));
+
     /// <summary>Selects a button release from one specific controller.</summary>
     /// <param name="controllerId">The controller that activates the binding.</param>
     /// <param name="buttonIndex">The controller-local button index.</param>
@@ -178,6 +176,12 @@ public sealed class InputMap
         ValidateControlIndex(buttonIndex, nameof(buttonIndex));
         return new(this, _controllerReleasedBindings, null, buttonIndex);
     }
+
+    /// <summary>Selects a semantically named button release from any controller.</summary>
+    /// <param name="semanticName">The normalized controller button name.</param>
+    /// <returns>A builder for adding effects to the button release.</returns>
+    public ControllerSemanticButtonBinding OnAnyControllerButtonReleased(string semanticName) =>
+        new(this, _controllerSemanticReleasedBindings, ValidateSemanticName(semanticName));
 
     /// <summary>Selects an analog change from one specific controller.</summary>
     /// <param name="controllerId">The controller that activates the binding.</param>
@@ -227,9 +231,28 @@ public sealed class InputMap
     /// <param name="message">The mouse-button press event to handle.</param>
     public void Handle(MouseButtonPressedEvent message)
     {
-        PointerPressed?.Invoke(message);
-        if (!SuppressSceneInputEvents && ContainsMousePosition(message.Position))
+        if (SuppressSceneInputEvents)
+            return;
+
+        if (_hitTest is null)
+        {
             Dispatch(_mousePressedBindings, message.Button);
+            return;
+        }
+
+        if (
+            message.Button != MouseButtonEnum.Left
+            || _capturedMousePointerId.HasValue
+            || !ContainsMousePosition(message.Position)
+            || (
+                !_mousePressedBindings.ContainsKey(message.Button)
+                && !_mouseReleasedBindings.ContainsKey(message.Button)
+            )
+        )
+            return;
+
+        _capturedMousePointerId = message.Mouse.Id;
+        Dispatch(_mousePressedBindings, message.Button);
     }
 
     /// <summary>
@@ -238,7 +261,17 @@ public sealed class InputMap
     /// <param name="message">The mouse-button release event to handle.</param>
     public void Handle(MouseButtonReleasedEvent message)
     {
-        PointerReleased?.Invoke(message);
+        if (_hitTest is null)
+        {
+            if (!SuppressSceneInputEvents && ContainsMousePosition(message.Position))
+                Dispatch(_mouseReleasedBindings, message.Button);
+            return;
+        }
+
+        if (message.Button != MouseButtonEnum.Left || _capturedMousePointerId != message.Mouse.Id)
+            return;
+
+        _capturedMousePointerId = null;
         if (!SuppressSceneInputEvents && ContainsMousePosition(message.Position))
             Dispatch(_mouseReleasedBindings, message.Button);
     }
@@ -256,17 +289,21 @@ public sealed class InputMap
             callback();
     }
 
-    /// <summary>Forwards mouse movement to the owning GUI element.</summary>
-    /// <param name="message">The raw mouse-movement event.</param>
-    public void Handle(MouseMovedEvent message) => PointerMoved?.Invoke(message);
-
-    /// <summary>Forwards mouse disconnection to the owning GUI element.</summary>
+    /// <summary>Clears a captured pointer when its mouse disconnects.</summary>
     /// <param name="message">The mouse-disconnection event.</param>
-    public void Handle(MouseDisconnectedEvent message) => PointerDisconnected?.Invoke(message);
+    public void Handle(MouseDisconnectedEvent message)
+    {
+        if (_capturedMousePointerId == message.Mouse.Id)
+            _capturedMousePointerId = null;
+    }
 
-    /// <summary>Forwards mouse interaction cancellation to the owning GUI element.</summary>
+    /// <summary>Clears a captured pointer when mouse interaction is canceled.</summary>
     /// <param name="message">The mouse-cancellation event.</param>
-    public void Handle(MouseCanceledEvent message) => PointerCanceled?.Invoke(message);
+    public void Handle(MouseCanceledEvent message)
+    {
+        if (_capturedMousePointerId == message.Mouse.Id)
+            _capturedMousePointerId = null;
+    }
 
     /// <summary>Dispatches effects configured for a pressed controller button.</summary>
     /// <param name="message">The controller button event to handle.</param>
@@ -277,6 +314,8 @@ public sealed class InputMap
 
         Dispatch(_controllerPressedBindings, (message.Controller.Id, message.ButtonIndex));
         Dispatch(_controllerPressedBindings, ((InputDeviceId?)null, message.ButtonIndex));
+        if (message.Button.SemanticName is { } semanticName)
+            Dispatch(_controllerSemanticPressedBindings, semanticName);
     }
 
     /// <summary>Dispatches effects configured for a released controller button.</summary>
@@ -288,6 +327,8 @@ public sealed class InputMap
 
         Dispatch(_controllerReleasedBindings, (message.Controller.Id, message.ButtonIndex));
         Dispatch(_controllerReleasedBindings, ((InputDeviceId?)null, message.ButtonIndex));
+        if (message.Button.SemanticName is { } semanticName)
+            Dispatch(_controllerSemanticReleasedBindings, semanticName);
     }
 
     /// <summary>Dispatches effects configured for a changed controller analog input.</summary>
@@ -355,6 +396,15 @@ public sealed class InputMap
     {
         if (controlIndex < 0)
             throw new ArgumentOutOfRangeException(parameterName);
+    }
+
+    /// <summary>Validates a semantic controller button name.</summary>
+    /// <param name="semanticName">The semantic button name.</param>
+    /// <returns>The validated semantic button name.</returns>
+    private static string ValidateSemanticName(string semanticName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(semanticName);
+        return semanticName;
     }
 
     /// <summary>Invokes a snapshot of event-aware callbacks for one controller analog input.</summary>
@@ -620,6 +670,54 @@ public sealed class InputMap
         /// <param name="action">The action to execute.</param>
         /// <returns>The owning input map.</returns>
         /// <exception cref="ArgumentNullException"><paramref name="action"/> is <see langword="null"/>.</exception>
+        public InputMap Execute(IGameInputAction action)
+        {
+            ArgumentNullException.ThrowIfNull(action);
+            return Invoke(action.Execute);
+        }
+    }
+
+    /// <summary>Configures effects for a semantically named button press or release.</summary>
+    public sealed class ControllerSemanticButtonBinding
+    {
+        private readonly InputMap _inputMap;
+        private readonly Dictionary<string, List<Action>> _bindings;
+        private readonly string _semanticName;
+
+        /// <summary>Initializes a semantic controller-button binding builder.</summary>
+        /// <param name="inputMap">The owning input map.</param>
+        /// <param name="bindings">The press or release binding table.</param>
+        /// <param name="semanticName">The normalized controller button name.</param>
+        internal ControllerSemanticButtonBinding(
+            InputMap inputMap,
+            Dictionary<string, List<Action>> bindings,
+            string semanticName
+        )
+        {
+            _inputMap = inputMap;
+            _bindings = bindings;
+            _semanticName = semanticName;
+        }
+
+        /// <summary>Adds a callback to invoke when this binding matches.</summary>
+        /// <param name="callback">The callback to invoke.</param>
+        /// <returns>The owning input map.</returns>
+        public InputMap Invoke(Action callback)
+        {
+            ArgumentNullException.ThrowIfNull(callback);
+            _inputMap.AddBinding(_bindings, _semanticName, callback);
+            return _inputMap;
+        }
+
+        /// <summary>Adds an effect that publishes an event when this binding matches.</summary>
+        /// <typeparam name="TEvent">The event type to publish.</typeparam>
+        /// <returns>The owning input map.</returns>
+        public InputMap Raise<TEvent>()
+            where TEvent : IEvent, new() => Invoke(() => _inputMap.EventHub.Publish(new TEvent()));
+
+        /// <summary>Adds an effect that executes an input action when this binding matches.</summary>
+        /// <param name="action">The action to execute.</param>
+        /// <returns>The owning input map.</returns>
         public InputMap Execute(IGameInputAction action)
         {
             ArgumentNullException.ThrowIfNull(action);
