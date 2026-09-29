@@ -137,11 +137,6 @@ public sealed class FontBuilder : IFontBuilder
         var atlasTop = bitmapBounds.Top - atlasInset;
         var planeWidth = planeBounds.Right - planeBounds.Left;
         var planeHeight = planeBounds.Top - planeBounds.Bottom;
-        return new FontBounds(
-            atlasLeft,
-            atlasTop - planeHeight,
-            atlasLeft + planeWidth,
-            atlasTop
-        );
+        return new FontBounds(atlasLeft, atlasTop - planeHeight, atlasLeft + planeWidth, atlasTop);
     }
 }
