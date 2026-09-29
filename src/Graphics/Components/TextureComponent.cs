@@ -19,6 +19,8 @@ public class TextureComponent : Nexus.Core.Component, IGraphicsComponent, IDrawa
     private Color _color = Colors.White;
     private Matrix4X4<float> _view = Matrix4X4<float>.Identity;
     private ISamplingBehavior _samplingBehavior = SamplingBehaviors.Smooth;
+    private Func<int, TextureInstance>? _instanceGeometry;
+    private int _instanceCount = 1;
 
     /// <summary>Initializes a texture component with a corner-pivoted quad by default.</summary>
     /// <param name="centered">Whether the quad is centered on its origin.</param>
@@ -153,6 +155,21 @@ public class TextureComponent : Nexus.Core.Component, IGraphicsComponent, IDrawa
         }
     }
 
+    /// <summary>Sets the number and indexed geometry source for this component's quad instances.</summary>
+    /// <param name="instanceCount">The positive number of quad instances.</param>
+    /// <param name="instanceGeometry">A function that computes one quad's geometry by instance index.</param>
+    public void SetInstanceGeometry(int instanceCount, Func<int, TextureInstance> instanceGeometry)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(instanceCount);
+        ArgumentNullException.ThrowIfNull(instanceGeometry);
+        if (_instanceCount == instanceCount && Equals(_instanceGeometry, instanceGeometry))
+            return;
+
+        _instanceCount = instanceCount;
+        _instanceGeometry = instanceGeometry;
+        InstanceDataChanged?.Invoke(this, EventArgs.Empty);
+    }
+
     /// <summary>Gets or sets an additional local transform applied before the owning object's world transform.</summary>
     public Matrix4X4<float> TransformationMatrix
     {
@@ -216,7 +233,7 @@ public class TextureComponent : Nexus.Core.Component, IGraphicsComponent, IDrawa
 
     /// <summary>Gets the instance count for the concrete component.</summary>
     /// <returns>The number of packed records.</returns>
-    protected virtual int GetInstanceCount() => 1;
+    protected virtual int GetInstanceCount() => _instanceGeometry is null ? 1 : _instanceCount;
 
     /// <summary>Gets the local transform and UV rectangle for an instance.</summary>
     /// <param name="instanceIndex">The zero-based instance index.</param>
@@ -228,6 +245,30 @@ public class TextureComponent : Nexus.Core.Component, IGraphicsComponent, IDrawa
         out Vector4D<float> texCoord
     )
     {
+        if (_instanceGeometry is { } instanceGeometry)
+        {
+            if ((uint)instanceIndex >= (uint)_instanceCount)
+                throw new ArgumentOutOfRangeException(nameof(instanceIndex));
+
+            var instance = instanceGeometry(instanceIndex);
+            ValidateInstance(instance);
+            transform = CreateRectangleTransform(
+                instance.X,
+                instance.Y,
+                instance.Width,
+                instance.Height,
+                false
+            );
+            texCoord = InsetTexCoord(
+                instance.TexCoord,
+                instance.InsetLeft,
+                instance.InsetTop,
+                instance.InsetRight,
+                instance.InsetBottom
+            );
+            return;
+        }
+
         if (instanceIndex != 0)
             throw new ArgumentOutOfRangeException(nameof(instanceIndex));
 
@@ -281,6 +322,35 @@ public class TextureComponent : Nexus.Core.Component, IGraphicsComponent, IDrawa
     /// <summary>Validates proposed source border widths.</summary>
     /// <param name="sourceBorders">The proposed source borders.</param>
     protected virtual void ValidateSourceBorders(Vector4D<float> sourceBorders) { }
+
+    /// <summary>Validates one computed instance's destination and normalized source rectangle.</summary>
+    /// <param name="instance">The proposed instance geometry.</param>
+    private static void ValidateInstance(TextureInstance instance)
+    {
+        var texCoord = instance.TexCoord;
+        if (
+            !float.IsFinite(instance.X)
+            || !float.IsFinite(instance.Y)
+            || !float.IsFinite(instance.Width)
+            || !float.IsFinite(instance.Height)
+            || instance.Width <= 0f
+            || instance.Height <= 0f
+            || !float.IsFinite(texCoord.X)
+            || !float.IsFinite(texCoord.Y)
+            || !float.IsFinite(texCoord.Z)
+            || !float.IsFinite(texCoord.W)
+            || texCoord.X < 0f
+            || texCoord.Y < 0f
+            || texCoord.Z <= 0f
+            || texCoord.W <= 0f
+            || texCoord.X + texCoord.Z > 1f
+            || texCoord.Y + texCoord.W > 1f
+        )
+            throw new ArgumentOutOfRangeException(
+                nameof(instance),
+                "Instance destinations must be positive and finite, and UV rectangles must fit within [0, 1]."
+            );
+    }
 
     /// <summary>Raises the instance-data event after derived instance properties change.</summary>
     protected void NotifyInstanceDataChanged() =>

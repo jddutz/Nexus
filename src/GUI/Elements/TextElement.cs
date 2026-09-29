@@ -3,48 +3,6 @@ namespace Nexus.GUI.Elements;
 using System.Text;
 using Nexus.Graphics.Text;
 
-/// <summary>Specifies horizontal placement within an element's bounds.</summary>
-public enum AlignHorizontal
-{
-    /// <summary>Places content against the left edge.</summary>
-    Left,
-
-    /// <summary>Centers content horizontally.</summary>
-    Center,
-
-    /// <summary>Places content against the right edge.</summary>
-    Right,
-}
-
-/// <summary>Specifies vertical placement within an element's bounds.</summary>
-public enum AlignVertical
-{
-    /// <summary>Places content against the top edge.</summary>
-    Top,
-
-    /// <summary>Centers content vertically.</summary>
-    Center,
-
-    /// <summary>Places content against the bottom edge.</summary>
-    Bottom,
-}
-
-/// <summary>Specifies horizontal alignment of text within a line.</summary>
-public enum TextAlignment
-{
-    /// <summary>Aligns text to the left.</summary>
-    Left,
-
-    /// <summary>Centers text.</summary>
-    Center,
-
-    /// <summary>Aligns text to the right.</summary>
-    Right,
-
-    /// <summary>Expands spacing so text fills the line width.</summary>
-    Justify,
-}
-
 /// <summary>Measures and arranges styled text within a GUI element.</summary>
 public sealed class TextElement : Element
 {
@@ -67,7 +25,8 @@ public sealed class TextElement : Element
             if (!Enum.IsDefined(value))
                 throw new ArgumentOutOfRangeException(nameof(value));
 
-            SetProperty(ref _horizontalAlignment, value);
+            if (SetProperty(ref _horizontalAlignment, value))
+                ReapplyLayout();
         }
     }
 
@@ -80,7 +39,8 @@ public sealed class TextElement : Element
             if (!Enum.IsDefined(value))
                 throw new ArgumentOutOfRangeException(nameof(value));
 
-            SetProperty(ref _verticalAlignment, value);
+            if (SetProperty(ref _verticalAlignment, value))
+                ReapplyLayout();
         }
     }
 
@@ -94,8 +54,9 @@ public sealed class TextElement : Element
             if (!SetProperty(ref _text, value))
                 return;
 
-            if (_textComponent is not null)
+            if (_textComponent is not null && _layoutBounds is null)
                 _textComponent.Text = value;
+            ReapplyLayout();
         }
     }
 
@@ -111,7 +72,8 @@ public sealed class TextElement : Element
             if (value is <= 0)
                 throw new ArgumentOutOfRangeException(nameof(value));
 
-            SetProperty(ref _maximumLines, value);
+            if (SetProperty(ref _maximumLines, value))
+                ReapplyLayout();
         }
     }
 
@@ -197,8 +159,15 @@ public sealed class TextElement : Element
             bounds.Origin.X + GetHorizontalOffset(bounds.Size.X, textBounds.Size.X),
             bounds.Origin.Y + GetVerticalOffset(bounds.Size.Y, textBounds.Size.Y)
         );
-        Bounds = new Rectangle<float>(textOrigin, textBounds.Size);
         Position = new(textOrigin.X - textBounds.Origin.X, textOrigin.Y - textBounds.Origin.Y);
+        Bounds = new Rectangle<float>(textOrigin, textBounds.Size);
+    }
+
+    /// <summary>Reapplies the last parent-assigned rectangle after layout-affecting state changes.</summary>
+    private void ReapplyLayout()
+    {
+        if (_layoutBounds is { } bounds)
+            Arrange(bounds);
     }
 
     /// <summary>Creates a fresh text component from the retained text configuration.</summary>

@@ -3,6 +3,7 @@ using Nexus.Graphics;
 using Nexus.Graphics.Components;
 using Nexus.Graphics.Text;
 using Nexus.Graphics.Textures;
+using Nexus.GUI;
 using Nexus.GUI.Elements;
 using Silk.NET.Maths;
 
@@ -29,13 +30,14 @@ public sealed class TextElementTests
         var bounds = new Rectangle<float>(10f, 20f, 8f, 6f);
 
         element.Arrange(bounds);
-        Assert.Equal(new Vector2D<float>(13.5f, 22.5f), element.Bounds.Origin);
+        Assert.Equal(new Rectangle<float>(13.5f, 22.5f, 1f, 1f), element.Bounds);
+        Assert.Equal(new Vector2D<float>(13.5f, 22.5f), element.Position);
 
         element.HorizontalAlignment = AlignHorizontal.Right;
         element.VerticalAlignment = AlignVertical.Bottom;
-        element.Arrange(bounds);
 
-        Assert.Equal(new Vector2D<float>(17f, 25f), element.Bounds.Origin);
+        Assert.Equal(new Rectangle<float>(17f, 25f, 1f, 1f), element.Bounds);
+        Assert.Equal(new Vector2D<float>(17f, 25f), element.Position);
     }
 
     /// <summary>Verifies a measured line remains visible when glyphs are shorter than line height.</summary>
@@ -75,7 +77,32 @@ public sealed class TextElementTests
         Assert.NotSame(original, recreated);
         Assert.Equal("BA", recreated.Text);
         Assert.Equal(new Vector2D<float>(2f, 1f), element.Measure(new(20f, 20f)));
-        Assert.Equal(new Vector2D<float>(5f, 4.5f), element.Bounds.Origin);
+        Assert.Equal(new Rectangle<float>(5f, 4.5f, 2f, 1f), element.Bounds);
+        Assert.Equal(new Vector2D<float>(5f, 4.5f), element.Position);
+    }
+
+    /// <summary>Verifies text, line-limit, and alignment changes reapply the assigned layout.</summary>
+    [Fact]
+    public void LayoutPropertyChanges_rewrapAndRepositionImmediately()
+    {
+        var element = CreateTextElement("A");
+        var bounds = new Rectangle<float>(10f, 20f, 1f, 2f);
+        element.Arrange(bounds);
+
+        element.Text = "AB";
+        Assert.Equal("A\nB", element.GetComponent<TextComponent>()!.Text);
+        Assert.Equal(new Rectangle<float>(10f, 20f, 1f, 2f), element.Bounds);
+        Assert.Equal(new Vector2D<float>(10f, 20f), element.Position);
+
+        element.MaximumLines = 1;
+        Assert.Equal("A", element.GetComponent<TextComponent>()!.Text);
+        Assert.Equal(new Vector2D<float>(10f, 20.5f), element.Position);
+        Assert.Equal(new Rectangle<float>(10f, 20.5f, 1f, 1f), element.Bounds);
+
+        element.HorizontalAlignment = AlignHorizontal.Right;
+        element.VerticalAlignment = AlignVertical.Bottom;
+        Assert.Equal(new Vector2D<float>(10f, 21f), element.Position);
+        Assert.Equal(new Rectangle<float>(10f, 21f, 1f, 1f), element.Bounds);
     }
 
     /// <summary>Creates a text element with deterministic in-memory font data.</summary>
