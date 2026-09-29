@@ -389,10 +389,7 @@ public sealed class TextElement : Element
             lineLimit = Math.Min(lineLimit, maximumLines.Value);
 
         var wrappedText = WrapText(text, style, availableWidth, lineLimit);
-        while (
-            wrappedText.Length > 0
-            && MeasureWrappedText(style, wrappedText).Y > availableHeight
-        )
+        while (wrappedText.Length > 0 && MeasureWrappedText(style, wrappedText).Y > availableHeight)
         {
             var lastLineStart = wrappedText.LastIndexOf('\n');
             wrappedText = lastLineStart < 0 ? string.Empty : wrappedText[..lastLineStart];
