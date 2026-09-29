@@ -1,6 +1,5 @@
 namespace HelloNexus;
 
-using System.Text;
 using Nexus.Assets.Fonts;
 using Nexus.Core;
 using Nexus.Game;
@@ -69,20 +68,10 @@ internal sealed class HelloNexusSceneFactory(
 
         var textStyle = CreateRobotoTextStyle();
         const string pressText = "Press ESC to quit";
-        var pressTextComponent = new TextComponent(textStyle)
-        {
-            RenderLayerMask = foregroundLayer,
-            Text = pressText,
-        };
-        var pressTextElement = new TextContentElement(pressTextComponent, textStyle, 1);
+        var pressTextElement = new TextElement(pressText, textStyle, 1, foregroundLayer);
 
         const string welcomeText = "Welcome to the Nexus";
-        var welcomeTextComponent = new TextComponent(textStyle)
-        {
-            RenderLayerMask = foregroundLayer,
-            Text = welcomeText,
-        };
-        var welcomeTextElement = new TextContentElement(welcomeTextComponent, textStyle);
+        var welcomeTextElement = new TextElement(welcomeText, textStyle, renderLayerMask: foregroundLayer);
 
         const string buttonLabel = "Start Physics Test";
         var buttonElement = new TextButton(
@@ -121,17 +110,12 @@ internal sealed class HelloNexusSceneFactory(
         var leftIcon = CreateAudioIconElement(audioTexture, foregroundLayer);
         var rightIcon = CreateAudioIconElement(audioTexture, foregroundLayer);
         var middleHeader = new MiddleHeaderElement(
-            textStyle,
-            pressText,
-            pressTextComponent,
             pressTextElement
         );
 
         var header = new HeaderElement(leftIcon, middleHeader, rightIcon);
 
         var main = new MainContentElement(
-            textStyle,
-            welcomeText,
             welcomeTextElement,
             buttonElement,
             buttonLabelGap
@@ -143,163 +127,6 @@ internal sealed class HelloNexusSceneFactory(
         return scene;
     }
 
-    /// <summary>Measures wrapped text without changing the text component or element.</summary>
-    /// <param name="text">The complete source text.</param>
-    /// <param name="style">The font metrics used for wrapping.</param>
-    /// <param name="availableSize">The maximum available size.</param>
-    /// <param name="maximumLines">The maximum allowed line count.</param>
-    /// <returns>The visible glyph bounds size after wrapping.</returns>
-    private static Vector2D<float> MeasureText(
-        string text,
-        ITextStyle style,
-        Vector2D<float> availableSize,
-        int maximumLines
-    )
-    {
-        var scale = style.FontMetrics.EmSize == 0 ? 1.0 : style.Size / style.FontMetrics.EmSize;
-        var lineHeight = (float)(style.FontMetrics.LineHeight * scale);
-        if (!float.IsFinite(lineHeight) || lineHeight <= 0f)
-            lineHeight = (float)style.Size;
-
-        var lineCount =
-            lineHeight > 0f
-                ? Math.Min(maximumLines, (int)MathF.Floor(availableSize.Y / lineHeight))
-                : 0;
-        var wrappedText = WrapText(text, style, availableSize.X, lineCount);
-        return MeasureWrappedText(style, wrappedText);
-    }
-
-    /// <summary>Measures the combined glyph bounds of newline-separated text spans.</summary>
-    /// <param name="style">The font metrics used for wrapping.</param>
-    /// <param name="text">The wrapped text.</param>
-    /// <returns>The combined glyph bounds size.</returns>
-    private static Vector2D<float> MeasureWrappedText(ITextStyle style, string text)
-    {
-        if (string.IsNullOrEmpty(text))
-            return Vector2D<float>.Zero;
-
-        var scale = style.FontMetrics.EmSize == 0 ? 1.0 : style.Size / style.FontMetrics.EmSize;
-        var lineHeight = (float)(style.FontMetrics.LineHeight * scale);
-        var lines = text.Split('\n');
-        var top = float.PositiveInfinity;
-        var bottom = float.NegativeInfinity;
-        var width = 0f;
-
-        for (var lineIndex = 0; lineIndex < lines.Length; lineIndex++)
-        {
-            var bounds = new TextSpan(style, lines[lineIndex]).LayoutBounds;
-            width = MathF.Max(width, bounds.Size.X);
-            top = MathF.Min(top, bounds.Origin.Y + lineIndex * lineHeight);
-            bottom = MathF.Max(bottom, bounds.Max.Y + lineIndex * lineHeight);
-        }
-
-        return float.IsFinite(top) && float.IsFinite(bottom)
-            ? new Vector2D<float>(width, bottom - top)
-            : Vector2D<float>.Zero;
-    }
-
-    /// <summary>Gets the maximum number of text lines that fit vertically.</summary>
-    /// <param name="style">The font metrics used to determine line height.</param>
-    /// <param name="availableHeight">The available vertical space.</param>
-    /// <returns>The maximum number of lines.</returns>
-    private static int GetMaximumLineCount(ITextStyle style, float availableHeight)
-    {
-        var scale = style.FontMetrics.EmSize == 0 ? 1.0 : style.Size / style.FontMetrics.EmSize;
-        var lineHeight = (float)(style.FontMetrics.LineHeight * scale);
-        if (!float.IsFinite(lineHeight) || lineHeight <= 0f)
-            lineHeight = (float)style.Size;
-
-        return lineHeight > 0f ? Math.Max(0, (int)MathF.Floor(availableHeight / lineHeight)) : 0;
-    }
-
-    /// <summary>Wraps words to the available width, cropping the last line at glyph boundaries.</summary>
-    /// <param name="text">The complete source text.</param>
-    /// <param name="style">The font metrics used for measuring and wrapping.</param>
-    /// <param name="availableWidth">The maximum line width.</param>
-    /// <param name="maximumLines">The maximum number of lines.</param>
-    /// <returns>The visible lines joined by newline characters.</returns>
-    private static string WrapText(
-        string text,
-        ITextStyle style,
-        float availableWidth,
-        int maximumLines
-    )
-    {
-        if (availableWidth <= 0f || maximumLines <= 0)
-            return string.Empty;
-
-        var lines = new List<string>();
-        var currentLine = string.Empty;
-        foreach (var word in text.Split(' ', StringSplitOptions.RemoveEmptyEntries))
-        {
-            var candidate = currentLine.Length == 0 ? word : $"{currentLine} {word}";
-            if (MeasureTextWidth(style, candidate) <= availableWidth)
-            {
-                currentLine = candidate;
-                continue;
-            }
-
-            if (currentLine.Length > 0)
-            {
-                if (lines.Count + 1 >= maximumLines)
-                {
-                    lines.Add(FitTextToWidth(style, candidate, availableWidth));
-                    return string.Join('\n', lines);
-                }
-
-                lines.Add(currentLine);
-                currentLine = string.Empty;
-            }
-
-            var remainder = word;
-            while (MeasureTextWidth(style, remainder) > availableWidth)
-            {
-                var fittingPrefix = FitTextToWidth(style, remainder, availableWidth);
-                if (fittingPrefix.Length == 0)
-                    return string.Join('\n', lines);
-
-                lines.Add(fittingPrefix);
-                remainder = remainder[fittingPrefix.Length..];
-                if (lines.Count >= maximumLines)
-                    return string.Join('\n', lines);
-            }
-
-            currentLine = remainder;
-        }
-
-        if (currentLine.Length > 0 && lines.Count < maximumLines)
-            lines.Add(currentLine);
-
-        return string.Join('\n', lines);
-    }
-
-    /// <summary>Measures the visible glyph width of a candidate line.</summary>
-    /// <param name="style">The font metrics used to measure glyphs.</param>
-    /// <param name="text">The candidate line.</param>
-    /// <returns>The candidate's visible glyph width.</returns>
-    private static float MeasureTextWidth(ITextStyle style, string text) =>
-        new TextSpan(style, text).LayoutBounds.Size.X;
-
-    /// <summary>Returns the longest leading rune sequence that fits in a line.</summary>
-    /// <param name="style">The font metrics used to measure glyphs.</param>
-    /// <param name="text">The text to crop.</param>
-    /// <param name="availableWidth">The maximum line width.</param>
-    /// <returns>The fitting text prefix.</returns>
-    private static string FitTextToWidth(ITextStyle style, string text, float availableWidth)
-    {
-        var prefix = new StringBuilder();
-        foreach (var rune in text.EnumerateRunes())
-        {
-            var candidate = prefix.ToString() + rune;
-            if (MeasureTextWidth(style, candidate) > availableWidth)
-                break;
-
-            prefix.Append(rune);
-        }
-
-        return prefix.ToString();
-    }
-
     /// <summary>Creates an audio icon element with a nominal fixed 48-by-48 size.</summary>
     /// <param name="texture">The audio icon texture.</param>
     /// <param name="renderLayerMask">The render layer selected by the header view.</param>
@@ -307,29 +134,6 @@ internal sealed class HelloNexusSceneFactory(
     private static Element CreateAudioIconElement(Texture texture, ulong renderLayerMask)
     {
         return new AudioIconElement(texture, renderLayerMask);
-    }
-
-    /// <summary>Centers visible glyphs and assigns their actual bounds to a text element.</summary>
-    /// <param name="element">The text element being arranged.</param>
-    /// <param name="bounds">The rectangle assigned by the parent.</param>
-    /// <param name="textComponent">The component containing the visible spans.</param>
-    private static void ArrangeText(
-        Element element,
-        Rectangle<float> bounds,
-        TextComponent textComponent
-    )
-    {
-        element.Bounds = bounds;
-        var textBounds = textComponent.LayoutBounds;
-        var textOrigin = new Vector2D<float>(
-            bounds.Origin.X + (bounds.Size.X - textBounds.Size.X) / 2f,
-            bounds.Origin.Y + (bounds.Size.Y - textBounds.Size.Y) / 2f
-        );
-        element.Bounds = new Rectangle<float>(textOrigin, textBounds.Size);
-        element.Position = new(
-            textOrigin.X - textBounds.Origin.X,
-            textOrigin.Y - textBounds.Origin.Y
-        );
     }
 
     /// <summary>
@@ -371,81 +175,15 @@ internal sealed class HelloNexusSceneFactory(
         }
     }
 
-    /// <summary>
-    /// Measures and arranges a text component as a centered text element.
-    /// </summary>
-    private sealed class TextContentElement : Element
-    {
-        private readonly ITextStyle _style;
-        private readonly int? _maximumLines;
-
-        /// <summary>
-        /// Gets the text component owned by this element.
-        /// </summary>
-        public TextComponent TextComponent { get; }
-
-        /// <summary>
-        /// Initializes the text element with its style and optional line limit.
-        /// </summary>
-        /// <param name="textComponent">The text component owned by the element.</param>
-        /// <param name="style">The style used for text measurement.</param>
-        /// <param name="maximumLines">The fixed maximum line count, or <see langword="null"/> to fit the height.</param>
-        public TextContentElement(
-            TextComponent textComponent,
-            ITextStyle style,
-            int? maximumLines = null
-        )
-            : base(components: [textComponent])
-        {
-            TextComponent = textComponent;
-            _style = style;
-            _maximumLines = maximumLines;
-        }
-
-        /// <inheritdoc />
-        public override Vector2D<float> Measure(Vector2D<float> constraint) =>
-            MeasureText(
-                TextComponent.Text,
-                _style,
-                constraint,
-                _maximumLines ?? GetMaximumLineCount(_style, constraint.Y)
-            );
-
-        /// <inheritdoc />
-        public override void Arrange(Rectangle<float> bounds)
-        {
-            base.Arrange(bounds);
-            ArrangeText(this, bounds, TextComponent);
-        }
-    }
-
-    /// <summary>
-    /// Fits the header's press instruction and arranges its text element.
-    /// </summary>
+    /// <summary>Arranges a fitted text element within the middle header.</summary>
     private sealed class MiddleHeaderElement : Element
     {
-        private readonly ITextStyle _style;
-        private readonly string _label;
-        private readonly TextComponent _text;
-        private readonly TextContentElement _textElement;
+        private readonly TextElement _textElement;
 
-        /// <summary>
-        /// Initializes the middle header around its text element.
-        /// </summary>
-        /// <param name="style">The style used to fit the label.</param>
-        /// <param name="label">The complete press instruction.</param>
-        /// <param name="text">The text component to update.</param>
-        /// <param name="textElement">The element that arranges the text.</param>
-        public MiddleHeaderElement(
-            ITextStyle style,
-            string label,
-            TextComponent text,
-            TextContentElement textElement
-        )
+        /// <summary>Initializes the header around its text element.</summary>
+        /// <param name="textElement">The fitted instruction text.</param>
+        public MiddleHeaderElement(TextElement textElement)
         {
-            _style = style;
-            _label = label;
-            _text = text;
             _textElement = textElement;
             AddChild(textElement);
         }
@@ -454,26 +192,18 @@ internal sealed class HelloNexusSceneFactory(
         public override void Arrange(Rectangle<float> bounds)
         {
             Bounds = bounds;
-            var visibleText = FitTextToWidth(_style, _label, bounds.Size.X);
-            if (_text.Text != visibleText)
-                _text.Text = visibleText;
-
             _textElement.Arrange(bounds);
         }
     }
 
-    /// <summary>
-    /// Arranges the two audio icons around the centered middle header.
-    /// </summary>
+    /// <summary>Arranges the two audio icons around the centered middle header.</summary>
     private sealed class HeaderElement : Element
     {
         private readonly Element _leftIcon;
         private readonly Element _middle;
         private readonly Element _rightIcon;
 
-        /// <summary>
-        /// Initializes the header with its three arranged children.
-        /// </summary>
+        /// <summary>Initializes the header with its three arranged children.</summary>
         /// <param name="leftIcon">The leading audio icon.</param>
         /// <param name="middle">The centered instruction element.</param>
         /// <param name="rightIcon">The trailing audio icon.</param>
@@ -495,7 +225,6 @@ internal sealed class HelloNexusSceneFactory(
         public override void Arrange(Rectangle<float> bounds)
         {
             Bounds = bounds;
-
             const float sectionPadding = 10f;
             const float iconSize = 48f;
             var gutter = MathF.Min(sectionPadding, bounds.Size.X / 2f);
@@ -523,35 +252,19 @@ internal sealed class HelloNexusSceneFactory(
         }
     }
 
-    /// <summary>
-    /// Centers the welcome text and Physics button as one content group.
-    /// </summary>
+    /// <summary>Centers the welcome text and Physics button as one content group.</summary>
     private sealed class MainContentElement : Element
     {
-        private readonly ITextStyle _style;
-        private readonly string _welcomeText;
-        private readonly TextContentElement _welcomeElement;
+        private readonly TextElement _welcomeElement;
         private readonly TextButton _button;
         private readonly float _buttonGap;
 
-        /// <summary>
-        /// Initializes the content group with its text and button children.
-        /// </summary>
-        /// <param name="style">The style used to wrap the welcome text.</param>
-        /// <param name="welcomeText">The complete welcome message.</param>
+        /// <summary>Initializes the content group with its text and button children.</summary>
         /// <param name="welcomeElement">The text element arranged above the button.</param>
         /// <param name="button">The Physics button.</param>
         /// <param name="buttonGap">The vertical gap between text and button.</param>
-        public MainContentElement(
-            ITextStyle style,
-            string welcomeText,
-            TextContentElement welcomeElement,
-            TextButton button,
-            float buttonGap
-        )
+        public MainContentElement(TextElement welcomeElement, TextButton button, float buttonGap)
         {
-            _style = style;
-            _welcomeText = welcomeText;
             _welcomeElement = welcomeElement;
             _button = button;
             _buttonGap = buttonGap;
@@ -568,16 +281,9 @@ internal sealed class HelloNexusSceneFactory(
             Bounds = bounds;
             var buttonSize = _button.Measure(bounds.Size);
             var welcomeAvailableHeight = MathF.Max(0f, bounds.Size.Y - buttonSize.Y - _buttonGap);
-            var wrappedText = WrapText(
-                _welcomeText,
-                _style,
-                bounds.Size.X,
-                GetMaximumLineCount(_style, welcomeAvailableHeight)
+            var welcomeSize = _welcomeElement.Measure(
+                new Vector2D<float>(bounds.Size.X, welcomeAvailableHeight)
             );
-            if (_welcomeElement.TextComponent.Text != wrappedText)
-                _welcomeElement.TextComponent.Text = wrappedText;
-
-            var welcomeSize = MeasureWrappedText(_style, wrappedText);
             var groupHeight = welcomeSize.Y + _buttonGap + buttonSize.Y;
             var groupTop = bounds.Origin.Y + (bounds.Size.Y - groupHeight) / 2f;
             _welcomeElement.Arrange(
