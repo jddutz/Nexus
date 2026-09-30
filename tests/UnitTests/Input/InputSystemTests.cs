@@ -623,18 +623,29 @@ public class InputSystemTests
         var keyboard = new FakeKeyboard(11);
         using var inputSystem = new InputSystem(eventHub);
         var calls = 0;
+        var propertyChanges = new List<string>();
         var firstMap = new InputMap(eventHub);
         firstMap.OnKeyPressed(KeyEnum.Escape).Invoke(() => calls++);
-        var firstScene = new Scene(inputSystem) { InputMap = firstMap };
+        var firstScene = new Scene(inputSystem);
+        firstScene.PropertyChanged += propertyChanges.Add;
+        firstScene.SetInputMap(firstMap);
+        Assert.Equal([nameof(Scene.InputMap)], propertyChanges);
 
         firstScene.Activate();
         Assert.Same(firstMap, inputSystem.CurrentMap);
+
+        var replacementMap = new InputMap(eventHub);
+        firstScene.SetInputMap(replacementMap);
+        Assert.Same(replacementMap, inputSystem.CurrentMap);
+        Assert.Equal(2, propertyChanges.Count);
+
         eventHub.Publish(new KeyPressedEvent(keyboard, KeyEnum.Escape));
         eventHub.Drain();
-        Assert.Equal(1, calls);
+        Assert.Equal(0, calls);
 
         var secondMap = new InputMap(eventHub);
-        var secondScene = new Scene(inputSystem) { InputMap = secondMap };
+        var secondScene = new Scene(inputSystem);
+        secondScene.SetInputMap(secondMap);
         secondScene.Activate();
         firstScene.Deactivate();
         Assert.Same(secondMap, inputSystem.CurrentMap);

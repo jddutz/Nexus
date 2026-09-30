@@ -692,8 +692,8 @@ public sealed class ObservableGenerator : IIncrementalGenerator
 
             foreach (var argument in attribute.NamedArguments)
             {
-                if (argument.Key == "PublicSet" && argument.Value.Value is bool publicSet)
-                    return publicSet;
+                if (argument.Key == "PublicSetter" && argument.Value.Value is bool publicSetter)
+                    return publicSetter;
             }
         }
 

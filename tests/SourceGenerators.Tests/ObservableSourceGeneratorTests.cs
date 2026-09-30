@@ -30,7 +30,7 @@ public sealed class ObservableSourceGeneratorTests
             public sealed class ObservableAttribute(string? propertyName = null) : Attribute
             {
                 public string? PropertyName { get; } = propertyName;
-                public bool PublicSet { get; set; } = true;
+                public bool PublicSetter { get; set; } = true;
             }
 
             public interface IObservable
@@ -182,13 +182,13 @@ public sealed class ObservableSourceGeneratorTests
                 {
                     public partial class Target
                     {
-                        [Nexus.Core.Observable(PublicSet = false)]
+                        [Nexus.Core.Observable(PublicSetter = false)]
                         private int _internal;
 
                         [Nexus.Core.Observable]
                         private int _external;
 
-                        [Nexus.Core.Observable(PublicSet = true)]
+                        [Nexus.Core.Observable(PublicSetter = true)]
                         private int _explicitPublic;
                     }
                 }

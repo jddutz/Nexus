@@ -9,6 +9,8 @@ public partial class Scene : IScene
     private readonly ObservableCollection<ISceneNode> _children = [];
     private readonly Dictionary<SceneNodeId, ISceneNode> _allSceneNodes = [];
     private IInputSystem? _inputSystem;
+
+    [Observable(PublicSetter = true)]
     private InputMap? _inputMap;
 
     [Observable(PublicSetter = false)]
@@ -112,31 +114,6 @@ public partial class Scene : IScene
 
     /// <inheritdoc />
     public event Action<IGameObject>? GameObjectRemoved;
-
-    /// <summary>
-    /// Gets or sets the input map selected while this scene is active.
-    /// </summary>
-    public InputMap? InputMap
-    {
-        get => _inputMap;
-        set
-        {
-            if (ReferenceEquals(_inputMap, value))
-                return;
-
-            var previousMap = _inputMap;
-            _inputMap = value;
-
-            if (
-                _isActive
-                && _inputSystem is not null
-                && ReferenceEquals(_inputSystem.CurrentMap, previousMap)
-            )
-                _inputSystem.CurrentMap = value;
-
-            PropertyChanged?.Invoke(nameof(InputMap));
-        }
-    }
 
     /// <summary>
     /// Gets a scene node by its identifier, or <see langword="null"/> when the identifier is absent.
@@ -245,6 +222,20 @@ public partial class Scene : IScene
 
         _inputSystem = inputSystem;
         if (_isActive && _inputSystem is not null)
+            _inputSystem.CurrentMap = _inputMap;
+    }
+
+    /// <summary>
+    /// Updates the active input system when this scene's input map changes.
+    /// </summary>
+    /// <param name="previousValue">The input map selected before the change.</param>
+    private void AfterInputMapChanges(InputMap? previousValue)
+    {
+        if (
+            _isActive
+            && _inputSystem is not null
+            && ReferenceEquals(_inputSystem.CurrentMap, previousValue)
+        )
             _inputSystem.CurrentMap = _inputMap;
     }
 
