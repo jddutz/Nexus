@@ -13,7 +13,7 @@ public sealed class ObservableAttribute(string? propertyName = null) : Attribute
     public string? PropertyName { get; } = propertyName;
 
     /// <summary>
-    /// Gets or sets whether the generated setter method is protected instead of public.
+    /// Gets or sets whether the generated setter method is public.
     /// </summary>
-    public bool SetterIsProtected { get; set; }
+    public bool PublicSetter { get; set; } = true;
 }

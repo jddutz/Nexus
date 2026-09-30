@@ -9,10 +9,10 @@ public partial class GameObject : IGameObject, IObservable
     private readonly ObservableCollection<ISceneNode> _children = [];
     private ISceneNode? _parent;
 
-    [Observable(SetterIsProtected = true)]
+    [Observable(PublicSetter = false)]
     private bool _isInitialized;
 
-    [Observable(SetterIsProtected = true)]
+    [Observable(PublicSetter = false)]
     private bool _isActivated;
 
     /// <summary>

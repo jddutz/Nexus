@@ -8,10 +8,10 @@ public abstract partial class Component : IComponent
     [Observable]
     private IGameObject? _owner;
 
-    [Observable(SetterIsProtected = true)]
+    [Observable(PublicSetter = false)]
     private bool _isInitialized;
 
-    [Observable(SetterIsProtected = true)]
+    [Observable(PublicSetter = false)]
     private bool _isActivated;
 
     /// <inheritdoc />

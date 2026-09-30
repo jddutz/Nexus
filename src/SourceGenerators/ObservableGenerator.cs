@@ -679,11 +679,11 @@ public sealed class ObservableGenerator : IIncrementalGenerator
     }
 
     /// <summary>
-    /// Determines whether the observable field requests a protected generated setter.
+    /// Determines whether the observable field requests a public generated setter.
     /// </summary>
     /// <param name="field">The field annotated with <see cref="ObservableAttributeName"/>.</param>
-    /// <returns><see langword="true"/> when the generated setter should be protected.</returns>
-    private static bool UsesProtectedSetter(IFieldSymbol field)
+    /// <returns><see langword="true"/> when the generated setter should be public.</returns>
+    private static bool UsesPublicSetter(IFieldSymbol field)
     {
         foreach (var attribute in field.GetAttributes())
         {
@@ -692,12 +692,12 @@ public sealed class ObservableGenerator : IIncrementalGenerator
 
             foreach (var argument in attribute.NamedArguments)
             {
-                if (argument.Key == "SetterIsProtected" && argument.Value.Value is true)
-                    return true;
+                if (argument.Key == "PublicSet" && argument.Value.Value is bool publicSet)
+                    return publicSet;
             }
         }
 
-        return false;
+        return true;
     }
 
     /// Emits the property, typed event, and setter for a single backing field.
@@ -770,7 +770,7 @@ public sealed class ObservableGenerator : IIncrementalGenerator
         builder.AppendLine("    /// <param name=\"value\">The value to assign.</param>");
         builder
             .Append("    ")
-            .Append(UsesProtectedSetter(plan.Field) ? "protected" : "public")
+            .Append(UsesPublicSetter(plan.Field) ? "public" : "protected")
             .Append(" virtual void ")
             .Append(setterName)
             .Append('(')

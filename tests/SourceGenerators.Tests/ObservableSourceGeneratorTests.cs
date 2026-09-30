@@ -30,7 +30,7 @@ public sealed class ObservableSourceGeneratorTests
             public sealed class ObservableAttribute(string? propertyName = null) : Attribute
             {
                 public string? PropertyName { get; } = propertyName;
-                public bool SetterIsProtected { get; set; }
+                public bool PublicSet { get; set; } = true;
             }
 
             public interface IObservable
@@ -170,10 +170,10 @@ public sealed class ObservableSourceGeneratorTests
     }
 
     /// <summary>
-    /// Verifies setter accessibility can be configured without changing its public default.
+    /// Verifies generated setters are public by default and can be protected explicitly.
     /// </summary>
     [Fact]
-    public void SetterAccessibilityCanBeConfigured()
+    public void SettersArePublicByDefaultAndCanBeProtected()
     {
         var source =
             ObservableContract
@@ -182,11 +182,14 @@ public sealed class ObservableSourceGeneratorTests
                 {
                     public partial class Target
                     {
-                        [Nexus.Core.Observable(SetterIsProtected = true)]
+                        [Nexus.Core.Observable(PublicSet = false)]
                         private int _internal;
 
                         [Nexus.Core.Observable]
                         private int _external;
+
+                        [Nexus.Core.Observable(PublicSet = true)]
+                        private int _explicitPublic;
                     }
                 }
                 """;
@@ -201,6 +204,11 @@ public sealed class ObservableSourceGeneratorTests
         );
         Assert.Contains(
             "public virtual void SetExternal(int value)",
+            generated,
+            StringComparison.Ordinal
+        );
+        Assert.Contains(
+            "public virtual void SetExplicitPublic(int value)",
             generated,
             StringComparison.Ordinal
         );

@@ -3,18 +3,18 @@ namespace Nexus.Game;
 /// <summary>
 /// Provides the root node and node lookup for a scene hierarchy.
 /// </summary>
-public class Scene : IScene
+public partial class Scene : IScene
 {
     private readonly SceneNodeId _sceneNodeId = SceneNodeId.New();
     private readonly ObservableCollection<ISceneNode> _children = [];
     private readonly Dictionary<SceneNodeId, ISceneNode> _allSceneNodes = [];
-    private readonly Dictionary<
-        ISceneNode,
-        (Action<ISceneNode> Added, Action<ISceneNode> Removed)
-    > _childCollectionHandlers = new(ReferenceEqualityComparer.Instance);
     private IInputSystem? _inputSystem;
     private InputMap? _inputMap;
+
+    [Observable(PublicSetter = false)]
     private bool _isInitialized;
+
+    [Observable(PublicSetter = false)]
     private bool _isActive;
 
     /// <summary>
@@ -40,6 +40,8 @@ public class Scene : IScene
     {
         Id = sceneId;
         _inputSystem = inputSystem;
+        _children.ItemAdded += OnRootChildAdded;
+        _children.ItemRemoved += OnRootChildRemoved;
         _allSceneNodes.Add(_sceneNodeId, this);
         SubscribeToChildren(this);
 
@@ -94,13 +96,7 @@ public class Scene : IScene
     internal RenderLayerCollection Layers { get; }
 
     /// <inheritdoc />
-    public bool IsInitialized => _isInitialized;
-
-    /// <inheritdoc />
     public bool IsActivated => _isActive;
-
-    /// <inheritdoc />
-    public bool IsActive => _isActive;
 
     /// <inheritdoc />
     public event Action<string>? PropertyChanged;
@@ -156,8 +152,7 @@ public class Scene : IScene
         if (_isInitialized)
             return;
 
-        _isInitialized = true;
-        PropertyChanged?.Invoke(nameof(IsInitialized));
+        SetIsInitialized(true);
     }
 
     /// <inheritdoc />
@@ -169,11 +164,10 @@ public class Scene : IScene
         if (_isActive || !CanActivate())
             return;
 
-        _isActive = true;
+        SetIsActive(true);
         if (_inputSystem is not null)
             _inputSystem.CurrentMap = _inputMap;
 
-        PropertyChanged?.Invoke(nameof(IsActive));
         PropertyChanged?.Invoke(nameof(IsActivated));
     }
 
@@ -189,8 +183,7 @@ public class Scene : IScene
         if (_inputSystem is not null && ReferenceEquals(_inputSystem.CurrentMap, _inputMap))
             _inputSystem.CurrentMap = null;
 
-        _isActive = false;
-        PropertyChanged?.Invoke(nameof(IsActive));
+        SetIsActive(false);
         PropertyChanged?.Invoke(nameof(IsActivated));
     }
 
@@ -261,11 +254,8 @@ public class Scene : IScene
     /// <param name="node">The scene node to observe.</param>
     private void SubscribeToChildren(ISceneNode node)
     {
-        Action<ISceneNode> addedHandler = child => OnChildAdded(node, child);
-        Action<ISceneNode> removedHandler = child => OnChildRemoved(node, child);
-        _childCollectionHandlers.Add(node, (addedHandler, removedHandler));
-        node.Children.ItemAdded += addedHandler;
-        node.Children.ItemRemoved += removedHandler;
+        node.Children.ItemAdded += OnChildAdded;
+        node.Children.ItemRemoved += OnChildRemoved;
 
         if (node is IGameObject gameObject)
         {
@@ -280,11 +270,8 @@ public class Scene : IScene
     /// <param name="node">The scene node to stop observing.</param>
     private void UnsubscribeFromChildren(ISceneNode node)
     {
-        if (_childCollectionHandlers.Remove(node, out var handlers))
-        {
-            node.Children.ItemAdded -= handlers.Added;
-            node.Children.ItemRemoved -= handlers.Removed;
-        }
+        node.Children.ItemAdded -= OnChildAdded;
+        node.Children.ItemRemoved -= OnChildRemoved;
 
         if (node is IGameObject gameObject)
         {
@@ -296,15 +283,9 @@ public class Scene : IScene
     /// <summary>
     /// Registers an added child and all of its existing descendants in this scene.
     /// </summary>
-    /// <param name="parent">The parent whose child collection changed.</param>
     /// <param name="child">The added child.</param>
-    private void OnChildAdded(ISceneNode parent, ISceneNode child)
+    private void OnChildAdded(ISceneNode child)
     {
-        if (child.Parent is null)
-            child.Parent = parent;
-        else if (!ReferenceEquals(child.Parent, parent))
-            throw new InvalidOperationException("Scene node already belongs to another parent.");
-
         if (child.Scene is not null && !ReferenceEquals(child.Scene, this))
             throw new InvalidOperationException("Scene node already belongs to another scene.");
 
@@ -321,7 +302,7 @@ public class Scene : IScene
         }
         catch
         {
-            parent.Children.Remove(child);
+            child.Parent?.Children.Remove(child);
             throw;
         }
 
@@ -343,19 +324,14 @@ public class Scene : IScene
     /// <summary>
     /// Unregisters a removed child and all of its descendants from this scene.
     /// </summary>
-    /// <param name="parent">The parent whose child collection changed.</param>
     /// <param name="child">The removed child.</param>
-    private void OnChildRemoved(ISceneNode parent, ISceneNode child)
+    private void OnChildRemoved(ISceneNode child)
     {
         if (
             !_allSceneNodes.TryGetValue(child.Id, out var registeredNode)
             || !ReferenceEquals(registeredNode, child)
         )
-        {
-            if (ReferenceEquals(child.Parent, parent))
-                child.Parent = null;
             return;
-        }
 
         var removedNodes = EnumerateSubtree(child).ToArray();
         if (_isActive)
@@ -382,8 +358,27 @@ public class Scene : IScene
             if (ReferenceEquals(node.Scene, this))
                 node.Scene = null;
         }
+    }
 
-        if (ReferenceEquals(child.Parent, parent))
+    /// <summary>
+    /// Sets the scene as the parent of a newly added root node.
+    /// </summary>
+    /// <param name="child">The root node added to this scene.</param>
+    private void OnRootChildAdded(ISceneNode child)
+    {
+        if (child.Parent is null)
+            child.Parent = this;
+        else if (!ReferenceEquals(child.Parent, this))
+            throw new InvalidOperationException("Scene node already belongs to another parent.");
+    }
+
+    /// <summary>
+    /// Clears the scene parent of a removed root node.
+    /// </summary>
+    /// <param name="child">The root node removed from this scene.</param>
+    private void OnRootChildRemoved(ISceneNode child)
+    {
+        if (ReferenceEquals(child.Parent, this))
             child.Parent = null;
     }
 
