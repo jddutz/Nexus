@@ -3,12 +3,9 @@ namespace Nexus.GUI.Elements;
 /// <summary>Lays out, clips, and renders one texture image inside its assigned rectangle.</summary>
 public sealed class ImageElement : Element
 {
-    private const int MaximumImageQuadCount = 1_000_000;
-
     private readonly List<IGameObject> _visibilityAncestors = [];
     private ImageSource _imageSource;
     private SizingMode _sizingMode;
-    private TileMode _tileMode;
     private AlignHorizontal _horizontalAlignment = AlignHorizontal.Center;
     private AlignVertical _verticalAlignment = AlignVertical.Center;
     private Vector2D<float>? _customSize;
@@ -18,9 +15,6 @@ public sealed class ImageElement : Element
     private ulong _renderLayerMask = ulong.MaxValue;
     private TextureComponent? _imageComponent;
     private Rectangle<float>? _layoutBounds;
-    private Rectangle<float>? _cachedLayoutBounds;
-    private ImageInstanceLayout _cachedLayout = ImageInstanceLayout.Empty;
-    private bool _geometryDirty = true;
 
     /// <summary>Gets or sets the texture and pixel-space image region used by this element.</summary>
     public ImageSource ImageSource
@@ -34,7 +28,7 @@ public sealed class ImageElement : Element
         }
     }
 
-    /// <summary>Gets or sets the sizing rule used to determine the image's tile size.</summary>
+    /// <summary>Gets or sets the sizing rule used to determine the image's size.</summary>
     public SizingMode SizingMode
     {
         get => _sizingMode;
@@ -58,20 +52,7 @@ public sealed class ImageElement : Element
     /// <summary>Gets the custom normalized source rectangle used by custom sizing.</summary>
     public Vector4D<float>? CustomTexCoord => _customTexCoord;
 
-    /// <summary>Gets or sets which axes repeat the image tile.</summary>
-    public TileMode TileMode
-    {
-        get => _tileMode;
-        set
-        {
-            if (!Enum.IsDefined(value))
-                throw new ArgumentOutOfRangeException(nameof(value));
-            if (SetProperty(ref _tileMode, value))
-                InvalidateGeometry();
-        }
-    }
-
-    /// <summary>Gets or sets horizontal placement and repeat-pattern anchoring.</summary>
+    /// <summary>Gets or sets horizontal placement within the assigned rectangle.</summary>
     public AlignHorizontal HorizontalAlignment
     {
         get => _horizontalAlignment;
@@ -84,7 +65,7 @@ public sealed class ImageElement : Element
         }
     }
 
-    /// <summary>Gets or sets vertical placement and repeat-pattern anchoring.</summary>
+    /// <summary>Gets or sets vertical placement within the assigned rectangle.</summary>
     public AlignVertical VerticalAlignment
     {
         get => _verticalAlignment;
@@ -192,7 +173,6 @@ public sealed class ImageElement : Element
     /// <summary>Invalidates cached quads and reapplies the last parent-assigned rectangle.</summary>
     private void InvalidateGeometry()
     {
-        _geometryDirty = true;
         if (_layoutBounds is { } bounds)
             Arrange(bounds);
     }
@@ -207,42 +187,79 @@ public sealed class ImageElement : Element
             return;
         }
 
-        var layout = GetImageLayout(bounds);
-        if (layout.InstanceCount == 0)
+        if (bounds.Size.X <= 0f || bounds.Size.Y <= 0f)
         {
             RemoveVisualComponent();
             Bounds = EmptyBounds;
             return;
         }
 
+        var imageSize = GetImageSize(bounds.Size);
+        var imageX = GetHorizontalOffset(bounds.Size.X, imageSize.X);
+        var imageY = GetVerticalOffset(bounds.Size.Y, imageSize.Y);
+        var left = MathF.Max(0f, imageX);
+        var top = MathF.Max(0f, imageY);
+        var right = MathF.Min(bounds.Size.X, imageX + imageSize.X);
+        var bottom = MathF.Min(bounds.Size.Y, imageY + imageSize.Y);
+        if (right <= left || bottom <= top)
+        {
+            RemoveVisualComponent();
+            Bounds = EmptyBounds;
+            return;
+        }
+
+        var sourceTexCoord = GetActiveTexCoord();
+        var leftFraction = (left - imageX) / imageSize.X;
+        var topFraction = (top - imageY) / imageSize.Y;
+        var rightFraction = (right - imageX) / imageSize.X;
+        var bottomFraction = (bottom - imageY) / imageSize.Y;
+        var texCoord = new Vector4D<float>(
+            sourceTexCoord.X + leftFraction * sourceTexCoord.Z,
+            sourceTexCoord.Y + topFraction * sourceTexCoord.W,
+            (rightFraction - leftFraction) * sourceTexCoord.Z,
+            (bottomFraction - topFraction) * sourceTexCoord.W
+        );
+
         Position = bounds.Origin;
-        Bounds = layout.GetBounds(bounds.Origin);
+        Bounds = new Rectangle<float>(
+            bounds.Origin.X + left,
+            bounds.Origin.Y + top,
+            right - left,
+            bottom - top
+        );
         if (_imageComponent is null)
         {
             _imageComponent = new TextureComponent();
             AddComponent(_imageComponent);
         }
 
-        SynchronizeVisualComponent(_imageComponent, bounds, layout);
+        SynchronizeVisualComponent(
+            _imageComponent,
+            new Vector2D<float>(right - left, bottom - top),
+            new Vector2D<float>(left, top),
+            texCoord
+        );
     }
 
     /// <summary>Applies retained source and visual settings to the current texture component.</summary>
     /// <param name="component">The owned visual component.</param>
-    /// <param name="bounds">The assigned layout rectangle.</param>
-    /// <param name="quads">The arranged image quads.</param>
+    /// <param name="size">The clipped destination size.</param>
+    /// <param name="offset">The clipped destination offset within the element.</param>
+    /// <param name="texCoord">The clipped normalized source rectangle.</param>
     private void SynchronizeVisualComponent(
         TextureComponent component,
-        Rectangle<float> bounds,
-        ImageInstanceLayout layout
+        Vector2D<float> size,
+        Vector2D<float> offset,
+        Vector4D<float> texCoord
     )
     {
         component.Texture = _imageSource.Texture;
-        component.TexCoord = GetActiveTexCoord();
-        component.Size = GetImageSize(bounds.Size);
+        component.Size = size;
+        component.TransformationMatrix = Matrix4X4.CreateTranslation(offset.X, offset.Y, 0f);
+        component.TexCoord = texCoord;
         component.Color = _color;
         component.SamplingBehavior = _samplingBehavior;
         component.RenderLayerMask = _renderLayerMask;
-        component.SetInstanceGeometry(layout.InstanceCount, layout.GetInstance);
     }
 
     /// <summary>Removes the current visual component while retaining image configuration.</summary>
@@ -252,121 +269,6 @@ public sealed class ImageElement : Element
         _imageComponent = null;
         if (component is not null)
             RemoveComponent(component);
-    }
-
-    /// <summary>Gets the cached or newly arranged indexed instance layout.</summary>
-    /// <param name="bounds">The parent-assigned rectangle.</param>
-    /// <returns>The clipped indexed image instance layout.</returns>
-    private ImageInstanceLayout GetImageLayout(Rectangle<float> bounds)
-    {
-        if (!_geometryDirty && _cachedLayoutBounds == bounds)
-            return _cachedLayout;
-
-        _cachedLayout = CreateImageLayout(bounds.Size);
-        _cachedLayoutBounds = bounds;
-        _geometryDirty = false;
-        return _cachedLayout;
-    }
-
-    /// <summary>Creates an indexed layout for the current sizing, alignment, and tiling settings.</summary>
-    /// <param name="availableSize">The assigned rectangle's size.</param>
-    /// <returns>The clipped indexed image layout.</returns>
-    private ImageInstanceLayout CreateImageLayout(Vector2D<float> availableSize)
-    {
-        if (availableSize.X <= 0f || availableSize.Y <= 0f)
-            return ImageInstanceLayout.Empty;
-
-        var imageSize = GetImageSize(availableSize);
-        var tileHorizontally = _tileMode is TileMode.Horizontal or TileMode.Both;
-        var tileVertically = _tileMode is TileMode.Vertical or TileMode.Both;
-        var xPositions = GetTilePositions(
-            availableSize.X,
-            imageSize.X,
-            tileHorizontally,
-            _horizontalAlignment == AlignHorizontal.Left,
-            _horizontalAlignment == AlignHorizontal.Right
-        );
-        var yPositions = GetTilePositions(
-            availableSize.Y,
-            imageSize.Y,
-            tileVertically,
-            _verticalAlignment == AlignVertical.Top,
-            _verticalAlignment == AlignVertical.Bottom
-        );
-        var instanceCount = checked((long)xPositions.Count * yPositions.Count);
-        if (instanceCount > MaximumImageQuadCount)
-            throw new InvalidOperationException(
-                $"The image arrangement exceeds the maximum of {MaximumImageQuadCount} instances."
-            );
-
-        return new ImageInstanceLayout(
-            availableSize,
-            imageSize,
-            xPositions,
-            yPositions,
-            GetActiveTexCoord()
-        );
-    }
-
-    /// <summary>Computes tile origins using the selected alignment as a repeat-pattern anchor.</summary>
-    /// <param name="available">The available axis extent.</param>
-    /// <param name="tileSize">The positive image tile extent.</param>
-    /// <param name="tiled">Whether to repeat along this axis.</param>
-    /// <param name="leading">Whether to anchor at the leading edge.</param>
-    /// <param name="trailing">Whether to anchor at the trailing edge.</param>
-    /// <returns>The tile origins that intersect the available axis.</returns>
-    private static List<double> GetTilePositions(
-        float available,
-        float tileSize,
-        bool tiled,
-        bool leading,
-        bool trailing
-    )
-    {
-        if (!tiled)
-            return
-            [
-                leading ? 0d
-                : trailing ? available - tileSize
-                : (available - tileSize) / 2d,
-            ];
-
-        var tileRatio = (double)available / tileSize;
-        if (!double.IsFinite(tileRatio))
-            throw new InvalidOperationException("The image tile count is not finite.");
-        var tileCount = Math.Max(1L, checked((long)Math.Ceiling(tileRatio)));
-        if (tileCount > MaximumImageQuadCount)
-            throw new InvalidOperationException(
-                $"The image arrangement exceeds the maximum of {MaximumImageQuadCount} tiles on an axis."
-            );
-
-        var positions = new List<double>();
-        if (leading)
-        {
-            for (long index = 0; index < tileCount; index++)
-                positions.Add(index * (double)tileSize);
-        }
-        else if (trailing)
-        {
-            for (long index = 0; index < tileCount; index++)
-                positions.Add(available - tileSize - index * (double)tileSize);
-        }
-        else
-        {
-            var centerTile = (available - tileSize) / 2d;
-            for (var index = -tileCount; index <= tileCount; index++)
-            {
-                var position = centerTile + index * (double)tileSize;
-                if (position < available && position + tileSize > 0d)
-                    positions.Add(position);
-            }
-        }
-
-        if (positions.Count > MaximumImageQuadCount)
-            throw new InvalidOperationException(
-                $"The image arrangement exceeds the maximum of {MaximumImageQuadCount} tiles on an axis."
-            );
-        return positions;
     }
 
     /// <summary>Calculates the uncapped image size for the selected sizing mode.</summary>
@@ -408,6 +310,32 @@ public sealed class ImageElement : Element
 
         return imageSize;
     }
+
+    /// <summary>Gets the horizontal offset for the selected image alignment.</summary>
+    /// <param name="availableSize">The assigned rectangle width.</param>
+    /// <param name="imageSize">The rendered image width before clipping.</param>
+    /// <returns>The image's left edge in element-local coordinates.</returns>
+    private float GetHorizontalOffset(float availableSize, float imageSize) =>
+        _horizontalAlignment switch
+        {
+            AlignHorizontal.Left => 0f,
+            AlignHorizontal.Center => (availableSize - imageSize) / 2f,
+            AlignHorizontal.Right => availableSize - imageSize,
+            _ => throw new InvalidOperationException(),
+        };
+
+    /// <summary>Gets the vertical offset for the selected image alignment.</summary>
+    /// <param name="availableSize">The assigned rectangle height.</param>
+    /// <param name="imageSize">The rendered image height before clipping.</param>
+    /// <returns>The image's top edge in element-local coordinates.</returns>
+    private float GetVerticalOffset(float availableSize, float imageSize) =>
+        _verticalAlignment switch
+        {
+            AlignVertical.Top => 0f,
+            AlignVertical.Center => (availableSize - imageSize) / 2f,
+            AlignVertical.Bottom => availableSize - imageSize,
+            _ => throw new InvalidOperationException(),
+        };
 
     /// <summary>Gets the currently selected normalized source rectangle.</summary>
     /// <returns>The custom UV rectangle in custom mode, or the source pixel rectangle normalized.</returns>

@@ -33,7 +33,7 @@ public class GameObject2D : GameObject, IGameObject2D
     protected override void OnHierarchyChanged()
     {
         base.OnHierarchyChanged();
-        if (IsActive)
+        if (IsActivated)
             UpdateSpatialParentSubscription(true);
     }
 
@@ -57,11 +57,11 @@ public class GameObject2D : GameObject, IGameObject2D
     /// <returns>The nearest spatial ancestor, or <see langword="null"/>.</returns>
     private IGameObject? FindNearestSpatialAncestor()
     {
-        var ancestor = Parent;
+        var ancestor = Parent as IGameObject;
         while (
             ancestor is not null && ancestor is not IGameObject2D && ancestor is not IGameObject3D
         )
-            ancestor = ancestor.Parent;
+            ancestor = ancestor.Parent as IGameObject;
 
         return ancestor;
     }
@@ -72,7 +72,7 @@ public class GameObject2D : GameObject, IGameObject2D
     /// <param name="notifyWorldTransformChanged">Whether to notify when the ancestor changes.</param>
     private void UpdateSpatialParentSubscription(bool notifyWorldTransformChanged)
     {
-        var spatialParent = IsActive ? FindNearestSpatialAncestor() : null;
+        var spatialParent = IsActivated ? FindNearestSpatialAncestor() : null;
         if (ReferenceEquals(_spatialParent, spatialParent))
             return;
 
@@ -160,11 +160,10 @@ public class GameObject2D : GameObject, IGameObject2D
     /// <summary>
     /// Propagates a nearest spatial ancestor's world-transform change.
     /// </summary>
-    /// <param name="sender">The spatial ancestor that changed.</param>
-    /// <param name="e">The property change event data.</param>
-    private void OnSpatialParentPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    /// <param name="propertyName">The name of the changed property.</param>
+    private void OnSpatialParentPropertyChanged(string propertyName)
     {
-        if (e.PropertyName == nameof(IGameObject2D.WorldTransform))
+        if (propertyName == nameof(IGameObject2D.WorldTransform))
             OnPropertyChanged(nameof(WorldTransform));
     }
 }

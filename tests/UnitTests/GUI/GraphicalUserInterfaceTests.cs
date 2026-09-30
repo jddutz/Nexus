@@ -62,7 +62,9 @@ public class GraphicalUserInterfaceTests
             {
                 layoutCount++;
                 foreach (
-                    var child in element.Children.OfType<Element>().Where(child => child.IsActive)
+                    var child in element
+                        .Children.OfType<Element>()
+                        .Where(child => child.IsActivated)
                 )
                     child.Arrange(bounds);
             }

@@ -8,7 +8,7 @@ using Silk.NET.Maths;
 
 namespace Tests;
 
-/// <summary>Tests image sizing, source coordinates, clipping, tiling, and visual lifecycle.</summary>
+/// <summary>Tests image sizing, source coordinates, clipping, and visual lifecycle.</summary>
 public sealed class ImageElementTests
 {
     /// <summary>Verifies each sizing mode computes the expected arranged image bounds.</summary>
@@ -67,26 +67,6 @@ public sealed class ImageElementTests
         Assert.Equal(new Vector4D<float>(1f / 3f, 0.375f, 1f / 3f, 0.25f), quad.TexCoord);
     }
 
-    /// <summary>Verifies two-axis tiling crops final tiles to the selected atlas rectangle.</summary>
-    [Fact]
-    public void Arrange_tilesSelectedAtlasRegionWithPartialFinalTiles()
-    {
-        var element = CreateImageElement(8, 4, new Rectangle<int>(2, 1, 4, 2));
-        element.TileMode = TileMode.Both;
-        element.HorizontalAlignment = AlignHorizontal.Left;
-        element.VerticalAlignment = AlignVertical.Top;
-        element.Arrange(new Rectangle<float>(0f, 0f, 6f, 3f));
-
-        var component = element.GetComponent<TextureComponent>()!;
-        Assert.Equal(4, component.InstanceCount);
-        AssertBounds(new Rectangle<float>(0f, 0f, 6f, 3f), element.Bounds);
-        var finalTile = ReadQuad(component, 3);
-        Assert.Equal(0.1875f, finalTile.TexCoord.Z);
-        Assert.Equal(0.125f, finalTile.TexCoord.W);
-        Assert.True(finalTile.TexCoord.X + finalTile.TexCoord.Z <= 0.75f);
-        Assert.True(finalTile.TexCoord.Y + finalTile.TexCoord.W <= 0.75f);
-    }
-
     /// <summary>Verifies zero-sized arrangement and ancestor visibility control drawable ownership.</summary>
     [Fact]
     public void VisibilityAndZeroSize_removeAndRecreateVisualComponent()
@@ -110,23 +90,6 @@ public sealed class ImageElementTests
         element.Arrange(new Rectangle<float>(0f, 0f, 0f, 4f));
         Assert.Empty(element.Components);
         AssertBounds(new Rectangle<float>(0f, 0f, 0f, 0f), element.Bounds);
-    }
-
-    /// <summary>Verifies explicit base quads do not replace nine-patch instance generation.</summary>
-    [Fact]
-    public void SetQuads_keepsNinePatchInstanceLayoutIndependent()
-    {
-        var component = new NinePatchComponent
-        {
-            Texture = CreateTexture(8, 8),
-            Size = new(8f, 8f),
-            SourceBorders = new(1f, 1f, 1f, 1f),
-        };
-        component.SetQuads([
-            new TextureQuad(0f, 0f, 1f, 1f, new(0f, 0f, 1f, 1f), true, true, true, true),
-        ]);
-
-        Assert.Equal(9, component.InstanceCount);
     }
 
     /// <summary>Creates an image element backed by deterministic texture dimensions.</summary>

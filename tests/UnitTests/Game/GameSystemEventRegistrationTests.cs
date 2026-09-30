@@ -98,7 +98,7 @@ public class GameSystemEventRegistrationTests
         Assert.Equal(1, rootComponent.GlobalEventCount);
         Assert.Equal(1, childComponent.GlobalEventCount);
 
-        gameSystem.UnregisterGameObject(root);
+        gameSystem.Unregister(root);
         eventHub.Publish(new ProbeEvent());
         eventHub.Drain();
 

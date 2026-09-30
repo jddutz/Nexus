@@ -461,12 +461,10 @@ public sealed class TextComponentTests
             _gameObjects.GetValueOrDefault(gameObjectId);
 
         /// <inheritdoc/>
-        public void RegisterGameObject(IGameObject gameObject) =>
-            _gameObjects[gameObject.Id] = gameObject;
+        public void Register(IGameObject gameObject) => _gameObjects[gameObject.Id] = gameObject;
 
         /// <inheritdoc/>
-        public void UnregisterGameObject(IGameObject gameObject) =>
-            _gameObjects.Remove(gameObject.Id);
+        public void Unregister(IGameObject gameObject) => _gameObjects.Remove(gameObject.Id);
     }
 
     private sealed class TestTextStyle(

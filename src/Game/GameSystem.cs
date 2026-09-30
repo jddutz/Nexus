@@ -82,7 +82,7 @@ public class GameSystem(
     }
 
     /// <inheritdoc/>
-    public void RegisterGameObject(IGameObject gameObject)
+    public void Register(IGameObject gameObject)
     {
         ArgumentNullException.ThrowIfNull(gameObject);
         _gameObjects[gameObject.Id] = gameObject;
@@ -90,7 +90,7 @@ public class GameSystem(
     }
 
     /// <inheritdoc/>
-    public void UnregisterGameObject(IGameObject gameObject)
+    public void Unregister(IGameObject gameObject)
     {
         ArgumentNullException.ThrowIfNull(gameObject);
         _gameObjects.Remove(gameObject.Id);

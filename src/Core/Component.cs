@@ -1,107 +1,141 @@
 namespace Nexus.Core;
 
-public abstract class Component : ObservableObject, IComponent
+/// <summary>
+/// Provides the default identity, ownership, observation, and lifecycle behavior for a component.
+/// </summary>
+public abstract partial class Component : IComponent
 {
-    private IGameObject? _gameObject;
-    private bool _isActivated;
+    [Observable]
+    private IGameObject? _owner;
+
+    [Observable(SetterIsProtected = true)]
     private bool _isInitialized;
 
-    /// <inheritdoc />
-    public abstract string DisplayName { get; }
-
-    /// <summary>
-    /// Gets the identifier of the game object that owns this component.
-    /// </summary>
-    public GameObjectId GameObjectId => _gameObject?.Id ?? GameObjectId.Invalid;
-
-    /// <summary>
-    /// Gets the game model that owns this component's game object.
-    /// </summary>
-    public IGameModel? GameModel => _gameObject?.GameModel;
-
-    /// <inheritdoc/>
-    public void SetGameObject(IGameObject? gameObject)
-    {
-        if (ReferenceEquals(_gameObject, gameObject))
-            return;
-
-        if (_gameObject is not null)
-            _gameObject.PropertyChanged -= OnGameObjectPropertyChanged;
-
-        _gameObject = gameObject;
-
-        if (_gameObject is not null)
-            _gameObject.PropertyChanged += OnGameObjectPropertyChanged;
-
-        OnOwnerChanged();
-    }
+    [Observable(SetterIsProtected = true)]
+    private bool _isActivated;
 
     /// <inheritdoc />
-    public void Initialize()
-    {
-        if (_isInitialized)
-            return;
+    public event Action<string>? PropertyChanged;
 
-        OnInitialize();
-        _isInitialized = true;
-    }
+    /// <inheritdoc />
+    public event EventHandler? Modified;
 
-    /// <summary>
-    /// Gets the unique identifier for this component.
-    /// </summary>
+    /// <inheritdoc />
+    public virtual string DisplayName => GetType().Name;
+
+    /// <inheritdoc />
     public ComponentId Id { get; } = ComponentId.New();
 
-    /// <summary>
-    /// Gets or sets a value indicating whether this component is activated.
-    /// </summary>
-    public bool IsActivated
+    /// <inheritdoc />
+    public virtual void Initialize()
     {
-        get => _isActivated;
-        set => SetProperty(ref _isActivated, value);
+        if (IsInitialized)
+            return;
+
+        SetIsInitialized(true);
+        OnInitialize();
+    }
+
+    /// <inheritdoc />
+    public virtual bool CanActivate() => true;
+
+    /// <inheritdoc />
+    public virtual void Activate()
+    {
+        SetIsActivated(CanActivate());
+    }
+
+    /// <inheritdoc />
+    public virtual void Update(double deltaTime)
+    {
+        // Intentionally a no-op.
+    }
+
+    /// <inheritdoc />
+    public virtual void Deactivate()
+    {
+        SetIsActivated(false);
     }
 
     /// <summary>
-    /// Occurs when this component's effective state has changed, whether from one of its own
-    /// properties or from a change on its owning game object.
-    /// </summary>
-    public event EventHandler? Changed;
-
-    /// <summary>
-    /// Raises <see cref="Changed"/> in addition to <see cref="ObservableObject.PropertyChanged"/>,
-    /// since any change to a component's own property alters its effective state.
-    /// </summary>
-    /// <param name="propertyName">The name of the changed property, supplied automatically by the compiler.</param>
-    protected override void OnPropertyChanged([CallerMemberName] string? propertyName = null)
-    {
-        base.OnPropertyChanged(propertyName);
-        OnChanged();
-    }
-
-    /// <summary>
-    /// Responds to a property change on the owning game object. The default implementation
-    /// conservatively treats any owner change as invalidating this component's effective state.
-    /// </summary>
-    /// <param name="e">The event data describing which owner property changed.</param>
-    protected virtual void OnOwnerPropertyChanged(PropertyChangedEventArgs e) => OnChanged();
-
-    /// <summary>
-    /// Responds when this component is attached to or detached from a game object.
-    /// </summary>
-    protected virtual void OnOwnerChanged() => OnChanged();
-
-    /// <summary>
-    /// Performs one-time initialization before this component is activated.
+    /// Performs component-specific initialization after the initialized state changes.
     /// </summary>
     protected virtual void OnInitialize() { }
 
     /// <summary>
-    /// Raises <see cref="Changed"/>.
+    /// Handles a change to this component's owner.
     /// </summary>
-    protected virtual void OnChanged() => Changed?.Invoke(this, EventArgs.Empty);
+    protected virtual void OnOwnerChanged()
+    {
+        Modified?.Invoke(this, EventArgs.Empty);
+    }
 
     /// <summary>
-    /// Forwards a property-changed notification from the owning game object.
+    /// Handles a property change on this component's owner.
     /// </summary>
-    private void OnGameObjectPropertyChanged(object? sender, PropertyChangedEventArgs e) =>
-        OnOwnerPropertyChanged(e);
+    /// <param name="propertyName">The name of the changed owner property.</param>
+    protected virtual void OnOwnerPropertyChanged(string propertyName)
+    {
+        Modified?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Updates owner property subscriptions after the owner changes.
+    /// </summary>
+    /// <param name="previousValue">The previous owner.</param>
+    private void AfterOwnerChanges(IGameObject? previousValue)
+    {
+        if (previousValue is not null)
+            previousValue.PropertyChanged -= OnOwnerPropertyChanged;
+
+        if (Owner is not null)
+            Owner.PropertyChanged += OnOwnerPropertyChanged;
+
+        OnOwnerChanged();
+    }
+
+    /// <summary>
+    /// Sets a field and raises a property-change notification when its value changes.
+    /// </summary>
+    /// <typeparam name="T">The field's value type.</typeparam>
+    /// <param name="field">The field to update.</param>
+    /// <param name="value">The value to assign.</param>
+    /// <param name="propertyName">The name of the associated property.</param>
+    /// <returns><see langword="true"/> if the field changed; otherwise, <see langword="false"/>.</returns>
+    protected bool SetProperty<T>(ref T field, T value, [CallerMemberName] string propertyName = "")
+    {
+        if (EqualityComparer<T>.Default.Equals(field, value))
+            return false;
+
+        field = value;
+        OnPropertyChanged(propertyName);
+        return true;
+    }
+
+    /// <summary>
+    /// Raises the <see cref="PropertyChanged"/> event for the specified property.
+    /// </summary>
+    /// <param name="propertyName">The name of the changed property.</param>
+    protected void OnPropertyChanged(string propertyName)
+    {
+        PropertyChanged?.Invoke(propertyName);
+    }
+
+    /// <summary>
+    /// Raises <see cref="Modified"/> after the initialization state changes.
+    /// </summary>
+    /// <param name="previousValue">The initialization state before the change.</param>
+    private void AfterIsInitializedChanges(bool previousValue)
+    {
+        Modified?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Raises <see cref="Modified"/> after the activation state changes.
+    /// </summary>
+    /// <param name="previousValue">The activation state before the change.</param>
+    private void AfterIsActivatedChanges(bool previousValue)
+    {
+        Modified?.Invoke(this, EventArgs.Empty);
+    }
 }

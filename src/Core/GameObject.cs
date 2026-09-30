@@ -3,61 +3,17 @@ namespace Nexus.Core;
 /// <summary>
 /// Provides the default implementation of a game object.
 /// </summary>
-public class GameObject : ObservableObject, IGameObject
+public partial class GameObject : IGameObject, IObservable
 {
-    private readonly List<IGameObject> _children = [];
-    private readonly List<IComponent> _components = [];
-    private bool _isActive;
+    private readonly ObservableCollection<IComponent> _components = [];
+    private readonly ObservableCollection<IGameObject> _children = [];
+    private ISceneNode? _parent;
 
-    /// <summary>
-    /// Gets the unique identifier for this game object.
-    /// </summary>
-    public GameObjectId Id { get; }
+    [Observable(SetterIsProtected = true)]
+    private bool _isInitialized;
 
-    /// <summary>
-    /// Gets the parent game object, if this object is attached to one.
-    /// </summary>
-    public IGameObject? Parent { get; protected set; }
-
-    /// <summary>
-    /// Gets the child game objects attached to this game object.
-    /// </summary>
-    public IReadOnlyList<IGameObject> Children => _children.AsReadOnly();
-
-    /// <summary>
-    /// Gets the components attached to this game object.
-    /// </summary>
-    public IEnumerable<IComponent> Components => EnumerateComponents();
-
-    /// <summary>
-    /// Gets the game model that owns this game object.
-    /// </summary>
-    public IGameModel? GameModel { get; private set; }
-
-    /// <summary>
-    /// Gets or sets a value indicating whether this game object is active.
-    /// </summary>
-    public bool IsActive
-    {
-        get => _isActive;
-        internal set => SetProperty(ref _isActive, value);
-    }
-
-    /// <summary>Occurs when an attached component becomes active on this object or a descendant.</summary>
-    public event Action<IComponent>? ComponentAdded;
-
-    /// <summary>Occurs when an attached component becomes inactive on this object or a descendant.</summary>
-    public event Action<IComponent>? ComponentRemoved;
-
-    /// <summary>
-    /// Occurs when a child is added to this game object or one of its descendants.
-    /// </summary>
-    public event Action<IGameObject>? ChildAdded;
-
-    /// <summary>
-    /// Occurs when a child is removed from this game object or one of its descendants.
-    /// </summary>
-    public event Action<IGameObject>? ChildRemoved;
+    [Observable(SetterIsProtected = true)]
+    private bool _isActivated;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="GameObject"/> class with a generated identifier.
@@ -83,279 +39,133 @@ public class GameObject : ObservableObject, IGameObject
     public GameObject(uint id, IEnumerable<IComponent> components)
         : this(new GameObjectId(id), components) { }
 
-    /// <summary>Initializes a game object from a validated identifier and component sequence.</summary>
+    /// <summary>Initializes a game object from an identifier and component sequence.</summary>
     /// <param name="id">The identifier for the game object.</param>
     /// <param name="components">The components owned by this game object.</param>
     private GameObject(GameObjectId id, IEnumerable<IComponent> components)
     {
         ArgumentNullException.ThrowIfNull(components);
         Id = id;
-        var componentArray = components.ToArray();
+        _children.ItemAdded += OnChildAdded;
+        _children.ItemRemoved += OnChildRemoved;
 
-        var uniqueComponents = new HashSet<IComponent>(ReferenceEqualityComparer.Instance);
-        foreach (var component in componentArray)
+        foreach (var component in components)
         {
             ArgumentNullException.ThrowIfNull(component);
-            if (!uniqueComponents.Add(component))
-                throw new ArgumentException(
-                    "A component can only be supplied once.",
-                    nameof(components)
-                );
-            if (component.GameObjectId != GameObjectId.Invalid)
-                throw new ArgumentException(
-                    "A component can only be owned by one game object.",
-                    nameof(components)
-                );
-        }
-
-        foreach (var component in componentArray)
-        {
             _components.Add(component);
-            component.SetGameObject(this);
+            component.SetOwner(this);
             component.Initialize();
         }
     }
 
+    /// <inheritdoc />
+    public event Action<string>? PropertyChanged;
+
+    /// <inheritdoc />
+    public event Action<ISceneNode>? ChildAdded;
+
     /// <summary>
-    /// Gets the first component of the specified type.
+    /// Gets the unique identifier for this game object.
     /// </summary>
-    /// <typeparam name="TComponent">The type of component to get.</typeparam>
-    /// <returns>The component, or <see langword="null"/> when no matching component is attached.</returns>
-    public TComponent? GetComponent<TComponent>()
-        where TComponent : class, IComponent => _components.OfType<TComponent>().FirstOrDefault();
+    public GameObjectId Id { get; }
 
-    /// <summary>Creates and adds a component of the specified type.</summary>
-    /// <typeparam name="TComponent">The component type to create.</typeparam>
-    /// <returns>The added component.</returns>
-    public TComponent AddComponent<TComponent>()
-        where TComponent : class, IComponent
+    /// <summary>
+    /// Gets the containing scene, or null when detached.
+    /// </summary>
+    public IScene? Scene { get; set; }
+
+    /// <summary>
+    /// Gets the parent game object, if this object is attached to one.
+    /// </summary>
+    public ISceneNode? Parent
     {
-        var component = Activator.CreateInstance<TComponent>();
-        AddComponent(component);
-        return component;
+        get => _parent;
+        set
+        {
+            if (ReferenceEquals(_parent, value))
+                return;
+
+            _parent = value;
+            PropertyChanged?.Invoke(nameof(Parent));
+            OnHierarchyChanged();
+        }
     }
 
-    /// <inheritdoc/>
-    public void AddComponent(IComponent component)
+    /// <summary>
+    /// Gets the child game objects attached to this game object.
+    /// </summary>
+    public IObservableCollection<IGameObject> Children => _children;
+
+    /// <inheritdoc cref="ISceneNode.Children" />
+    IReadOnlyObservableCollection<IGameObject> ISceneNode.Children => _children;
+
+    /// <summary>
+    /// Gets the observable, read-only collection of components attached to this game object.
+    /// </summary>
+    public IReadOnlyObservableCollection<IComponent> Components => _components.AsReadOnly();
+
+    /// <inheritdoc />
+    public virtual void Initialize()
     {
-        ArgumentNullException.ThrowIfNull(component);
-        if (_components.Contains(component))
+        SetIsInitialized(true);
+    }
+
+    /// <inheritdoc />
+    public virtual bool CanActivate() => true;
+
+    /// <inheritdoc />
+    public virtual void Activate()
+    {
+        var wasActivated = IsActivated;
+        SetIsActivated(CanActivate());
+
+        if (!wasActivated && IsActivated)
+            OnActivated();
+        else if (wasActivated && !IsActivated)
+            OnDeactivated();
+    }
+
+    /// <inheritdoc />
+    public virtual void Update(double deltaTime)
+    {
+        // Intentionally a no-op
+    }
+
+    /// <inheritdoc />
+    public virtual void Deactivate()
+    {
+        if (!IsActivated)
             return;
 
-        if (component.GameObjectId != GameObjectId.Invalid)
-        {
-            var previousOwner = component.GameModel?.GetGameObject(component.GameObjectId);
-            previousOwner?.RemoveComponent(component);
-        }
-
-        _components.Add(component);
-        component.SetGameObject(this);
-        component.Initialize();
-        OnPropertyChanged(nameof(Components));
-        if (IsActive)
-            ComponentAdded?.Invoke(component);
-    }
-
-    /// <summary>Removes the first component of the specified type.</summary>
-    /// <typeparam name="TComponent">The component type to remove.</typeparam>
-    /// <returns>True when a component was removed; otherwise, false.</returns>
-    public bool RemoveComponent<TComponent>()
-        where TComponent : class, IComponent
-    {
-        var component = GetComponent<TComponent>();
-        return component is not null && RemoveComponent(component);
-    }
-
-    /// <inheritdoc/>
-    public bool RemoveComponent(IComponent component)
-    {
-        if (!_components.Remove(component))
-            return false;
-
-        if (IsActive)
-            ComponentRemoved?.Invoke(component);
-
-        component.SetGameObject(null);
-        OnPropertyChanged(nameof(Components));
-        return true;
-    }
-
-    /// <summary>Enumerates the fixed components without exposing the backing array.</summary>
-    /// <returns>The components supplied when this game object was created.</returns>
-    private IEnumerable<IComponent> EnumerateComponents()
-    {
-        foreach (var component in _components)
-            yield return component;
-    }
-
-    /// <inheritdoc/>
-    public void SetGameModel(IGameModel gameModel)
-    {
-        ArgumentNullException.ThrowIfNull(gameModel);
-        if (GameModel == gameModel)
-            return;
-
-        GameModel?.UnregisterGameObject(this);
-        GameModel = gameModel;
-        GameModel.RegisterGameObject(this);
-        OnPropertyChanged(nameof(GameModel));
-
-        foreach (var child in _children.OfType<GameObject>())
-            child.SetGameModel(gameModel);
-    }
-
-    /// <inheritdoc/>
-    public void AddChild(IGameObject child)
-    {
-        ArgumentNullException.ThrowIfNull(child);
-        if (child.Parent is not null)
-            throw new InvalidOperationException("GameObject already belongs to a parent.");
-
-        _children.Add(child);
-        ListenToChild(child);
-
-        if (child is GameObject gameObject)
-        {
-            gameObject.Parent = this;
-            gameObject.NotifyHierarchyChanged();
-            if (GameModel is not null)
-                gameObject.SetGameModel(GameModel);
-        }
-
-        if (IsActive)
-        {
-            ChildAdded?.Invoke(child);
-            child.Activate();
-        }
-
-        OnPropertyChanged(nameof(Children));
-    }
-
-    /// <inheritdoc/>
-    public bool RemoveChild(IGameObject child)
-    {
-        ArgumentNullException.ThrowIfNull(child);
-        if (!_children.Contains(child))
-            return false;
-
-        if (IsActive)
-        {
-            child.Deactivate();
-            ChildRemoved?.Invoke(child);
-        }
-
-        _children.Remove(child);
-        StopListeningToChild(child);
-        if (child is GameObject gameObject)
-        {
-            gameObject.Parent = null;
-            gameObject.NotifyHierarchyChanged();
-        }
-
-        OnPropertyChanged(nameof(Children));
-        return true;
-    }
-
-    /// <inheritdoc/>
-    public TChild CreateChild<TChild>()
-        where TChild : IGameObject, new()
-    {
-        var child = new TChild();
-        AddChild(child);
-        return child;
-    }
-
-    /// <inheritdoc/>
-    public void Activate()
-    {
-        if (IsActive)
-            return;
-
-        IsActive = true;
-        OnActivated();
-        foreach (var child in _children)
-            child.Activate();
-
-        foreach (var component in _components)
-        {
-            ComponentAdded?.Invoke(component);
-        }
-    }
-
-    /// <inheritdoc/>
-    public virtual void Update(double deltaTime) { }
-
-    /// <inheritdoc/>
-    public void Deactivate()
-    {
-        if (!IsActive)
-            return;
-
-        foreach (var child in _children)
-            child.Deactivate();
-
-        foreach (var component in _components)
-        {
-            ComponentRemoved?.Invoke(component);
-        }
-
-        IsActive = false;
+        SetIsActivated(false);
         OnDeactivated();
     }
 
     /// <summary>
-    /// Subscribes to events raised by an attached child.
+    /// Sets a field and raises a property-change notification when its value changes.
     /// </summary>
-    /// <param name="child">The child to observe.</param>
-    private void ListenToChild(IGameObject child)
+    /// <typeparam name="T">The field's value type.</typeparam>
+    /// <param name="field">The field to update.</param>
+    /// <param name="value">The value to assign.</param>
+    /// <param name="propertyName">The name of the associated property.</param>
+    /// <returns><see langword="true"/> if the field changed; otherwise, <see langword="false"/>.</returns>
+    protected bool SetProperty<T>(ref T field, T value, [CallerMemberName] string propertyName = "")
     {
-        child.ComponentAdded += OnChildComponentAdded;
-        child.ComponentRemoved += OnChildComponentRemoved;
-        child.ChildAdded += OnChildAdded;
-        child.ChildRemoved += OnChildRemoved;
+        if (EqualityComparer<T>.Default.Equals(field, value))
+            return false;
+
+        field = value;
+        OnPropertyChanged(propertyName);
+        return true;
     }
 
     /// <summary>
-    /// Removes subscriptions to events raised by a detached child.
+    /// Raises the <see cref="PropertyChanged"/> event for the specified property.
     /// </summary>
-    /// <param name="child">The child to stop observing.</param>
-    private void StopListeningToChild(IGameObject child)
+    /// <param name="propertyName">The name of the changed property.</param>
+    protected virtual void OnPropertyChanged(string? propertyName)
     {
-        child.ComponentAdded -= OnChildComponentAdded;
-        child.ComponentRemoved -= OnChildComponentRemoved;
-        child.ChildAdded -= OnChildAdded;
-        child.ChildRemoved -= OnChildRemoved;
-    }
-
-    /// <summary>
-    /// Propagates a component-added notification from a child.
-    /// </summary>
-    /// <param name="component">The added component.</param>
-    private void OnChildComponentAdded(IComponent component)
-    {
-        if (IsActive)
-            ComponentAdded?.Invoke(component);
-    }
-
-    /// <summary>
-    /// Propagates a component-removed notification from a child.
-    /// </summary>
-    /// <param name="component">The removed component.</param>
-    private void OnChildComponentRemoved(IComponent component)
-    {
-        if (IsActive)
-            ComponentRemoved?.Invoke(component);
-    }
-
-    /// <summary>
-    /// Notifies this object and its descendants that their parent chain changed.
-    /// </summary>
-    private void NotifyHierarchyChanged()
-    {
-        OnHierarchyChanged();
-
-        foreach (var child in _children.OfType<GameObject>())
-            child.NotifyHierarchyChanged();
+        PropertyChanged?.Invoke(propertyName ?? string.Empty);
     }
 
     /// <summary>
@@ -374,22 +184,22 @@ public class GameObject : ObservableObject, IGameObject
     protected virtual void OnDeactivated() { }
 
     /// <summary>
-    /// Propagates a child-added notification from a descendant.
+    /// Sets the parent of a newly added child to this game object.
     /// </summary>
-    /// <param name="child">The added child.</param>
+    /// <param name="child">The child added to the collection.</param>
     private void OnChildAdded(IGameObject child)
     {
-        if (IsActive)
-            ChildAdded?.Invoke(child);
+        child.Parent = this;
+        ChildAdded?.Invoke(child);
     }
 
     /// <summary>
-    /// Propagates a child-removed notification from a descendant.
+    /// Clears the parent of a removed child when this game object is still its parent.
     /// </summary>
-    /// <param name="child">The removed child.</param>
+    /// <param name="child">The child removed from the collection.</param>
     private void OnChildRemoved(IGameObject child)
     {
-        if (IsActive)
-            ChildRemoved?.Invoke(child);
+        if (ReferenceEquals(child.Parent, this) && !_children.Contains(child))
+            child.Parent = null;
     }
 }

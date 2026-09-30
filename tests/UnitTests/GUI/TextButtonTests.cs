@@ -32,7 +32,7 @@ public sealed class TextButtonTests
 
         Assert.Null(first.Parent);
         Assert.Null(first.GameModel);
-        Assert.False(first.IsActive);
+        Assert.False(first.IsActivated);
         Assert.True(first.CanFocus);
         Assert.False(first.IsFocused);
         Assert.Equal(2, first.Components.Count());
@@ -188,7 +188,7 @@ public sealed class TextButtonTests
         Assert.Same(parent, button.Parent);
         Assert.Same(gameModel, button.GameModel);
         Assert.Same(button, gameModel.GetGameObject(button.Id));
-        Assert.True(button.IsActive);
+        Assert.True(button.IsActivated);
         Assert.Equal(2, addedComponents.Count);
         Assert.Contains(button.GetComponent<NinePatchComponent>(), addedComponents);
         Assert.Contains(button.GetComponent<TextComponent>(), addedComponents);
@@ -415,12 +415,10 @@ public sealed class TextButtonTests
             _gameObjects.GetValueOrDefault(gameObjectId);
 
         /// <inheritdoc/>
-        public void RegisterGameObject(IGameObject gameObject) =>
-            _gameObjects[gameObject.Id] = gameObject;
+        public void Register(IGameObject gameObject) => _gameObjects[gameObject.Id] = gameObject;
 
         /// <inheritdoc/>
-        public void UnregisterGameObject(IGameObject gameObject) =>
-            _gameObjects.Remove(gameObject.Id);
+        public void Unregister(IGameObject gameObject) => _gameObjects.Remove(gameObject.Id);
     }
 
     /// <summary>Provides a distinct mouse pointer identity for input-routing tests.</summary>

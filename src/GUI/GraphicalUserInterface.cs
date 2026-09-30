@@ -48,7 +48,7 @@ public sealed class GraphicalUserInterface(IEventHub eventHub, IWindowService? w
             && (
                 element is not Element target
                 || !_subscribedElements.Contains(target)
-                || !target.IsActive
+                || !target.IsActivated
                 || !target.IsEffectivelyVisible
                 || !target.IsEffectivelyEnabled
                 || !target.CanFocus
@@ -78,7 +78,7 @@ public sealed class GraphicalUserInterface(IEventHub eventHub, IWindowService? w
             ? []
             : EnumerateElements(_scene.Children)
                 .Where(element =>
-                    element.IsActive
+                    element.IsActivated
                     && _subscribedElements.Contains(element)
                     && element.IsEffectivelyVisible
                     && element.IsEffectivelyEnabled
@@ -121,7 +121,7 @@ public sealed class GraphicalUserInterface(IEventHub eventHub, IWindowService? w
     /// <param name="message">The game-object activation event.</param>
     public void Handle(GameObjectActivatedEvent message)
     {
-        if (message.GameObject.IsActive)
+        if (message.GameObject.IsActivated)
         {
             SubscribeToActiveElements([message.GameObject]);
             _layoutInvalidated = true;
@@ -156,7 +156,7 @@ public sealed class GraphicalUserInterface(IEventHub eventHub, IWindowService? w
     {
         foreach (var element in EnumerateElements(gameObjects))
         {
-            if (element.IsActive && _subscribedElements.Add(element))
+            if (element.IsActivated && _subscribedElements.Add(element))
             {
                 element.PropertyChanged += OnElementPropertyChanged;
                 element.InputMap.Register(_eventHub);
@@ -282,7 +282,7 @@ public sealed class GraphicalUserInterface(IEventHub eventHub, IWindowService? w
         Element? layoutRoot
     )
     {
-        if (!gameObject.IsActive)
+        if (!gameObject.IsActivated)
             yield break;
 
         if (gameObject is Element element && layoutRoot is null)

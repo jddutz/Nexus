@@ -16,8 +16,12 @@
     <Project Path="src/Runtime/Nexus.Runtime.csproj" />
     <Project Path="src/Testing/Nexus.Testing.csproj" />
   </Folder>
+  <Folder Name="/src/SourceGenerators/">
+    <Project Path="src/SourceGenerators/Nexus.SourceGenerators.csproj" />
+  </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/HelloNexus/HelloNexus.csproj" />
+    <Project Path="tests/SourceGenerators.Tests/Nexus.SourceGenerators.Tests.csproj" />
     <Project Path="tests/UnitTests/UnitTests.csproj" />
   </Folder>
 </Solution>

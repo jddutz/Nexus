@@ -39,6 +39,68 @@ public class GameObjectTests
         Assert.Contains(view.ViewComponent, view.Components);
     }
 
+    /// <summary>Verifies components are exposed as a read-only observable collection.</summary>
+    [Fact]
+    public void Components_exposeReadOnlyObservableView()
+    {
+        var gameObject = new GameObject();
+        IGameObject gameObjectContract = gameObject;
+        var components = gameObjectContract.Components;
+        var addedItems = new List<IComponent>();
+        var removedItems = new List<IComponent>();
+        components.ItemAdded += addedItems.Add;
+        components.ItemRemoved += removedItems.Add;
+
+        var component = gameObject.AddComponent<TestComponent>();
+
+        Assert.Same(component, gameObject.GetComponent<TestComponent>());
+        Assert.Same(component, components[0]);
+        Assert.Equal(1, components.Count);
+        Assert.Same(component, Assert.Single(addedItems));
+        Assert.True(gameObject.RemoveComponent<TestComponent>());
+        Assert.Null(gameObject.GetComponent<TestComponent>());
+        Assert.Empty(components);
+        Assert.Same(component, Assert.Single(removedItems));
+
+        var existingComponent = new TestComponent();
+        gameObject.AddComponent(existingComponent);
+
+        Assert.Same(existingComponent, gameObject.GetComponent<TestComponent>());
+        Assert.True(gameObject.RemoveComponent(existingComponent));
+        Assert.Equal(2, addedItems.Count);
+        Assert.Same(existingComponent, addedItems[1]);
+        Assert.Equal(2, removedItems.Count);
+        Assert.Same(existingComponent, removedItems[1]);
+        Assert.IsNotAssignableFrom<IObservableCollection<IComponent>>(gameObject);
+        Assert.IsNotAssignableFrom<IEnumerable<IComponent>>(gameObject);
+    }
+
+    /// <summary>
+    /// Verifies adding and removing children updates their parent reference.
+    /// </summary>
+    [Fact]
+    public void ChildrenCollection_updatesChildParent()
+    {
+        var parent = new GameObject();
+        var child = new GameObject();
+        var addedChildren = new List<ISceneNode>();
+        parent.ChildAdded += addedChildren.Add;
+
+        parent.Children.Add(child);
+        parent.Children.Add(child);
+
+        Assert.Same(parent, child.Parent);
+        Assert.Equal(2, addedChildren.Count);
+        Assert.All(addedChildren, addedChild => Assert.Same(child, addedChild));
+
+        parent.Children.Remove(child);
+        Assert.Same(parent, child.Parent);
+
+        parent.Children.Remove(child);
+
+        Assert.Null(child.Parent);
+    }
+
     /// <summary>
     /// Verifies that activating a scene raises lifecycle notifications for its default view and camera.
     /// </summary>
@@ -95,22 +157,15 @@ public class GameObjectTests
     }
 
     /// <summary>
-    /// Verifies that components can resolve their owner through the assigned game model.
+    /// Verifies that constructor-supplied components receive their owning game object.
     /// </summary>
     [Fact]
-    public void ConstructorComponents_assignOwnerAndGameModel()
+    public void ConstructorComponents_assignOwner()
     {
-        var gameModel = new TestGameModel();
         var component = new TestComponent();
         var gameObject = new GameObject(1, [component]);
 
-        gameObject.SetGameModel(gameModel);
-
-        var componentGameModel = Assert.IsAssignableFrom<IGameModel>(component.GameModel);
-
-        Assert.Equal(gameObject.Id, component.GameObjectId);
-        Assert.Same(gameModel, componentGameModel);
-        Assert.Same(gameObject, componentGameModel.GetGameObject(component.GameObjectId));
+        Assert.Same(gameObject, component.Owner);
     }
 
     /// <summary>
@@ -294,7 +349,8 @@ public class GameObjectTests
         root.ComponentAdded += component =>
         {
             activationOrder.Add(component);
-            entireTreeIsActiveAtNotification &= root.IsActive && child.IsActive && leaf.IsActive;
+            entireTreeIsActiveAtNotification &=
+                root.IsActivated && child.IsActivated && leaf.IsActivated;
         };
 
         root.Activate();
@@ -369,13 +425,13 @@ public class GameObjectTests
 
         Assert.Same(component, Assert.Single(gameObject.Components));
         Assert.Equal(1, component.InitializationCount);
-        Assert.Equal(gameObject.Id, component.GameObjectId);
+        Assert.Same(gameObject, component.Owner);
         Assert.Same(component, Assert.Single(addedComponents));
 
         Assert.True(gameObject.RemoveComponent(component));
 
         Assert.Empty(gameObject.Components);
-        Assert.Equal(GameObjectId.Invalid, component.GameObjectId);
+        Assert.Null(component.Owner);
         Assert.Same(component, Assert.Single(removedComponents));
         Assert.False(gameObject.RemoveComponent(component));
     }
@@ -393,22 +449,41 @@ public class GameObjectTests
         Assert.Null(gameObject.GetComponent<TestComponent>());
     }
 
+    /// <summary>Verifies the observable collection exposes generic add, lookup, and removal.</summary>
+    [Fact]
+    public void ObservableCollectionMethods_createFindAndRemoveItems()
+    {
+        IObservableCollection<IComponent> components = new GameObject();
+        var addedItems = new List<IComponent>();
+        var removedItems = new List<IComponent>();
+        components.ItemAdded += addedItems.Add;
+        components.ItemRemoved += removedItems.Add;
+
+        var component = components.Add<TestComponent>();
+
+        Assert.Same(component, components.Get<TestComponent>());
+        Assert.Same(component, components[0]);
+        Assert.Equal(1, components.Count);
+        Assert.Same(component, Assert.Single(addedItems));
+        Assert.True(components.Remove<TestComponent>());
+        Assert.Null(components.Get<TestComponent>());
+        Assert.Empty(components);
+        Assert.Same(component, Assert.Single(removedItems));
+    }
+
     /// <summary>
     /// Verifies that a component already owned by another object cannot be reused.
     /// </summary>
     [Fact]
     public void Constructor_rejectsComponentAlreadyOwnedByAnotherObject()
     {
-        var gameModel = new TestGameModel();
         var component = new TestComponent();
         var previousOwner = new GameObject(1, [component]);
 
-        previousOwner.SetGameModel(gameModel);
         var exception = Assert.Throws<ArgumentException>(() => new GameObject(2, [component]));
 
         Assert.Contains(component, previousOwner.Components);
-        Assert.Equal(previousOwner.Id, component.GameObjectId);
-        Assert.Same(previousOwner, component.GameModel?.GetGameObject(component.GameObjectId));
+        Assert.Same(previousOwner, component.Owner);
         Assert.Contains("one game object", exception.Message);
     }
 
@@ -427,15 +502,14 @@ public class GameObjectTests
             _gameObjects.GetValueOrDefault(gameObjectId);
 
         /// <inheritdoc/>
-        public void RegisterGameObject(IGameObject gameObject)
+        public void Register(IGameObject gameObject)
         {
             _gameObjects[gameObject.Id] = gameObject;
             RegistrationOrder.Add(gameObject.Id);
         }
 
         /// <inheritdoc/>
-        public void UnregisterGameObject(IGameObject gameObject) =>
-            _gameObjects.Remove(gameObject.Id);
+        public void Unregister(IGameObject gameObject) => _gameObjects.Remove(gameObject.Id);
     }
 
     /// <summary>

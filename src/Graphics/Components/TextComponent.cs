@@ -1,12 +1,9 @@
-using System.ComponentModel;
-using Nexus.Graphics.Text;
-
 namespace Nexus.Graphics.Components;
 
 /// <summary>
 /// Groups text spans that share the component's lifetime.
 /// </summary>
-public class TextComponent : Nexus.Core.Component, IGraphicsComponent
+public class TextComponent : Component, IGraphicsComponent
 {
     private readonly List<(TextSpan Span, float VerticalOffset)> _spans = [];
     private readonly ITextStyle _textStyle;
@@ -132,15 +129,12 @@ public class TextComponent : Nexus.Core.Component, IGraphicsComponent
     }
 
     /// <inheritdoc/>
-    protected override void OnOwnerPropertyChanged(PropertyChangedEventArgs e)
+    protected override void OnOwnerPropertyChanged(string propertyName)
     {
-        if (
-            e.PropertyName == nameof(IGameObject2D.WorldTransform)
-            || e.PropertyName == nameof(IGameObject.GameModel)
-        )
+        if (propertyName == nameof(IGameObject2D.WorldTransform))
             UpdateTransformationMatrix();
 
-        base.OnOwnerPropertyChanged(e);
+        base.OnOwnerPropertyChanged(propertyName);
     }
 
     /// <summary>Copies the owning 2D game object's transform to every text span.</summary>
@@ -154,7 +148,5 @@ public class TextComponent : Nexus.Core.Component, IGraphicsComponent
 
     /// <summary>Gets the owning 2D game object's transform, or identity when none is available.</summary>
     private Matrix4X4<float> GetOwnerTransformationMatrix() =>
-        GameModel?.GetGameObject(GameObjectId) is IGameObject2D gameObject
-            ? gameObject.WorldTransform
-            : Matrix4X4<float>.Identity;
+        Owner is IGameObject2D gameObject ? gameObject.WorldTransform : Matrix4X4<float>.Identity;
 }

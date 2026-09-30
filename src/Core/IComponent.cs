@@ -1,6 +1,9 @@
 namespace Nexus.Core;
 
-public interface IComponent : INotifyPropertyChanged
+/// <summary>
+/// Defines a component that can be associated with a game object and participate in its lifecycle.
+/// </summary>
+public interface IComponent : IManagedEntity, IObservable
 {
     /// <summary>
     /// Gets the concise editor-facing caption used to identify this component in component lists
@@ -9,40 +12,25 @@ public interface IComponent : INotifyPropertyChanged
     string DisplayName { get; }
 
     /// <summary>
-    /// Gets the identifier of the game object that owns this component.
-    /// </summary>
-    GameObjectId GameObjectId { get; }
-
-    /// <summary>
-    /// Gets the game model that owns this component's game object.
-    /// </summary>
-    IGameModel? GameModel { get; }
-
-    /// <summary>
-    /// Associates this component with its owning game object.
-    /// </summary>
-    /// <param name="gameObject">The owning game object, or <see langword="null"/> when detaching.</param>
-    void SetGameObject(IGameObject? gameObject);
-
-    /// <summary>
-    /// Initializes this component before its owning game object activates it.
-    /// </summary>
-    void Initialize();
-
-    /// <summary>
     /// Gets the unique identifier for this component.
     /// </summary>
     ComponentId Id { get; }
 
     /// <summary>
-    /// Gets or sets a value indicating whether this component is activated.
+    /// Gets the game object that owns this component, or <see langword="null"/> when it is unowned.
     /// </summary>
-    bool IsActivated { get; set; }
+    IGameObject? Owner { get; }
 
     /// <summary>
-    /// Occurs when this component's effective state has changed, whether from one of its own
-    /// properties or from a change on its owning game object. Systems should subscribe to this
-    /// instead of observing the owning game object directly.
+    /// Associates this component with a game object, or detaches it when <see langword="null"/> is
+    /// supplied.
     /// </summary>
-    event EventHandler? Changed;
+    /// <param name="gameObject">The owning game object, or <see langword="null"/> when detaching.</param>
+    void SetOwner(IGameObject? gameObject);
+
+    /// <summary>
+    /// Occurs when effective state has changed, whether from one of its own properties
+    /// or from a change to an ancestor or owner.
+    /// </summary>
+    event EventHandler? Modified;
 }
