@@ -1,89 +1,21 @@
 namespace Nexus.Game;
 
 /// <summary>
-/// Provides a top-level container for game objects.
+/// Provides the root node and node lookup for a scene hierarchy.
 /// </summary>
 public class Scene : IScene
 {
-    private readonly List<IGameObject> _children = [];
-    private IGameModel? _gameModel;
+    private readonly SceneNodeId _sceneNodeId = SceneNodeId.New();
+    private readonly ObservableCollection<ISceneNode> _children = [];
+    private readonly Dictionary<SceneNodeId, ISceneNode> _allSceneNodes = [];
+    private readonly Dictionary<
+        ISceneNode,
+        (Action<ISceneNode> Added, Action<ISceneNode> Removed)
+    > _childCollectionHandlers = new(ReferenceEqualityComparer.Instance);
     private IInputSystem? _inputSystem;
     private InputMap? _inputMap;
+    private bool _isInitialized;
     private bool _isActive;
-
-    /// <summary>
-    /// Gets the unique identifier for this scene.
-    /// </summary>
-    public SceneId Id { get; }
-
-    /// <summary>
-    /// Gets the current set of render layers managed by the graphics system.
-    /// </summary>
-    RenderLayerCollection Layers { get; }
-
-    /// <summary>
-    /// Gets the game objects directly contained by this scene.
-    /// </summary>
-    public IReadOnlyList<IGameObject> Children => _children.AsReadOnly();
-
-    /// <summary>
-    /// Gets the game model that owns the game objects in this scene.
-    /// </summary>
-    public IGameModel? GameModel => _gameModel;
-
-    /// <summary>
-    /// Gets a value indicating whether this scene is active.
-    /// </summary>
-    public bool IsActive => _isActive;
-
-    /// <summary>
-    /// Gets or sets the input map selected while this scene is active.
-    /// </summary>
-    public InputMap? InputMap
-    {
-        get => _inputMap;
-        set
-        {
-            if (ReferenceEquals(_inputMap, value))
-                return;
-
-            var previousMap = _inputMap;
-            _inputMap = value;
-
-            if (
-                _isActive
-                && _inputSystem is not null
-                && ReferenceEquals(_inputSystem.CurrentMap, previousMap)
-            )
-                _inputSystem.CurrentMap = value;
-        }
-    }
-
-    /// <summary>
-    /// Occurs when a component is added to a game object in this scene.
-    /// </summary>
-    public event Action<IComponent>? ComponentAdded;
-
-    /// <summary>
-    /// Occurs when a component is removed from a game object in this scene.
-    /// </summary>
-    public event Action<IComponent>? ComponentRemoved;
-
-    /// <summary>
-    /// Occurs when a game object is added to this scene or one of its descendants.
-    /// </summary>
-    public event Action<IGameObject>? GameObjectAdded;
-
-    /// <summary>
-    /// Occurs when a game object is removed from this scene or one of its descendants.
-    /// </summary>
-    public event Action<IGameObject>? GameObjectRemoved;
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="Scene"/> class with a generated identifier.
-    /// </summary>
-    public Scene()
-        : this(SceneId.New(), null) { }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="Scene"/> class with the specified input system.
@@ -108,6 +40,8 @@ public class Scene : IScene
     {
         Id = sceneId;
         _inputSystem = inputSystem;
+        _allSceneNodes.Add(_sceneNodeId, this);
+        SubscribeToChildren(this);
 
         Layers = new RenderLayerCollection();
         Layers.Create("GUI", RenderPasses.Main);
@@ -115,23 +49,189 @@ public class Scene : IScene
         var defaultCamera = new StaticCamera();
         var viewComponent = new ViewComponent() { Camera = defaultCamera, LayerMask = 1 };
         var defaultView = new GameObject2D([defaultCamera, viewComponent]);
-
-        AddChild(defaultView);
+        Children.Add(defaultView);
     }
 
     /// <summary>
-    /// Associates this scene and its game objects with a game model.
+    /// Gets the unique identifier for this scene.
     /// </summary>
-    /// <param name="gameModel">The game model that owns this scene's game objects.</param>
-    public void SetGameModel(IGameModel gameModel)
+    public SceneId Id { get; }
+
+    /// <inheritdoc />
+    SceneNodeId ISceneNode.Id => _sceneNodeId;
+
+    /// <inheritdoc />
+    IScene? ISceneNode.Scene
     {
-        ArgumentNullException.ThrowIfNull(gameModel);
-        if (_gameModel == gameModel)
+        get => this;
+        set
+        {
+            if (!ReferenceEquals(value, this))
+                throw new InvalidOperationException("A scene cannot belong to another scene.");
+        }
+    }
+
+    /// <inheritdoc />
+    ISceneNode? ISceneNode.Parent
+    {
+        get => null;
+        set
+        {
+            if (value is not null)
+                throw new InvalidOperationException("A scene cannot have a parent.");
+        }
+    }
+
+    /// <inheritdoc />
+    public IObservableCollection<ISceneNode> Children => _children;
+
+    /// <inheritdoc />
+    public IReadOnlyDictionary<SceneNodeId, ISceneNode> AllSceneNodes => _allSceneNodes;
+
+    /// <summary>
+    /// Gets the current set of render layers managed by the graphics system.
+    /// </summary>
+    internal RenderLayerCollection Layers { get; }
+
+    /// <inheritdoc />
+    public bool IsInitialized => _isInitialized;
+
+    /// <inheritdoc />
+    public bool IsActivated => _isActive;
+
+    /// <inheritdoc />
+    public bool IsActive => _isActive;
+
+    /// <inheritdoc />
+    public event Action<string>? PropertyChanged;
+
+    /// <inheritdoc />
+    public event Action<IComponent>? ComponentAdded;
+
+    /// <inheritdoc />
+    public event Action<IComponent>? ComponentRemoved;
+
+    /// <inheritdoc />
+    public event Action<IGameObject>? GameObjectAdded;
+
+    /// <inheritdoc />
+    public event Action<IGameObject>? GameObjectRemoved;
+
+    /// <summary>
+    /// Gets or sets the input map selected while this scene is active.
+    /// </summary>
+    public InputMap? InputMap
+    {
+        get => _inputMap;
+        set
+        {
+            if (ReferenceEquals(_inputMap, value))
+                return;
+
+            var previousMap = _inputMap;
+            _inputMap = value;
+
+            if (
+                _isActive
+                && _inputSystem is not null
+                && ReferenceEquals(_inputSystem.CurrentMap, previousMap)
+            )
+                _inputSystem.CurrentMap = value;
+
+            PropertyChanged?.Invoke(nameof(InputMap));
+        }
+    }
+
+    /// <summary>
+    /// Gets a scene node by its identifier, or <see langword="null"/> when the identifier is absent.
+    /// </summary>
+    /// <param name="sceneNodeId">The identifier of the node to find.</param>
+    /// <returns>The matching node, or <see langword="null"/>.</returns>
+    public ISceneNode? GetSceneNode(SceneNodeId sceneNodeId) =>
+        _allSceneNodes.GetValueOrDefault(sceneNodeId);
+
+    /// <inheritdoc />
+    public void Initialize()
+    {
+        if (_isInitialized)
             return;
 
-        _gameModel = gameModel;
-        foreach (var child in _children.OfType<GameObject>())
-            child.SetGameModel(gameModel);
+        _isInitialized = true;
+        PropertyChanged?.Invoke(nameof(IsInitialized));
+    }
+
+    /// <inheritdoc />
+    public bool CanActivate() => true;
+
+    /// <inheritdoc />
+    public void Activate()
+    {
+        if (_isActive || !CanActivate())
+            return;
+
+        _isActive = true;
+        if (_inputSystem is not null)
+            _inputSystem.CurrentMap = _inputMap;
+
+        PropertyChanged?.Invoke(nameof(IsActive));
+        PropertyChanged?.Invoke(nameof(IsActivated));
+    }
+
+    /// <inheritdoc />
+    public void Update(double deltaTime) { }
+
+    /// <inheritdoc />
+    public void Deactivate()
+    {
+        if (!_isActive)
+            return;
+
+        if (_inputSystem is not null && ReferenceEquals(_inputSystem.CurrentMap, _inputMap))
+            _inputSystem.CurrentMap = null;
+
+        _isActive = false;
+        PropertyChanged?.Invoke(nameof(IsActive));
+        PropertyChanged?.Invoke(nameof(IsActivated));
+    }
+
+    /// <summary>
+    /// Adds a root scene node to this scene.
+    /// </summary>
+    /// <param name="child">The node to add.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="child"/> is null.</exception>
+    /// <exception cref="InvalidOperationException">The node already belongs to a parent or scene.</exception>
+    public void AddChild(ISceneNode child)
+    {
+        ArgumentNullException.ThrowIfNull(child);
+        if (child.Parent is not null || child.Scene is not null)
+            throw new InvalidOperationException("Scene node already belongs to a parent or scene.");
+
+        Children.Add(child);
+    }
+
+    /// <summary>
+    /// Removes a root scene node from this scene.
+    /// </summary>
+    /// <param name="child">The node to remove.</param>
+    /// <returns><see langword="true"/> when the node was removed; otherwise, <see langword="false"/>.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="child"/> is null.</exception>
+    public bool RemoveChild(ISceneNode child)
+    {
+        ArgumentNullException.ThrowIfNull(child);
+        return Children.Remove(child);
+    }
+
+    /// <summary>
+    /// Creates and adds a root game object of the specified type.
+    /// </summary>
+    /// <typeparam name="TChild">The type of game object to create.</typeparam>
+    /// <returns>The added game object.</returns>
+    public TChild CreateChild<TChild>()
+        where TChild : IGameObject, new()
+    {
+        var child = new TChild();
+        AddChild(child);
+        return child;
     }
 
     /// <summary>
@@ -156,172 +256,216 @@ public class Scene : IScene
     }
 
     /// <summary>
-    /// Adds a top-level game object to this scene.
+    /// Subscribes to the child and component collections of a registered node.
     /// </summary>
-    /// <param name="child">The game object to add.</param>
-    /// <exception cref="InvalidOperationException">Thrown when the game object already belongs to a parent.</exception>
-    public void AddChild(IGameObject child)
+    /// <param name="node">The scene node to observe.</param>
+    private void SubscribeToChildren(ISceneNode node)
     {
-        ArgumentNullException.ThrowIfNull(child);
-        if (child.Parent is not null)
-            throw new InvalidOperationException("GameObject already belongs to a parent.");
+        Action<ISceneNode> addedHandler = child => OnChildAdded(node, child);
+        Action<ISceneNode> removedHandler = child => OnChildRemoved(node, child);
+        _childCollectionHandlers.Add(node, (addedHandler, removedHandler));
+        node.Children.ItemAdded += addedHandler;
+        node.Children.ItemRemoved += removedHandler;
 
-        _children.Add(child);
-        ListenToChild(child);
-        if (child is GameObject gameObject && _gameModel is not null)
-            gameObject.SetGameModel(_gameModel);
-
-        if (_isActive)
+        if (node is IGameObject gameObject)
         {
-            GameObjectAdded?.Invoke(child);
-            child.Activate();
+            gameObject.Components.ItemAdded += OnComponentAdded;
+            gameObject.Components.ItemRemoved += OnComponentRemoved;
         }
     }
 
     /// <summary>
-    /// Removes a top-level game object from this scene.
+    /// Unsubscribes from the child and component collections of a removed node.
     /// </summary>
-    /// <param name="child">The game object to remove.</param>
-    /// <returns><see langword="true"/> when the game object was removed; otherwise, <see langword="false"/>.</returns>
-    public bool RemoveChild(IGameObject child)
+    /// <param name="node">The scene node to stop observing.</param>
+    private void UnsubscribeFromChildren(ISceneNode node)
     {
-        ArgumentNullException.ThrowIfNull(child);
-        if (!_children.Remove(child))
-            return false;
-
-        if (_isActive)
+        if (_childCollectionHandlers.Remove(node, out var handlers))
         {
-            child.Deactivate();
-            GameObjectRemoved?.Invoke(child);
+            node.Children.ItemAdded -= handlers.Added;
+            node.Children.ItemRemoved -= handlers.Removed;
         }
 
-        StopListeningToChild(child);
-        return true;
+        if (node is IGameObject gameObject)
+        {
+            gameObject.Components.ItemAdded -= OnComponentAdded;
+            gameObject.Components.ItemRemoved -= OnComponentRemoved;
+        }
     }
 
     /// <summary>
-    /// Creates and adds a top-level game object of the specified type.
+    /// Registers an added child and all of its existing descendants in this scene.
     /// </summary>
-    /// <typeparam name="TChild">The type of game object to create.</typeparam>
-    /// <returns>The added game object.</returns>
-    public TChild CreateChild<TChild>()
-        where TChild : IGameObject, new()
+    /// <param name="parent">The parent whose child collection changed.</param>
+    /// <param name="child">The added child.</param>
+    private void OnChildAdded(ISceneNode parent, ISceneNode child)
     {
-        var child = new TChild();
-        AddChild(child);
-        return child;
-    }
+        if (child.Parent is null)
+            child.Parent = parent;
+        else if (!ReferenceEquals(child.Parent, parent))
+            throw new InvalidOperationException("Scene node already belongs to another parent.");
 
-    /// <summary>
-    /// Activates this scene and its game objects.
-    /// </summary>
-    public void Activate()
-    {
-        if (_isActive)
+        if (child.Scene is not null && !ReferenceEquals(child.Scene, this))
+            throw new InvalidOperationException("Scene node already belongs to another scene.");
+
+        if (
+            _allSceneNodes.TryGetValue(child.Id, out var registeredNode)
+            && ReferenceEquals(registeredNode, child)
+        )
             return;
 
-        _isActive = true;
-        if (_inputSystem is not null)
-            _inputSystem.CurrentMap = _inputMap;
-
-        foreach (var child in _children)
+        var addedNodes = EnumerateSubtree(child).ToArray();
+        try
         {
-            GameObjectAdded?.Invoke(child);
-            child.Activate();
+            ValidateSubtree(addedNodes);
+        }
+        catch
+        {
+            parent.Children.Remove(child);
+            throw;
+        }
+
+        RegisterSubtree(child);
+        if (_isActive)
+        {
+            foreach (var gameObject in addedNodes.OfType<IGameObject>())
+                GameObjectAdded?.Invoke(gameObject);
+
+            foreach (
+                var component in addedNodes
+                    .OfType<IGameObject>()
+                    .SelectMany(node => node.Components)
+            )
+                ComponentAdded?.Invoke(component);
         }
     }
 
     /// <summary>
-    /// Updates the game objects in this scene.
+    /// Unregisters a removed child and all of its descendants from this scene.
     /// </summary>
-    /// <param name="deltaTime">The elapsed time in seconds since the previous frame.</param>
-    public void Update(double deltaTime)
+    /// <param name="parent">The parent whose child collection changed.</param>
+    /// <param name="child">The removed child.</param>
+    private void OnChildRemoved(ISceneNode parent, ISceneNode child)
     {
-        foreach (var child in _children)
-            child.Update(deltaTime);
-    }
-
-    /// <summary>
-    /// Deactivates this scene and its game objects.
-    /// </summary>
-    public void Deactivate()
-    {
-        if (!_isActive)
+        if (
+            !_allSceneNodes.TryGetValue(child.Id, out var registeredNode)
+            || !ReferenceEquals(registeredNode, child)
+        )
+        {
+            if (ReferenceEquals(child.Parent, parent))
+                child.Parent = null;
             return;
-
-        if (_inputSystem is not null && ReferenceEquals(_inputSystem.CurrentMap, _inputMap))
-            _inputSystem.CurrentMap = null;
-
-        foreach (var child in _children)
-        {
-            child.Deactivate();
-            GameObjectRemoved?.Invoke(child);
         }
 
-        _isActive = false;
+        var removedNodes = EnumerateSubtree(child).ToArray();
+        if (_isActive)
+        {
+            foreach (var node in removedNodes.Reverse())
+            {
+                if (node is IGameObject gameObject)
+                    GameObjectRemoved?.Invoke(gameObject);
+
+                if (node is IGameObject componentOwner)
+                    foreach (var component in componentOwner.Components.Reverse())
+                        ComponentRemoved?.Invoke(component);
+            }
+        }
+
+        foreach (var node in removedNodes.Reverse())
+        {
+            UnsubscribeFromChildren(node);
+            if (
+                _allSceneNodes.TryGetValue(node.Id, out var trackedNode)
+                && ReferenceEquals(trackedNode, node)
+            )
+                _allSceneNodes.Remove(node.Id);
+            if (ReferenceEquals(node.Scene, this))
+                node.Scene = null;
+        }
+
+        if (ReferenceEquals(child.Parent, parent))
+            child.Parent = null;
     }
 
     /// <summary>
-    /// Subscribes to events raised by a game object in this scene.
+    /// Adds a node and its existing descendants to the scene lookup and subscriptions.
     /// </summary>
-    /// <param name="child">The game object to observe.</param>
-    private void ListenToChild(IGameObject child)
+    /// <param name="node">The root node of the subtree to register.</param>
+    private void RegisterSubtree(ISceneNode node)
     {
-        child.ComponentAdded += OnChildComponentAdded;
-        child.ComponentRemoved += OnChildComponentRemoved;
-        child.ChildAdded += OnChildAdded;
-        child.ChildRemoved += OnChildRemoved;
+        if (_allSceneNodes.TryGetValue(node.Id, out var existingNode))
+        {
+            if (ReferenceEquals(existingNode, node))
+                return;
+
+            throw new InvalidOperationException($"Scene node id '{node.Id}' is already in use.");
+        }
+
+        _allSceneNodes.Add(node.Id, node);
+        node.Scene = this;
+        SubscribeToChildren(node);
+
+        foreach (var child in node.Children.ToArray())
+        {
+            if (child.Parent is null)
+                child.Parent = node;
+            RegisterSubtree(child);
+        }
     }
 
     /// <summary>
-    /// Removes subscriptions to events raised by a removed game object.
+    /// Verifies that a subtree has unique identifiers and contains no node owned by another scene.
     /// </summary>
-    /// <param name="child">The game object to stop observing.</param>
-    private void StopListeningToChild(IGameObject child)
+    /// <param name="nodes">The nodes to validate.</param>
+    private void ValidateSubtree(IEnumerable<ISceneNode> nodes)
     {
-        child.ComponentAdded -= OnChildComponentAdded;
-        child.ComponentRemoved -= OnChildComponentRemoved;
-        child.ChildAdded -= OnChildAdded;
-        child.ChildRemoved -= OnChildRemoved;
+        var identifiers = new HashSet<SceneNodeId>();
+        foreach (var node in nodes)
+        {
+            if (!identifiers.Add(node.Id))
+                throw new InvalidOperationException($"Scene node id '{node.Id}' is duplicated.");
+            if (node.Scene is not null && !ReferenceEquals(node.Scene, this))
+                throw new InvalidOperationException("Scene node already belongs to another scene.");
+            if (
+                _allSceneNodes.TryGetValue(node.Id, out var registeredNode)
+                && !ReferenceEquals(registeredNode, node)
+            )
+                throw new InvalidOperationException(
+                    $"Scene node id '{node.Id}' is already in use."
+                );
+        }
     }
 
     /// <summary>
-    /// Propagates a component-added notification from a game object in this scene.
+    /// Enumerates a node and all of its descendants in parent-first order.
+    /// </summary>
+    /// <param name="node">The root node to enumerate.</param>
+    /// <returns>The node and its descendants.</returns>
+    private static IEnumerable<ISceneNode> EnumerateSubtree(ISceneNode node)
+    {
+        yield return node;
+        foreach (var child in node.Children)
+        foreach (var descendant in EnumerateSubtree(child))
+            yield return descendant;
+    }
+
+    /// <summary>
+    /// Forwards component additions while this scene is active.
     /// </summary>
     /// <param name="component">The added component.</param>
-    private void OnChildComponentAdded(IComponent component)
+    private void OnComponentAdded(IComponent component)
     {
         if (_isActive)
             ComponentAdded?.Invoke(component);
     }
 
     /// <summary>
-    /// Propagates a component-removed notification from a game object in this scene.
+    /// Forwards component removals while this scene is active.
     /// </summary>
     /// <param name="component">The removed component.</param>
-    private void OnChildComponentRemoved(IComponent component)
+    private void OnComponentRemoved(IComponent component)
     {
         if (_isActive)
             ComponentRemoved?.Invoke(component);
-    }
-
-    /// <summary>
-    /// Propagates a game-object-added notification from a descendant.
-    /// </summary>
-    /// <param name="gameObject">The added game object.</param>
-    private void OnChildAdded(IGameObject gameObject)
-    {
-        if (_isActive)
-            GameObjectAdded?.Invoke(gameObject);
-    }
-
-    /// <summary>
-    /// Propagates a game-object-removed notification from a descendant.
-    /// </summary>
-    /// <param name="gameObject">The removed game object.</param>
-    private void OnChildRemoved(IGameObject gameObject)
-    {
-        if (_isActive)
-            GameObjectRemoved?.Invoke(gameObject);
     }
 }

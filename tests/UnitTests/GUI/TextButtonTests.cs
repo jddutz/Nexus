@@ -31,7 +31,7 @@ public sealed class TextButtonTests
         first.Label = "B";
 
         Assert.Null(first.Parent);
-        Assert.Null(first.GameModel);
+        Assert.Null(first.Scene);
         Assert.False(first.IsActivated);
         Assert.True(first.CanFocus);
         Assert.False(first.IsFocused);
@@ -68,8 +68,8 @@ public sealed class TextButtonTests
     [Fact]
     public void Visibility_removesAndRecreatesVisualComponents()
     {
+        var scene = new Scene();
         var parent = new Element();
-        var gameObject = new TestGameModel();
         var button = CreateButton("AB");
         var bounds = new Rectangle<float>(4f, 5f, 60f, 24f);
         button.Arrange(bounds);
@@ -77,10 +77,10 @@ public sealed class TextButtonTests
         var originalText = button.GetComponent<TextComponent>();
         var addedComponents = new List<IComponent>();
         var removedComponents = new List<IComponent>();
-        parent.SetGameModel(gameObject);
-        parent.ComponentAdded += addedComponents.Add;
-        parent.ComponentRemoved += removedComponents.Add;
-        parent.Activate();
+        scene.AddChild(parent);
+        scene.Activate();
+        scene.ComponentAdded += addedComponents.Add;
+        scene.ComponentRemoved += removedComponents.Add;
         parent.AddChild(button);
 
         button.IsVisible = false;
@@ -170,25 +170,27 @@ public sealed class TextButtonTests
     }
 
     /// <summary>
-    /// Verifies AddChild performs model registration and activation for a new button.
+    /// Verifies a button added under an active scene is indexed and reported with its components.
     /// </summary>
     [Fact]
-    public void AddChild_registersAndActivatesButton()
+    public void AddChild_registersButtonInSceneAndNotifiesComponents()
     {
+        var scene = new Scene();
         var parent = new GameObject();
-        var gameModel = new TestGameModel();
-        parent.SetGameModel(gameModel);
-        parent.Activate();
+        scene.AddChild(parent);
+        scene.Activate();
         var addedComponents = new List<IComponent>();
-        parent.ComponentAdded += addedComponents.Add;
+        var addedGameObjects = new List<IGameObject>();
+        scene.ComponentAdded += addedComponents.Add;
+        scene.GameObjectAdded += addedGameObjects.Add;
         var button = CreateButton("A");
 
         parent.AddChild(button);
 
         Assert.Same(parent, button.Parent);
-        Assert.Same(gameModel, button.GameModel);
-        Assert.Same(button, gameModel.GetGameObject(button.Id));
-        Assert.True(button.IsActivated);
+        Assert.Same(scene, button.Scene);
+        Assert.Same(button, scene.GetSceneNode(button.Id));
+        Assert.Contains(button, addedGameObjects);
         Assert.Equal(2, addedComponents.Count);
         Assert.Contains(button.GetComponent<NinePatchComponent>(), addedComponents);
         Assert.Contains(button.GetComponent<TextComponent>(), addedComponents);
@@ -402,24 +404,6 @@ public sealed class TextButtonTests
             verticalPadding: 3f,
             sourceBorders: new Vector4D<float>(1f, 1f, 1f, 1f)
         );
-
-    /// <summary>
-    /// Provides a minimal game model for verifying button registration.
-    /// </summary>
-    private sealed class TestGameModel : IGameModel
-    {
-        private readonly Dictionary<GameObjectId, IGameObject> _gameObjects = [];
-
-        /// <inheritdoc/>
-        public IGameObject? GetGameObject(GameObjectId gameObjectId) =>
-            _gameObjects.GetValueOrDefault(gameObjectId);
-
-        /// <inheritdoc/>
-        public void Register(IGameObject gameObject) => _gameObjects[gameObject.Id] = gameObject;
-
-        /// <inheritdoc/>
-        public void Unregister(IGameObject gameObject) => _gameObjects.Remove(gameObject.Id);
-    }
 
     /// <summary>Provides a distinct mouse pointer identity for input-routing tests.</summary>
     private sealed class TestMouse(ulong id) : IMouseInputDevice

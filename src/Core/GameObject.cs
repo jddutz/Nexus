@@ -6,7 +6,7 @@ namespace Nexus.Core;
 public partial class GameObject : IGameObject, IObservable
 {
     private readonly ObservableCollection<IComponent> _components = [];
-    private readonly ObservableCollection<IGameObject> _children = [];
+    private readonly ObservableCollection<ISceneNode> _children = [];
     private ISceneNode? _parent;
 
     [Observable(SetterIsProtected = true)]
@@ -19,30 +19,30 @@ public partial class GameObject : IGameObject, IObservable
     /// Initializes a new instance of the <see cref="GameObject"/> class with a generated identifier.
     /// </summary>
     public GameObject()
-        : this(GameObjectId.New(), []) { }
+        : this(SceneNodeId.New(), []) { }
 
     /// <summary>Initializes a game object with a generated identifier and the specified components.</summary>
     /// <param name="components">The components owned by this game object.</param>
     public GameObject(IEnumerable<IComponent> components)
-        : this(GameObjectId.New(), components) { }
+        : this(SceneNodeId.New(), components) { }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="GameObject"/> class with the specified identifier.
     /// </summary>
     /// <param name="id">The identifier for the game object.</param>
     public GameObject(uint id)
-        : this(new GameObjectId(id), []) { }
+        : this(new SceneNodeId(id), []) { }
 
     /// <summary>Initializes a game object with the specified identifier and components.</summary>
     /// <param name="id">The identifier for the game object.</param>
     /// <param name="components">The components owned by this game object.</param>
     public GameObject(uint id, IEnumerable<IComponent> components)
-        : this(new GameObjectId(id), components) { }
+        : this(new SceneNodeId(id), components) { }
 
     /// <summary>Initializes a game object from an identifier and component sequence.</summary>
     /// <param name="id">The identifier for the game object.</param>
     /// <param name="components">The components owned by this game object.</param>
-    private GameObject(GameObjectId id, IEnumerable<IComponent> components)
+    private GameObject(SceneNodeId id, IEnumerable<IComponent> components)
     {
         ArgumentNullException.ThrowIfNull(components);
         Id = id;
@@ -61,13 +61,10 @@ public partial class GameObject : IGameObject, IObservable
     /// <inheritdoc />
     public event Action<string>? PropertyChanged;
 
-    /// <inheritdoc />
-    public event Action<ISceneNode>? ChildAdded;
-
     /// <summary>
     /// Gets the unique identifier for this game object.
     /// </summary>
-    public GameObjectId Id { get; }
+    public SceneNodeId Id { get; }
 
     /// <summary>
     /// Gets the containing scene, or null when detached.
@@ -92,12 +89,36 @@ public partial class GameObject : IGameObject, IObservable
     }
 
     /// <summary>
-    /// Gets the child game objects attached to this game object.
+    /// Gets the child scene nodes attached to this game object.
     /// </summary>
-    public IObservableCollection<IGameObject> Children => _children;
+    public IObservableCollection<ISceneNode> Children => _children;
 
-    /// <inheritdoc cref="ISceneNode.Children" />
-    IReadOnlyObservableCollection<IGameObject> ISceneNode.Children => _children;
+    /// <summary>
+    /// Adds a child scene node to this game object.
+    /// </summary>
+    /// <param name="child">The child scene node to add.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="child"/> is null.</exception>
+    /// <exception cref="InvalidOperationException">The child already has a parent.</exception>
+    public void AddChild(ISceneNode child)
+    {
+        ArgumentNullException.ThrowIfNull(child);
+        if (child.Parent is not null)
+            throw new InvalidOperationException("Scene node already belongs to a parent.");
+
+        _children.Add(child);
+    }
+
+    /// <summary>
+    /// Removes a child scene node from this game object.
+    /// </summary>
+    /// <param name="child">The child scene node to remove.</param>
+    /// <returns><see langword="true"/> if the child was removed; otherwise, <see langword="false"/>.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="child"/> is null.</exception>
+    public bool RemoveChild(ISceneNode child)
+    {
+        ArgumentNullException.ThrowIfNull(child);
+        return _children.Remove(child);
+    }
 
     /// <summary>
     /// Gets the observable, read-only collection of components attached to this game object.
@@ -116,7 +137,9 @@ public partial class GameObject : IGameObject, IObservable
         if (_components.Contains(component))
             return;
         if (component.Owner is not null)
-            throw new InvalidOperationException("A component can only be owned by one game object.");
+            throw new InvalidOperationException(
+                "A component can only be owned by one game object."
+            );
 
         _components.Add(component);
     }
@@ -235,17 +258,16 @@ public partial class GameObject : IGameObject, IObservable
     /// Sets the parent of a newly added child to this game object.
     /// </summary>
     /// <param name="child">The child added to the collection.</param>
-    private void OnChildAdded(IGameObject child)
+    private void OnChildAdded(ISceneNode child)
     {
         child.Parent = this;
-        ChildAdded?.Invoke(child);
     }
 
     /// <summary>
     /// Clears the parent of a removed child when this game object is still its parent.
     /// </summary>
     /// <param name="child">The child removed from the collection.</param>
-    private void OnChildRemoved(IGameObject child)
+    private void OnChildRemoved(ISceneNode child)
     {
         if (ReferenceEquals(child.Parent, this) && !_children.Contains(child))
             child.Parent = null;

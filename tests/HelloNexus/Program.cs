@@ -53,7 +53,7 @@ internal static class Program
                 );
                 sceneRegistry.Register(
                     helloNexusSceneId,
-                    () => sceneFactory.Create(helloNexusSceneId, gameSystem, inputMap)
+                    () => sceneFactory.Create(helloNexusSceneId, inputMap)
                 );
 
                 return gameSystem;

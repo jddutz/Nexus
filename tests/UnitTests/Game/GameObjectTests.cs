@@ -8,7 +8,7 @@ using Silk.NET.Maths;
 namespace Tests;
 
 /// <summary>
-/// Tests game object component ownership and game-model lookup behavior.
+/// Tests game object component ownership and scene hierarchy behavior.
 /// </summary>
 public class GameObjectTests
 {
@@ -26,6 +26,10 @@ public class GameObjectTests
         var viewComponent = Assert.Single(defaultView.Components.OfType<ViewComponent>());
 
         Assert.Equal(new SceneId("main"), scene.Id);
+        Assert.Same(scene, defaultView.Parent);
+        Assert.Same(scene, defaultView.Scene);
+        Assert.Same(scene, scene.GetSceneNode(((ISceneNode)scene).Id));
+        Assert.Same(defaultView, scene.GetSceneNode(defaultView.Id));
         Assert.Contains(defaultView, scene.Children);
         Assert.Contains(
             defaultView.Components,
@@ -51,21 +55,20 @@ public class GameObjectTests
         components.ItemAdded += addedItems.Add;
         components.ItemRemoved += removedItems.Add;
 
-        var component = gameObject.AddComponent<TestComponent>();
+        var component = new TestComponent();
+        gameObject.AddComponent(component);
 
-        Assert.Same(component, gameObject.GetComponent<TestComponent>());
         Assert.Same(component, components[0]);
         Assert.Equal(1, components.Count);
         Assert.Same(component, Assert.Single(addedItems));
-        Assert.True(gameObject.RemoveComponent<TestComponent>());
-        Assert.Null(gameObject.GetComponent<TestComponent>());
+        Assert.True(gameObject.RemoveComponent(component));
         Assert.Empty(components);
         Assert.Same(component, Assert.Single(removedItems));
 
         var existingComponent = new TestComponent();
         gameObject.AddComponent(existingComponent);
 
-        Assert.Same(existingComponent, gameObject.GetComponent<TestComponent>());
+        Assert.Contains(existingComponent, components);
         Assert.True(gameObject.RemoveComponent(existingComponent));
         Assert.Equal(2, addedItems.Count);
         Assert.Same(existingComponent, addedItems[1]);
@@ -84,7 +87,7 @@ public class GameObjectTests
         var parent = new GameObject();
         var child = new GameObject();
         var addedChildren = new List<ISceneNode>();
-        parent.ChildAdded += addedChildren.Add;
+        parent.Children.ItemAdded += addedChildren.Add;
 
         parent.Children.Add(child);
         parent.Children.Add(child);
@@ -105,23 +108,18 @@ public class GameObjectTests
     /// Verifies that activating a scene raises lifecycle notifications for its default view and camera.
     /// </summary>
     [Fact]
-    public void Scene_activatesDefaultViewAndCameraThroughLifecycleEvents()
+    public void Scene_activationChangesOnlySceneState()
     {
         var scene = new Scene();
         var defaultView = Assert.IsType<GameObject2D>(Assert.Single(scene.Children));
         var defaultCamera = Assert.Single(defaultView.Components.OfType<StaticCamera>());
         var viewComponent = Assert.Single(defaultView.Components.OfType<ViewComponent>());
-        var addedGameObjects = new List<IGameObject>();
-        var addedComponents = new List<IComponent>();
-
-        scene.GameObjectAdded += addedGameObjects.Add;
-        scene.ComponentAdded += addedComponents.Add;
-
         scene.Activate();
 
-        Assert.Contains(defaultView, addedGameObjects);
-        Assert.Contains(addedComponents, component => ReferenceEquals(component, defaultCamera));
-        Assert.Contains(addedComponents, component => ReferenceEquals(component, viewComponent));
+        Assert.True(scene.IsActive);
+        Assert.False(defaultView.IsActivated);
+        Assert.False(defaultCamera.IsActivated);
+        Assert.False(viewComponent.IsActivated);
     }
 
     /// <summary>
@@ -131,10 +129,9 @@ public class GameObjectTests
     public void Scene_forwardsDescendantLifecycleNotifications()
     {
         var scene = new Scene();
-        var parent = scene.CreateChild<GameObject>();
         var component = new TestComponent();
         var child = new GameObject([component]);
-        parent.AddChild(child);
+        var parent = new GameObject();
         var addedGameObjects = new List<IGameObject>();
         var removedGameObjects = new List<IGameObject>();
         var addedComponents = new List<IComponent>();
@@ -146,8 +143,11 @@ public class GameObjectTests
         scene.ComponentRemoved += removedComponents.Add;
 
         scene.Activate();
+        scene.AddChild(parent);
+        parent.AddChild(child);
 
         Assert.Contains(parent, addedGameObjects);
+        Assert.Contains(child, addedGameObjects);
         Assert.Contains(component, addedComponents);
 
         parent.RemoveChild(child);
@@ -169,21 +169,41 @@ public class GameObjectTests
     }
 
     /// <summary>
-    /// Verifies game objects are configured from the root of the tree to its leaves.
+    /// Verifies Scene registers existing descendants and tracks later subtree changes.
     /// </summary>
     [Fact]
-    public void SetGameModel_configuresHierarchyFromRootToLeaf()
+    public void Scene_tracksAllNodesWhenSubtreesAreAddedAndRemoved()
     {
         var root = new GameObject(10);
         var child = new GameObject(11);
         var leaf = new GameObject(12);
         root.AddChild(child);
         child.AddChild(leaf);
-        var gameModel = new TestGameModel();
+        var scene = new Scene();
 
-        root.SetGameModel(gameModel);
+        scene.AddChild(root);
 
-        Assert.Equal([root.Id, child.Id, leaf.Id], gameModel.RegistrationOrder);
+        Assert.Same(scene, root.Parent);
+        Assert.Same(scene, root.Scene);
+        Assert.Same(scene, child.Scene);
+        Assert.Same(scene, leaf.Scene);
+        Assert.Same(root, scene.GetSceneNode(root.Id));
+        Assert.Same(child, scene.GetSceneNode(child.Id));
+        Assert.Same(leaf, scene.GetSceneNode(leaf.Id));
+
+        var laterChild = new GameObject(13);
+        child.AddChild(laterChild);
+        Assert.Same(laterChild, scene.GetSceneNode(laterChild.Id));
+
+        Assert.True(scene.RemoveChild(root));
+
+        Assert.Null(scene.GetSceneNode(root.Id));
+        Assert.Null(scene.GetSceneNode(child.Id));
+        Assert.Null(scene.GetSceneNode(leaf.Id));
+        Assert.Null(scene.GetSceneNode(laterChild.Id));
+        Assert.Null(root.Scene);
+        Assert.Null(root.Parent);
+        Assert.Same(child, leaf.Parent);
     }
 
     /// <summary>
@@ -485,31 +505,6 @@ public class GameObjectTests
         Assert.Contains(component, previousOwner.Components);
         Assert.Same(previousOwner, component.Owner);
         Assert.Contains("one game object", exception.Message);
-    }
-
-    /// <summary>
-    /// Provides an in-memory game model for component ownership tests.
-    /// </summary>
-    private sealed class TestGameModel : IGameModel
-    {
-        private readonly Dictionary<GameObjectId, IGameObject> _gameObjects = [];
-
-        /// <summary>Gets the order in which game objects were registered.</summary>
-        public List<GameObjectId> RegistrationOrder { get; } = [];
-
-        /// <inheritdoc/>
-        public IGameObject? GetGameObject(GameObjectId gameObjectId) =>
-            _gameObjects.GetValueOrDefault(gameObjectId);
-
-        /// <inheritdoc/>
-        public void Register(IGameObject gameObject)
-        {
-            _gameObjects[gameObject.Id] = gameObject;
-            RegistrationOrder.Add(gameObject.Id);
-        }
-
-        /// <inheritdoc/>
-        public void Unregister(IGameObject gameObject) => _gameObjects.Remove(gameObject.Id);
     }
 
     /// <summary>

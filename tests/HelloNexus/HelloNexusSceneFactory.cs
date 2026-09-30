@@ -32,16 +32,14 @@ internal sealed class HelloNexusSceneFactory(
     /// Creates the initial scene and its HelloNexus-specific content.
     /// </summary>
     /// <param name="sceneId">The identifier assigned to the scene.</param>
-    /// <param name="gameModel">Associates game objects with their owner before components are attached.</param>
     /// <param name="inputMap">The scene's keyboard bindings.</param>
     /// <returns>The configured initial scene.</returns>
-    public Scene Create(SceneId sceneId, IGameModel gameModel, InputMap inputMap)
+    public Scene Create(SceneId sceneId, InputMap inputMap)
     {
         var mainWindow = windowService.GetMainWindow();
         var scene = new Scene(sceneId) { InputMap = inputMap };
-        scene.SetGameModel(gameModel);
 
-        var sceneView = scene.Children.Single();
+        var sceneView = scene.Children.OfType<IGameObject>().Single();
         var camera = sceneView.Components.OfType<StaticCamera>().Single();
         camera.SetViewportSize(mainWindow.Size.X, mainWindow.Size.Y);
 

@@ -37,7 +37,7 @@ public sealed class GraphicalUserInterface(IEventHub eventHub, IWindowService? w
         var size = _windowService.GetMainWindow().Size;
         var screenSize = new Vector2D<float>(size.X, size.Y);
         var screenBounds = new Rectangle<float>(Vector2D<float>.Zero, screenSize);
-        foreach (var element in EnumerateActiveLayoutRoots(_scene.GameObjects.OfType<IGameObject>()))
+        foreach (var element in EnumerateActiveLayoutRoots(_scene.Children.OfType<IGameObject>()))
             MeasureAndArrange(element, screenSize, screenBounds);
     }
 
@@ -77,7 +77,7 @@ public sealed class GraphicalUserInterface(IEventHub eventHub, IWindowService? w
 
         var focusableElements = _scene is null
             ? []
-            : EnumerateElements(_scene.GameObjects.OfType<IGameObject>())
+            : EnumerateElements(_scene.Children.OfType<IGameObject>())
                 .Where(element =>
                     element.IsActivated
                     && _subscribedElements.Contains(element)
@@ -112,7 +112,7 @@ public sealed class GraphicalUserInterface(IEventHub eventHub, IWindowService? w
     {
         UnsubscribeFromElements(_subscribedElements.ToArray());
         _scene = message.Scene;
-        SubscribeToActiveElements(_scene.GameObjects.OfType<IGameObject>());
+        SubscribeToActiveElements(_scene.Children.OfType<IGameObject>());
         _layoutInvalidated = true;
     }
 
@@ -195,9 +195,7 @@ public sealed class GraphicalUserInterface(IEventHub eventHub, IWindowService? w
     /// <param name="propertyName">The name of the changed property.</param>
     private void OnElementPropertyChanged(Element changedElement, string propertyName)
     {
-        if (
-            propertyName is nameof(Element.IsVisible) or nameof(Element.IsEnabled)
-        )
+        if (propertyName is nameof(Element.IsVisible) or nameof(Element.IsEnabled))
         {
             foreach (var affectedElement in EnumerateElements([changedElement]))
             {
@@ -217,7 +215,8 @@ public sealed class GraphicalUserInterface(IEventHub eventHub, IWindowService? w
         }
 
         if (
-            propertyName is ""
+            propertyName
+            is ""
                 or nameof(Element.Width)
                 or nameof(Element.Height)
                 or nameof(TextButton.Label)
@@ -239,7 +238,9 @@ public sealed class GraphicalUserInterface(IEventHub eventHub, IWindowService? w
             if (gameObject is Element element)
                 yield return element;
 
-            foreach (var childElement in EnumerateElements(gameObject.Children))
+            foreach (
+                var childElement in EnumerateElements(gameObject.Children.OfType<IGameObject>())
+            )
                 yield return childElement;
         }
     }
@@ -294,7 +295,7 @@ public sealed class GraphicalUserInterface(IEventHub eventHub, IWindowService? w
             yield return element;
         }
 
-        foreach (var child in gameObject.Children)
+        foreach (var child in gameObject.Children.OfType<IGameObject>())
         foreach (var childRoot in EnumerateActiveLayoutRoots(child, layoutRoot))
             yield return childRoot;
     }

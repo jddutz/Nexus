@@ -34,13 +34,19 @@ public class GameSystemEventRegistrationTests
     }
 
     /// <summary>
-    /// Verifies initialization loads the scene identified by game settings.
+    /// Verifies initialization loads and activates the scene identified by game settings.
     /// </summary>
     [Fact]
-    public void Initialize_loadsTheConfiguredInitialScene()
+    public void Initialize_loadsAndActivatesTheConfiguredInitialScene()
     {
         var sceneId = (SceneId)"WelcomeScreen";
         var scene = new Scene(sceneId);
+        var rootComponent = new EventHandlingComponent();
+        var root = new EventHandlingGameObject([rootComponent]);
+        var childComponent = new EventHandlingComponent();
+        var child = new EventHandlingGameObject([childComponent]);
+        root.AddChild(child);
+        scene.AddChild(root);
         var sceneRegistry = new SceneRegistry();
         sceneRegistry.Register(sceneId, () => scene);
         var gameSystem = CreateGameSystem(
@@ -55,6 +61,10 @@ public class GameSystemEventRegistrationTests
 
         Assert.Same(scene, gameSystem.InitialScene);
         Assert.Same(scene, gameSystem.CurrentScene);
+        Assert.True(root.IsActivated);
+        Assert.True(child.IsActivated);
+        Assert.True(rootComponent.IsActivated);
+        Assert.True(childComponent.IsActivated);
     }
 
     /// <summary>
@@ -76,10 +86,10 @@ public class GameSystemEventRegistrationTests
     }
 
     /// <summary>
-    /// Verifies model registration wires an object tree and unregistering removes its handlers.
+    /// Verifies GameSystem activation wires an object tree and deactivation removes its handlers.
     /// </summary>
     [Fact]
-    public void RegisterGameObject_registersItsSubtreeForGlobalEvents()
+    public void ActivateGameObjects_registersAndUnregistersGlobalEventHandlers()
     {
         var eventHub = new EventHub();
         var gameSystem = CreateGameSystem(eventHub);
@@ -89,7 +99,10 @@ public class GameSystemEventRegistrationTests
         var child = new EventHandlingGameObject([childComponent]);
         root.AddChild(child);
 
-        root.SetGameModel(gameSystem);
+        gameSystem.ActivateGameObject(root);
+        gameSystem.ActivateGameObject(child);
+        gameSystem.ActivateComponent(rootComponent);
+        gameSystem.ActivateComponent(childComponent);
         eventHub.Publish(new ProbeEvent());
         eventHub.Drain();
 
@@ -98,7 +111,10 @@ public class GameSystemEventRegistrationTests
         Assert.Equal(1, rootComponent.GlobalEventCount);
         Assert.Equal(1, childComponent.GlobalEventCount);
 
-        gameSystem.Unregister(root);
+        gameSystem.DeactivateComponent(childComponent);
+        gameSystem.DeactivateComponent(rootComponent);
+        gameSystem.DeactivateGameObject(child);
+        gameSystem.DeactivateGameObject(root);
         eventHub.Publish(new ProbeEvent());
         eventHub.Drain();
 
@@ -122,6 +138,7 @@ public class GameSystemEventRegistrationTests
         root.AddChild(child);
 
         gameSystem.ActivateGameObject(root);
+        gameSystem.ActivateGameObject(child);
         gameSystem.ActivateComponent(component);
         Assert.True(component.IsActivated);
         eventHub.Drain();
@@ -130,8 +147,9 @@ public class GameSystemEventRegistrationTests
         Assert.Equal(1, child.GameObjectActivationCount);
         Assert.Equal(1, component.ComponentActivationCount);
 
-        gameSystem.DeactivateGameObject(root);
         gameSystem.DeactivateComponent(component);
+        gameSystem.DeactivateGameObject(child);
+        gameSystem.DeactivateGameObject(root);
         Assert.False(component.IsActivated);
         eventHub.Publish(new ProbeEvent());
         eventHub.Drain();

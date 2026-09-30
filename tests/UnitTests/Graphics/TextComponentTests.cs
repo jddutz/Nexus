@@ -88,7 +88,6 @@ public sealed class TextComponentTests
         var style = CreateStyle();
         var component = new TextComponent(style) { Text = "AB" };
         var gameObject = new GameObject2D([component]);
-        gameObject.SetGameModel(new TestGameModel());
         gameObject.Position = new Vector2D<float>(3f, 4f);
         var span = Assert.IsType<TextSpan>(Assert.Single(component.Drawables));
 
@@ -121,14 +120,13 @@ public sealed class TextComponentTests
     }
 
     /// <summary>
-    /// Verifies initialization refreshes text transforms after game-model assignment.
+    /// Verifies initialization uses the owning game object's transform.
     /// </summary>
     [Fact]
     public void Initialize_refreshes_span_transform_after_game_model_assignment()
     {
         var component = new TextComponent(CreateStyle()) { Text = "A" };
         var gameObject = new GameObject2D([component]) { Position = new Vector2D<float>(10f, 20f) };
-        gameObject.SetGameModel(new TestGameModel());
         var span = Assert.IsType<TextSpan>(Assert.Single(component.Drawables));
 
         Assert.Equal(gameObject.WorldTransform, span.TransformationMatrix);
@@ -447,24 +445,6 @@ public sealed class TextComponentTests
                 [' '] = new(' ', 1, new(0, 0, 0, 0), new(0, 0, 0, 0)),
             }
         );
-    }
-
-    /// <summary>
-    /// Provides an in-memory game model for testing component ownership.
-    /// </summary>
-    private sealed class TestGameModel : IGameModel
-    {
-        private readonly Dictionary<GameObjectId, IGameObject> _gameObjects = [];
-
-        /// <inheritdoc/>
-        public IGameObject? GetGameObject(GameObjectId gameObjectId) =>
-            _gameObjects.GetValueOrDefault(gameObjectId);
-
-        /// <inheritdoc/>
-        public void Register(IGameObject gameObject) => _gameObjects[gameObject.Id] = gameObject;
-
-        /// <inheritdoc/>
-        public void Unregister(IGameObject gameObject) => _gameObjects.Remove(gameObject.Id);
     }
 
     private sealed class TestTextStyle(

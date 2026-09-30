@@ -14,13 +14,12 @@ public class GameSystem(
     ISceneRegistry sceneRegistry,
     IOptions<GameSettings> gameSettings,
     IInputSystem? inputSystem = null
-) : IGameSystem, IGameModel
+) : IGameSystem
 {
     private readonly IEventHub _eventHub = eventHub;
     private readonly IInputSystem? _inputSystem = inputSystem;
     private readonly ILogger<GameSystem> _logger = logger;
     private readonly ISceneRegistry _sceneRegistry = sceneRegistry;
-    private readonly Dictionary<GameObjectId, IGameObject> _gameObjects = [];
 
     /// <summary>Gets the settings bound to the Game configuration section.</summary>
     public GameSettings Settings { get; } = gameSettings.Value;
@@ -75,28 +74,6 @@ public class GameSystem(
         }
     }
 
-    /// <inheritdoc/>
-    public IGameObject? GetGameObject(GameObjectId gameObjectId)
-    {
-        return _gameObjects.GetValueOrDefault(gameObjectId);
-    }
-
-    /// <inheritdoc/>
-    public void Register(IGameObject gameObject)
-    {
-        ArgumentNullException.ThrowIfNull(gameObject);
-        _gameObjects[gameObject.Id] = gameObject;
-        RegisterEventHandlers(gameObject);
-    }
-
-    /// <inheritdoc/>
-    public void Unregister(IGameObject gameObject)
-    {
-        ArgumentNullException.ThrowIfNull(gameObject);
-        _gameObjects.Remove(gameObject.Id);
-        UnregisterEventHandlers(gameObject);
-    }
-
     /// <summary>
     /// Initializes the game system before the update loop begins.
     /// </summary>
@@ -115,11 +92,13 @@ public class GameSystem(
             initialScene.GetType().Name
         );
 
-        initialScene.SetGameModel(this);
+        initialScene.Initialize();
         CurrentScene = initialScene;
 
         _logger.LogTrace("Activating scene...");
         initialScene.Activate();
+        foreach (var child in initialScene.Children.OfType<IGameObject>())
+            ActivateSubtree(child);
         _logger.LogTrace("Scene activation complete.");
         _logger.LogInformation("Game system initialized and initial scene activated.");
     }
@@ -130,14 +109,19 @@ public class GameSystem(
     /// <param name="deltaTime">The elapsed time in seconds since the previous frame.</param>
     public void Update(double deltaTime)
     {
-        CurrentScene?.Update(deltaTime);
+        if (CurrentScene is null)
+            return;
+
+        foreach (var child in CurrentScene.Children.OfType<IGameObject>())
+            UpdateGameObject(child, deltaTime);
     }
 
     /// <summary>Publishes a component activation event.</summary>
     /// <param name="component">The component to activate.</param>
     public void ActivateComponent(IComponent component)
     {
-        component.IsActivated = true;
+        component.Initialize();
+        component.Activate();
         _eventHub.Register(component);
 
         _logger.LogTrace(
@@ -152,8 +136,11 @@ public class GameSystem(
     /// <param name="component">The component to deactivate.</param>
     public void DeactivateComponent(IComponent component)
     {
-        component.IsActivated = false;
         _eventHub.Unregister(component);
+        if (!component.IsActivated)
+            return;
+
+        component.Deactivate();
 
         _logger.LogTrace(
             "Deactivating component. ComponentType={ComponentType}",
@@ -167,6 +154,11 @@ public class GameSystem(
     /// <param name="gameObject">The game object to activate.</param>
     public void ActivateGameObject(IGameObject gameObject)
     {
+        gameObject.Initialize();
+        if (!gameObject.CanActivate())
+            return;
+
+        gameObject.Activate();
         RegisterEventHandlers(gameObject);
 
         _logger.LogTrace(
@@ -183,6 +175,8 @@ public class GameSystem(
     public void DeactivateGameObject(IGameObject gameObject)
     {
         UnregisterEventHandlers(gameObject);
+        if (gameObject.IsActivated)
+            gameObject.Deactivate();
 
         _logger.LogTrace(
             "Deactivating game object. GameObjectType={GameObjectType}, ComponentCount={ComponentCount}",
@@ -194,32 +188,49 @@ public class GameSystem(
     }
 
     /// <summary>
-    /// Registers a game object and its current subtree as global event handlers.
+    /// Initializes and activates a game object subtree in parent-first order.
+    /// </summary>
+    /// <param name="gameObject">The root game object to activate.</param>
+    private void ActivateSubtree(IGameObject gameObject)
+    {
+        ActivateGameObject(gameObject);
+        if (!gameObject.IsActivated)
+            return;
+
+        foreach (var component in gameObject.Components)
+            ActivateComponent(component);
+
+        foreach (var child in gameObject.Children.OfType<IGameObject>())
+            ActivateSubtree(child);
+    }
+
+    /// <summary>
+    /// Updates a game object and its descendants in parent-first order.
+    /// </summary>
+    /// <param name="gameObject">The root game object to update.</param>
+    /// <param name="deltaTime">The elapsed time in seconds since the previous update.</param>
+    private static void UpdateGameObject(IGameObject gameObject, double deltaTime)
+    {
+        gameObject.Update(deltaTime);
+        foreach (var child in gameObject.Children.OfType<IGameObject>())
+            UpdateGameObject(child, deltaTime);
+    }
+
+    /// <summary>
+    /// Registers a game object as a global event handler.
     /// </summary>
     /// <param name="gameObject">The root game object to register.</param>
     private void RegisterEventHandlers(IGameObject gameObject)
     {
         _eventHub.Register(gameObject);
-
-        foreach (var component in gameObject.Components)
-            _eventHub.Register(component);
-
-        foreach (var child in gameObject.Children)
-            RegisterEventHandlers(child);
     }
 
     /// <summary>
-    /// Unregisters a game object and its current subtree from global event handling.
+    /// Unregisters a game object from global event handling.
     /// </summary>
     /// <param name="gameObject">The root game object to unregister.</param>
     private void UnregisterEventHandlers(IGameObject gameObject)
     {
         _eventHub.Unregister(gameObject);
-
-        foreach (var component in gameObject.Components)
-            _eventHub.Unregister(component);
-
-        foreach (var child in gameObject.Children)
-            UnregisterEventHandlers(child);
     }
 }

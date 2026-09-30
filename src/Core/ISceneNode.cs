@@ -8,7 +8,7 @@ public interface ISceneNode
     /// <summary>
     /// Gets the unique identifier of this scene node.
     /// </summary>
-    GameObjectId Id { get; }
+    SceneNodeId Id { get; }
 
     /// <summary>
     /// Gets the containing scene, or null when detached.
@@ -21,12 +21,7 @@ public interface ISceneNode
     ISceneNode? Parent { get; set; }
 
     /// <summary>
-    /// Gets the game objects directly contained by this node.
+    /// Gets the scene nodes directly contained by this node.
     /// </summary>
-    IReadOnlyObservableCollection<IGameObject> Children { get; }
-
-    /// <summary>
-    /// Occurs when a child is added to the scene node.
-    /// </summary>
-    event Action<ISceneNode>? ChildAdded;
+    IObservableCollection<ISceneNode> Children { get; }
 }

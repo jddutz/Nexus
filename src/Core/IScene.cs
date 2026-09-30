@@ -1,17 +1,37 @@
 namespace Nexus.Core;
 
 /// <summary>
-/// Defines a top-level container for game objects.
+/// Defines a scene that is the root of a scene-node hierarchy.
 /// </summary>
-public interface IScene : IManagedEntity, IObservable
+public interface IScene : ISceneNode, IManagedEntity, IObservable
 {
     /// <summary>
-    /// Gets the game objects directly contained by this scene.
+    /// Gets every node in the scene, including the scene node itself.
     /// </summary>
-    IObservableCollection<ISceneNode> GameObjects { get; }
+    IReadOnlyDictionary<SceneNodeId, ISceneNode> AllSceneNodes { get; }
 
     /// <summary>
     /// Gets a value indicating whether this scene is active.
     /// </summary>
     bool IsActive { get; }
+
+    /// <summary>
+    /// Occurs when a component is added to a game object in this scene.
+    /// </summary>
+    event Action<IComponent>? ComponentAdded;
+
+    /// <summary>
+    /// Occurs when a component is removed from a game object in this scene.
+    /// </summary>
+    event Action<IComponent>? ComponentRemoved;
+
+    /// <summary>
+    /// Occurs when a game object is added to this scene or one of its descendants.
+    /// </summary>
+    event Action<IGameObject>? GameObjectAdded;
+
+    /// <summary>
+    /// Occurs when a game object is removed from this scene or one of its descendants.
+    /// </summary>
+    event Action<IGameObject>? GameObjectRemoved;
 }
