@@ -112,7 +112,7 @@ public class Element : GameObject2D, IElement
     /// <returns>True when no element in the ancestor chain is hidden.</returns>
     private static bool AreAncestorsVisible(IGameObject gameObject)
     {
-        for (var current = gameObject; current is not null; current = current.Parent)
+        for (ISceneNode? current = gameObject; current is not null; current = current.Parent)
         {
             if (current is IElement element && !element.IsVisible)
                 return false;
@@ -126,7 +126,7 @@ public class Element : GameObject2D, IElement
     /// <returns>True when no element in the ancestor chain is disabled.</returns>
     private static bool AreAncestorsEnabled(IGameObject gameObject)
     {
-        for (var current = gameObject; current is not null; current = current.Parent)
+        for (ISceneNode? current = gameObject; current is not null; current = current.Parent)
         {
             if (current is IElement element && !element.IsEnabled)
                 return false;

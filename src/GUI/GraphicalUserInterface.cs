@@ -11,6 +11,7 @@ public sealed class GraphicalUserInterface(IEventHub eventHub, IWindowService? w
     private readonly IEventHub _eventHub = eventHub;
     private readonly IWindowService? _windowService = windowService;
     private readonly HashSet<Element> _subscribedElements = [];
+    private readonly Dictionary<Element, Action<string>> _propertyChangedHandlers = [];
     private IScene? _scene;
     private Element? _focusedElement;
     private bool _layoutInvalidated;
@@ -36,7 +37,7 @@ public sealed class GraphicalUserInterface(IEventHub eventHub, IWindowService? w
         var size = _windowService.GetMainWindow().Size;
         var screenSize = new Vector2D<float>(size.X, size.Y);
         var screenBounds = new Rectangle<float>(Vector2D<float>.Zero, screenSize);
-        foreach (var element in EnumerateActiveLayoutRoots(_scene.Children))
+        foreach (var element in EnumerateActiveLayoutRoots(_scene.GameObjects.OfType<IGameObject>()))
             MeasureAndArrange(element, screenSize, screenBounds);
     }
 
@@ -76,7 +77,7 @@ public sealed class GraphicalUserInterface(IEventHub eventHub, IWindowService? w
 
         var focusableElements = _scene is null
             ? []
-            : EnumerateElements(_scene.Children)
+            : EnumerateElements(_scene.GameObjects.OfType<IGameObject>())
                 .Where(element =>
                     element.IsActivated
                     && _subscribedElements.Contains(element)
@@ -111,7 +112,7 @@ public sealed class GraphicalUserInterface(IEventHub eventHub, IWindowService? w
     {
         UnsubscribeFromElements(_subscribedElements.ToArray());
         _scene = message.Scene;
-        SubscribeToActiveElements(_scene.Children);
+        SubscribeToActiveElements(_scene.GameObjects.OfType<IGameObject>());
         _layoutInvalidated = true;
     }
 
@@ -158,7 +159,10 @@ public sealed class GraphicalUserInterface(IEventHub eventHub, IWindowService? w
         {
             if (element.IsActivated && _subscribedElements.Add(element))
             {
-                element.PropertyChanged += OnElementPropertyChanged;
+                Action<string> handler = propertyName =>
+                    OnElementPropertyChanged(element, propertyName);
+                _propertyChangedHandlers.Add(element, handler);
+                element.PropertyChanged += handler;
                 element.InputMap.Register(_eventHub);
             }
         }
@@ -177,7 +181,8 @@ public sealed class GraphicalUserInterface(IEventHub eventHub, IWindowService? w
                 if (ReferenceEquals(_focusedElement, element))
                     SetFocus(null);
 
-                element.PropertyChanged -= OnElementPropertyChanged;
+                if (_propertyChangedHandlers.Remove(element, out var handler))
+                    element.PropertyChanged -= handler;
                 element.InputMap.Unregister(_eventHub);
             }
         }
@@ -186,13 +191,12 @@ public sealed class GraphicalUserInterface(IEventHub eventHub, IWindowService? w
     /// <summary>
     /// Invalidates layout when an element's requested size changes.
     /// </summary>
-    /// <param name="sender">The element whose property changed.</param>
-    /// <param name="eventArgs">The property-change details.</param>
-    private void OnElementPropertyChanged(object? sender, PropertyChangedEventArgs eventArgs)
+    /// <param name="changedElement">The element whose property changed.</param>
+    /// <param name="propertyName">The name of the changed property.</param>
+    private void OnElementPropertyChanged(Element changedElement, string propertyName)
     {
         if (
-            eventArgs.PropertyName is nameof(Element.IsVisible) or nameof(Element.IsEnabled)
-            && sender is Element changedElement
+            propertyName is nameof(Element.IsVisible) or nameof(Element.IsEnabled)
         )
         {
             foreach (var affectedElement in EnumerateElements([changedElement]))
@@ -206,15 +210,14 @@ public sealed class GraphicalUserInterface(IEventHub eventHub, IWindowService? w
             }
         }
 
-        if (eventArgs.PropertyName == nameof(Element.CanFocus) && sender is Element element)
+        if (propertyName == nameof(Element.CanFocus))
         {
-            if (!element.CanFocus && ReferenceEquals(_focusedElement, element))
+            if (!changedElement.CanFocus && ReferenceEquals(_focusedElement, changedElement))
                 SetFocus(null);
         }
 
         if (
-            eventArgs.PropertyName
-            is null
+            propertyName is ""
                 or nameof(Element.Width)
                 or nameof(Element.Height)
                 or nameof(TextButton.Label)

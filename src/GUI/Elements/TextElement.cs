@@ -6,7 +6,7 @@ using Nexus.Graphics.Text;
 /// <summary>Measures and arranges styled text within a GUI element.</summary>
 public sealed class TextElement : Element
 {
-    private readonly List<IGameObject> _visibilityAncestors = [];
+    private readonly List<IObservable> _visibilityAncestors = [];
     private readonly ITextStyle _style;
     private string _text;
     private int? _maximumLines;
@@ -240,19 +240,21 @@ public sealed class TextElement : Element
             ancestor.PropertyChanged -= OnAncestorPropertyChanged;
         _visibilityAncestors.Clear();
 
-        for (var ancestor = Parent; ancestor is not null; ancestor = ancestor.Parent)
+        for (ISceneNode? ancestor = Parent; ancestor is not null; ancestor = ancestor.Parent)
         {
-            ancestor.PropertyChanged += OnAncestorPropertyChanged;
-            _visibilityAncestors.Add(ancestor);
+            if (ancestor is not IObservable observable)
+                continue;
+
+            observable.PropertyChanged += OnAncestorPropertyChanged;
+            _visibilityAncestors.Add(observable);
         }
     }
 
     /// <summary>Updates text component ownership when an ancestor's visibility changes.</summary>
-    /// <param name="sender">The ancestor that changed.</param>
-    /// <param name="eventArgs">The property-change details.</param>
-    private void OnAncestorPropertyChanged(object? sender, PropertyChangedEventArgs eventArgs)
+    /// <param name="propertyName">The name of the changed property.</param>
+    private void OnAncestorPropertyChanged(string propertyName)
     {
-        if (eventArgs.PropertyName is null or nameof(IsVisible))
+        if (propertyName is "" or nameof(IsVisible))
             UpdateVisualComponent();
     }
 

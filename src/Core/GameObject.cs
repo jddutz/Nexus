@@ -46,6 +46,8 @@ public partial class GameObject : IGameObject, IObservable
     {
         ArgumentNullException.ThrowIfNull(components);
         Id = id;
+        _components.ItemAdded += OnComponentAdded;
+        _components.ItemRemoved += OnComponentRemoved;
         _children.ItemAdded += OnChildAdded;
         _children.ItemRemoved += OnChildRemoved;
 
@@ -53,8 +55,6 @@ public partial class GameObject : IGameObject, IObservable
         {
             ArgumentNullException.ThrowIfNull(component);
             _components.Add(component);
-            component.SetOwner(this);
-            component.Initialize();
         }
     }
 
@@ -102,7 +102,35 @@ public partial class GameObject : IGameObject, IObservable
     /// <summary>
     /// Gets the observable, read-only collection of components attached to this game object.
     /// </summary>
-    public IReadOnlyObservableCollection<IComponent> Components => _components.AsReadOnly();
+    public IReadOnlyObservableCollection<IComponent> Components => _components;
+
+    /// <summary>
+    /// Adds a component to this game object.
+    /// </summary>
+    /// <param name="component">The component to add.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="component"/> is null.</exception>
+    /// <exception cref="InvalidOperationException">The component already has an owner.</exception>
+    public void AddComponent(IComponent component)
+    {
+        ArgumentNullException.ThrowIfNull(component);
+        if (_components.Contains(component))
+            return;
+        if (component.Owner is not null)
+            throw new InvalidOperationException("A component can only be owned by one game object.");
+
+        _components.Add(component);
+    }
+
+    /// <summary>
+    /// Removes a component from this game object.
+    /// </summary>
+    /// <param name="component">The component to remove.</param>
+    /// <returns><see langword="true"/> if the component was removed; otherwise, <see langword="false"/>.</returns>
+    public bool RemoveComponent(IComponent component)
+    {
+        ArgumentNullException.ThrowIfNull(component);
+        return _components.Remove(component);
+    }
 
     /// <inheritdoc />
     public virtual void Initialize()
@@ -182,6 +210,26 @@ public partial class GameObject : IGameObject, IObservable
     /// Handles this object becoming inactive.
     /// </summary>
     protected virtual void OnDeactivated() { }
+
+    /// <summary>
+    /// Assigns ownership and initializes a newly added component.
+    /// </summary>
+    /// <param name="component">The component added to the collection.</param>
+    private void OnComponentAdded(IComponent component)
+    {
+        component.SetOwner(this);
+        component.Initialize();
+    }
+
+    /// <summary>
+    /// Clears ownership of a component removed from this game object.
+    /// </summary>
+    /// <param name="component">The component removed from the collection.</param>
+    private void OnComponentRemoved(IComponent component)
+    {
+        if (ReferenceEquals(component.Owner, this) && !_components.Contains(component))
+            component.SetOwner(null);
+    }
 
     /// <summary>
     /// Sets the parent of a newly added child to this game object.

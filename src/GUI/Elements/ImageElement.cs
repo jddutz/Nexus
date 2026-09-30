@@ -3,7 +3,7 @@ namespace Nexus.GUI.Elements;
 /// <summary>Lays out, clips, and renders one texture image inside its assigned rectangle.</summary>
 public sealed class ImageElement : Element
 {
-    private readonly List<IGameObject> _visibilityAncestors = [];
+    private readonly List<IObservable> _visibilityAncestors = [];
     private ImageSource _imageSource;
     private SizingMode _sizingMode;
     private AlignHorizontal _horizontalAlignment = AlignHorizontal.Center;
@@ -360,19 +360,21 @@ public sealed class ImageElement : Element
             ancestor.PropertyChanged -= OnAncestorPropertyChanged;
         _visibilityAncestors.Clear();
 
-        for (var ancestor = Parent; ancestor is not null; ancestor = ancestor.Parent)
+        for (ISceneNode? ancestor = Parent; ancestor is not null; ancestor = ancestor.Parent)
         {
-            ancestor.PropertyChanged += OnAncestorPropertyChanged;
-            _visibilityAncestors.Add(ancestor);
+            if (ancestor is not IObservable observable)
+                continue;
+
+            observable.PropertyChanged += OnAncestorPropertyChanged;
+            _visibilityAncestors.Add(observable);
         }
     }
 
     /// <summary>Recreates the image visual when an ancestor's visibility changes.</summary>
-    /// <param name="sender">The ancestor that changed.</param>
-    /// <param name="eventArgs">The property-change details.</param>
-    private void OnAncestorPropertyChanged(object? sender, PropertyChangedEventArgs eventArgs)
+    /// <param name="propertyName">The name of the changed property.</param>
+    private void OnAncestorPropertyChanged(string propertyName)
     {
-        if (eventArgs.PropertyName is null or nameof(IsVisible))
+        if (propertyName is "" or nameof(IsVisible))
             UpdateVisualComponent();
     }
 
