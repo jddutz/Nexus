@@ -43,9 +43,8 @@ public partial class GameObject3D : GameObject, IGameObject3D
 
     /// <summary>Rebuilds the world transform after the local transform changes.</summary>
     /// <param name="previousValue">The previous local transform.</param>
-    protected virtual partial void AfterLocalTransformChanges(
-        Matrix4X4<float> previousValue
-    ) => UpdateWorldTransform();
+    protected virtual partial void AfterLocalTransformChanges(Matrix4X4<float> previousValue) =>
+        UpdateWorldTransform();
 
     /// <summary>Rebuilds the local transform from the local position, rotation, and scale.</summary>
     private void UpdateLocal()
