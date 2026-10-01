@@ -76,21 +76,19 @@ public partial class GameObject2D : GameObject, IGameObject2D
     /// <inheritdoc/>
     protected override void OnHierarchyChanged()
     {
-        base.OnHierarchyChanged();
-        UpdateWorldTransform();
-
         UnsubscribeFromSpatialAncestor();
         SubscribeToSpatialAncestor();
+        UpdateWorldTransform();
+        base.OnHierarchyChanged();
     }
 
     /// <summary>Rebuilds the local transform from the local position, rotation, and scale.</summary>
     private void UpdateTransformationMatrix()
     {
-        SetLocalTransform(
+        LocalTransform =
             Matrix4X4.CreateScale(Scale.X, Scale.Y, 1f)
-                * Matrix4X4.CreateRotationZ(Rotation)
-                * Matrix4X4.CreateTranslation(Position.X, Position.Y, 0f)
-        );
+            * Matrix4X4.CreateRotationZ(Rotation)
+            * Matrix4X4.CreateTranslation(Position.X, Position.Y, 0f);
     }
 
     /// <summary>Composes the local transform with the nearest spatial ancestor.</summary>
@@ -104,7 +102,7 @@ public partial class GameObject2D : GameObject, IGameObject2D
             _ => Matrix4X4<float>.Identity,
         };
 
-        SetWorldTransform(LocalTransform * ancestorTransform);
+        WorldTransform = LocalTransform * ancestorTransform;
     }
 
     /// <summary>Subscribes to the nearest spatial ancestor's world-transform changes.</summary>
@@ -151,8 +149,7 @@ public partial class GameObject2D : GameObject, IGameObject2D
         Matrix4X4<float> value
     )
     {
-        if (_spatialAncestor?.IsActivated == true)
-            UpdateWorldTransform();
+        UpdateWorldTransform();
     }
 
     /// <summary>Starts tracking an ancestor when its activation state changes.</summary>

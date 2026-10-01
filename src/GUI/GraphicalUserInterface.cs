@@ -14,6 +14,7 @@ public sealed class GraphicalUserInterface(IEventHub eventHub, IWindowService? w
     private readonly Dictionary<Element, Action<string>> _propertyChangedHandlers = [];
     private IScene? _scene;
     private Element? _focusedElement;
+    private Vector2D<int>? _pendingWindowSize;
     private bool _layoutInvalidated;
 
     /// <inheritdoc />
@@ -34,7 +35,8 @@ public sealed class GraphicalUserInterface(IEventHub eventHub, IWindowService? w
             return;
 
         _layoutInvalidated = false;
-        var size = _windowService.GetMainWindow().Size;
+        var size = _pendingWindowSize ?? _windowService.GetMainWindow().Size;
+        _pendingWindowSize = null;
         var screenSize = new Vector2D<float>(size.X, size.Y);
         var screenBounds = new Rectangle<float>(Vector2D<float>.Zero, screenSize);
         foreach (var element in EnumerateActiveLayoutRoots(_scene.Children.OfType<IGameObject>()))
@@ -148,7 +150,10 @@ public sealed class GraphicalUserInterface(IEventHub eventHub, IWindowService? w
     public void Handle(WindowResizedEvent message)
     {
         if (_windowService is not null && message.WindowId == _windowService.MainWindowId)
+        {
+            _pendingWindowSize = message.Size;
             _layoutInvalidated = true;
+        }
     }
 
     /// <summary>

@@ -32,9 +32,7 @@ public abstract partial class Component : IComponent
         if (IsInitialized)
             return;
 
-        SetIsInitialized(true);
-
-        SetIsActivated(CanActivate());
+        IsInitialized = true;
     }
 
     /// <inheritdoc />
@@ -43,7 +41,10 @@ public abstract partial class Component : IComponent
     /// <inheritdoc />
     public virtual void Activate()
     {
-        SetIsActivated(CanActivate());
+        if (IsActivated || !CanActivate())
+            return;
+
+        IsActivated = true;
     }
 
     /// <inheritdoc />
@@ -55,7 +56,10 @@ public abstract partial class Component : IComponent
     /// <inheritdoc />
     public virtual void Deactivate()
     {
-        SetIsActivated(false);
+        if (!IsActivated)
+            return;
+
+        IsActivated = false;
     }
 
     /// <summary>

@@ -235,7 +235,7 @@ public partial class GameObject : IGameObject
             if (child is GameObject gameObject && !gameObject.IsInitialized)
                 gameObject.Initialize();
 
-        SetIsInitialized(true);
+        IsInitialized = true;
     }
 
     /// <inheritdoc />
@@ -247,7 +247,7 @@ public partial class GameObject : IGameObject
         if (IsActivated || !CanActivate())
             return;
 
-        SetIsActivated(true);
+        IsActivated = true;
         foreach (var component in _components)
         {
             component.Activate();
@@ -264,7 +264,7 @@ public partial class GameObject : IGameObject
     /// <inheritdoc />
     public virtual void Deactivate()
     {
-        SetIsActivated(false);
+        IsActivated = false;
     }
 
     /// <summary>

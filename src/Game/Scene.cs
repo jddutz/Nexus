@@ -163,7 +163,7 @@ public partial class Scene : IScene
     /// <inheritdoc />
     public virtual void Activate()
     {
-        if (_isActivated || !CanActivate())
+        if (IsActivated || !CanActivate())
             return;
 
         SetIsActivated(true);
@@ -175,7 +175,7 @@ public partial class Scene : IScene
     /// <inheritdoc />
     public virtual void Deactivate()
     {
-        if (!_isActivated)
+        if (!IsActivated)
             return;
 
         SetIsActivated(false);

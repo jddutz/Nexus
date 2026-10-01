@@ -238,7 +238,7 @@ public sealed class ObservableSourceGeneratorTests
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
 
         Assert.Contains(
-            "protected virtual void SetInternal(int value)",
+            "protected set => __SetInternal(value);",
             generated,
             StringComparison.Ordinal
         );
@@ -254,7 +254,6 @@ public sealed class ObservableSourceGeneratorTests
             generated,
             StringComparison.Ordinal
         );
-        Assert.DoesNotContain("set => __SetInternal(value);", generated, StringComparison.Ordinal);
         Assert.DoesNotContain(
             result.Compilation.GetDiagnostics(),
             diagnostic => diagnostic.Severity == DiagnosticSeverity.Error

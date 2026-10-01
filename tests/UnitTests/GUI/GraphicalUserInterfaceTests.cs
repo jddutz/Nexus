@@ -459,13 +459,13 @@ public class GraphicalUserInterfaceTests
         var element = new LayoutProbeElement(arrange: (_, bounds) => arrangedBounds.Add(bounds));
         var scene = new Scene();
         scene.Children.Add(element);
+        element.Activate();
         scene.Activate();
         gui.Initialize();
         eventHub.Publish(new SceneLoadedEvent(scene));
         eventHub.Drain();
         gui.Update(0);
 
-        windowService.SetSize(new(1280, 720));
         eventHub.Publish(new WindowResizedEvent(windowService.MainWindowId, new(1280, 720)));
         eventHub.Drain();
         gui.Update(0);

@@ -816,10 +816,10 @@ public sealed class ObservableGenerator : IIncrementalGenerator
             .Append("        get => ")
             .Append(fieldName)
             .AppendLine(";");
-        if (UsesPublicSetter(plan.Field))
-        {
-            builder.Append("        set => __Set").Append(propertyName).AppendLine("(value);");
-        }
+        builder.Append("        ");
+        if (!UsesPublicSetter(plan.Field))
+            builder.Append("protected ");
+        builder.Append("set => __Set").Append(propertyName).AppendLine("(value);");
         builder.AppendLine("    }");
         if (generatesChangedEvent)
         {
