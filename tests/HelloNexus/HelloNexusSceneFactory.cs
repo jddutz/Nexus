@@ -38,7 +38,7 @@ internal sealed class HelloNexusSceneFactory(
     {
         var mainWindow = windowService.GetMainWindow();
         var scene = new Scene(nodeId);
-        scene.SetInputMap(inputMap);
+        scene.InputMap = inputMap;
 
         var sceneView = scene.Children.OfType<IGameObject>().Single();
         var camera = sceneView.Components.OfType<StaticCamera>().Single();

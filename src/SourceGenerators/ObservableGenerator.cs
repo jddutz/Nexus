@@ -751,13 +751,16 @@ public sealed class ObservableGenerator : IIncrementalGenerator
         INamedTypeSymbol type,
         string setterName,
         ITypeSymbol fieldType
-    ) => type.GetMembers(setterName).OfType<IMethodSymbol>().Any(method =>
-        method.IsPartialDefinition
-        && !method.IsStatic
-        && method.Parameters.Length == 1
-        && method.Parameters[0].RefKind == RefKind.None
-        && SymbolEqualityComparer.Default.Equals(method.Parameters[0].Type, fieldType)
-    );
+    ) =>
+        type.GetMembers(setterName)
+            .OfType<IMethodSymbol>()
+            .Any(method =>
+                method.IsPartialDefinition
+                && !method.IsStatic
+                && method.Parameters.Length == 1
+                && method.Parameters[0].RefKind == RefKind.None
+                && SymbolEqualityComparer.Default.Equals(method.Parameters[0].Type, fieldType)
+            );
 
     /// Emits the property, typed event, and setter for a single backing field.
     /// </summary>

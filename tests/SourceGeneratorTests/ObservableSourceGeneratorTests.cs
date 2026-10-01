@@ -507,8 +507,7 @@ public sealed class ObservableSourceGeneratorTests
         Assert.Contains(
             result.Diagnostics,
             diagnostic =>
-                diagnostic.Id == "NXSOBS012"
-                && diagnostic.Severity == DiagnosticSeverity.Error
+                diagnostic.Id == "NXSOBS012" && diagnostic.Severity == DiagnosticSeverity.Error
         );
         Assert.Empty(result.GeneratedSources);
     }
