@@ -124,7 +124,12 @@ public partial class GameObject : IGameObject
     /// <summary>
     /// Handles this game object's parent or ancestor chain changing.
     /// </summary>
-    protected virtual void OnHierarchyChanged() { }
+    protected virtual void OnHierarchyChanged()
+    {
+        foreach (var child in _children)
+            if (child is GameObject gameObject)
+                gameObject.OnHierarchyChanged();
+    }
 
     private void OnChildAdded(ISceneNode node)
     {
