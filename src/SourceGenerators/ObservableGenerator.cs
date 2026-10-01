@@ -818,7 +818,7 @@ public sealed class ObservableGenerator : IIncrementalGenerator
             .AppendLine(";");
         if (UsesPublicSetter(plan.Field))
         {
-            builder.Append("        set => ").Append(setterName).AppendLine("(value);");
+            builder.Append("        set => __Set").Append(propertyName).AppendLine("(value);");
         }
         builder.AppendLine("    }");
         if (generatesChangedEvent)
@@ -840,15 +840,13 @@ public sealed class ObservableGenerator : IIncrementalGenerator
                 builder.Append(" = null!");
             builder.AppendLine(";");
         }
-        builder
-            .Append("    /// <summary>Sets the value of ")
-            .Append(propertyName)
-            .AppendLine(".</summary>");
+        builder.AppendLine(
+            "    /// <summary>Sets the value and raises change notifications.</summary>"
+        );
         builder.AppendLine("    /// <param name=\"value\">The value to assign.</param>");
         builder
-            .Append("    ")
-            .Append(plan.HasPartialSetter ? "protected partial void " : "protected virtual void ")
-            .Append(setterName)
+            .Append("    private void __Set")
+            .Append(propertyName)
             .Append('(')
             .Append(typeName)
             .AppendLine(" value)");
@@ -856,13 +854,21 @@ public sealed class ObservableGenerator : IIncrementalGenerator
         builder
             .Append("        if (global::System.Collections.Generic.EqualityComparer<")
             .Append(typeName)
-            .Append(">.Default.Equals(")
+            .Append(">.Default.Equals(value, ")
             .Append(fieldName)
-            .AppendLine(", value))");
+            .AppendLine("))");
         builder.AppendLine("            return;");
-
+        builder.AppendLine();
         builder.Append("        var previousValue = ").Append(fieldName).AppendLine(";");
-        builder.Append("        ").Append(fieldName).AppendLine(" = value;");
+        builder.Append("        ").Append(setterName).AppendLine("(value);");
+        builder
+            .Append("        if (global::System.Collections.Generic.EqualityComparer<")
+            .Append(typeName)
+            .Append(">.Default.Equals(previousValue, ")
+            .Append(fieldName)
+            .AppendLine("))");
+        builder.AppendLine("            return;");
+        builder.AppendLine();
         builder.Append("        var assignedValue = ").Append(fieldName).AppendLine(";");
         if (plan.AfterHook is not null)
             builder
@@ -891,6 +897,19 @@ public sealed class ObservableGenerator : IIncrementalGenerator
                 .Append("        ")
                 .Append(eventName)
                 .AppendLine("?.Invoke(previousValue, assignedValue);");
+        builder.AppendLine("    }");
+
+        builder.AppendLine("    /// <summary>Assigns the value of the property.</summary>");
+        builder.AppendLine("    /// <param name=\"value\">The value to assign.</param>");
+        builder
+            .Append("    ")
+            .Append(plan.HasPartialSetter ? "protected partial void " : "protected virtual void ")
+            .Append(setterName)
+            .Append('(')
+            .Append(typeName)
+            .AppendLine(" value)");
+        builder.AppendLine("    {");
+        builder.Append("        ").Append(fieldName).AppendLine(" = value;");
         builder.AppendLine("    }");
     }
 
