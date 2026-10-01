@@ -27,7 +27,7 @@ public class ElementTests
     {
         var element = new Element();
         var changedProperties = new List<string?>();
-        element.PropertyChanged += (_, args) => changedProperties.Add(args.PropertyName);
+        element.PropertyChanged += propertyName => changedProperties.Add(propertyName);
 
         element.Height = 12f;
         element.Width = 24f;

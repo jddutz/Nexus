@@ -4,92 +4,67 @@ using System.Text;
 using Nexus.Graphics.Text;
 
 /// <summary>Measures and arranges styled text within a GUI element.</summary>
-public sealed class TextElement : Element
+public partial class TextElement : Element
 {
     private readonly List<IObservable> _visibilityAncestors = [];
     private readonly ITextStyle _style;
+
+    [Observable]
     private string _text;
+
+    [Observable]
     private int? _maximumLines;
+
+    [Observable]
     private ulong _renderLayerMask;
     private TextComponent? _textComponent;
     private Rectangle<float>? _layoutBounds;
+
+    [Observable]
     private AlignHorizontal _horizontalAlignment = AlignHorizontal.Center;
+
+    [Observable]
     private AlignVertical _verticalAlignment = AlignVertical.Center;
 
-    /// <summary>Gets or sets horizontal placement within the element's bounds.</summary>
-    public AlignHorizontal HorizontalAlignment
+    private void BeforeHorizontalAlignmentChanges(AlignHorizontal value)
     {
-        get => _horizontalAlignment;
-        set
-        {
-            if (!Enum.IsDefined(value))
-                throw new ArgumentOutOfRangeException(nameof(value));
-
-            if (SetProperty(ref _horizontalAlignment, value))
-                ReapplyLayout();
-        }
+        if (!Enum.IsDefined(value))
+            throw new ArgumentOutOfRangeException(nameof(value));
     }
 
-    /// <summary>Gets or sets vertical placement within the element's bounds.</summary>
-    public AlignVertical VerticalAlignment
+    private void BeforeVerticalAlignmentChanges(AlignVertical value)
     {
-        get => _verticalAlignment;
-        set
-        {
-            if (!Enum.IsDefined(value))
-                throw new ArgumentOutOfRangeException(nameof(value));
-
-            if (SetProperty(ref _verticalAlignment, value))
-                ReapplyLayout();
-        }
+        if (!Enum.IsDefined(value))
+            throw new ArgumentOutOfRangeException(nameof(value));
     }
 
-    /// <summary>Gets or sets the complete source text.</summary>
-    public string Text
-    {
-        get => _text;
-        set
-        {
-            ArgumentNullException.ThrowIfNull(value);
-            if (!SetProperty(ref _text, value))
-                return;
+    private void BeforeTextChanges(string value) => ArgumentNullException.ThrowIfNull(value);
 
-            if (_textComponent is not null && _layoutBounds is null)
-                _textComponent.Text = value;
-            ReapplyLayout();
-        }
+    private void BeforeMaximumLinesChanges(int? value)
+    {
+        if (value is <= 0)
+            throw new ArgumentOutOfRangeException(nameof(value));
+    }
+
+    private void AfterHorizontalAlignmentChanges(AlignHorizontal previousValue) => ReapplyLayout();
+
+    private void AfterVerticalAlignmentChanges(AlignVertical previousValue) => ReapplyLayout();
+
+    private void AfterTextChanges(string previousValue)
+    {
+        if (_textComponent is not null && _layoutBounds is null)
+            _textComponent.Text = Text;
+        ReapplyLayout();
+    }
+
+    private void AfterRenderLayerMaskChanges(ulong previousValue)
+    {
+        if (_textComponent is not null)
+            _textComponent.RenderLayerMask = RenderLayerMask;
     }
 
     /// <summary>Gets the style used to measure and render the text.</summary>
     public ITextStyle Style => _style;
-
-    /// <summary>Gets or sets the maximum number of displayed lines, or null to fit the height.</summary>
-    public int? MaximumLines
-    {
-        get => _maximumLines;
-        set
-        {
-            if (value is <= 0)
-                throw new ArgumentOutOfRangeException(nameof(value));
-
-            if (SetProperty(ref _maximumLines, value))
-                ReapplyLayout();
-        }
-    }
-
-    /// <summary>Gets or sets the render-layer mask applied to the text component.</summary>
-    public ulong RenderLayerMask
-    {
-        get => _renderLayerMask;
-        set
-        {
-            if (!SetProperty(ref _renderLayerMask, value))
-                return;
-
-            if (_textComponent is not null)
-                _textComponent.RenderLayerMask = value;
-        }
-    }
 
     /// <summary>Initializes a text element with source text, style, and optional line limit.</summary>
     /// <param name="text">The complete source text.</param>
@@ -159,8 +134,8 @@ public sealed class TextElement : Element
             bounds.Origin.X + GetHorizontalOffset(bounds.Size.X, textBounds.Size.X),
             bounds.Origin.Y + GetVerticalOffset(bounds.Size.Y, textBounds.Size.Y)
         );
-        Position = new(textOrigin.X - textBounds.Origin.X, textOrigin.Y - textBounds.Origin.Y);
-        Bounds = new Rectangle<float>(textOrigin, textBounds.Size);
+        SetPosition(new(textOrigin.X - textBounds.Origin.X, textOrigin.Y - textBounds.Origin.Y));
+        SetBounds(new Rectangle<float>(textOrigin, textBounds.Size));
     }
 
     /// <summary>Reapplies the last parent-assigned rectangle after layout-affecting state changes.</summary>
@@ -173,11 +148,9 @@ public sealed class TextElement : Element
     /// <summary>Creates a fresh text component from the retained text configuration.</summary>
     private void CreateVisualComponent()
     {
-        var textComponent = new TextComponent(_style)
-        {
-            RenderLayerMask = _renderLayerMask,
-            Text = _text,
-        };
+        var textComponent = new TextComponent(_style) { };
+        textComponent.RenderLayerMask = _renderLayerMask;
+        textComponent.Text = _text;
         _textComponent = textComponent;
         AddComponent(textComponent);
         if (_layoutBounds is { } bounds)
@@ -267,7 +240,7 @@ public sealed class TextElement : Element
     }
 
     /// <inheritdoc />
-    protected override void OnPropertyChanged(string? propertyName = null)
+    protected override void OnPropertyChanged(string propertyName)
     {
         base.OnPropertyChanged(propertyName);
         if (propertyName == nameof(IsVisible))

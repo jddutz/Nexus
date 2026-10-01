@@ -4,11 +4,15 @@ namespace Nexus.Graphics.Cameras;
 /// Orthographic screen-space camera for UI and 2D rendering, using a top-left origin coordinate
 /// system (+X right, +Y down) that maps pixel coordinates directly to Vulkan clip space.
 /// </summary>
-public class StaticCamera : Component, ICameraComponent
+public partial class StaticCamera : Component, ICameraComponent
 {
     private float _viewportWidth = 1f;
     private float _viewportHeight = 1f;
+
+    [Observable]
     private float _nearPlane = -1f;
+
+    [Observable]
     private float _farPlane = 1f;
 
     private Matrix4X4<float> _projectionMatrix;
@@ -45,31 +49,9 @@ public class StaticCamera : Component, ICameraComponent
     /// <summary>Gets the fixed right direction, always +X.</summary>
     public Vector3D<float> Right { get; } = Vector3D<float>.UnitX;
 
-    /// <summary>Gets or sets the near clipping plane distance.</summary>
-    public float NearPlane
-    {
-        get => _nearPlane;
-        set
-        {
-            if (!SetProperty(ref _nearPlane, value))
-                return;
+    private void AfterNearPlaneChanges(float previousValue) => InvalidateProjection();
 
-            InvalidateProjection();
-        }
-    }
-
-    /// <summary>Gets or sets the far clipping plane distance.</summary>
-    public float FarPlane
-    {
-        get => _farPlane;
-        set
-        {
-            if (!SetProperty(ref _farPlane, value))
-                return;
-
-            InvalidateProjection();
-        }
-    }
+    private void AfterFarPlaneChanges(float previousValue) => InvalidateProjection();
 
     /// <summary>Gets the identity view matrix used for screen-space rendering.</summary>
     public Matrix4X4<float> ViewMatrix { get; } = Matrix4X4<float>.Identity;

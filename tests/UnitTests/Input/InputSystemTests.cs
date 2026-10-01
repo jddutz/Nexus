@@ -624,12 +624,12 @@ public class InputSystemTests
         var thirdCalls = 0;
         var firstMap = new InputMap();
         firstMap.OnKeyPressed(KeyEnum.Escape).Invoke(() => firstCalls++);
-        scene.SetInputMap(firstMap);
+        scene.InputMap = firstMap;
 
         var nextScene = new Scene(NodeId.New());
         var nextMap = new InputMap();
         nextMap.OnKeyPressed(KeyEnum.Escape).Invoke(() => thirdCalls++);
-        nextScene.SetInputMap(nextMap);
+        nextScene.InputMap = nextMap;
 
         var sceneRegistry = new SceneRegistry();
         sceneRegistry.Register(sceneName, () => scene);
@@ -650,7 +650,7 @@ public class InputSystemTests
 
         var replacementMap = new InputMap();
         replacementMap.OnKeyPressed(KeyEnum.Escape).Invoke(() => secondCalls++);
-        scene.SetInputMap(replacementMap);
+        scene.InputMap = replacementMap;
         eventHub.Publish(new KeyPressedEvent(keyboard, KeyEnum.Escape));
         eventHub.Drain();
         Assert.Equal(1, firstCalls);

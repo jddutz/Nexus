@@ -1,49 +1,88 @@
 namespace Nexus.GUI.Elements;
 
 /// <summary>Lays out, clips, and renders one texture image inside its assigned rectangle.</summary>
-public sealed class ImageElement : Element
+public partial class ImageElement : Element
 {
     private readonly List<IObservable> _visibilityAncestors = [];
+
+    [Observable]
     private ImageSource _imageSource;
+
+    [Observable(PublicSetter = true)]
     private SizingMode _sizingMode;
+
+    [Observable]
     private AlignHorizontal _horizontalAlignment = AlignHorizontal.Center;
+
+    [Observable]
     private AlignVertical _verticalAlignment = AlignVertical.Center;
     private Vector2D<float>? _customSize;
     private Vector4D<float>? _customTexCoord;
+
+    [Observable]
     private ISamplingBehavior _samplingBehavior = SamplingBehaviors.Smooth;
+
+    [Observable]
     private Color _color = Colors.White;
+
+    [Observable]
     private ulong _renderLayerMask = ulong.MaxValue;
     private TextureComponent? _imageComponent;
     private Rectangle<float>? _layoutBounds;
 
-    /// <summary>Gets or sets the texture and pixel-space image region used by this element.</summary>
-    public ImageSource ImageSource
+    private void BeforeImageSourceChanges(ImageSource value) =>
+        ArgumentNullException.ThrowIfNull(value);
+
+    private void BeforeSizingModeChanges(SizingMode value)
     {
-        get => _imageSource;
-        set
-        {
-            ArgumentNullException.ThrowIfNull(value);
-            if (SetProperty(ref _imageSource, value))
-                InvalidateGeometry();
-        }
+        if (!Enum.IsDefined(value))
+            throw new ArgumentOutOfRangeException(nameof(value));
+        if (value == SizingMode.Custom && (_customSize is null || _customTexCoord is null))
+            throw new InvalidOperationException(
+                "Use SetCustomSizingMode to provide a custom size and UV rectangle."
+            );
     }
 
-    /// <summary>Gets or sets the sizing rule used to determine the image's size.</summary>
-    public SizingMode SizingMode
+    private void BeforeHorizontalAlignmentChanges(AlignHorizontal value)
     {
-        get => _sizingMode;
-        set
-        {
-            if (!Enum.IsDefined(value))
-                throw new ArgumentOutOfRangeException(nameof(value));
-            if (value == SizingMode.Custom && (_customSize is null || _customTexCoord is null))
-                throw new InvalidOperationException(
-                    "Use SetCustomSizingMode to provide a custom size and UV rectangle."
-                );
+        if (!Enum.IsDefined(value))
+            throw new ArgumentOutOfRangeException(nameof(value));
+    }
 
-            if (SetProperty(ref _sizingMode, value))
-                InvalidateGeometry();
-        }
+    private void BeforeVerticalAlignmentChanges(AlignVertical value)
+    {
+        if (!Enum.IsDefined(value))
+            throw new ArgumentOutOfRangeException(nameof(value));
+    }
+
+    private void BeforeSamplingBehaviorChanges(ISamplingBehavior value) =>
+        ArgumentNullException.ThrowIfNull(value);
+
+    private void AfterImageSourceChanges(ImageSource previousValue) => InvalidateGeometry();
+
+    private void AfterSizingModeChanges(SizingMode previousValue) => InvalidateGeometry();
+
+    private void AfterHorizontalAlignmentChanges(AlignHorizontal previousValue) =>
+        InvalidateGeometry();
+
+    private void AfterVerticalAlignmentChanges(AlignVertical previousValue) => InvalidateGeometry();
+
+    private void AfterSamplingBehaviorChanges(ISamplingBehavior previousValue)
+    {
+        if (_imageComponent is not null)
+            _imageComponent.SamplingBehavior = _samplingBehavior;
+    }
+
+    private void AfterColorChanges(Color previousValue)
+    {
+        if (_imageComponent is not null)
+            _imageComponent.Color = _color;
+    }
+
+    private void AfterRenderLayerMaskChanges(ulong previousValue)
+    {
+        if (_imageComponent is not null)
+            _imageComponent.RenderLayerMask = _renderLayerMask;
     }
 
     /// <summary>Gets the custom image size, when configured through <see cref="SetCustomSizingMode" />.</summary>
@@ -51,66 +90,6 @@ public sealed class ImageElement : Element
 
     /// <summary>Gets the custom normalized source rectangle used by custom sizing.</summary>
     public Vector4D<float>? CustomTexCoord => _customTexCoord;
-
-    /// <summary>Gets or sets horizontal placement within the assigned rectangle.</summary>
-    public AlignHorizontal HorizontalAlignment
-    {
-        get => _horizontalAlignment;
-        set
-        {
-            if (!Enum.IsDefined(value))
-                throw new ArgumentOutOfRangeException(nameof(value));
-            if (SetProperty(ref _horizontalAlignment, value))
-                InvalidateGeometry();
-        }
-    }
-
-    /// <summary>Gets or sets vertical placement within the assigned rectangle.</summary>
-    public AlignVertical VerticalAlignment
-    {
-        get => _verticalAlignment;
-        set
-        {
-            if (!Enum.IsDefined(value))
-                throw new ArgumentOutOfRangeException(nameof(value));
-            if (SetProperty(ref _verticalAlignment, value))
-                InvalidateGeometry();
-        }
-    }
-
-    /// <summary>Gets or sets the texture sampling behavior used by the visual component.</summary>
-    public ISamplingBehavior SamplingBehavior
-    {
-        get => _samplingBehavior;
-        set
-        {
-            ArgumentNullException.ThrowIfNull(value);
-            if (SetProperty(ref _samplingBehavior, value) && _imageComponent is not null)
-                _imageComponent.SamplingBehavior = value;
-        }
-    }
-
-    /// <summary>Gets or sets the tint multiplied against sampled source pixels.</summary>
-    public Color Color
-    {
-        get => _color;
-        set
-        {
-            if (SetProperty(ref _color, value) && _imageComponent is not null)
-                _imageComponent.Color = value;
-        }
-    }
-
-    /// <summary>Gets or sets the render-layer mask applied to the visual component.</summary>
-    public ulong RenderLayerMask
-    {
-        get => _renderLayerMask;
-        set
-        {
-            if (SetProperty(ref _renderLayerMask, value) && _imageComponent is not null)
-                _imageComponent.RenderLayerMask = value;
-        }
-    }
 
     /// <summary>Initializes an image element with a required texture source.</summary>
     /// <param name="imageSource">The texture and optional pixel-space source rectangle.</param>
@@ -145,7 +124,7 @@ public sealed class ImageElement : Element
         }
 
         if (_sizingMode != SizingMode.Custom)
-            SizingMode = SizingMode.Custom;
+            SetSizingMode(SizingMode.Custom);
         else if (configurationChanged)
             InvalidateGeometry();
     }
@@ -183,14 +162,14 @@ public sealed class ImageElement : Element
         if (!IsEffectivelyVisible || _layoutBounds is not { } bounds)
         {
             RemoveVisualComponent();
-            Bounds = EmptyBounds;
+            SetBounds(EmptyBounds);
             return;
         }
 
         if (bounds.Size.X <= 0f || bounds.Size.Y <= 0f)
         {
             RemoveVisualComponent();
-            Bounds = EmptyBounds;
+            SetBounds(EmptyBounds);
             return;
         }
 
@@ -204,7 +183,7 @@ public sealed class ImageElement : Element
         if (right <= left || bottom <= top)
         {
             RemoveVisualComponent();
-            Bounds = EmptyBounds;
+            SetBounds(EmptyBounds);
             return;
         }
 
@@ -220,12 +199,14 @@ public sealed class ImageElement : Element
             (bottomFraction - topFraction) * sourceTexCoord.W
         );
 
-        Position = bounds.Origin;
-        Bounds = new Rectangle<float>(
-            bounds.Origin.X + left,
-            bounds.Origin.Y + top,
-            right - left,
-            bottom - top
+        SetPosition(bounds.Origin);
+        SetBounds(
+            new Rectangle<float>(
+                bounds.Origin.X + left,
+                bounds.Origin.Y + top,
+                right - left,
+                bottom - top
+            )
         );
         if (_imageComponent is null)
         {
@@ -387,7 +368,7 @@ public sealed class ImageElement : Element
     }
 
     /// <inheritdoc />
-    protected override void OnPropertyChanged(string? propertyName = null)
+    protected override void OnPropertyChanged(string propertyName)
     {
         base.OnPropertyChanged(propertyName);
         if (propertyName == nameof(IsVisible))

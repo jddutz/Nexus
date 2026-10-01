@@ -3,6 +3,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
 
   <ItemGroup>
@@ -12,6 +13,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference
+      Include="..\SourceGenerators\Nexus.SourceGenerators.csproj"
+      OutputItemType="Analyzer"
+      ReferenceOutputAssembly="false"
+    />
     <ProjectReference Include="..\Core\Nexus.Core.csproj" />
     <ProjectReference Include="..\Graphics\Nexus.Graphics.csproj" />
     <ProjectReference Include="..\Input\Nexus.Input.csproj" />

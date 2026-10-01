@@ -181,7 +181,13 @@ public sealed class ObservableGenerator : IIncrementalGenerator
         foreach (
             var group in groups.OrderBy(item => GetMetadataName(item.Key), StringComparer.Ordinal)
         )
-            GenerateType(context, group.Key, group.Value, compilation);
+            GenerateType(
+                context,
+                group.Key,
+                group.Value,
+                compilation,
+                new HashSet<INamedTypeSymbol>(groups.Keys, SymbolEqualityComparer.Default)
+            );
     }
 
     /// <summary>
@@ -194,7 +200,8 @@ public sealed class ObservableGenerator : IIncrementalGenerator
         SourceProductionContext context,
         INamedTypeSymbol type,
         List<(IFieldSymbol Field, string? ExplicitName, Location Location)> fields,
-        Compilation compilation
+        Compilation compilation,
+        HashSet<INamedTypeSymbol> generatedTypes
     )
     {
         if (type.TypeKind != TypeKind.Class || !AreAllContainingTypesPartial(type))
@@ -308,8 +315,11 @@ public sealed class ObservableGenerator : IIncrementalGenerator
             {
                 (Name: plan.PropertyName, Kind: "property"),
                 (Name: "Set" + plan.PropertyName, Kind: "setter"),
-                (Name: plan.PropertyName + "Changed", Kind: "event"),
-            };
+            }.Concat(
+                GeneratesChangedEvent(plan.Field)
+                    ? [(Name: plan.PropertyName + "Changed", Kind: "event")]
+                    : []
+            );
 
             foreach (var member in members)
             {
@@ -369,7 +379,13 @@ public sealed class ObservableGenerator : IIncrementalGenerator
             return;
         }
 
-        var notification = GetNotificationStrategy(context, type, plans, compilation);
+        var notification = GetNotificationStrategy(
+            context,
+            type,
+            plans,
+            compilation,
+            generatedTypes
+        );
         if (notification is null)
             return;
 
@@ -450,6 +466,7 @@ public sealed class ObservableGenerator : IIncrementalGenerator
     private static (
         bool IsObservable,
         bool GeneratePropertyChanged,
+        bool GenerateNotificationMethod,
         string? NotifyMethod
     )? GetNotificationStrategy(
         SourceProductionContext context,
@@ -462,7 +479,8 @@ public sealed class ObservableGenerator : IIncrementalGenerator
             string? AfterHook,
             Location Location
         )> plans,
-        Compilation compilation
+        Compilation compilation,
+        HashSet<INamedTypeSymbol> generatedTypes
     )
     {
         var observableInterface = compilation.GetTypeByMetadataName(ObservableInterfaceName);
@@ -472,7 +490,7 @@ public sealed class ObservableGenerator : IIncrementalGenerator
                 SymbolEqualityComparer.Default.Equals(candidate, observableInterface)
             );
         if (!implementsObservable)
-            return (false, false, null);
+            return (false, false, false, null);
 
         var interfaceEvent = observableInterface!
             .GetMembers("PropertyChanged")
@@ -523,11 +541,22 @@ public sealed class ObservableGenerator : IIncrementalGenerator
                 directMember is IEventSymbol implementedDirectEvent
                 && SymbolEqualityComparer.Default.Equals(implementation, implementedDirectEvent)
             )
-                return (true, false, null);
+            {
+                var directNotificationMethod = FindNotificationMethod(type, compilation);
+                return directNotificationMethod is not null
+                    ? (true, false, false, directNotificationMethod)
+                    : (true, false, true, "OnPropertyChanged");
+            }
 
             var notificationMethod = FindNotificationMethod(type, compilation);
             if (notificationMethod is not null)
-                return (true, false, notificationMethod);
+                return (true, false, false, notificationMethod);
+
+            if (
+                implementation.ContainingType is INamedTypeSymbol implementationType
+                && generatedTypes.Contains(implementationType)
+            )
+                return (true, false, false, "OnPropertyChanged");
 
             foreach (var plan in plans)
                 context.ReportDiagnostic(
@@ -537,7 +566,7 @@ public sealed class ObservableGenerator : IIncrementalGenerator
         }
 
         if (directMember is IEventSymbol)
-            return (true, false, null);
+            return (true, false, false, null);
 
         if (directMember is not null)
         {
@@ -558,9 +587,14 @@ public sealed class ObservableGenerator : IIncrementalGenerator
                 if (
                     inherited is IEventSymbol inheritedEvent
                     && IsPropertyChangedEvent(inheritedEvent, compilation)
-                    && notificationMethod is not null
                 )
-                    return (true, false, notificationMethod);
+                {
+                    if (notificationMethod is not null)
+                        return (true, false, false, notificationMethod);
+
+                    if (generatedTypes.Contains(inheritedMember))
+                        return (true, false, false, "OnPropertyChanged");
+                }
 
                 foreach (var plan in plans)
                     context.ReportDiagnostic(
@@ -571,7 +605,7 @@ public sealed class ObservableGenerator : IIncrementalGenerator
             inheritedMember = inheritedMember.BaseType;
         }
 
-        return (true, true, null);
+        return (true, true, false, null);
     }
 
     /// <summary>
@@ -592,7 +626,12 @@ public sealed class ObservableGenerator : IIncrementalGenerator
             string? AfterHook,
             Location Location
         )> plans,
-        (bool IsObservable, bool GeneratePropertyChanged, string? NotifyMethod) notification,
+        (
+            bool IsObservable,
+            bool GeneratePropertyChanged,
+            bool GenerateNotificationMethod,
+            string? NotifyMethod
+        ) notification,
         Compilation compilation
     )
     {
@@ -660,6 +699,17 @@ public sealed class ObservableGenerator : IIncrementalGenerator
             builder.AppendLine(";");
         }
 
+        if (notification.GenerateNotificationMethod)
+        {
+            builder.AppendLine("    /// <summary>Raises the property-change event.</summary>");
+            builder.AppendLine(
+                "    /// <param name=\"propertyName\">The name of the changed property.</param>"
+            );
+            builder.AppendLine(
+                "    protected virtual void OnPropertyChanged(string propertyName) => PropertyChanged?.Invoke(propertyName);"
+            );
+        }
+
         foreach (var plan in plans)
             EmitObservableMembers(
                 builder,
@@ -679,10 +729,10 @@ public sealed class ObservableGenerator : IIncrementalGenerator
     }
 
     /// <summary>
-    /// Determines whether the observable field requests a public generated setter.
+    /// Determines whether the observable field requests a public property setter.
     /// </summary>
     /// <param name="field">The field annotated with <see cref="ObservableAttributeName"/>.</param>
-    /// <returns><see langword="true"/> when the generated setter should be public.</returns>
+    /// <returns><see langword="true"/> when the generated property should expose a setter.</returns>
     private static bool UsesPublicSetter(IFieldSymbol field)
     {
         foreach (var attribute in field.GetAttributes())
@@ -717,7 +767,12 @@ public sealed class ObservableGenerator : IIncrementalGenerator
             string? AfterHook,
             Location Location
         ) plan,
-        (bool IsObservable, bool GeneratePropertyChanged, string? NotifyMethod) notification,
+        (
+            bool IsObservable,
+            bool GeneratePropertyChanged,
+            bool GenerateNotificationMethod,
+            string? NotifyMethod
+        ) notification,
         bool nullableAnnotationsEnabled,
         bool nullableWarningsEnabled
     )
@@ -726,6 +781,7 @@ public sealed class ObservableGenerator : IIncrementalGenerator
         var propertyName = EscapeIdentifier(plan.PropertyName);
         var setterName = EscapeIdentifier("Set" + plan.PropertyName);
         var eventName = EscapeIdentifier(plan.PropertyName + "Changed");
+        var generatesChangedEvent = GeneratesChangedEvent(plan.Field);
         var hasTopLevelNullableAnnotation =
             plan.Field.NullableAnnotation == NullableAnnotation.Annotated
             || HasTopLevelNullableSyntax(plan.Field);
@@ -744,25 +800,35 @@ public sealed class ObservableGenerator : IIncrementalGenerator
             .Append(typeName)
             .Append(' ')
             .Append(propertyName)
-            .Append(" => ")
+            .AppendLine()
+            .AppendLine("    {")
+            .Append("        get => ")
             .Append(fieldName)
             .AppendLine(";");
-        builder
-            .Append("    /// <summary>Occurs when ")
-            .Append(propertyName)
-            .AppendLine(" changes.</summary>");
-        builder
-            .Append("    public event global::System.Action<")
-            .Append(typeName)
-            .Append(", ")
-            .Append(typeName)
-            .Append('>');
-        if (nullableAnnotationsEnabled)
-            builder.Append('?');
-        builder.Append(' ').Append(eventName);
-        if (nullableWarningsEnabled && !nullableAnnotationsEnabled)
-            builder.Append(" = null!");
-        builder.AppendLine(";");
+        if (UsesPublicSetter(plan.Field))
+        {
+            builder.Append("        set => ").Append(setterName).AppendLine("(value);");
+        }
+        builder.AppendLine("    }");
+        if (generatesChangedEvent)
+        {
+            builder
+                .Append("    /// <summary>Occurs when ")
+                .Append(propertyName)
+                .AppendLine(" changes.</summary>");
+            builder
+                .Append("    public event global::System.Action<")
+                .Append(typeName)
+                .Append(", ")
+                .Append(typeName)
+                .Append('>');
+            if (nullableAnnotationsEnabled)
+                builder.Append('?');
+            builder.Append(' ').Append(eventName);
+            if (nullableWarningsEnabled && !nullableAnnotationsEnabled)
+                builder.Append(" = null!");
+            builder.AppendLine(";");
+        }
         builder
             .Append("    /// <summary>Sets the value of ")
             .Append(propertyName)
@@ -770,8 +836,7 @@ public sealed class ObservableGenerator : IIncrementalGenerator
         builder.AppendLine("    /// <param name=\"value\">The value to assign.</param>");
         builder
             .Append("    ")
-            .Append(UsesPublicSetter(plan.Field) ? "public" : "protected")
-            .Append(" virtual void ")
+            .Append("protected virtual void ")
             .Append(setterName)
             .Append('(')
             .Append(typeName)
@@ -824,11 +889,34 @@ public sealed class ObservableGenerator : IIncrementalGenerator
                     .AppendLine("));");
         }
 
-        builder
-            .Append("        ")
-            .Append(eventName)
-            .AppendLine("?.Invoke(previousValue, assignedValue);");
+        if (generatesChangedEvent)
+            builder
+                .Append("        ")
+                .Append(eventName)
+                .AppendLine("?.Invoke(previousValue, assignedValue);");
         builder.AppendLine("    }");
+    }
+
+    /// <summary>
+    /// Determines whether the field requests a generated typed change event.
+    /// </summary>
+    /// <param name="field">The observable field.</param>
+    /// <returns><see langword="true"/> unless generation is disabled by the attribute.</returns>
+    private static bool GeneratesChangedEvent(IFieldSymbol field)
+    {
+        foreach (var attribute in field.GetAttributes())
+        {
+            if (attribute.AttributeClass?.ToDisplayString() != ObservableAttributeName)
+                continue;
+
+            foreach (var argument in attribute.NamedArguments)
+            {
+                if (argument.Key == "GenerateChangedEvent" && argument.Value.Value is bool value)
+                    return value;
+            }
+        }
+
+        return true;
     }
 
     /// <summary>

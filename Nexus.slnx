@@ -21,7 +21,7 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/HelloNexus/HelloNexus.csproj" />
-    <Project Path="tests/SourceGenerators.Tests/Nexus.SourceGenerators.Tests.csproj" />
+    <Project Path="tests/SourceGeneratorTests/Nexus.SourceGeneratorTests.csproj" />
     <Project Path="tests/UnitTests/UnitTests.csproj" />
   </Folder>
 </Solution>

@@ -1,9 +1,12 @@
 namespace Nexus.Graphics.Components;
 
 /// <summary>Draws a resizable texture region as four corners, four edges, and a center.</summary>
-public sealed class NinePatchComponent : TextureComponent
+public partial class NinePatchComponent : TextureComponent
 {
+    [Observable(PublicSetter = true)]
     private Vector4D<float> _sourceBorders;
+
+    [Observable(PublicSetter = true)]
     private Vector4D<float>? _destinationBorders;
 
     /// <summary>Initializes a nine-patch component with a corner-pivoted quad by default.</summary>
@@ -14,47 +17,37 @@ public sealed class NinePatchComponent : TextureComponent
     /// <inheritdoc />
     public override string DisplayName => "Nine Patch";
 
-    /// <summary>Gets or sets source border widths in texture pixels, ordered left, top, right, bottom.</summary>
-    public Vector4D<float> SourceBorders
+    private void BeforeSourceBordersChanges(Vector4D<float> value)
     {
-        get => _sourceBorders;
-        set
-        {
-            if (
-                !float.IsFinite(value.X)
-                || !float.IsFinite(value.Y)
-                || !float.IsFinite(value.Z)
-                || !float.IsFinite(value.W)
-                || value.X < 0f
-                || value.Y < 0f
-                || value.Z < 0f
-                || value.W < 0f
-            )
-                throw new ArgumentOutOfRangeException(
-                    nameof(value),
-                    "Source borders must be finite and non-negative."
-                );
+        if (
+            !float.IsFinite(value.X)
+            || !float.IsFinite(value.Y)
+            || !float.IsFinite(value.Z)
+            || !float.IsFinite(value.W)
+            || value.X < 0f
+            || value.Y < 0f
+            || value.Z < 0f
+            || value.W < 0f
+        )
+            throw new ArgumentOutOfRangeException(
+                nameof(value),
+                "Source borders must be finite and non-negative."
+            );
 
-            ValidateSourceBorders(value);
-            if (SetProperty(ref _sourceBorders, value))
-                NotifyInstanceDataChanged();
-        }
+        ValidateSourceBordersValue(value);
     }
 
-    /// <summary>Gets or sets destination border widths in logical units.</summary>
-    /// <remarks>When unset, destination widths match <see cref="SourceBorders"/>.</remarks>
-    public Vector4D<float>? DestinationBorders
+    private void BeforeDestinationBordersChanges(Vector4D<float>? value)
     {
-        get => _destinationBorders;
-        set
-        {
-            if (value is { } borders)
-                ValidateDestinationBorders(borders);
-
-            if (SetProperty(ref _destinationBorders, value))
-                NotifyInstanceDataChanged();
-        }
+        if (value is { } borders)
+            ValidateDestinationBordersValue(borders);
     }
+
+    private void AfterSourceBordersChanges(Vector4D<float> previousValue) =>
+        NotifyInstanceDataChanged();
+
+    private void AfterDestinationBordersChanges(Vector4D<float>? previousValue) =>
+        NotifyInstanceDataChanged();
 
     /// <inheritdoc />
     protected override int GetInstanceCount() => 9;
@@ -84,7 +77,7 @@ public sealed class NinePatchComponent : TextureComponent
     }
 
     /// <inheritdoc />
-    protected override void ValidateSourceBorders(Vector4D<float> sourceBorders)
+    protected override void ValidateSourceBordersValue(Vector4D<float> sourceBorders)
     {
         if (Texture is not null)
             ValidateBordersFit(sourceBorders, Texture, TexCoord);
@@ -205,7 +198,7 @@ public sealed class NinePatchComponent : TextureComponent
 
     /// <summary>Ensures destination border widths are finite and non-negative.</summary>
     /// <param name="destinationBorders">The proposed logical border widths.</param>
-    private static void ValidateDestinationBorders(Vector4D<float> destinationBorders)
+    private static void ValidateDestinationBordersValue(Vector4D<float> destinationBorders)
     {
         if (
             !float.IsFinite(destinationBorders.X)

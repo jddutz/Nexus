@@ -19,14 +19,7 @@ public interface IComponent : IManagedEntity, IObservable
     /// <summary>
     /// Gets the game object that owns this component, or <see langword="null"/> when it is unowned.
     /// </summary>
-    IGameObject? Owner { get; }
-
-    /// <summary>
-    /// Associates this component with a game object, or detaches it when <see langword="null"/> is
-    /// supplied.
-    /// </summary>
-    /// <param name="gameObject">The owning game object, or <see langword="null"/> when detaching.</param>
-    void SetOwner(IGameObject? gameObject);
+    IGameObject? Owner { get; set; }
 
     /// <summary>
     /// Occurs when effective state has changed, whether from one of its own properties

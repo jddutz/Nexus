@@ -64,9 +64,11 @@ public sealed class GraphicalUserInterface(IEventHub eventHub, IWindowService? w
         if (ReferenceEquals(_focusedElement, nextElement))
             return;
 
-        _focusedElement?.SetFocused(false);
+        if (_focusedElement is not null)
+            _focusedElement.IsFocused = false;
         _focusedElement = nextElement;
-        _focusedElement?.SetFocused(true);
+        if (_focusedElement is not null)
+            _focusedElement.IsFocused = true;
     }
 
     /// <inheritdoc />

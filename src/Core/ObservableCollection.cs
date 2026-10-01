@@ -7,6 +7,19 @@ namespace Nexus.Core;
 public class ObservableCollection<T> : IObservableCollection<T>, IReadOnlyObservableCollection<T>
 {
     private readonly List<T> _items = [];
+    private readonly IEqualityComparer<T> _equalityComparer;
+
+    /// <summary>Initializes a collection using the default equality comparer.</summary>
+    public ObservableCollection()
+        : this(EqualityComparer<T>.Default) { }
+
+    /// <summary>Initializes a collection using the specified equality comparer.</summary>
+    /// <param name="equalityComparer">The comparer used for membership and removal.</param>
+    public ObservableCollection(IEqualityComparer<T> equalityComparer)
+    {
+        ArgumentNullException.ThrowIfNull(equalityComparer);
+        _equalityComparer = equalityComparer;
+    }
 
     /// <inheritdoc />
     public event Action<T>? ItemAdded;
@@ -15,12 +28,19 @@ public class ObservableCollection<T> : IObservableCollection<T>, IReadOnlyObserv
     public event Action<T>? ItemRemoved;
 
     /// <inheritdoc />
+    public event Predicate<T>? ValidationRules;
+
+    /// <inheritdoc />
     public T this[int index]
     {
         get => _items[index];
         set
         {
             var removedItem = _items[index];
+            if (ReferenceEquals(removedItem, value))
+                return;
+
+            Validate(value);
             _items[index] = value;
             ItemRemoved?.Invoke(removedItem);
             ItemAdded?.Invoke(value);
@@ -39,6 +59,7 @@ public class ObservableCollection<T> : IObservableCollection<T>, IReadOnlyObserv
     /// <inheritdoc />
     public void Add(T item)
     {
+        Validate(item);
         _items.Add(item);
         ItemAdded?.Invoke(item);
     }
@@ -54,7 +75,7 @@ public class ObservableCollection<T> : IObservableCollection<T>, IReadOnlyObserv
     }
 
     /// <inheritdoc />
-    public bool Contains(T item) => _items.Contains(item);
+    public bool Contains(T item) => IndexOf(item) >= 0;
 
     /// <inheritdoc />
     public void CopyTo(T[] array, int arrayIndex) => _items.CopyTo(array, arrayIndex);
@@ -63,11 +84,13 @@ public class ObservableCollection<T> : IObservableCollection<T>, IReadOnlyObserv
     public IEnumerator<T> GetEnumerator() => _items.GetEnumerator();
 
     /// <inheritdoc />
-    public int IndexOf(T item) => _items.IndexOf(item);
+    public int IndexOf(T item) =>
+        _items.FindIndex(candidate => _equalityComparer.Equals(candidate, item));
 
     /// <inheritdoc />
     public void Insert(int index, T item)
     {
+        Validate(item);
         _items.Insert(index, item);
         ItemAdded?.Invoke(item);
     }
@@ -75,7 +98,7 @@ public class ObservableCollection<T> : IObservableCollection<T>, IReadOnlyObserv
     /// <inheritdoc />
     public bool Remove(T item)
     {
-        var index = _items.IndexOf(item);
+        var index = IndexOf(item);
         if (index < 0)
             return false;
 
@@ -91,6 +114,23 @@ public class ObservableCollection<T> : IObservableCollection<T>, IReadOnlyObserv
         var removedItem = _items[index];
         _items.RemoveAt(index);
         ItemRemoved?.Invoke(removedItem);
+    }
+
+    /// <summary>
+    /// Throws when an item does not pass the configured validation predicate.
+    /// </summary>
+    /// <param name="item">The item to validate.</param>
+    private void Validate(T item)
+    {
+        var validationHandlers = ValidationRules;
+        if (validationHandlers is null)
+            return;
+
+        foreach (var handler in validationHandlers.GetInvocationList())
+        {
+            if (!((Predicate<T>)handler)(item))
+                throw new InvalidOperationException("The item failed collection validation.");
+        }
     }
 
     /// <inheritdoc />

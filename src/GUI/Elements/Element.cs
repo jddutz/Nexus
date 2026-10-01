@@ -3,14 +3,27 @@ namespace Nexus.GUI.Elements;
 /// <summary>
 /// Represents a two-dimensional user-interface element with virtual layout behavior.
 /// </summary>
-public class Element : GameObject2D, IElement
+public partial class Element : GameObject2D, IElement
 {
+    [Observable]
     private float? _height;
+
+    [Observable]
     private float? _width;
+
+    [Observable(PublicSetter = true)]
     private Rectangle<float> _bounds;
+
+    [Observable(PublicSetter = true)]
     private bool _isVisible = true;
+
+    [Observable(PublicSetter = true)]
     private bool _isEnabled = true;
+
+    [Observable(PublicSetter = true)]
     private bool _canFocus;
+
+    [Observable(PublicSetter = true)]
     private bool _isFocused;
     private InputMap? _inputMap;
 
@@ -31,62 +44,11 @@ public class Element : GameObject2D, IElement
         _height = height;
     }
 
-    /// <summary>Gets or sets whether this element is visible.</summary>
-    public bool IsVisible
-    {
-        get => _isVisible;
-        set => SetProperty(ref _isVisible, value);
-    }
-
-    /// <summary>Gets or sets whether this element is enabled for interaction.</summary>
-    public bool IsEnabled
-    {
-        get => _isEnabled;
-        set => SetProperty(ref _isEnabled, value);
-    }
-
-    /// <summary>Gets or sets whether this element is eligible to receive focus.</summary>
-    public bool CanFocus
-    {
-        get => _canFocus;
-        set => SetProperty(ref _canFocus, value);
-    }
-
-    /// <summary>Gets whether this element currently has focus.</summary>
-    public bool IsFocused => _isFocused;
-
     /// <summary>Occurs when this element receives focus.</summary>
     public event EventHandler? FocusGained;
 
     /// <summary>Occurs when this element loses focus.</summary>
     public event EventHandler? FocusLost;
-
-    /// <summary>
-    /// Gets or sets the element's height.
-    /// </summary>
-    public float? Height
-    {
-        get => _height;
-        set => SetProperty(ref _height, value);
-    }
-
-    /// <summary>
-    /// Gets or sets the element's width.
-    /// </summary>
-    public float? Width
-    {
-        get => _width;
-        set => SetProperty(ref _width, value);
-    }
-
-    /// <summary>
-    /// Gets or sets the element's arranged bounds.
-    /// </summary>
-    public Rectangle<float> Bounds
-    {
-        get => _bounds;
-        set => SetProperty(ref _bounds, value);
-    }
 
     /// <summary>Gets the input bindings associated with this element.</summary>
     public InputMap InputMap =>
@@ -137,17 +99,11 @@ public class Element : GameObject2D, IElement
 
     /// <summary>Updates focus state on behalf of the GUI focus manager.</summary>
     /// <param name="isFocused">Whether this element should be focused.</param>
-    internal void SetFocused(bool isFocused)
+    private bool ValidateFocused(bool value) => !value || CanFocus;
+
+    private void AfterFocusedChanges(bool previousValue)
     {
-        if (isFocused && !CanFocus)
-            throw new InvalidOperationException(
-                "An element must be focusable before it can receive focus."
-            );
-
-        if (!SetProperty(ref _isFocused, isFocused))
-            return;
-
-        if (isFocused)
+        if (IsFocused)
             FocusGained?.Invoke(this, EventArgs.Empty);
         else
             FocusLost?.Invoke(this, EventArgs.Empty);
@@ -165,5 +121,5 @@ public class Element : GameObject2D, IElement
     /// Arranges the element within the specified bounds.
     /// </summary>
     /// <param name="bounds">The bounds assigned to the element.</param>
-    public virtual void Arrange(Rectangle<float> bounds) => Bounds = bounds;
+    public virtual void Arrange(Rectangle<float> bounds) => SetBounds(bounds);
 }

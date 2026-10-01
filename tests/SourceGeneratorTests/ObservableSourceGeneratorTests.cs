@@ -31,6 +31,7 @@ public sealed class ObservableSourceGeneratorTests
             {
                 public string? PropertyName { get; } = propertyName;
                 public bool PublicSetter { get; set; } = true;
+                public bool GenerateChangedEvent { get; set; } = true;
             }
 
             public interface IObservable
@@ -39,6 +40,54 @@ public sealed class ObservableSourceGeneratorTests
             }
         }
         """;
+
+    /// <summary>
+    /// Verifies a generated notification bridge can be consumed by an observable derived type.
+    /// </summary>
+    [Fact]
+    public void GeneratedNotificationBridgeSupportsDerivedTypes()
+    {
+        var source =
+            ObservableContract
+            + """
+                namespace Probe
+                {
+                    public partial class BaseTarget : IObservable
+                    {
+                        [Nexus.Core.Observable]
+                        private int _baseValue;
+                        public event Action<string>? PropertyChanged;
+                    }
+
+                    public partial class DerivedTarget : BaseTarget
+                    {
+                        [Nexus.Core.Observable]
+                        private int _derivedValue;
+                    }
+                }
+                """;
+
+        var result = RunGenerator(source);
+
+        Assert.DoesNotContain(
+            result.Diagnostics,
+            diagnostic => diagnostic.Severity == DiagnosticSeverity.Error
+        );
+        Assert.DoesNotContain(
+            result.Compilation.GetDiagnostics(),
+            diagnostic => diagnostic.Severity == DiagnosticSeverity.Error
+        );
+        Assert.Contains(
+            result.GeneratedSources,
+            generated =>
+                generated
+                    .SourceText.ToString()
+                    .Contains(
+                        "protected virtual void OnPropertyChanged(string propertyName)",
+                        StringComparison.Ordinal
+                    )
+        );
+    }
 
     /// <summary>
     /// Verifies generated source compiles and that the generated setters preserve v1 behavior.
@@ -115,20 +164,20 @@ public sealed class ObservableSourceGeneratorTests
                             var valueChanges = new List<string>();
                             target.PropertyChanged += propertyNotifications.Add;
                             target.CountChanged += (previous, current) => valueChanges.Add($"{previous}:{current}");
-                            target.SetCount(3);
-                            target.SetCount(-1);
+                            target.Count = 3;
+                            target.Count = -1;
                             target.ScheduleReentrantChange(9);
-                            target.SetCount(5);
+                            target.Count = 5;
 
                             var plain = new PlainTarget();
                             var plainChanges = new List<string>();
                             plain.DisplayNameChanged += (previous, current) => plainChanges.Add($"{previous}:{current}");
-                            plain.SetDisplayName("updated");
+                            plain.DisplayName = "updated";
 
                             var generatedNotification = new GeneratedNotificationTarget();
                             var generatedPropertyName = string.Empty;
                             generatedNotification.PropertyChanged += name => generatedPropertyName = name;
-                            generatedNotification.SetAmount(4);
+                            generatedNotification.Amount = 4;
 
                             return string.Join(",", target.Calls)
                                 + "|" + string.Join(",", propertyNotifications)
@@ -170,10 +219,10 @@ public sealed class ObservableSourceGeneratorTests
     }
 
     /// <summary>
-    /// Verifies generated setters are public by default and can be protected explicitly.
+    /// Verifies PublicSetter controls property assignment while generated methods remain protected virtual.
     /// </summary>
     [Fact]
-    public void SettersArePublicByDefaultAndCanBeProtected()
+    public void PublicSetterControlsPropertyAssignment()
     {
         var source =
             ObservableContract
@@ -202,16 +251,19 @@ public sealed class ObservableSourceGeneratorTests
             generated,
             StringComparison.Ordinal
         );
+        Assert.Contains("set => SetExternal(value);", generated, StringComparison.Ordinal);
         Assert.Contains(
-            "public virtual void SetExternal(int value)",
+            "protected virtual void SetExternal(int value)",
             generated,
             StringComparison.Ordinal
         );
+        Assert.Contains("set => SetExplicitPublic(value);", generated, StringComparison.Ordinal);
         Assert.Contains(
-            "public virtual void SetExplicitPublic(int value)",
+            "protected virtual void SetExplicitPublic(int value)",
             generated,
             StringComparison.Ordinal
         );
+        Assert.DoesNotContain("set => SetInternal(value);", generated, StringComparison.Ordinal);
         Assert.DoesNotContain(
             result.Compilation.GetDiagnostics(),
             diagnostic => diagnostic.Severity == DiagnosticSeverity.Error
@@ -268,8 +320,10 @@ public sealed class ObservableSourceGeneratorTests
         var result = RunGenerator(source);
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
 
-        Assert.Contains("int ExplicitName => _value", generated, StringComparison.Ordinal);
-        Assert.Contains("int _cached => __cached", generated, StringComparison.Ordinal);
+        Assert.Contains("int ExplicitName", generated, StringComparison.Ordinal);
+        Assert.Contains("get => _value;", generated, StringComparison.Ordinal);
+        Assert.Contains("int _cached", generated, StringComparison.Ordinal);
+        Assert.Contains("get => __cached;", generated, StringComparison.Ordinal);
         Assert.DoesNotContain(
             result.Compilation.GetDiagnostics(),
             diagnostic => diagnostic.Severity == DiagnosticSeverity.Error
@@ -466,7 +520,7 @@ public sealed class ObservableSourceGeneratorTests
                             var hiddenEventRaised = false;
                             ((Nexus.Core.IObservable)target).PropertyChanged += name => propertyName = name;
                             target.SubscribeToHiddenEvent(_ => hiddenEventRaised = true);
-                            target.SetValue(2);
+                            target.Value = 2;
                             return target.Value + "|" + propertyName + "|" + string.Join(",", target.Calls)
                                 + "|" + hiddenEventRaised;
                         }
@@ -639,7 +693,7 @@ public sealed class ObservableSourceGeneratorTests
         var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
         var propertyLine = generated
             .Split('\n')
-            .Single(line => line.Contains(" Value => _value;", StringComparison.Ordinal))
+            .Single(line => line.Contains("public string? Value", StringComparison.Ordinal))
             .Trim();
         var property = result
             .Compilation.GetTypeByMetadataName("Probe.Target")!
@@ -651,7 +705,8 @@ public sealed class ObservableSourceGeneratorTests
             diagnostics,
             diagnostic => diagnostic.Severity == DiagnosticSeverity.Error
         );
-        Assert.Equal("public string? Value => _value;", propertyLine);
+        Assert.Equal("public string? Value", propertyLine);
+        Assert.Contains("get => _value;", generated, StringComparison.Ordinal);
         Assert.Equal(NullableAnnotation.Annotated, property.NullableAnnotation);
     }
 

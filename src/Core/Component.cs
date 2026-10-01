@@ -33,7 +33,8 @@ public abstract partial class Component : IComponent
             return;
 
         SetIsInitialized(true);
-        OnInitialize();
+
+        SetIsActivated(CanActivate());
     }
 
     /// <inheritdoc />
@@ -92,24 +93,6 @@ public abstract partial class Component : IComponent
             Owner.PropertyChanged += OnOwnerPropertyChanged;
 
         OnOwnerChanged();
-    }
-
-    /// <summary>
-    /// Sets a field and raises a property-change notification when its value changes.
-    /// </summary>
-    /// <typeparam name="T">The field's value type.</typeparam>
-    /// <param name="field">The field to update.</param>
-    /// <param name="value">The value to assign.</param>
-    /// <param name="propertyName">The name of the associated property.</param>
-    /// <returns><see langword="true"/> if the field changed; otherwise, <see langword="false"/>.</returns>
-    protected bool SetProperty<T>(ref T field, T value, [CallerMemberName] string propertyName = "")
-    {
-        if (EqualityComparer<T>.Default.Equals(field, value))
-            return false;
-
-        field = value;
-        OnPropertyChanged(propertyName);
-        return true;
     }
 
     /// <summary>

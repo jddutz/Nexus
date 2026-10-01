@@ -10,6 +10,10 @@ public sealed class DescriptorSetFactory(
 {
     public IReadOnlyList<VkDescriptorSet> Create(PipelineId pipelineId, IDrawable drawable)
     {
+        _ = context;
+        _ = imageRegistry;
+        _ = samplerRegistry;
+
         // TODO: Get the schema from somewhere else!
         var schema = DescriptorSchemas.Textured;
 

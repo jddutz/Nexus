@@ -3,28 +3,23 @@ namespace Nexus.Graphics.Components;
 /// <summary>
 /// Groups text spans that share the component's lifetime.
 /// </summary>
-public class TextComponent : Component, IGraphicsComponent
+public partial class TextComponent : Component, IGraphicsComponent
 {
     private readonly List<(TextSpan Span, float VerticalOffset)> _spans = [];
     private readonly ITextStyle _textStyle;
+
+    [Observable(PublicSetter = true)]
     private ulong _renderLayerMask = ulong.MaxValue;
     private string _text = string.Empty;
 
     /// <inheritdoc />
     public override string DisplayName => "Text";
 
-    /// <summary>Gets or sets the mask of render layers in which this text participates.</summary>
-    public ulong RenderLayerMask
+    /// <summary>Updates spans after the render-layer mask changes.</summary>
+    private void AfterRenderLayerMaskChanges(ulong previousValue)
     {
-        get => _renderLayerMask;
-        set
-        {
-            if (!SetProperty(ref _renderLayerMask, value))
-                return;
-
-            foreach (var (span, _) in _spans)
-                span.RenderLayerMask = value;
-        }
+        foreach (var (span, _) in _spans)
+            span.RenderLayerMask = RenderLayerMask;
     }
 
     /// <inheritdoc/>

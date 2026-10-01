@@ -163,21 +163,23 @@ public unsafe class VulkanGraphicsSystem(
     }
 
     /// <summary>Applies view mutations to membership or pass configuration.</summary>
-    /// <param name="sender">The view that changed.</param>
-    /// <param name="e">The changed property name.</param>
-    private void OnViewPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    /// <param name="propertyName">The changed property name.</param>
+    private void OnViewPropertyChanged(string propertyName)
     {
-        if (sender is not ViewComponent view || !_batches.ContainsKey(view.Id))
-            return;
-
-        switch (e.PropertyName)
+        foreach (var view in _activeViews)
         {
-            case nameof(ViewComponent.LayerMask):
-                RebuildViewBatches(view, replaceCollection: false);
-                break;
-            case nameof(ViewComponent.RenderPassMask):
-                RebuildViewBatches(view, replaceCollection: true);
-                break;
+            if (!_batches.ContainsKey(view.Id))
+                continue;
+
+            switch (propertyName)
+            {
+                case nameof(ViewComponent.LayerMask):
+                    RebuildViewBatches(view, replaceCollection: false);
+                    break;
+                case nameof(ViewComponent.RenderPassMask):
+                    RebuildViewBatches(view, replaceCollection: true);
+                    break;
+            }
         }
     }
 

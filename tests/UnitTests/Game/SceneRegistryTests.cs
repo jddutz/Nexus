@@ -1,3 +1,5 @@
+using Nexus.Core;
+
 namespace Tests;
 
 using Nexus.Game;

@@ -38,8 +38,8 @@ public sealed class TextComponentTests
     {
         IDrawable[] drawables =
         [
-            new TextureComponent(),
-            new TextureComponent(),
+            Assert.Single(new TextureComponent().Drawables),
+            Assert.Single(new TextureComponent().Drawables),
             new TextSpan(CreateStyle(), "A"),
         ];
 

@@ -60,7 +60,7 @@ public class GameObjectTests
         gameObject.AddComponent(component);
 
         Assert.Same(component, components[0]);
-        Assert.Equal(1, components.Count);
+        Assert.Single(components);
         Assert.Same(component, Assert.Single(addedItems));
         Assert.True(gameObject.RemoveComponent(component));
         Assert.Empty(components);
@@ -91,18 +91,59 @@ public class GameObjectTests
         parent.Children.ItemAdded += addedChildren.Add;
 
         parent.Children.Add(child);
-        parent.Children.Add(child);
+        Assert.Throws<InvalidOperationException>(() => parent.Children.Add(child));
 
         Assert.Same(parent, child.Parent);
-        Assert.Equal(2, addedChildren.Count);
+        Assert.Single(addedChildren);
         Assert.All(addedChildren, addedChild => Assert.Same(child, addedChild));
 
-        parent.Children.Remove(child);
-        Assert.Same(parent, child.Parent);
-
-        parent.Children.Remove(child);
-
+        Assert.True(parent.Children.Remove(child));
         Assert.Null(child.Parent);
+    }
+
+    /// <summary>Verifies child validation rejects null, owned, self, and ancestor nodes.</summary>
+    [Fact]
+    public void ChildrenValidation_rejectsInvalidOwnershipAndCycles()
+    {
+        var parent = new GameObject();
+        var child = new GameObject();
+        var otherParent = new GameObject();
+        var scene = new Scene();
+        parent.Children.Add(child);
+
+        Assert.Throws<InvalidOperationException>(() => parent.Children.Add(null!));
+        Assert.Throws<InvalidOperationException>(() => otherParent.Children.Add(child));
+        Assert.Throws<InvalidOperationException>(() => parent.Children.Add(parent));
+        Assert.Throws<InvalidOperationException>(() => parent.Children.Add(scene));
+        Assert.Throws<InvalidOperationException>(() => child.Children.Add(parent));
+
+        var directlyParentedChild = new GameObject();
+        Assert.Throws<InvalidOperationException>(() => directlyParentedChild.Parent = otherParent);
+
+        Assert.Same(parent, child.Parent);
+        Assert.Single(parent.Children);
+        Assert.Empty(otherParent.Children);
+        Assert.Empty(child.Children);
+        Assert.Null(scene.Parent);
+        Assert.Null(directlyParentedChild.Parent);
+    }
+
+    /// <summary>Verifies child membership and removal use reference identity.</summary>
+    [Fact]
+    public void ChildrenCollection_usesReferenceIdentity()
+    {
+        var parent = new GameObject();
+        var first = new EqualGameObject();
+        var second = new EqualGameObject();
+
+        parent.Children.Add(first);
+        parent.Children.Add(second);
+
+        Assert.Equal(2, parent.Children.Count);
+        Assert.True(parent.Children.Remove(second));
+        Assert.Same(parent, first.Parent);
+        Assert.Null(second.Parent);
+        Assert.Same(first, Assert.Single(parent.Children));
     }
 
     /// <summary>
@@ -115,12 +156,24 @@ public class GameObjectTests
         var defaultView = Assert.IsType<GameObject2D>(Assert.Single(scene.Children));
         var defaultCamera = Assert.Single(defaultView.Components.OfType<StaticCamera>());
         var viewComponent = Assert.Single(defaultView.Components.OfType<ViewComponent>());
+        var activationNotifications = 0;
+        scene.PropertyChanged += propertyName =>
+        {
+            if (propertyName == nameof(IManagedEntity.IsActivated))
+                activationNotifications++;
+        };
+
         scene.Activate();
 
         Assert.True(scene.IsActive);
+        Assert.Equal(1, activationNotifications);
         Assert.False(defaultView.IsActivated);
         Assert.False(defaultCamera.IsActivated);
         Assert.False(viewComponent.IsActivated);
+
+        scene.Deactivate();
+
+        Assert.Equal(2, activationNotifications);
     }
 
     /// <summary>
@@ -173,23 +226,115 @@ public class GameObjectTests
         Assert.Same(child, leaf.Parent);
     }
 
+    /// <summary>Verifies scene ID collisions reject complete subtrees before insertion.</summary>
+    [Fact]
+    public void Scene_rejectsDuplicateIdsBeforeMutatingCollections()
+    {
+        var scene = new Scene(new NodeId(500));
+        var existingNode = new GameObject(501);
+        scene.Children.Add(existingNode);
+
+        var candidate = new GameObject(502);
+        var collidingDescendant = new GameObject(501);
+        candidate.Children.Add(collidingDescendant);
+
+        Assert.Throws<InvalidOperationException>(() => scene.Children.Add(candidate));
+
+        Assert.Null(candidate.Parent);
+        Assert.Null(candidate.Root);
+        Assert.Same(existingNode, scene.GetSceneNode(existingNode.Id));
+        Assert.Null(scene.GetSceneNode(candidate.Id));
+        Assert.DoesNotContain(candidate, scene.Children);
+        Assert.Same(candidate, collidingDescendant.Parent);
+
+        var duplicateIdSubtree = new GameObject(503);
+        duplicateIdSubtree.Children.Add(new GameObject(504));
+        duplicateIdSubtree.Children.Add(new GameObject(504));
+
+        Assert.Throws<InvalidOperationException>(() => scene.Children.Add(duplicateIdSubtree));
+
+        Assert.Null(duplicateIdSubtree.Parent);
+        Assert.Null(duplicateIdSubtree.Root);
+        Assert.DoesNotContain(duplicateIdSubtree, scene.Children);
+    }
+
+    /// <summary>Verifies nested additions validate IDs against the containing scene.</summary>
+    [Fact]
+    public void Scene_rejectsDuplicateIdsAddedUnderRegisteredGameObjects()
+    {
+        var scene = new Scene(new NodeId(600));
+        var registeredParent = new GameObject(601);
+        var existingNode = new GameObject(602);
+        scene.Children.Add(registeredParent);
+        scene.Children.Add(existingNode);
+        var collidingChild = new GameObject(602);
+
+        Assert.Throws<InvalidOperationException>(() =>
+            registeredParent.Children.Add(collidingChild)
+        );
+
+        Assert.Null(collidingChild.Parent);
+        Assert.Null(collidingChild.Root);
+        Assert.DoesNotContain(collidingChild, registeredParent.Children);
+        Assert.Same(existingNode, scene.GetSceneNode(existingNode.Id));
+    }
+
     /// <summary>
-    /// Verifies adding a node to a new scene removes it from its previous scene first.
+    /// Verifies a node must be detached before it can be added to another scene.
     /// </summary>
     [Fact]
     public void Scene_addsNodeByRemovingItFromItsPreviousScene()
     {
         var node = new GameObject(20);
+        var child = new GameObject(21);
+        var leaf = new GameObject(22);
+        node.Children.Add(child);
+        child.Children.Add(leaf);
         var previousScene = new Scene(new NodeId(100));
         var nextScene = new Scene(new NodeId(101));
         previousScene.Children.Add(node);
 
-        nextScene.Children.Add(node);
+        Assert.Throws<InvalidOperationException>(() => nextScene.Children.Add(node));
+        Assert.Same(previousScene, node.Parent);
 
+        ISceneNode rootNode = node;
+        rootNode.Parent = null;
+
+        Assert.DoesNotContain(node, previousScene.Children);
         Assert.Null(previousScene.GetSceneNode(node.Id));
+        Assert.Null(previousScene.GetSceneNode(child.Id));
+        Assert.Null(previousScene.GetSceneNode(leaf.Id));
+        Assert.Same(node, child.Parent);
+        Assert.Same(child, leaf.Parent);
+
+        nextScene.Children.Add(rootNode);
+
         Assert.Same(nextScene, node.Root);
         Assert.Same(nextScene, node.Parent);
         Assert.Same(node, nextScene.GetSceneNode(node.Id));
+        Assert.Same(nextScene, child.Root);
+        Assert.Same(nextScene, leaf.Root);
+    }
+
+    /// <summary>Verifies Scene child validation rejects null nodes and ancestor cycles.</summary>
+    [Fact]
+    public void SceneChildrenValidation_rejectsNullAndCycles()
+    {
+        var scene = new Scene();
+        var child = new GameObject();
+        scene.Children.Add(child);
+
+        Assert.Throws<InvalidOperationException>(() => scene.Children.Add(null!));
+        Assert.Throws<InvalidOperationException>(() => scene.Children.Add(scene));
+        var otherScene = new Scene();
+        Assert.Throws<InvalidOperationException>(() => scene.Children.Add(otherScene));
+        Assert.Throws<InvalidOperationException>(() => child.Children.Add(scene));
+        Assert.Throws<InvalidOperationException>(() => otherScene.Parent = scene);
+
+        Assert.Same(scene, child.Parent);
+        Assert.Contains(child, scene.Children);
+        Assert.Empty(child.Children);
+        Assert.Null(otherScene.Parent);
     }
 
     /// <summary>
@@ -202,9 +347,9 @@ public class GameObjectTests
         var child = new GameObject2D { Position = new Vector2D<float>(1f, 2f) };
         parent.AddChild(child);
         var worldTransformChanges = 0;
-        child.PropertyChanged += (_, e) =>
+        child.PropertyChanged += propertyName =>
         {
-            if (e.PropertyName == nameof(IGameObject2D.WorldTransform))
+            if (propertyName == nameof(IGameObject2D.WorldTransform))
                 worldTransformChanges++;
         };
 
@@ -234,9 +379,9 @@ public class GameObjectTests
         parent.AddChild(intermediary);
         intermediary.AddChild(child);
         var childWorldTransformChanges = 0;
-        child.PropertyChanged += (_, args) =>
+        child.PropertyChanged += propertyName =>
         {
-            if (args.PropertyName == nameof(IGameObject2D.WorldTransform))
+            if (propertyName == nameof(IGameObject2D.WorldTransform))
                 childWorldTransformChanges++;
         };
 
@@ -285,9 +430,9 @@ public class GameObjectTests
         parent.AddChild(intermediary);
         intermediary.AddChild(child);
         var worldTransformChanges = 0;
-        child.PropertyChanged += (_, args) =>
+        child.PropertyChanged += propertyName =>
         {
-            if (args.PropertyName == nameof(IGameObject3D.WorldTransform))
+            if (propertyName == nameof(IGameObject3D.WorldTransform))
                 worldTransformChanges++;
         };
 
@@ -317,10 +462,10 @@ public class GameObjectTests
         var child = new GameObject();
         var changedProperties = new List<string?>();
         var childCountsAtNotification = new List<int>();
-        parent.PropertyChanged += (_, args) =>
+        parent.PropertyChanged += propertyName =>
         {
-            changedProperties.Add(args.PropertyName);
-            if (args.PropertyName == nameof(IGameObject.Children))
+            changedProperties.Add(propertyName);
+            if (propertyName == nameof(IGameObject.Children))
                 childCountsAtNotification.Add(parent.Children.Count);
         };
 
@@ -459,7 +604,7 @@ public class GameObjectTests
     [Fact]
     public void ObservableCollectionMethods_createFindAndRemoveItems()
     {
-        IObservableCollection<IComponent> components = new GameObject();
+        IObservableCollection<IComponent> components = new ObservableCollection<IComponent>();
         var addedItems = new List<IComponent>();
         var removedItems = new List<IComponent>();
         components.ItemAdded += addedItems.Add;
@@ -469,7 +614,7 @@ public class GameObjectTests
 
         Assert.Same(component, components.Get<TestComponent>());
         Assert.Same(component, components[0]);
-        Assert.Equal(1, components.Count);
+        Assert.Single(components);
         Assert.Same(component, Assert.Single(addedItems));
         Assert.True(components.Remove<TestComponent>());
         Assert.Null(components.Get<TestComponent>());
@@ -486,7 +631,9 @@ public class GameObjectTests
         var component = new TestComponent();
         var previousOwner = new GameObject(1, [component]);
 
-        var exception = Assert.Throws<ArgumentException>(() => new GameObject(2, [component]));
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            new GameObject(2, [component])
+        );
 
         Assert.Contains(component, previousOwner.Components);
         Assert.Same(previousOwner, component.Owner);
@@ -506,5 +653,15 @@ public class GameObjectTests
 
         /// <inheritdoc />
         protected override void OnInitialize() => InitializationCount++;
+    }
+
+    /// <summary>Provides game objects that compare equal regardless of instance identity.</summary>
+    private sealed class EqualGameObject : GameObject
+    {
+        /// <inheritdoc />
+        public override bool Equals(object? obj) => obj is EqualGameObject;
+
+        /// <inheritdoc />
+        public override int GetHashCode() => 0;
     }
 }

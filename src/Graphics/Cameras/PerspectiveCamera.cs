@@ -3,15 +3,25 @@ namespace Nexus.Graphics.Cameras;
 /// <summary>
 /// Movable perspective world camera with a configurable field of view, aspect ratio, and clipping planes.
 /// </summary>
-public class PerspectiveCamera : Component, ICameraComponent
+public partial class PerspectiveCamera : Component, ICameraComponent
 {
+    [Observable]
     private Vector3D<float> _position = Vector3D<float>.Zero;
+
+    [Observable]
     private Vector3D<float> _forward = -Vector3D<float>.UnitZ;
+
+    [Observable]
     private Vector3D<float> _up = Vector3D<float>.UnitY;
     private Vector3D<float> _right = Vector3D<float>.UnitX;
 
+    [Observable]
     private float _fieldOfView = MathF.PI / 4f;
+
+    [Observable]
     private float _nearPlane = 0.1f;
+
+    [Observable]
     private float _farPlane = 1000f;
     private float _aspectRatio = 16f / 9f;
 
@@ -39,85 +49,27 @@ public class PerspectiveCamera : Component, ICameraComponent
     /// <summary>Gets the camera's derived right direction, orthogonal to <see cref="Forward"/> and <see cref="Up"/>.</summary>
     public Vector3D<float> Right => _right;
 
-    /// <summary>Gets or sets the world position of the camera.</summary>
-    public Vector3D<float> Position
-    {
-        get => _position;
-        set
-        {
-            if (!SetProperty(ref _position, value))
-                return;
+    private void AfterPositionChanges(Vector3D<float> previousValue) => InvalidateMatrices();
 
-            InvalidateMatrices();
-        }
+    private void AfterForwardChanges(Vector3D<float> previousValue)
+    {
+        _forward = Vector3D.Normalize(_forward);
+        UpdateDirectionVectors();
+        InvalidateMatrices();
     }
 
-    /// <summary>Gets or sets the camera's forward direction. Setting it normalizes the value and re-derives <see cref="Right"/>.</summary>
-    public Vector3D<float> Forward
+    private void AfterUpChanges(Vector3D<float> previousValue)
     {
-        get => _forward;
-        set
-        {
-            if (!SetProperty(ref _forward, Vector3D.Normalize(value)))
-                return;
-
-            UpdateDirectionVectors();
-            InvalidateMatrices();
-        }
+        _up = Vector3D.Normalize(_up);
+        UpdateDirectionVectors();
+        InvalidateMatrices();
     }
 
-    /// <summary>Gets or sets the camera's up direction. Setting it normalizes the value and re-derives <see cref="Right"/>.</summary>
-    public Vector3D<float> Up
-    {
-        get => _up;
-        set
-        {
-            if (!SetProperty(ref _up, Vector3D.Normalize(value)))
-                return;
+    private void AfterFieldOfViewChanges(float previousValue) => InvalidateMatrices();
 
-            UpdateDirectionVectors();
-            InvalidateMatrices();
-        }
-    }
+    private void AfterNearPlaneChanges(float previousValue) => InvalidateMatrices();
 
-    /// <summary>Gets or sets the vertical field of view, in radians.</summary>
-    public float FieldOfView
-    {
-        get => _fieldOfView;
-        set
-        {
-            if (!SetProperty(ref _fieldOfView, value))
-                return;
-
-            InvalidateMatrices();
-        }
-    }
-
-    /// <summary>Gets or sets the near clipping plane distance.</summary>
-    public float NearPlane
-    {
-        get => _nearPlane;
-        set
-        {
-            if (!SetProperty(ref _nearPlane, value))
-                return;
-
-            InvalidateMatrices();
-        }
-    }
-
-    /// <summary>Gets or sets the far clipping plane distance.</summary>
-    public float FarPlane
-    {
-        get => _farPlane;
-        set
-        {
-            if (!SetProperty(ref _farPlane, value))
-                return;
-
-            InvalidateMatrices();
-        }
-    }
+    private void AfterFarPlaneChanges(float previousValue) => InvalidateMatrices();
 
     /// <summary>
     /// Gets the viewport aspect ratio (width divided by height). Established by
@@ -274,9 +226,9 @@ public class PerspectiveCamera : Component, ICameraComponent
 
     /// <summary>Moves the camera by the specified translation.</summary>
     /// <param name="translation">The offset to apply to the camera position.</param>
-    public void Translate(Vector3D<float> translation) => Position += translation;
+    public void Translate(Vector3D<float> translation) => SetPosition(Position + translation);
 
     /// <summary>Orients the camera to face the specified world-space target.</summary>
     /// <param name="target">The point to look at.</param>
-    public void LookAt(Vector3D<float> target) => Forward = Vector3D.Normalize(target - Position);
+    public void LookAt(Vector3D<float> target) => SetForward(Vector3D.Normalize(target - Position));
 }

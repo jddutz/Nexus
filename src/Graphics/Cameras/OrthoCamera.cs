@@ -4,12 +4,21 @@ namespace Nexus.Graphics.Cameras;
 /// Movable orthographic world camera with a fixed axis-aligned orientation, used for simulating
 /// 2D rendering using 3D world coordinates.
 /// </summary>
-public class OrthoCamera : Component, ICameraComponent
+public partial class OrthoCamera : Component, ICameraComponent
 {
+    [Observable]
     private float _width = 10f;
+
+    [Observable]
     private float _height = 10f;
+
+    [Observable]
     private float _nearPlane = -1000f;
+
+    [Observable]
     private float _farPlane = 1000f;
+
+    [Observable]
     private Vector3D<float> _position = Vector3D<float>.Zero;
 
     private bool _matricesDirty = true;
@@ -41,70 +50,20 @@ public class OrthoCamera : Component, ICameraComponent
     /// <summary>Gets the fixed right direction, always +X.</summary>
     public Vector3D<float> Right { get; } = Vector3D<float>.UnitX;
 
-    /// <summary>Gets or sets the world position of the camera.</summary>
-    public Vector3D<float> Position
-    {
-        get => _position;
-        set
-        {
-            if (!SetProperty(ref _position, value))
-                return;
+    /// <summary>Invalidates cached matrices after a camera property changes.</summary>
+    private void AfterPositionChanges(Vector3D<float> previousValue) => InvalidateMatrices();
 
-            InvalidateMatrices();
-        }
-    }
+    /// <inheritdoc cref="AfterPositionChanges(Vector3D{float})" />
+    private void AfterWidthChanges(float previousValue) => InvalidateMatrices();
 
-    /// <summary>Gets or sets the width of the orthographic view volume.</summary>
-    public float Width
-    {
-        get => _width;
-        set
-        {
-            if (!SetProperty(ref _width, value))
-                return;
+    /// <inheritdoc cref="AfterPositionChanges(Vector3D{float})" />
+    private void AfterHeightChanges(float previousValue) => InvalidateMatrices();
 
-            InvalidateMatrices();
-        }
-    }
+    /// <inheritdoc cref="AfterPositionChanges(Vector3D{float})" />
+    private void AfterNearPlaneChanges(float previousValue) => InvalidateMatrices();
 
-    /// <summary>Gets or sets the height of the orthographic view volume.</summary>
-    public float Height
-    {
-        get => _height;
-        set
-        {
-            if (!SetProperty(ref _height, value))
-                return;
-
-            InvalidateMatrices();
-        }
-    }
-
-    /// <summary>Gets or sets the near clipping plane distance.</summary>
-    public float NearPlane
-    {
-        get => _nearPlane;
-        set
-        {
-            if (!SetProperty(ref _nearPlane, value))
-                return;
-
-            InvalidateMatrices();
-        }
-    }
-
-    /// <summary>Gets or sets the far clipping plane distance.</summary>
-    public float FarPlane
-    {
-        get => _farPlane;
-        set
-        {
-            if (!SetProperty(ref _farPlane, value))
-                return;
-
-            InvalidateMatrices();
-        }
-    }
+    /// <inheritdoc cref="AfterPositionChanges(Vector3D{float})" />
+    private void AfterFarPlaneChanges(float previousValue) => InvalidateMatrices();
 
     /// <summary>Gets the view matrix, recalculating it only when camera state has changed.</summary>
     public Matrix4X4<float> ViewMatrix
@@ -236,20 +195,20 @@ public class OrthoCamera : Component, ICameraComponent
 
     /// <summary>Moves the camera by the specified translation.</summary>
     /// <param name="translation">The offset to apply to the camera position.</param>
-    public void Translate(Vector3D<float> translation) => Position += translation;
+    public void Translate(Vector3D<float> translation) => SetPosition(Position + translation);
 
     /// <summary>Centers the camera's orthographic view on the specified world-space target.</summary>
     /// <param name="target">The point to center the view on.</param>
     /// <remarks>The camera's orientation is fixed; only its X/Y position changes.</remarks>
     public void LookAt(Vector3D<float> target) =>
-        Position = new Vector3D<float>(target.X, target.Y, Position.Z);
+        SetPosition(new Vector3D<float>(target.X, target.Y, Position.Z));
 
     /// <summary>Sets the width and height of the orthographic view volume.</summary>
     /// <param name="width">The new view volume width.</param>
     /// <param name="height">The new view volume height.</param>
     public void SetSize(float width, float height)
     {
-        Width = width;
-        Height = height;
+        SetWidth(width);
+        SetHeight(height);
     }
 }

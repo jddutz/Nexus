@@ -18,6 +18,54 @@ public partial class GameSystem(
     private readonly ILogger<GameSystem> _logger = logger;
     private readonly ISceneRegistry _sceneRegistry = sceneRegistry;
     private readonly HashSet<ISceneNode> _subscribedSceneNodes = [];
+    private readonly HashSet<object> _removedDuringTraversal = new(
+        ReferenceEqualityComparer.Instance
+    );
+    private bool _isTraversing;
+
+    /// <summary>
+    /// Represents an entity and its expected ownership in a lifecycle traversal snapshot.
+    /// </summary>
+    private sealed class LifecycleEntry
+    {
+        /// <summary>
+        /// Initializes a lifecycle entry with its entity and captured ownership.
+        /// </summary>
+        /// <param name="entity">The managed entity represented by the entry, if any.</param>
+        /// <param name="node">The scene node represented by the entry, if any.</param>
+        /// <param name="parentNode">The expected parent scene node.</param>
+        /// <param name="componentOwner">The expected component owner.</param>
+        /// <param name="parentIndex">The parent entry index, or -1 for the scene root.</param>
+        public LifecycleEntry(
+            IManagedEntity? entity,
+            ISceneNode? node,
+            ISceneNode? parentNode,
+            IGameObject? componentOwner,
+            int parentIndex
+        )
+        {
+            Entity = entity;
+            Node = node;
+            ParentNode = parentNode;
+            ComponentOwner = componentOwner;
+            ParentIndex = parentIndex;
+        }
+
+        /// <summary>Gets the managed entity represented by the entry.</summary>
+        public IManagedEntity? Entity { get; }
+
+        /// <summary>Gets the scene node represented by the entry.</summary>
+        public ISceneNode? Node { get; }
+
+        /// <summary>Gets the expected parent scene node.</summary>
+        public ISceneNode? ParentNode { get; }
+
+        /// <summary>Gets the expected owner when the entry represents a component.</summary>
+        public IGameObject? ComponentOwner { get; }
+
+        /// <summary>Gets the parent lifecycle entry index, or -1 for the scene root.</summary>
+        public int ParentIndex { get; }
+    }
 
     /// <summary>Gets the settings bound to the Game configuration section.</summary>
     public GameSettings Settings { get; } = gameSettings.Value;
@@ -60,19 +108,19 @@ public partial class GameSystem(
     /// <param name="deltaTime">The elapsed time in seconds since the previous frame.</param>
     public void Update(double deltaTime)
     {
-        if (CurrentScene is null)
+        if (CurrentScene is not { } currentScene)
             return;
 
-        foreach (var child in CurrentScene.Children.OfType<IGameObject>())
-            UpdateGameObject(child, deltaTime);
+        RunLifecycleTraversal(currentScene, deltaTime, updateEntities: true);
     }
 
     /// <summary>Publishes a component activation event.</summary>
     /// <param name="component">The component to activate.</param>
     public void ActivateComponent(IComponent component)
     {
-        component.Initialize();
-        component.Activate();
+        if (!TryActivate(component))
+            return;
+
         _eventHub.Register(component);
 
         _logger.LogTrace(
@@ -105,11 +153,9 @@ public partial class GameSystem(
     /// <param name="gameObject">The game object to activate.</param>
     public void ActivateGameObject(IGameObject gameObject)
     {
-        gameObject.Initialize();
-        if (!gameObject.CanActivate())
+        if (!TryActivate(gameObject))
             return;
 
-        gameObject.Activate();
         RegisterEventHandlers(gameObject);
 
         _logger.LogTrace(
@@ -126,8 +172,10 @@ public partial class GameSystem(
     public void DeactivateGameObject(IGameObject gameObject)
     {
         UnregisterEventHandlers(gameObject);
-        if (gameObject.IsActivated)
-            gameObject.Deactivate();
+        if (!gameObject.IsActivated)
+            return;
+
+        gameObject.Deactivate();
 
         _logger.LogTrace(
             "Deactivating game object. GameObjectType={GameObjectType}, ComponentCount={ComponentCount}",
@@ -139,35 +187,193 @@ public partial class GameSystem(
     }
 
     /// <summary>
-    /// Initializes and activates a game object subtree in parent-first order.
+    /// Attempts to initialize and activate an entity when it is not already active.
     /// </summary>
-    /// <param name="gameObject">The root game object to activate.</param>
-    private void ActivateSubtree(ISceneNode node)
+    /// <param name="entity">The entity to activate.</param>
+    /// <returns><see langword="true"/> if the entity became activated; otherwise, <see langword="false"/>.</returns>
+    private static bool TryActivate(IManagedEntity entity)
     {
-        if (node is IGameObject gameObject)
-        {
-            ActivateGameObject(gameObject);
-            if (!gameObject.IsActivated)
-                return;
+        if (!entity.IsInitialized)
+            entity.Initialize();
 
-            foreach (var component in gameObject.Components)
-                ActivateComponent(component);
-        }
+        if (entity.IsActivated || !entity.CanActivate())
+            return false;
 
-        foreach (var child in node.Children)
-            ActivateSubtree(child);
+        entity.Activate();
+        return entity.IsActivated;
     }
 
     /// <summary>
-    /// Updates a game object and its descendants in parent-first order.
+    /// Builds and processes one stable, parent-first lifecycle snapshot.
     /// </summary>
-    /// <param name="gameObject">The root game object to update.</param>
-    /// <param name="deltaTime">The elapsed time in seconds since the previous update.</param>
-    private static void UpdateGameObject(IGameObject gameObject, double deltaTime)
+    /// <param name="scene">The scene whose hierarchy is traversed.</param>
+    /// <param name="deltaTime">The elapsed time in seconds since the previous frame.</param>
+    /// <param name="updateEntities">Whether activated entities should receive an update.</param>
+    private void RunLifecycleTraversal(IScene scene, double deltaTime, bool updateEntities)
     {
-        gameObject.Update(deltaTime);
-        foreach (var child in gameObject.Children.OfType<IGameObject>())
-            UpdateGameObject(child, deltaTime);
+        if (_isTraversing)
+            return;
+
+        var entries = CreateLifecycleSnapshot(scene);
+        _removedDuringTraversal.Clear();
+        _isTraversing = true;
+
+        try
+        {
+            for (var index = 0; index < entries.Count; index++)
+            {
+                var entry = entries[index];
+                if (entry.Entity is not { } entity || !IsInCurrentHierarchy(index, entries))
+                    continue;
+
+                if (!entity.IsInitialized)
+                    entity.Initialize();
+
+                if (!IsInCurrentHierarchy(index, entries))
+                    continue;
+
+                if (!entity.IsActivated && AreParentsActivated(entry, entries))
+                {
+                    if (entity is IComponent component)
+                        ActivateComponent(component);
+                    else if (entity is IGameObject gameObject)
+                        ActivateGameObject(gameObject);
+                    else
+                        TryActivate(entity);
+                }
+
+                if (
+                    !updateEntities
+                    || !entity.IsActivated
+                    || !AreParentsActivated(entry, entries)
+                    || !IsInCurrentHierarchy(index, entries)
+                )
+                    continue;
+
+                entity.Update(deltaTime);
+            }
+        }
+        finally
+        {
+            _isTraversing = false;
+            _removedDuringTraversal.Clear();
+        }
+    }
+
+    /// <summary>
+    /// Captures the scene, its nodes, and components in parent-first lifecycle order.
+    /// </summary>
+    /// <param name="scene">The scene to snapshot.</param>
+    /// <returns>The captured lifecycle entries.</returns>
+    private static List<LifecycleEntry> CreateLifecycleSnapshot(IScene scene)
+    {
+        var entries = new List<LifecycleEntry> { new(scene, scene, null, null, -1) };
+
+        foreach (var child in scene.Children.ToArray())
+            AppendLifecycleEntries(child, scene, 0, entries);
+
+        return entries;
+    }
+
+    /// <summary>
+    /// Captures a scene-node subtree and its components in traversal order.
+    /// </summary>
+    /// <param name="node">The node to capture.</param>
+    /// <param name="parentNode">The node that owns <paramref name="node"/>.</param>
+    /// <param name="parentIndex">The lifecycle entry index of the managed parent.</param>
+    /// <param name="entries">The traversal entries being built.</param>
+    private static void AppendLifecycleEntries(
+        ISceneNode node,
+        ISceneNode parentNode,
+        int parentIndex,
+        List<LifecycleEntry> entries
+    )
+    {
+        var nodeIndex = entries.Count;
+        var gameObject = node as IGameObject;
+        entries.Add(new LifecycleEntry(gameObject, node, parentNode, null, parentIndex));
+
+        if (gameObject is not null)
+        {
+            foreach (var component in gameObject.Components.ToArray())
+                entries.Add(new LifecycleEntry(component, null, null, gameObject, nodeIndex));
+        }
+
+        foreach (var child in node.Children.ToArray())
+            AppendLifecycleEntries(child, node, nodeIndex, entries);
+    }
+
+    /// <summary>
+    /// Determines whether a snapshot entry and all its ancestors remain in the current scene.
+    /// </summary>
+    /// <param name="index">The lifecycle entry index.</param>
+    /// <param name="entries">The traversal entries.</param>
+    /// <returns><see langword="true"/> if the entry remains attached; otherwise, <see langword="false"/>.</returns>
+    private bool IsInCurrentHierarchy(int index, IReadOnlyList<LifecycleEntry> entries)
+    {
+        for (
+            var currentIndex = index;
+            currentIndex >= 0;
+            currentIndex = entries[currentIndex].ParentIndex
+        )
+        {
+            var entry = entries[currentIndex];
+            if (
+                (entry.Entity is not null && _removedDuringTraversal.Contains(entry.Entity))
+                || (entry.Node is not null && _removedDuringTraversal.Contains(entry.Node))
+                || !IsDirectlyOwned(entry)
+            )
+                return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Determines whether a lifecycle entry is still owned by its captured parent.
+    /// </summary>
+    /// <param name="entry">The lifecycle entry to validate.</param>
+    /// <returns><see langword="true"/> if the captured ownership still holds; otherwise, <see langword="false"/>.</returns>
+    private bool IsDirectlyOwned(LifecycleEntry entry)
+    {
+        if (entry.Entity is IScene scene)
+            return ReferenceEquals(CurrentScene, scene);
+
+        if (entry.Entity is IComponent component)
+        {
+            return entry.ComponentOwner is { } owner
+                && ReferenceEquals(component.Owner, owner)
+                && owner.Components.Contains(component);
+        }
+
+        return entry.Node is { } node
+            && entry.ParentNode is { } parent
+            && ReferenceEquals(node.Parent, parent)
+            && parent.Children.Contains(node);
+    }
+
+    /// <summary>
+    /// Determines whether every managed ancestor of an entity is activated.
+    /// </summary>
+    /// <param name="entry">The lifecycle entry whose ancestors are checked.</param>
+    /// <param name="entries">The traversal entries.</param>
+    /// <returns><see langword="true"/> if all managed ancestors are activated; otherwise, <see langword="false"/>.</returns>
+    private static bool AreParentsActivated(
+        LifecycleEntry entry,
+        IReadOnlyList<LifecycleEntry> entries
+    )
+    {
+        for (
+            var parentIndex = entry.ParentIndex;
+            parentIndex >= 0;
+            parentIndex = entries[parentIndex].ParentIndex
+        )
+        {
+            if (entries[parentIndex].Entity is { IsActivated: false })
+                return false;
+        }
+
+        return true;
     }
 
     /// <summary>
@@ -196,12 +402,11 @@ public partial class GameSystem(
                 previousInputScene.InputMap?.Unregister(_eventHub);
             }
 
+            foreach (var child in previousScene.Children.ToArray().Reverse())
+                DeactivateSubtree(child);
+
             if (previousScene.IsActivated)
-            {
-                foreach (var child in previousScene.Children.Reverse())
-                    DeactivateSubtree(child);
                 previousScene.Deactivate();
-            }
 
             _eventHub.Publish(new SceneUnloadedEvent(previousScene));
         }
@@ -209,7 +414,8 @@ public partial class GameSystem(
         var currentScene = CurrentScene;
         if (currentScene is not null)
         {
-            currentScene.Initialize();
+            if (!currentScene.IsInitialized)
+                currentScene.Initialize();
             currentScene.PropertyChanged += OnCurrentScenePropertyChanged;
             SubscribeSceneNode(currentScene);
 
@@ -218,15 +424,16 @@ public partial class GameSystem(
 
             _eventHub.Publish(new SceneLoadedEvent(currentScene));
 
-            currentScene.Activate();
+            if (!currentScene.IsActivated && currentScene.CanActivate())
+                currentScene.Activate();
+
             if (currentScene.IsActivated)
             {
                 if (currentScene is Scene inputScene)
                     inputScene.InputMap?.Register(_eventHub);
-
-                foreach (var child in currentScene.Children)
-                    ActivateSubtree(child);
             }
+
+            RunLifecycleTraversal(currentScene, deltaTime: 0, updateEntities: false);
         }
 
         _logger.LogInformation(
@@ -242,13 +449,13 @@ public partial class GameSystem(
     /// <param name="node">The root node to deactivate.</param>
     private void DeactivateSubtree(ISceneNode node)
     {
-        foreach (var child in node.Children.Reverse())
+        foreach (var child in node.Children.ToArray().Reverse())
             DeactivateSubtree(child);
 
-        if (node is not IGameObject gameObject || !gameObject.IsActivated)
+        if (node is not IGameObject gameObject)
             return;
 
-        foreach (var component in gameObject.Components.Reverse())
+        foreach (var component in gameObject.Components.ToArray().Reverse())
             DeactivateComponent(component);
 
         DeactivateGameObject(gameObject);
@@ -271,7 +478,7 @@ public partial class GameSystem(
             gameObject.Components.ItemRemoved += OnSceneComponentRemoved;
         }
 
-        foreach (var child in node.Children)
+        foreach (var child in node.Children.ToArray())
             SubscribeSceneNode(child);
 
         return true;
@@ -294,7 +501,7 @@ public partial class GameSystem(
             gameObject.Components.ItemRemoved -= OnSceneComponentRemoved;
         }
 
-        foreach (var child in node.Children)
+        foreach (var child in node.Children.ToArray())
             UnsubscribeSceneNode(child);
     }
 
@@ -307,8 +514,8 @@ public partial class GameSystem(
         if (!SubscribeSceneNode(child))
             return;
 
-        if (CurrentScene?.IsActivated == true)
-            ActivateSubtree(child);
+        if (CurrentScene is { } currentScene)
+            RunLifecycleTraversal(currentScene, deltaTime: 0, updateEntities: false);
     }
 
     /// <summary>
@@ -317,8 +524,10 @@ public partial class GameSystem(
     /// <param name="child">The removed child node.</param>
     private void OnSceneChildRemoved(ISceneNode child)
     {
-        if (CurrentScene?.IsActivated == true)
-            DeactivateSubtree(child);
+        if (_isTraversing)
+            _removedDuringTraversal.Add(child);
+
+        DeactivateSubtree(child);
         UnsubscribeSceneNode(child);
     }
 
@@ -328,8 +537,8 @@ public partial class GameSystem(
     /// <param name="component">The newly added component.</param>
     private void OnSceneComponentAdded(IComponent component)
     {
-        if (CurrentScene?.IsActivated == true)
-            ActivateComponent(component);
+        if (CurrentScene is { } currentScene)
+            RunLifecycleTraversal(currentScene, deltaTime: 0, updateEntities: false);
     }
 
     /// <summary>
@@ -338,8 +547,10 @@ public partial class GameSystem(
     /// <param name="component">The removed component.</param>
     private void OnSceneComponentRemoved(IComponent component)
     {
-        if (CurrentScene?.IsActivated == true)
-            DeactivateComponent(component);
+        if (_isTraversing)
+            _removedDuringTraversal.Add(component);
+
+        DeactivateComponent(component);
     }
 
     /// <summary>

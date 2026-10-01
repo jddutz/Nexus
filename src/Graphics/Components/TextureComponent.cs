@@ -1,23 +1,36 @@
-using System.ComponentModel;
-
 namespace Nexus.Graphics.Components;
 
 /// <summary>Draws one texture region over an explicitly sized rectangular destination.</summary>
-public class TextureComponent : Nexus.Core.Component, IGraphicsComponent, IDrawable
+public partial class TextureComponent : Component, IGraphicsComponent
 {
-    private readonly DrawableId _drawableId = DrawableId.New();
+    private readonly TextureDrawable _drawable;
     private static readonly int InstanceDataSize =
         System.Runtime.CompilerServices.Unsafe.SizeOf<Matrix4X4<float>>()
         + System.Runtime.CompilerServices.Unsafe.SizeOf<Vector4D<float>>()
         + Marshal.SizeOf<Color>();
 
+    [Observable(PublicSetter = true)]
     private ulong _renderLayerMask = 1;
+
+    [Observable(PublicSetter = true, GenerateChangedEvent = false)]
     private Texture? _texture;
+
+    [Observable(PublicSetter = true)]
     private Vector2D<float> _size = new(1f, 1f);
+
+    [Observable(PublicSetter = true)]
     private Matrix4X4<float> _transformationMatrix = Matrix4X4<float>.Identity;
+
+    [Observable(PublicSetter = true)]
     private Vector4D<float> _texCoord = new(0f, 0f, 1f, 1f);
+
+    [Observable(PublicSetter = true)]
     private Color _color = Colors.White;
+
+    [Observable]
     private Matrix4X4<float> _view = Matrix4X4<float>.Identity;
+
+    [Observable(PublicSetter = true)]
     private ISamplingBehavior _samplingBehavior = SamplingBehaviors.Smooth;
 
     /// <summary>Initializes a texture component with a corner-pivoted quad by default.</summary>
@@ -26,6 +39,7 @@ public class TextureComponent : Nexus.Core.Component, IGraphicsComponent, IDrawa
     {
         IsCentered = centered;
         Mesh = centered ? BuiltInMesh.TexturedQuadCentered : BuiltInMesh.TexturedQuadOffset;
+        _drawable = new TextureDrawable(this);
     }
 
     /// <inheritdoc />
@@ -42,161 +56,65 @@ public class TextureComponent : Nexus.Core.Component, IGraphicsComponent, IDrawa
     public int InstanceCount => GetInstanceCount();
 
     /// <inheritdoc />
-    public IReadOnlyList<IDrawable> Drawables => [this];
+    public IReadOnlyList<IDrawable> Drawables => [_drawable];
 
-    /// <inheritdoc />
-    public event EventHandler<DrawableEventArgs>? DrawableAdded;
+    event EventHandler<DrawableEventArgs>? IGraphicsComponent.DrawableAdded
+    {
+        add { }
+        remove { }
+    }
 
-    /// <inheritdoc />
-    public event EventHandler<DrawableEventArgs>? DrawableRemoved;
+    event EventHandler<DrawableEventArgs>? IGraphicsComponent.DrawableRemoved
+    {
+        add { }
+        remove { }
+    }
 
-    /// <inheritdoc />
-    DrawableId IDrawable.Id => _drawableId;
-
-    /// <inheritdoc />
-    ulong IDrawable.RenderLayerMask => RenderLayerMask;
-
-    /// <inheritdoc />
-    ITexture IDrawable.Texture => _texture ?? global::Nexus.Graphics.Textures.Texture.Invalid;
-
-    /// <inheritdoc />
-    ulong IDrawable.InstanceCount => checked((ulong)InstanceCount);
-
-    /// <inheritdoc />
-    ISamplingBehavior IDrawable.SamplingBehavior => SamplingBehavior;
-
-    /// <inheritdoc />
-    VertexShader? IDrawable.VertexShader => BuiltInShaders.TexturedQuadVertexShader;
-
-    /// <inheritdoc />
-    IShaderContract? IDrawable.TessellationControlShader => null;
-
-    /// <inheritdoc />
-    IShaderContract? IDrawable.TessellationEvalShader => null;
-
-    /// <inheritdoc />
-    IShaderContract? IDrawable.GeometryShader => null;
-
-    /// <inheritdoc />
-    FragmentShader? IDrawable.FragmentShader => BuiltInShaders.TexturedQuadFragmentShader;
-
-    /// <inheritdoc />
+    /// <summary>Occurs when the owned drawable's render-layer mask changes.</summary>
     public event EventHandler? RenderLayerChanged;
 
-    /// <inheritdoc />
-    event EventHandler? IDrawable.MeshChanged
-    {
-        add { }
-        remove { }
-    }
-
-    /// <inheritdoc />
+    /// <summary>Occurs when the owned drawable's texture changes.</summary>
     public event EventHandler? TextureChanged;
 
-    /// <inheritdoc />
+    /// <summary>Occurs when the owned drawable's instance data changes.</summary>
     public event EventHandler? InstanceDataChanged;
 
-    /// <inheritdoc />
+    /// <summary>Occurs when the owned drawable's uniform data changes.</summary>
     public event EventHandler? UniformDataChanged;
 
-    /// <inheritdoc />
-    event EventHandler? IDrawable.ShaderChanged
-    {
-        add { }
-        remove { }
-    }
+    private void BeforeTextureChanges(Texture? value) => ValidateTextureInput(value, TexCoord);
 
-    /// <summary>Gets or sets the mask of render layers in which this component participates.</summary>
-    public ulong RenderLayerMask
-    {
-        get => _renderLayerMask;
-        set
-        {
-            if (SetProperty(ref _renderLayerMask, value))
-                RenderLayerChanged?.Invoke(this, EventArgs.Empty);
-        }
-    }
+    private void BeforeSamplingBehaviorChanges(ISamplingBehavior value) =>
+        ArgumentNullException.ThrowIfNull(value);
 
-    /// <summary>Gets or sets the sampled texture.</summary>
-    public Texture? Texture
-    {
-        get => _texture;
-        set
-        {
-            ValidateTextureInput(value, TexCoord);
-            if (SetProperty(ref _texture, value))
-                TextureChanged?.Invoke(this, EventArgs.Empty);
-        }
-    }
+    private void BeforeSizeChanges(Vector2D<float> value) => ValidateSizeValue(value);
 
-    /// <summary>Gets or sets the texture sampling behavior.</summary>
-    public ISamplingBehavior SamplingBehavior
-    {
-        get => _samplingBehavior;
-        set
-        {
-            ArgumentNullException.ThrowIfNull(value);
-            if (SetProperty(ref _samplingBehavior, value))
-                TextureChanged?.Invoke(this, EventArgs.Empty);
-        }
-    }
+    private void BeforeTexCoordChanges(Vector4D<float> value) =>
+        ValidateTextureInput(Texture, value);
 
-    /// <summary>Gets or sets the destination size in logical units. Both dimensions must be positive.</summary>
-    public Vector2D<float> Size
-    {
-        get => _size;
-        set
-        {
-            ValidateSize(value);
-            if (SetProperty(ref _size, value))
-                InstanceDataChanged?.Invoke(this, EventArgs.Empty);
-        }
-    }
+    private void AfterRenderLayerMaskChanges(ulong previousValue) =>
+        RenderLayerChanged?.Invoke(this, EventArgs.Empty);
 
-    /// <summary>Gets or sets an additional local transform applied before the owning object's world transform.</summary>
-    public Matrix4X4<float> TransformationMatrix
-    {
-        get => _transformationMatrix;
-        set
-        {
-            if (SetProperty(ref _transformationMatrix, value))
-                InstanceDataChanged?.Invoke(this, EventArgs.Empty);
-        }
-    }
+    private void AfterTextureChanges(Texture? previousValue) =>
+        TextureChanged?.Invoke(this, EventArgs.Empty);
 
-    /// <summary>Gets or sets the atlas UV origin and extent.</summary>
-    public Vector4D<float> TexCoord
-    {
-        get => _texCoord;
-        set
-        {
-            ValidateTextureInput(Texture, value);
-            if (SetProperty(ref _texCoord, value))
-                InstanceDataChanged?.Invoke(this, EventArgs.Empty);
-        }
-    }
+    private void AfterSamplingBehaviorChanges(ISamplingBehavior previousValue) =>
+        TextureChanged?.Invoke(this, EventArgs.Empty);
 
-    /// <summary>Gets or sets the tint multiplied against the sampled texture color.</summary>
-    public Color Color
-    {
-        get => _color;
-        set
-        {
-            if (SetProperty(ref _color, value))
-                InstanceDataChanged?.Invoke(this, EventArgs.Empty);
-        }
-    }
+    private void AfterSizeChanges(Vector2D<float> previousValue) =>
+        InstanceDataChanged?.Invoke(this, EventArgs.Empty);
 
-    /// <summary>Gets or sets the view matrix supplied to the vertex shader contract.</summary>
-    public Matrix4X4<float> View
-    {
-        get => _view;
-        set
-        {
-            if (SetProperty(ref _view, value))
-                UniformDataChanged?.Invoke(this, EventArgs.Empty);
-        }
-    }
+    private void AfterTransformationMatrixChanges(Matrix4X4<float> previousValue) =>
+        InstanceDataChanged?.Invoke(this, EventArgs.Empty);
+
+    private void AfterTexCoordChanges(Vector4D<float> previousValue) =>
+        InstanceDataChanged?.Invoke(this, EventArgs.Empty);
+
+    private void AfterColorChanges(Color previousValue) =>
+        InstanceDataChanged?.Invoke(this, EventArgs.Empty);
+
+    private void AfterViewChanges(Matrix4X4<float> previousValue) =>
+        UniformDataChanged?.Invoke(this, EventArgs.Empty);
 
     /// <inheritdoc />
     protected override void OnOwnerChanged()
@@ -280,7 +198,7 @@ public class TextureComponent : Nexus.Core.Component, IGraphicsComponent, IDrawa
 
     /// <summary>Validates proposed source border widths.</summary>
     /// <param name="sourceBorders">The proposed source borders.</param>
-    protected virtual void ValidateSourceBorders(Vector4D<float> sourceBorders) { }
+    protected virtual void ValidateSourceBordersValue(Vector4D<float> sourceBorders) { }
 
     /// <summary>Raises the instance-data event after derived instance properties change.</summary>
     protected void NotifyInstanceDataChanged() =>
@@ -318,7 +236,7 @@ public class TextureComponent : Nexus.Core.Component, IGraphicsComponent, IDrawa
 
     /// <summary>Validates a positive finite destination size.</summary>
     /// <param name="size">The requested destination size.</param>
-    private static void ValidateSize(Vector2D<float> size)
+    private static void ValidateSizeValue(Vector2D<float> size)
     {
         if (!float.IsFinite(size.X) || !float.IsFinite(size.Y) || size.X <= 0f || size.Y <= 0f)
             throw new ArgumentOutOfRangeException(
@@ -328,7 +246,7 @@ public class TextureComponent : Nexus.Core.Component, IGraphicsComponent, IDrawa
     }
 
     /// <inheritdoc />
-    ReadOnlyMemory<byte> IDrawable.GetUniformData(ShaderInput[] layout)
+    public ReadOnlyMemory<byte> GetUniformData(ShaderInput[] layout)
     {
         ArgumentNullException.ThrowIfNull(layout);
         if (layout.Length != 1 || layout[0] is not { Semantic: InputSemantics.View, Size: 64 })
@@ -365,19 +283,75 @@ public class TextureComponent : Nexus.Core.Component, IGraphicsComponent, IDrawa
     /// <summary>Gets the packed instance data for every instance in this component.</summary>
     /// <param name="layout">The instance layout required by the vertex shader.</param>
     /// <returns>One packed record for each instance.</returns>
-    ReadOnlyMemory<byte> IDrawable.GetInstanceData(ShaderInput[] layout)
+    private sealed class TextureDrawable : IDrawable
     {
-        ArgumentNullException.ThrowIfNull(layout);
-        if (layout.Sum(input => input.Size) != InstanceDataSize)
-            throw new ArgumentException(
-                "The instance layout stride does not match the textured component data.",
-                nameof(layout)
-            );
+        private readonly TextureComponent _owner;
 
-        var data = new byte[checked(InstanceCount * InstanceDataSize)];
-        for (var index = 0; index < InstanceCount; index++)
-            GetInstanceData(index, data.AsSpan(index * InstanceDataSize, InstanceDataSize));
+        public TextureDrawable(TextureComponent owner) => _owner = owner;
 
-        return data;
+        public DrawableId Id { get; } = DrawableId.New();
+        public ulong RenderLayerMask => _owner.RenderLayerMask;
+        public Mesh Mesh => _owner.Mesh;
+        public ITexture Texture =>
+            _owner.Texture ?? global::Nexus.Graphics.Textures.Texture.Invalid;
+        public ulong InstanceCount => checked((ulong)_owner.InstanceCount);
+        public ISamplingBehavior SamplingBehavior => _owner.SamplingBehavior;
+        public VertexShader? VertexShader => BuiltInShaders.TexturedQuadVertexShader;
+        public IShaderContract? TessellationControlShader => null;
+        public IShaderContract? TessellationEvalShader => null;
+        public IShaderContract? GeometryShader => null;
+        public FragmentShader? FragmentShader => BuiltInShaders.TexturedQuadFragmentShader;
+        public event EventHandler? RenderLayerChanged
+        {
+            add => _owner.RenderLayerChanged += value;
+            remove => _owner.RenderLayerChanged -= value;
+        }
+        public event EventHandler? MeshChanged
+        {
+            add { }
+            remove { }
+        }
+        public event EventHandler? TextureChanged
+        {
+            add => _owner.TextureChanged += value;
+            remove => _owner.TextureChanged -= value;
+        }
+        public event EventHandler? InstanceDataChanged
+        {
+            add => _owner.InstanceDataChanged += value;
+            remove => _owner.InstanceDataChanged -= value;
+        }
+        public event EventHandler? UniformDataChanged
+        {
+            add => _owner.UniformDataChanged += value;
+            remove => _owner.UniformDataChanged -= value;
+        }
+        public event EventHandler? ShaderChanged
+        {
+            add { }
+            remove { }
+        }
+
+        public ReadOnlyMemory<byte> GetUniformData(ShaderInput[] layout) =>
+            _owner.GetUniformData(layout);
+
+        public ReadOnlyMemory<byte> GetInstanceData(ShaderInput[] layout)
+        {
+            ArgumentNullException.ThrowIfNull(layout);
+            if (layout.Sum(input => input.Size) != InstanceDataSize)
+                throw new ArgumentException(
+                    "The instance layout stride does not match the textured component data.",
+                    nameof(layout)
+                );
+
+            var data = new byte[checked(_owner.InstanceCount * InstanceDataSize)];
+            for (var index = 0; index < _owner.InstanceCount; index++)
+                _owner.GetInstanceData(
+                    index,
+                    data.AsSpan(index * InstanceDataSize, InstanceDataSize)
+                );
+
+            return data;
+        }
     }
 }

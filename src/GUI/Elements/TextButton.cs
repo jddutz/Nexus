@@ -23,7 +23,7 @@ public enum TextButtonLabelAlignment
 /// <summary>
 /// Represents a text button with an instance-owned nine-patch background and text component.
 /// </summary>
-public sealed class TextButton : Element
+public partial class TextButton : Element
 {
     private readonly List<IObservable> _visibilityAncestors = [];
     private readonly Texture _texture;
@@ -37,32 +37,28 @@ public sealed class TextButton : Element
     private TextComponent? _text;
     private float _horizontalPadding;
     private float _verticalPadding;
+
+    [Observable(PublicSetter = true)]
     private string _label;
+
+    [Observable]
     private TextButtonLabelAlignment _labelAlignment = TextButtonLabelAlignment.Center;
+
+    [Observable(PublicSetter = true)]
     private Action? _action;
 
-    /// <summary>Gets or sets the action invoked when this button is clicked.</summary>
-    public Action? Action
+    private void BeforeLabelChanges(string value) => ArgumentNullException.ThrowIfNull(value);
+
+    private void BeforeLabelAlignmentChanges(TextButtonLabelAlignment value)
     {
-        get => _action;
-        set => SetProperty(ref _action, value);
+        if (!Enum.IsDefined(value))
+            throw new ArgumentOutOfRangeException(nameof(value));
     }
 
-    /// <summary>
-    /// Gets or sets the complete label, before any width-based display fitting.
-    /// </summary>
-    public string Label
+    private void AfterLabelChanges(string previousValue)
     {
-        get => _label;
-        set
-        {
-            ArgumentNullException.ThrowIfNull(value);
-            if (!SetProperty(ref _label, value))
-                return;
-
-            if (_text is not null)
-                _text.Text = value;
-        }
+        if (_text is not null)
+            _text.Text = Label;
     }
 
     /// <summary>
@@ -90,21 +86,6 @@ public sealed class TextButton : Element
             _horizontalPadding = value.X;
             _verticalPadding = value.Y;
             OnPropertyChanged(nameof(Padding));
-        }
-    }
-
-    /// <summary>
-    /// Gets or sets the horizontal alignment of the label inside the padded area.
-    /// </summary>
-    public TextButtonLabelAlignment LabelAlignment
-    {
-        get => _labelAlignment;
-        set
-        {
-            if (!Enum.IsDefined(value))
-                throw new ArgumentOutOfRangeException(nameof(value));
-
-            SetProperty(ref _labelAlignment, value);
         }
     }
 
@@ -152,7 +133,7 @@ public sealed class TextButton : Element
         _sourceBorders = sourceBorders ?? new Vector4D<float>(12f, 12f, 12f, 12f);
         _destinationBorders = destinationBorders;
         _samplingBehavior = samplingBehavior ?? SamplingBehaviors.PixelPerfect;
-        CanFocus = true;
+        SetCanFocus(true);
         InputMap.OnMouseButtonReleased(MouseButtonEnum.Left).Invoke(InvokeAction);
         CreateVisualComponents();
     }
@@ -164,21 +145,17 @@ public sealed class TextButton : Element
     /// <summary>Creates fresh visual components from the button's retained configuration.</summary>
     private void CreateVisualComponents()
     {
-        var background = new NinePatchComponent
-        {
-            Texture = _texture,
-            RenderLayerMask = _backgroundRenderLayerMask,
-            SamplingBehavior = _samplingBehavior,
-            SourceBorders = _sourceBorders,
-            DestinationBorders = _destinationBorders,
-        };
-        var text = new TextComponent(_textStyle)
-        {
-            RenderLayerMask = _textRenderLayerMask,
-            Text = _label,
-        };
+        var background = new NinePatchComponent { };
+        var text = new TextComponent(_textStyle) { };
+        background.Texture = _texture;
+        background.RenderLayerMask = _backgroundRenderLayerMask;
+        background.SamplingBehavior = _samplingBehavior;
+        background.SourceBorders = _sourceBorders;
+        background.DestinationBorders = _destinationBorders;
         _background = background;
         _text = text;
+        text.RenderLayerMask = _textRenderLayerMask;
+        text.Text = _label;
         var labelSize = MeasureLabel(_textStyle, _label);
         background.Size = new Vector2D<float>(
             MathF.Max(float.Epsilon, MathF.Ceiling(labelSize.X) + _horizontalPadding * 2f),
@@ -252,7 +229,7 @@ public sealed class TextButton : Element
     }
 
     /// <inheritdoc />
-    protected override void OnPropertyChanged(string? propertyName = null)
+    protected override void OnPropertyChanged(string propertyName)
     {
         base.OnPropertyChanged(propertyName);
         if (propertyName == nameof(IsVisible))
@@ -300,7 +277,7 @@ public sealed class TextButton : Element
             MathF.Round(textX),
             MathF.Round(bounds.Origin.Y + (bounds.Size.Y - textBounds.Size.Y) / 2f)
         );
-        Position = new(textOrigin.X - textBounds.Origin.X, textOrigin.Y - textBounds.Origin.Y);
+        SetPosition(new(textOrigin.X - textBounds.Origin.X, textOrigin.Y - textBounds.Origin.Y));
         _background.Size = bounds.Size;
         _background.TransformationMatrix = Matrix4X4.CreateTranslation(
             bounds.Origin.X - Position.X,
