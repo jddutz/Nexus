@@ -14,27 +14,27 @@ public class SceneRegistryTests
     public void Load_usesRegisteredFactoryAndReturnsNullForUnknownScene()
     {
         var registry = new SceneRegistry();
-        var sceneId = SceneId.New();
-        var scene = new Scene(sceneId);
+        const string sceneName = "WelcomeScreen";
+        var scene = new Scene(NodeId.New());
 
-        registry.Register(sceneId, () => scene);
+        registry.Register(sceneName, () => scene);
 
-        Assert.Same(scene, registry.Load(sceneId));
-        Assert.Null(registry.Load(SceneId.New()));
+        Assert.Same(scene, registry.Load(sceneName));
+        Assert.Null(registry.Load("UnknownScene"));
     }
 
     /// <summary>
-    /// Verifies a scene identifier cannot silently replace its registered factory.
+    /// Verifies a scene name cannot silently replace its registered factory.
     /// </summary>
     [Fact]
-    public void Register_throwsWhenSceneIdentifierIsAlreadyRegistered()
+    public void Register_throwsWhenSceneNameIsAlreadyRegistered()
     {
         var registry = new SceneRegistry();
-        var sceneId = SceneId.New();
-        registry.Register(sceneId, () => new Scene(sceneId));
+        const string sceneName = "DuplicateScene";
+        registry.Register(sceneName, () => new Scene(NodeId.New()));
 
         Assert.Throws<ArgumentException>(() =>
-            registry.Register(sceneId, () => new Scene(sceneId))
+            registry.Register(sceneName, () => new Scene(NodeId.New()))
         );
     }
 
@@ -45,9 +45,9 @@ public class SceneRegistryTests
     public void Load_throwsWhenRegisteredFactoryReturnsNull()
     {
         var registry = new SceneRegistry();
-        var sceneId = SceneId.New();
-        registry.Register(sceneId, () => null!);
+        const string sceneName = "NullScene";
+        registry.Register(sceneName, () => null!);
 
-        Assert.Throws<InvalidOperationException>(() => registry.Load(sceneId));
+        Assert.Throws<InvalidOperationException>(() => registry.Load(sceneName));
     }
 }

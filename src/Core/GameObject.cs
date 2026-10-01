@@ -9,6 +9,9 @@ public partial class GameObject : IGameObject, IObservable
     private readonly ObservableCollection<ISceneNode> _children = [];
     private ISceneNode? _parent;
 
+    [Observable(PublicSetter = true)]
+    private ISceneNode? _root;
+
     [Observable(PublicSetter = false)]
     private bool _isInitialized;
 
@@ -67,26 +70,10 @@ public partial class GameObject : IGameObject, IObservable
     public NodeId Id { get; }
 
     /// <summary>
-    /// Gets the containing scene, or null when detached.
-    /// </summary>
-    public IScene? Scene { get; set; }
-
-    /// <summary>
     /// Gets the parent game object, if this object is attached to one.
     /// </summary>
-    public ISceneNode? Parent
-    {
-        get => _parent;
-        set
-        {
-            if (ReferenceEquals(_parent, value))
-                return;
-
-            _parent = value;
-            PropertyChanged?.Invoke(nameof(Parent));
-            OnHierarchyChanged();
-        }
-    }
+    [Observable]
+    private ISceneNode? _parent;
 
     /// <summary>
     /// Gets the child scene nodes attached to this game object.
@@ -191,38 +178,6 @@ public partial class GameObject : IGameObject, IObservable
         SetIsActivated(false);
         OnDeactivated();
     }
-
-    /// <summary>
-    /// Sets a field and raises a property-change notification when its value changes.
-    /// </summary>
-    /// <typeparam name="T">The field's value type.</typeparam>
-    /// <param name="field">The field to update.</param>
-    /// <param name="value">The value to assign.</param>
-    /// <param name="propertyName">The name of the associated property.</param>
-    /// <returns><see langword="true"/> if the field changed; otherwise, <see langword="false"/>.</returns>
-    protected bool SetProperty<T>(ref T field, T value, [CallerMemberName] string propertyName = "")
-    {
-        if (EqualityComparer<T>.Default.Equals(field, value))
-            return false;
-
-        field = value;
-        OnPropertyChanged(propertyName);
-        return true;
-    }
-
-    /// <summary>
-    /// Raises the <see cref="PropertyChanged"/> event for the specified property.
-    /// </summary>
-    /// <param name="propertyName">The name of the changed property.</param>
-    protected virtual void OnPropertyChanged(string? propertyName)
-    {
-        PropertyChanged?.Invoke(propertyName ?? string.Empty);
-    }
-
-    /// <summary>
-    /// Handles a change to this object's parent or ancestor chain.
-    /// </summary>
-    protected virtual void OnHierarchyChanged() { }
 
     /// <summary>
     /// Handles this object becoming active.

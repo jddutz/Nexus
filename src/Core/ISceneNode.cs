@@ -11,9 +11,15 @@ public interface ISceneNode
     NodeId Id { get; }
 
     /// <summary>
-    /// Gets the containing scene, or null when detached.
+    /// Gets the root node, or null when detached.
     /// </summary>
-    IScene? Scene { get; set; }
+    ISceneNode? Root { get; }
+
+    /// <summary>
+    /// Sets the root node that owns this node, or null when detached.
+    /// </summary>
+    /// <param name="root">The owning root node, or null when detached.</param>
+    void SetRoot(ISceneNode? root);
 
     /// <summary>
     /// Gets the parent node, or <see langword="null"/> when this node is a root or is detached.

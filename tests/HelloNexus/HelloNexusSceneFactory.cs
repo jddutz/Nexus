@@ -31,13 +31,13 @@ internal sealed class HelloNexusSceneFactory(
     /// <summary>
     /// Creates the initial scene and its HelloNexus-specific content.
     /// </summary>
-    /// <param name="sceneId">The identifier assigned to the scene.</param>
+    /// <param name="nodeId">The identifier assigned to the scene node.</param>
     /// <param name="inputMap">The scene's keyboard bindings.</param>
     /// <returns>The configured initial scene.</returns>
-    public Scene Create(SceneId sceneId, InputMap inputMap)
+    public Scene Create(NodeId nodeId, InputMap inputMap)
     {
         var mainWindow = windowService.GetMainWindow();
-        var scene = new Scene(sceneId);
+        var scene = new Scene(nodeId);
         scene.SetInputMap(inputMap);
 
         var sceneView = scene.Children.OfType<IGameObject>().Single();

@@ -31,7 +31,7 @@ public sealed class TextButtonTests
         first.Label = "B";
 
         Assert.Null(first.Parent);
-        Assert.Null(first.Scene);
+        Assert.Null(first.Root);
         Assert.False(first.IsActivated);
         Assert.True(first.CanFocus);
         Assert.False(first.IsFocused);
@@ -184,7 +184,7 @@ public sealed class TextButtonTests
         parent.AddChild(button);
 
         Assert.Same(parent, button.Parent);
-        Assert.Same(scene, button.Scene);
+        Assert.Same(scene, button.Root);
         Assert.Same(button, scene.GetSceneNode(button.Id));
         Assert.Contains(button, parent.Children);
         Assert.Equal(2, button.Components.Count);

@@ -16,19 +16,20 @@ public class GameObjectTests
     /// Verifies that a scene has its own identity and cannot be attached to a game object.
     /// </summary>
     [Fact]
-    public void Scene_isTopLevelEntityWithSceneId()
+    public void Scene_isTopLevelEntityWithNodeId()
     {
-        var scene = new Scene("main");
+        var nodeId = new NodeId(1);
+        var scene = new Scene(nodeId);
         var defaultView = Assert.IsType<GameObject2D>(Assert.Single(scene.Children));
         var defaultCamera = Assert.IsType<StaticCamera>(
             Assert.Single(defaultView.Components.OfType<StaticCamera>())
         );
         var viewComponent = Assert.Single(defaultView.Components.OfType<ViewComponent>());
 
-        Assert.Equal(new SceneId("main"), scene.Id);
+        Assert.Equal(nodeId, scene.Id);
         Assert.Same(scene, defaultView.Parent);
-        Assert.Same(scene, defaultView.Scene);
-        Assert.Same(scene, scene.GetSceneNode(((ISceneNode)scene).Id));
+        Assert.Same(scene, defaultView.Root);
+        Assert.Same(scene, scene.GetSceneNode(scene.Id));
         Assert.Same(defaultView, scene.GetSceneNode(defaultView.Id));
         Assert.Contains(defaultView, scene.Children);
         Assert.Contains(
@@ -150,9 +151,9 @@ public class GameObjectTests
         scene.Children.Add(root);
 
         Assert.Same(scene, root.Parent);
-        Assert.Same(scene, root.Scene);
-        Assert.Same(scene, child.Scene);
-        Assert.Same(scene, leaf.Scene);
+        Assert.Same(scene, root.Root);
+        Assert.Same(scene, child.Root);
+        Assert.Same(scene, leaf.Root);
         Assert.Same(root, scene.GetSceneNode(root.Id));
         Assert.Same(child, scene.GetSceneNode(child.Id));
         Assert.Same(leaf, scene.GetSceneNode(leaf.Id));
@@ -167,9 +168,28 @@ public class GameObjectTests
         Assert.Null(scene.GetSceneNode(child.Id));
         Assert.Null(scene.GetSceneNode(leaf.Id));
         Assert.Null(scene.GetSceneNode(laterChild.Id));
-        Assert.Null(root.Scene);
+        Assert.Null(root.Root);
         Assert.Null(root.Parent);
         Assert.Same(child, leaf.Parent);
+    }
+
+    /// <summary>
+    /// Verifies adding a node to a new scene removes it from its previous scene first.
+    /// </summary>
+    [Fact]
+    public void Scene_addsNodeByRemovingItFromItsPreviousScene()
+    {
+        var node = new GameObject(20);
+        var previousScene = new Scene(new NodeId(100));
+        var nextScene = new Scene(new NodeId(101));
+        previousScene.Children.Add(node);
+
+        nextScene.Children.Add(node);
+
+        Assert.Null(previousScene.GetSceneNode(node.Id));
+        Assert.Same(nextScene, node.Root);
+        Assert.Same(nextScene, node.Parent);
+        Assert.Same(node, nextScene.GetSceneNode(node.Id));
     }
 
     /// <summary>

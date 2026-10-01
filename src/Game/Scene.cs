@@ -5,34 +5,27 @@ namespace Nexus.Game;
 /// </summary>
 public partial class Scene : IScene
 {
-    private readonly NodeId _sceneNodeId = NodeId.New();
     private readonly ObservableCollection<ISceneNode> _children = [];
-    private readonly Dictionary<NodeId, ISceneNode> _allSceneNodes = [];
+    private readonly Dictionary<NodeId, ISceneNode> _allNodes = [];
+
+    [Observable(PublicSetter = true)]
+    private RenderLayerCollection _renderLayers = new();
 
     [Observable(PublicSetter = true)]
     private InputMap? _inputMap;
 
-    [Observable(PublicSetter = false)]
-    private bool _isInitialized;
-
-    [Observable(PublicSetter = false)]
-    private bool _isActive;
-
     /// <summary>
     /// Initializes a new instance of the <see cref="Scene"/> class with the specified identifier.
     /// </summary>
-    /// <param name="sceneId">The identifier for the scene.</param>
-    public Scene(SceneId sceneId)
+    /// <param name="id">The node identifier for the scene.</param>
+    public Scene(NodeId id)
     {
-        Id = sceneId;
-        _children.ItemAdded += OnRootChildAdded;
-        _children.ItemRemoved += OnRootChildRemoved;
-        _children.ItemAdded += OnChildAdded;
-        _children.ItemRemoved += OnChildRemoved;
-        _allSceneNodes.Add(_sceneNodeId, this);
+        Id = id;
+        _children.ItemAdded += Register;
+        _children.ItemRemoved += Unregister;
+        _allNodes.Add(Id, this);
 
-        Layers = new RenderLayerCollection();
-        Layers.Create("GUI", RenderPasses.Main);
+        RenderLayers.Create("GUI", RenderPasses.Main);
 
         var defaultCamera = new StaticCamera();
         var viewComponent = new ViewComponent() { Camera = defaultCamera, LayerMask = 1 };
@@ -43,20 +36,16 @@ public partial class Scene : IScene
     /// <summary>
     /// Gets the unique identifier for this scene.
     /// </summary>
-    public SceneId Id { get; }
+    public NodeId Id { get; }
 
     /// <inheritdoc />
-    NodeId ISceneNode.Id => _sceneNodeId;
+    public ISceneNode? Root => this;
 
     /// <inheritdoc />
-    IScene? ISceneNode.Scene
+    void ISceneNode.SetRoot(ISceneNode? root)
     {
-        get => this;
-        set
-        {
-            if (!ReferenceEquals(value, this))
-                throw new InvalidOperationException("A scene cannot belong to another scene.");
-        }
+        if (!ReferenceEquals(root, this))
+            throw new InvalidOperationException("A scene is always its own root.");
     }
 
     /// <inheritdoc />
@@ -73,24 +62,8 @@ public partial class Scene : IScene
     /// <inheritdoc />
     public IObservableCollection<ISceneNode> Children => _children;
 
-    /// <inheritdoc />
-    public IReadOnlyDictionary<NodeId, ISceneNode> AllSceneNodes => _allSceneNodes;
-
-    /// <summary>
-    /// Gets the current set of render layers managed by the graphics system.
-    /// </summary>
-    internal RenderLayerCollection Layers { get; }
-
-    /// <inheritdoc />
-    public bool IsActivated => _isActive;
-
-    /// <summary>
-    /// Gets a scene node by its identifier, or <see langword="null"/> when the identifier is absent.
-    /// </summary>
-    /// <param name="sceneNodeId">The identifier of the node to find.</param>
-    /// <returns>The matching node, or <see langword="null"/>.</returns>
-    public ISceneNode? GetSceneNode(NodeId sceneNodeId) =>
-        _allSceneNodes.GetValueOrDefault(sceneNodeId);
+    [Observable(PublicSetter = false)]
+    private bool _isInitialized;
 
     /// <inheritdoc />
     public void Initialize()
@@ -101,16 +74,19 @@ public partial class Scene : IScene
         SetIsInitialized(true);
     }
 
+    [Observable(PublicSetter = false)]
+    private bool _isActivated;
+
     /// <inheritdoc />
     public bool CanActivate() => true;
 
     /// <inheritdoc />
     public void Activate()
     {
-        if (_isActive || !CanActivate())
+        if (_isActivated || !CanActivate())
             return;
 
-        SetIsActive(true);
+        SetIsActivated(true);
 
         PropertyChanged?.Invoke(nameof(IsActivated));
     }
@@ -121,164 +97,58 @@ public partial class Scene : IScene
     /// <inheritdoc />
     public void Deactivate()
     {
-        if (!_isActive)
+        if (!_isActivated)
             return;
 
-        SetIsActive(false);
+        SetIsActivated(false);
         PropertyChanged?.Invoke(nameof(IsActivated));
-    }
-
-    /// <summary>
-    /// Creates and adds a root game object of the specified type.
-    /// </summary>
-    /// <typeparam name="TChild">The type of game object to create.</typeparam>
-    /// <returns>The added game object.</returns>
-    public TChild CreateChild<TChild>()
-        where TChild : IGameObject, new()
-    {
-        var child = new TChild();
-        Children.Add(child);
-        return child;
-    }
-
-    /// <summary>
-    /// Registers an added child and all of its existing descendants in this scene.
-    /// </summary>
-    /// <param name="child">The added child.</param>
-    private void OnChildAdded(ISceneNode child)
-    {
-        if (child.Scene is not null && !ReferenceEquals(child.Scene, this))
-            throw new InvalidOperationException("Scene node already belongs to another scene.");
-
-        if (
-            _allSceneNodes.TryGetValue(child.Id, out var registeredNode)
-            && ReferenceEquals(registeredNode, child)
-        )
-            return;
-
-        var addedNodes = EnumerateSubtree(child).ToArray();
-        try
-        {
-            ValidateSubtree(addedNodes);
-        }
-        catch
-        {
-            child.Parent?.Children.Remove(child);
-            throw;
-        }
-
-        RegisterSubtree(child);
-    }
-
-    /// <summary>
-    /// Unregisters a removed child and all of its descendants from this scene.
-    /// </summary>
-    /// <param name="child">The removed child.</param>
-    private void OnChildRemoved(ISceneNode child)
-    {
-        if (
-            !_allSceneNodes.TryGetValue(child.Id, out var registeredNode)
-            || !ReferenceEquals(registeredNode, child)
-        )
-            return;
-
-        var removedNodes = EnumerateSubtree(child).ToArray();
-        foreach (var node in removedNodes.Reverse())
-        {
-            node.Children.ItemAdded -= OnChildAdded;
-            node.Children.ItemRemoved -= OnChildRemoved;
-            if (
-                _allSceneNodes.TryGetValue(node.Id, out var trackedNode)
-                && ReferenceEquals(trackedNode, node)
-            )
-                _allSceneNodes.Remove(node.Id);
-            if (ReferenceEquals(node.Scene, this))
-                node.Scene = null;
-        }
-    }
-
-    /// <summary>
-    /// Sets the scene as the parent of a newly added root node.
-    /// </summary>
-    /// <param name="child">The root node added to this scene.</param>
-    private void OnRootChildAdded(ISceneNode child)
-    {
-        if (child.Parent is null)
-            child.Parent = this;
-        else if (!ReferenceEquals(child.Parent, this))
-            throw new InvalidOperationException("Scene node already belongs to another parent.");
-    }
-
-    /// <summary>
-    /// Clears the scene parent of a removed root node.
-    /// </summary>
-    /// <param name="child">The root node removed from this scene.</param>
-    private void OnRootChildRemoved(ISceneNode child)
-    {
-        if (ReferenceEquals(child.Parent, this))
-            child.Parent = null;
     }
 
     /// <summary>
     /// Adds a node and its existing descendants to the scene lookup and subscriptions.
     /// </summary>
     /// <param name="node">The root node of the subtree to register.</param>
-    private void RegisterSubtree(ISceneNode node)
+    private void Register(ISceneNode node)
     {
-        if (_allSceneNodes.TryGetValue(node.Id, out var existingNode))
-        {
-            if (ReferenceEquals(existingNode, node))
-                return;
+        if (_allNodes.TryGetValue(node.Id, out var registeredNode))
+            return;
 
-            throw new InvalidOperationException($"Scene node id '{node.Id}' is already in use.");
-        }
+        if (ReferenceEquals(registeredNode, node))
+            return;
 
-        _allSceneNodes.Add(node.Id, node);
-        node.Scene = this;
-        node.Children.ItemAdded += OnChildAdded;
-        node.Children.ItemRemoved += OnChildRemoved;
+        node.SetRoot(this);
+        node.Parent ??= this;
 
-        foreach (var child in node.Children.ToArray())
-        {
-            if (child.Parent is null)
-                child.Parent = node;
-            RegisterSubtree(child);
-        }
-    }
+        node.Children.ItemAdded += Register;
+        node.Children.ItemRemoved += Unregister;
 
-    /// <summary>
-    /// Verifies that a subtree has unique identifiers and contains no node owned by another scene.
-    /// </summary>
-    /// <param name="nodes">The nodes to validate.</param>
-    private void ValidateSubtree(IEnumerable<ISceneNode> nodes)
-    {
-        var identifiers = new HashSet<NodeId>();
-        foreach (var node in nodes)
-        {
-            if (!identifiers.Add(node.Id))
-                throw new InvalidOperationException($"Scene node id '{node.Id}' is duplicated.");
-            if (node.Scene is not null && !ReferenceEquals(node.Scene, this))
-                throw new InvalidOperationException("Scene node already belongs to another scene.");
-            if (
-                _allSceneNodes.TryGetValue(node.Id, out var registeredNode)
-                && !ReferenceEquals(registeredNode, node)
-            )
-                throw new InvalidOperationException(
-                    $"Scene node id '{node.Id}' is already in use."
-                );
-        }
-    }
+        _allNodes.Add(node.Id, node);
 
-    /// <summary>
-    /// Enumerates a node and all of its descendants in parent-first order.
-    /// </summary>
-    /// <param name="node">The root node to enumerate.</param>
-    /// <returns>The node and its descendants.</returns>
-    private static IEnumerable<ISceneNode> EnumerateSubtree(ISceneNode node)
-    {
-        yield return node;
         foreach (var child in node.Children)
-        foreach (var descendant in EnumerateSubtree(child))
-            yield return descendant;
+            Register(child);
+    }
+
+    /// <summary>
+    /// Removes a node and its descendants from the scene lookup and subscriptions.
+    /// </summary>
+    /// <param name="node">The root node of the subtree to unregister.</param>
+    private void Unregister(ISceneNode node)
+    {
+        if (!_allNodes.TryGetValue(node.Id, out var registeredNode))
+            return;
+
+        if (!ReferenceEquals(registeredNode, node))
+            return;
+
+        foreach (var child in node.Children)
+            Unregister(child);
+
+        node.SetRoot(null);
+        node.Parent = null;
+
+        node.Children.ItemAdded -= Register;
+        node.Children.ItemRemoved -= Unregister;
+
+        _allNodes.Remove(node.Id);
     }
 }

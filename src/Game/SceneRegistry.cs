@@ -5,28 +5,28 @@ namespace Nexus.Game;
 /// </summary>
 public class SceneRegistry : ISceneRegistry
 {
-    private readonly Dictionary<SceneId, Func<IScene>> _sceneFactories = [];
+    private readonly Dictionary<string, Func<IScene>> _sceneFactories = [];
 
     /// <inheritdoc/>
-    public void Register(SceneId sceneId, Func<IScene> factory)
+    public void Register(string sceneName, Func<IScene> factory)
     {
         ArgumentNullException.ThrowIfNull(factory);
-        if (!_sceneFactories.TryAdd(sceneId, factory))
+        if (!_sceneFactories.TryAdd(sceneName, factory))
             throw new ArgumentException(
-                $"A factory is already registered for scene '{sceneId}'.",
-                nameof(sceneId)
+                $"A factory is already registered for scene '{sceneName}'.",
+                nameof(sceneName)
             );
     }
 
     /// <inheritdoc/>
-    public IScene? Load(SceneId sceneId)
+    public IScene? Load(string sceneName)
     {
-        if (!_sceneFactories.TryGetValue(sceneId, out var factory))
+        if (!_sceneFactories.TryGetValue(sceneName, out var factory))
             return null;
 
         return factory()
             ?? throw new InvalidOperationException(
-                $"The factory for scene '{sceneId}' returned null."
+                $"The factory for scene '{sceneName}' returned null."
             );
     }
 }

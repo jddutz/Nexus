@@ -617,8 +617,8 @@ public class InputSystemTests
     {
         var eventHub = new EventHub();
         var keyboard = new FakeKeyboard(11);
-        var sceneId = (SceneId)"InputScene";
-        var scene = new Scene(sceneId);
+        const string sceneName = "InputScene";
+        var scene = new Scene(NodeId.New());
         var firstCalls = 0;
         var secondCalls = 0;
         var thirdCalls = 0;
@@ -626,17 +626,17 @@ public class InputSystemTests
         firstMap.OnKeyPressed(KeyEnum.Escape).Invoke(() => firstCalls++);
         scene.SetInputMap(firstMap);
 
-        var nextScene = new Scene((SceneId)"NextInputScene");
+        var nextScene = new Scene(NodeId.New());
         var nextMap = new InputMap();
         nextMap.OnKeyPressed(KeyEnum.Escape).Invoke(() => thirdCalls++);
         nextScene.SetInputMap(nextMap);
 
         var sceneRegistry = new SceneRegistry();
-        sceneRegistry.Register(sceneId, () => scene);
+        sceneRegistry.Register(sceneName, () => scene);
         var gameSystem = new SwitchableGameSystem(
             eventHub,
             sceneRegistry,
-            Options.Create(new GameSettings { InitialScene = "InputScene" })
+            Options.Create(new GameSettings { InitialScene = sceneName })
         );
 
         eventHub.Publish(new KeyPressedEvent(keyboard, KeyEnum.Escape));

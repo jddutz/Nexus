@@ -1,5 +1,6 @@
 ﻿namespace HelloNexus;
 
+using Nexus.Core;
 using Nexus.Core.Events;
 using Nexus.Game;
 using Nexus.Graphics;
@@ -46,14 +47,14 @@ internal static class Program
                 var gameSystem = ActivatorUtilities.CreateInstance<GameSystem>(serviceProvider);
 
                 var sceneRegistry = serviceProvider.GetRequiredService<ISceneRegistry>();
-                const string helloNexusSceneIdValue = "WelcomeScreen";
-                var helloNexusSceneId = (SceneId)helloNexusSceneIdValue;
+                const string helloNexusSceneName = "WelcomeScreen";
+                var sceneNodeId = NodeId.New();
                 var sceneFactory = ActivatorUtilities.CreateInstance<HelloNexusSceneFactory>(
                     serviceProvider
                 );
                 sceneRegistry.Register(
-                    helloNexusSceneId,
-                    () => sceneFactory.Create(helloNexusSceneId, inputMap)
+                    helloNexusSceneName,
+                    () => sceneFactory.Create(sceneNodeId, inputMap)
                 );
 
                 return gameSystem;

@@ -39,8 +39,8 @@ public class GameSystemEventRegistrationTests
     [Fact]
     public void Initialize_loadsAndActivatesTheConfiguredInitialScene()
     {
-        var sceneId = (SceneId)"WelcomeScreen";
-        var scene = new Scene(sceneId);
+        const string sceneName = "WelcomeScreen";
+        var scene = new Scene(NodeId.New());
         var rootComponent = new EventHandlingComponent();
         var root = new EventHandlingGameObject([rootComponent]);
         var childComponent = new EventHandlingComponent();
@@ -48,11 +48,11 @@ public class GameSystemEventRegistrationTests
         root.AddChild(child);
         scene.Children.Add(root);
         var sceneRegistry = new SceneRegistry();
-        sceneRegistry.Register(sceneId, () => scene);
+        sceneRegistry.Register(sceneName, () => scene);
         var gameSystem = CreateGameSystem(
             new EventHub(),
             sceneRegistry,
-            new GameSettings { InitialScene = "WelcomeScreen" }
+            new GameSettings { InitialScene = sceneName }
         );
 
         Assert.Null(gameSystem.InitialScene);
@@ -73,14 +73,14 @@ public class GameSystemEventRegistrationTests
     [Fact]
     public void ActiveScene_tracksLifecycleForDynamicallyChangedHierarchy()
     {
-        var sceneId = (SceneId)"DynamicScene";
-        var scene = new Scene(sceneId);
+        const string sceneName = "DynamicScene";
+        var scene = new Scene(NodeId.New());
         var sceneRegistry = new SceneRegistry();
-        sceneRegistry.Register(sceneId, () => scene);
+        sceneRegistry.Register(sceneName, () => scene);
         var gameSystem = CreateGameSystem(
             new EventHub(),
             sceneRegistry,
-            new GameSettings { InitialScene = "DynamicScene" }
+            new GameSettings { InitialScene = sceneName }
         );
         gameSystem.Initialize();
 

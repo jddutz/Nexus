@@ -35,11 +35,11 @@ public partial class GameSystem(
     /// </summary>
     public void Initialize()
     {
-        var initialSceneId = (SceneId)Settings.InitialScene;
+        var initialSceneName = Settings.InitialScene;
         var initialScene =
-            _sceneRegistry.Load(initialSceneId)
+            _sceneRegistry.Load(initialSceneName)
             ?? throw new InvalidOperationException(
-                $"Initial scene '{Settings.InitialScene}' is not registered."
+                $"Initial scene '{initialSceneName}' is not registered."
             );
         InitialScene = initialScene;
 
