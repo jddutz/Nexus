@@ -1,6 +1,9 @@
 namespace Tests;
 
 using System.Reflection;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using Nexus.Core;
 using Nexus.Core.Events;
 using Nexus.Game;
 using Nexus.Input;
@@ -184,7 +187,7 @@ public class InputSystemTests
             .Execute(new TestInputAction(() => calls.Add("second release")));
         map.OnAnyControllerAnalogChanged(0)
             .Invoke(message => analogPositions.Add(message.Position));
-        inputSystem.CurrentMap = map;
+        map.Register(eventHub);
 
         firstState.Pressed = true;
         firstState.Axis = 0.25f;
@@ -371,14 +374,13 @@ public class InputSystemTests
     {
         var eventHub = new EventHub();
         var mouse = new FakeMouse(13);
-        var inputSystem = new InputSystem(eventHub);
         var calls = new List<string>();
         var map = new InputMap(eventHub);
         map.OnMouseButtonPressed(MouseButtonEnum.Left).Invoke(() => calls.Add("pressed"));
         map.OnMouseButtonReleased(MouseButtonEnum.Left)
             .Execute(new TestInputAction(() => calls.Add("released")));
         map.OnMouseWheel().Invoke(() => calls.Add("wheel"));
-        inputSystem.CurrentMap = map;
+        map.Register(eventHub);
 
         eventHub.Publish(new MouseButtonPressedEvent(mouse, MouseButtonEnum.Left, mouse.Position));
         eventHub.Publish(new MouseButtonReleasedEvent(mouse, MouseButtonEnum.Left, mouse.Position));
@@ -386,7 +388,7 @@ public class InputSystemTests
         eventHub.Drain();
 
         Assert.Equal(["pressed", "released", "wheel"], calls);
-        inputSystem.Dispose();
+        map.Unregister(eventHub);
     }
 
     /// <summary>
@@ -398,7 +400,6 @@ public class InputSystemTests
         var eventHub = new EventHub();
         var keyboard = new FakeKeyboard(14);
         var mouse = new FakeMouse(15);
-        var inputSystem = new InputSystem(eventHub);
         var calls = new List<string>();
         var map = new InputMap(eventHub) { SuppressSceneInputEvents = true };
         map.OnKeyPressed(KeyEnum.A).Invoke(() => calls.Add("key pressed"));
@@ -406,7 +407,7 @@ public class InputSystemTests
         map.OnMouseButtonPressed(MouseButtonEnum.Left).Invoke(() => calls.Add("button pressed"));
         map.OnMouseButtonReleased(MouseButtonEnum.Left).Invoke(() => calls.Add("button released"));
         map.OnMouseWheel().Invoke(() => calls.Add("wheel"));
-        inputSystem.CurrentMap = map;
+        map.Register(eventHub);
 
         eventHub.Publish(new KeyPressedEvent(keyboard, KeyEnum.A));
         eventHub.Publish(new KeyReleasedEvent(keyboard, KeyEnum.A));
@@ -429,7 +430,7 @@ public class InputSystemTests
             ["key pressed", "key released", "button pressed", "button released", "wheel"],
             calls
         );
-        inputSystem.Dispose();
+        map.Unregister(eventHub);
     }
 
     /// <summary>
@@ -497,13 +498,12 @@ public class InputSystemTests
     {
         var eventHub = new EventHub();
         var keyboard = new FakeKeyboard(7);
-        var inputSystem = new InputSystem(eventHub);
         var calls = new List<string>();
         var map = new InputMap(eventHub);
         map.OnKeyPressed(KeyEnum.Escape).Invoke(() => calls.Add("first"));
         map.OnKeyPressed(KeyEnum.Escape).Invoke(() => calls.Add("second"));
         map.OnKeyReleased(KeyEnum.Escape).Invoke(() => calls.Add("release"));
-        inputSystem.CurrentMap = map;
+        map.Register(eventHub);
 
         eventHub.Publish(new KeyPressedEvent(keyboard, KeyEnum.A));
         eventHub.Publish(new KeyPressedEvent(keyboard, KeyEnum.Escape));
@@ -516,7 +516,7 @@ public class InputSystemTests
         eventHub.Drain();
 
         Assert.Equal(["first", "second", "release"], calls);
-        inputSystem.Dispose();
+        map.Unregister(eventHub);
     }
 
     /// <summary>
@@ -529,12 +529,11 @@ public class InputSystemTests
         var keyboard = new FakeKeyboard(8);
         var collector = new InputMapEventCollector();
         eventHub.Register(collector);
-        var inputSystem = new InputSystem(eventHub);
         var factoryCalls = 0;
         var map = new InputMap(eventHub);
         map.OnKeyPressed(KeyEnum.Escape).Raise<TestInputEvent>();
         map.OnKeyPressed(KeyEnum.A).Raise(() => new FactoryInputEvent(++factoryCalls));
-        inputSystem.CurrentMap = map;
+        map.Register(eventHub);
 
         eventHub.Publish(new KeyPressedEvent(keyboard, KeyEnum.Escape));
         eventHub.Publish(new KeyPressedEvent(keyboard, KeyEnum.A));
@@ -548,7 +547,7 @@ public class InputSystemTests
 
         Assert.Single(collector.CreatedEvents);
         Assert.Collection(collector.FactoryEvents, message => Assert.Equal(1, message.Value));
-        inputSystem.Dispose();
+        map.Unregister(eventHub);
     }
 
     /// <summary>
@@ -559,7 +558,6 @@ public class InputSystemTests
     {
         var eventHub = new EventHub();
         var keyboard = new FakeKeyboard(9);
-        var inputSystem = new InputSystem(eventHub);
         var calls = new List<string>();
         var firstMap = new InputMap(eventHub);
         var secondMap = new InputMap(eventHub);
@@ -569,92 +567,111 @@ public class InputSystemTests
                 new TestInputAction(() =>
                 {
                     calls.Add("action");
-                    inputSystem.CurrentMap = secondMap;
+                    firstMap.Unregister(eventHub);
+                    secondMap.Register(eventHub);
                 })
             );
         secondMap.OnKeyPressed(KeyEnum.A).Invoke(() => calls.Add("second map"));
-        inputSystem.CurrentMap = firstMap;
+        firstMap.Register(eventHub);
 
         eventHub.Publish(new KeyPressedEvent(keyboard, KeyEnum.Escape));
         eventHub.Publish(new KeyPressedEvent(keyboard, KeyEnum.A));
         eventHub.Drain();
 
         Assert.Equal(["action", "second map"], calls);
-        inputSystem.CurrentMap = null;
+        secondMap.Unregister(eventHub);
         eventHub.Publish(new KeyPressedEvent(keyboard, KeyEnum.A));
         eventHub.Drain();
         Assert.Equal(["action", "second map"], calls);
-
-        inputSystem.Dispose();
     }
 
     /// <summary>
-    /// Verifies selecting the same map twice does not duplicate delivery and disposal unregisters it.
+    /// Verifies EventHub registration is idempotent and unregistering a map stops delivery.
     /// </summary>
     [Fact]
-    public void InputSystem_currentMapIsIdempotentAndUnregisteredOnDispose()
+    public void InputMap_registersAndUnregistersWithEventHub()
     {
         var eventHub = new EventHub();
         var keyboard = new FakeKeyboard(10);
-        var inputSystem = new InputSystem(eventHub);
         var calls = 0;
-        var map = new InputMap(eventHub);
+        var map = new InputMap();
         map.OnKeyPressed(KeyEnum.Escape).Invoke(() => calls++);
-        inputSystem.CurrentMap = map;
-        inputSystem.CurrentMap = map;
+        map.Register(eventHub);
+        map.Register(eventHub);
 
         eventHub.Publish(new KeyPressedEvent(keyboard, KeyEnum.Escape));
         eventHub.Drain();
         Assert.Equal(1, calls);
 
-        inputSystem.Dispose();
+        map.Unregister(eventHub);
         eventHub.Publish(new KeyPressedEvent(keyboard, KeyEnum.Escape));
         eventHub.Drain();
         Assert.Equal(1, calls);
     }
 
     /// <summary>
-    /// Verifies scene activation selects its input map and deactivation clears only that selection.
+    /// Verifies GameSystem activates, switches, and deactivates the scene input map through EventHub.
     /// </summary>
     [Fact]
-    public void Scene_activationAndDeactivationSelectItsInputMap()
+    public void GameSystem_activatesSceneInputMapThroughEventHub()
     {
         var eventHub = new EventHub();
         var keyboard = new FakeKeyboard(11);
-        using var inputSystem = new InputSystem(eventHub);
-        var calls = 0;
-        var propertyChanges = new List<string>();
-        var firstMap = new InputMap(eventHub);
-        firstMap.OnKeyPressed(KeyEnum.Escape).Invoke(() => calls++);
-        var firstScene = new Scene(inputSystem);
-        firstScene.PropertyChanged += propertyChanges.Add;
-        firstScene.SetInputMap(firstMap);
-        Assert.Equal([nameof(Scene.InputMap)], propertyChanges);
+        var sceneId = (SceneId)"InputScene";
+        var scene = new Scene(sceneId);
+        var firstCalls = 0;
+        var secondCalls = 0;
+        var thirdCalls = 0;
+        var firstMap = new InputMap();
+        firstMap.OnKeyPressed(KeyEnum.Escape).Invoke(() => firstCalls++);
+        scene.SetInputMap(firstMap);
 
-        firstScene.Activate();
-        Assert.Same(firstMap, inputSystem.CurrentMap);
+        var nextScene = new Scene((SceneId)"NextInputScene");
+        var nextMap = new InputMap();
+        nextMap.OnKeyPressed(KeyEnum.Escape).Invoke(() => thirdCalls++);
+        nextScene.SetInputMap(nextMap);
 
-        var replacementMap = new InputMap(eventHub);
-        firstScene.SetInputMap(replacementMap);
-        Assert.Same(replacementMap, inputSystem.CurrentMap);
-        Assert.Equal(2, propertyChanges.Count);
+        var sceneRegistry = new SceneRegistry();
+        sceneRegistry.Register(sceneId, () => scene);
+        var gameSystem = new SwitchableGameSystem(
+            eventHub,
+            sceneRegistry,
+            Options.Create(new GameSettings { InitialScene = "InputScene" })
+        );
 
         eventHub.Publish(new KeyPressedEvent(keyboard, KeyEnum.Escape));
         eventHub.Drain();
-        Assert.Equal(0, calls);
+        Assert.Equal(0, firstCalls);
 
-        var secondMap = new InputMap(eventHub);
-        var secondScene = new Scene(inputSystem);
-        secondScene.SetInputMap(secondMap);
-        secondScene.Activate();
-        firstScene.Deactivate();
-        Assert.Same(secondMap, inputSystem.CurrentMap);
-
-        secondScene.Deactivate();
-        Assert.Null(inputSystem.CurrentMap);
+        gameSystem.Initialize();
         eventHub.Publish(new KeyPressedEvent(keyboard, KeyEnum.Escape));
         eventHub.Drain();
-        Assert.Equal(1, calls);
+        Assert.Equal(1, firstCalls);
+
+        var replacementMap = new InputMap();
+        replacementMap.OnKeyPressed(KeyEnum.Escape).Invoke(() => secondCalls++);
+        scene.SetInputMap(replacementMap);
+        eventHub.Publish(new KeyPressedEvent(keyboard, KeyEnum.Escape));
+        eventHub.Drain();
+        Assert.Equal(1, firstCalls);
+        Assert.Equal(1, secondCalls);
+
+        gameSystem.SwitchScene(nextScene);
+        Assert.False(scene.IsActivated);
+        Assert.True(nextScene.IsActivated);
+        Assert.Same(nextScene, gameSystem.CurrentScene);
+
+        eventHub.Publish(new KeyPressedEvent(keyboard, KeyEnum.Escape));
+        eventHub.Drain();
+        Assert.Equal(1, firstCalls);
+        Assert.Equal(1, secondCalls);
+        Assert.Equal(1, thirdCalls);
+
+        gameSystem.SwitchScene(null);
+        Assert.False(nextScene.IsActivated);
+        eventHub.Publish(new KeyPressedEvent(keyboard, KeyEnum.Escape));
+        eventHub.Drain();
+        Assert.Equal(1, thirdCalls);
     }
 
     /// <summary>
@@ -688,6 +705,23 @@ public class InputSystemTests
     public void ToKeyEnum_mapsSilkKeys(SilkKey silkKey, KeyEnum expected)
     {
         Assert.Equal(expected, silkKey.ToKeyEnum());
+    }
+
+    /// <summary>
+    /// Exposes the protected generated scene setter for lifecycle transition tests.
+    /// </summary>
+    /// <param name="eventHub">The event hub used by the game system.</param>
+    /// <param name="sceneRegistry">The registry used to load the initial scene.</param>
+    /// <param name="gameSettings">The game settings.</param>
+    private sealed class SwitchableGameSystem(
+        IEventHub eventHub,
+        ISceneRegistry sceneRegistry,
+        IOptions<GameSettings> gameSettings
+    ) : GameSystem(eventHub, NullLogger<GameSystem>.Instance, sceneRegistry, gameSettings)
+    {
+        /// <summary>Changes the current scene using the protected generated setter.</summary>
+        /// <param name="scene">The scene to activate, or <see langword="null"/>.</param>
+        public void SwitchScene(IScene? scene) => SetCurrentScene(scene);
     }
 
     /// <summary>

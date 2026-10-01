@@ -46,7 +46,7 @@ public class GameSystemEventRegistrationTests
         var childComponent = new EventHandlingComponent();
         var child = new EventHandlingGameObject([childComponent]);
         root.AddChild(child);
-        scene.AddChild(root);
+        scene.Children.Add(root);
         var sceneRegistry = new SceneRegistry();
         sceneRegistry.Register(sceneId, () => scene);
         var gameSystem = CreateGameSystem(
@@ -65,6 +65,55 @@ public class GameSystemEventRegistrationTests
         Assert.True(child.IsActivated);
         Assert.True(rootComponent.IsActivated);
         Assert.True(childComponent.IsActivated);
+    }
+
+    /// <summary>
+    /// Verifies an active scene tracks lifecycle changes through its child and component collections.
+    /// </summary>
+    [Fact]
+    public void ActiveScene_tracksLifecycleForDynamicallyChangedHierarchy()
+    {
+        var sceneId = (SceneId)"DynamicScene";
+        var scene = new Scene(sceneId);
+        var sceneRegistry = new SceneRegistry();
+        sceneRegistry.Register(sceneId, () => scene);
+        var gameSystem = CreateGameSystem(
+            new EventHub(),
+            sceneRegistry,
+            new GameSettings { InitialScene = "DynamicScene" }
+        );
+        gameSystem.Initialize();
+
+        var rootComponent = new EventHandlingComponent();
+        var root = new EventHandlingGameObject([rootComponent]);
+        scene.Children.Add(root);
+
+        Assert.True(root.IsActivated);
+        Assert.True(rootComponent.IsActivated);
+
+        var childComponent = new EventHandlingComponent();
+        var child = new EventHandlingGameObject([childComponent]);
+        root.AddChild(child);
+
+        Assert.True(child.IsActivated);
+        Assert.True(childComponent.IsActivated);
+
+        var addedComponent = new EventHandlingComponent();
+        child.AddComponent(addedComponent);
+        Assert.True(addedComponent.IsActivated);
+
+        Assert.True(child.RemoveComponent(addedComponent));
+        Assert.False(addedComponent.IsActivated);
+
+        Assert.True(root.RemoveChild(child));
+        Assert.False(child.IsActivated);
+        Assert.False(childComponent.IsActivated);
+        Assert.Null(scene.GetSceneNode(child.Id));
+
+        Assert.True(scene.Children.Remove(root));
+        Assert.False(root.IsActivated);
+        Assert.False(rootComponent.IsActivated);
+        Assert.Null(scene.GetSceneNode(root.Id));
     }
 
     /// <summary>

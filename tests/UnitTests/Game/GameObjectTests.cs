@@ -123,40 +123,6 @@ public class GameObjectTests
     }
 
     /// <summary>
-    /// Verifies that scenes forward descendant component and game-object lifecycle notifications.
-    /// </summary>
-    [Fact]
-    public void Scene_forwardsDescendantLifecycleNotifications()
-    {
-        var scene = new Scene();
-        var component = new TestComponent();
-        var child = new GameObject([component]);
-        var parent = new GameObject();
-        var addedGameObjects = new List<IGameObject>();
-        var removedGameObjects = new List<IGameObject>();
-        var addedComponents = new List<IComponent>();
-        var removedComponents = new List<IComponent>();
-
-        scene.GameObjectAdded += addedGameObjects.Add;
-        scene.GameObjectRemoved += removedGameObjects.Add;
-        scene.ComponentAdded += addedComponents.Add;
-        scene.ComponentRemoved += removedComponents.Add;
-
-        scene.Activate();
-        scene.AddChild(parent);
-        parent.AddChild(child);
-
-        Assert.Contains(parent, addedGameObjects);
-        Assert.Contains(child, addedGameObjects);
-        Assert.Contains(component, addedComponents);
-
-        parent.RemoveChild(child);
-
-        Assert.Contains(child, removedGameObjects);
-        Assert.Contains(component, removedComponents);
-    }
-
-    /// <summary>
     /// Verifies that constructor-supplied components receive their owning game object.
     /// </summary>
     [Fact]
@@ -181,7 +147,7 @@ public class GameObjectTests
         child.AddChild(leaf);
         var scene = new Scene();
 
-        scene.AddChild(root);
+        scene.Children.Add(root);
 
         Assert.Same(scene, root.Parent);
         Assert.Same(scene, root.Scene);
@@ -195,7 +161,7 @@ public class GameObjectTests
         child.AddChild(laterChild);
         Assert.Same(laterChild, scene.GetSceneNode(laterChild.Id));
 
-        Assert.True(scene.RemoveChild(root));
+        Assert.True(scene.Children.Remove(root));
 
         Assert.Null(scene.GetSceneNode(root.Id));
         Assert.Null(scene.GetSceneNode(child.Id));

@@ -19,31 +19,8 @@ public sealed class InputSystem : IInputSystem, IDisposable
     private readonly Dictionary<InputDeviceId, IController> _controllers = [];
     private readonly List<IController> _controllerList = [];
     private readonly ReadOnlyCollection<IController> _controllerView;
-    private InputMap? _currentMap;
     private bool _initialized;
     private bool _disposed;
-
-    /// <summary>
-    /// Gets or sets the scene input map that receives dispatched keyboard events.
-    /// </summary>
-    /// <exception cref="ObjectDisposedException">The input system has been disposed.</exception>
-    public InputMap? CurrentMap
-    {
-        get => _currentMap;
-        set
-        {
-            ObjectDisposedException.ThrowIf(_disposed, this);
-            if (ReferenceEquals(_currentMap, value))
-                return;
-
-            if (_currentMap is not null)
-                _eventHub.Unregister(_currentMap);
-
-            _currentMap = value;
-            if (_currentMap is not null)
-                _eventHub.Register(_currentMap);
-        }
-    }
 
     /// <summary>
     /// Gets aggregate state for all registered keyboards.
@@ -132,12 +109,6 @@ public sealed class InputSystem : IInputSystem, IDisposable
         _disposed = true;
         if (_window is not null && _initialized)
             _window.FocusChanged -= OnWindowFocusChanged;
-
-        if (_currentMap is not null)
-        {
-            _eventHub.Unregister(_currentMap);
-            _currentMap = null;
-        }
 
         if (_inputAdapter is not null && _initialized)
         {

@@ -30,7 +30,7 @@ public class GraphicalUserInterfaceTests
         var layoutCount = 0;
         var element = new LayoutProbeElement(arrange: (_, _) => layoutCount++);
         var scene = new Scene();
-        scene.AddChild(element);
+        scene.Children.Add(element);
         scene.Activate();
         gui.Initialize();
 
@@ -75,7 +75,7 @@ public class GraphicalUserInterfaceTests
         );
         root.AddChild(initiallyDiscoveredChild);
         var scene = new Scene();
-        scene.AddChild(root);
+        scene.Children.Add(root);
         scene.Activate();
         gui.Initialize();
 
@@ -133,7 +133,7 @@ public class GraphicalUserInterfaceTests
         element.InputMap.OnMouseButtonPressed(MouseButtonEnum.Left).Invoke(() => pressCount++);
 
         var scene = new Scene();
-        scene.AddChild(element);
+        scene.Children.Add(element);
         scene.Activate();
         gui.Initialize();
         eventHub.Publish(new SceneLoadedEvent(scene));
@@ -178,7 +178,7 @@ public class GraphicalUserInterfaceTests
         child.InputMap.OnMouseButtonReleased(MouseButtonEnum.Left).Invoke(() => releaseCount++);
         parent.AddChild(child);
         var scene = new Scene();
-        scene.AddChild(parent);
+        scene.Children.Add(parent);
         scene.Activate();
         gui.Initialize();
         eventHub.Publish(new SceneLoadedEvent(scene));
@@ -216,8 +216,8 @@ public class GraphicalUserInterfaceTests
         element.FocusGained += (_, _) => gainedCount++;
         element.FocusLost += (_, _) => lostCount++;
         var scene = new Scene();
-        scene.AddChild(element);
-        scene.AddChild(nonFocusableElement);
+        scene.Children.Add(element);
+        scene.Children.Add(nonFocusableElement);
         scene.Activate();
         gui.Initialize();
         eventHub.Publish(new SceneLoadedEvent(scene));
@@ -252,7 +252,7 @@ public class GraphicalUserInterfaceTests
         var lostCount = 0;
         element.FocusLost += (_, _) => lostCount++;
         var scene = new Scene();
-        scene.AddChild(element);
+        scene.Children.Add(element);
         scene.Activate();
         gui.Initialize();
         eventHub.Publish(new SceneLoadedEvent(scene));
@@ -286,9 +286,9 @@ public class GraphicalUserInterfaceTests
         var skipped = new LayoutProbeElement();
         var last = new LayoutProbeElement { CanFocus = true };
         var scene = new Scene();
-        scene.AddChild(first);
-        scene.AddChild(skipped);
-        scene.AddChild(last);
+        scene.Children.Add(first);
+        scene.Children.Add(skipped);
+        scene.Children.Add(last);
         scene.Activate();
         gui.Initialize();
         eventHub.Publish(new SceneLoadedEvent(scene));
@@ -312,7 +312,7 @@ public class GraphicalUserInterfaceTests
         var gui = new GraphicalUserInterface(eventHub);
         var element = new LayoutProbeElement();
         var scene = new Scene();
-        scene.AddChild(element);
+        scene.Children.Add(element);
         scene.Activate();
         gui.Initialize();
         eventHub.Publish(new SceneLoadedEvent(scene));
@@ -388,7 +388,7 @@ public class GraphicalUserInterfaceTests
             arrange: (_, bounds) => arrangedBounds = bounds
         );
         var scene = new Scene();
-        scene.AddChild(element);
+        scene.Children.Add(element);
         scene.Activate();
         gui.Initialize();
         eventHub.Publish(new SceneLoadedEvent(scene));
@@ -434,7 +434,7 @@ public class GraphicalUserInterfaceTests
             }
         );
         var scene = new Scene();
-        scene.AddChild(element);
+        scene.Children.Add(element);
         scene.Activate();
         gui.Initialize();
         eventHub.Publish(new SceneLoadedEvent(scene));
@@ -458,7 +458,7 @@ public class GraphicalUserInterfaceTests
         var arrangedBounds = new List<Rectangle<float>>();
         var element = new LayoutProbeElement(arrange: (_, bounds) => arrangedBounds.Add(bounds));
         var scene = new Scene();
-        scene.AddChild(element);
+        scene.Children.Add(element);
         scene.Activate();
         gui.Initialize();
         eventHub.Publish(new SceneLoadedEvent(scene));

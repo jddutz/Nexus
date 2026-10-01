@@ -63,7 +63,7 @@ internal sealed class HelloNexusSceneFactory(
             RenderLayerMask = backgroundLayer,
         };
         var backgroundElement = new BackgroundElement(backgroundTexture);
-        scene.AddChild(backgroundElement);
+        scene.Children.Add(backgroundElement);
 
         var textStyle = CreateRobotoTextStyle();
         const string pressText = "Press ESC to quit";
@@ -119,7 +119,7 @@ internal sealed class HelloNexusSceneFactory(
         var main = new MainContentElement(welcomeTextElement, buttonElement, buttonLabelGap);
 
         var textLayout = new TextLayoutElement(header, main);
-        scene.AddChild(textLayout);
+        scene.Children.Add(textLayout);
 
         return scene;
     }

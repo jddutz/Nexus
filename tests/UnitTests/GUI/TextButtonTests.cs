@@ -77,10 +77,10 @@ public sealed class TextButtonTests
         var originalText = button.GetComponent<TextComponent>();
         var addedComponents = new List<IComponent>();
         var removedComponents = new List<IComponent>();
-        scene.AddChild(parent);
+        scene.Children.Add(parent);
         scene.Activate();
-        scene.ComponentAdded += addedComponents.Add;
-        scene.ComponentRemoved += removedComponents.Add;
+        button.Components.ItemAdded += addedComponents.Add;
+        button.Components.ItemRemoved += removedComponents.Add;
         parent.AddChild(button);
 
         button.IsVisible = false;
@@ -170,19 +170,15 @@ public sealed class TextButtonTests
     }
 
     /// <summary>
-    /// Verifies a button added under an active scene is indexed and reported with its components.
+    /// Verifies a button added under an active scene is indexed in the scene hierarchy.
     /// </summary>
     [Fact]
-    public void AddChild_registersButtonInSceneAndNotifiesComponents()
+    public void AddChild_registersButtonInScene()
     {
         var scene = new Scene();
         var parent = new GameObject();
-        scene.AddChild(parent);
+        scene.Children.Add(parent);
         scene.Activate();
-        var addedComponents = new List<IComponent>();
-        var addedGameObjects = new List<IGameObject>();
-        scene.ComponentAdded += addedComponents.Add;
-        scene.GameObjectAdded += addedGameObjects.Add;
         var button = CreateButton("A");
 
         parent.AddChild(button);
@@ -190,10 +186,8 @@ public sealed class TextButtonTests
         Assert.Same(parent, button.Parent);
         Assert.Same(scene, button.Scene);
         Assert.Same(button, scene.GetSceneNode(button.Id));
-        Assert.Contains(button, addedGameObjects);
-        Assert.Equal(2, addedComponents.Count);
-        Assert.Contains(button.GetComponent<NinePatchComponent>(), addedComponents);
-        Assert.Contains(button.GetComponent<TextComponent>(), addedComponents);
+        Assert.Contains(button, parent.Children);
+        Assert.Equal(2, button.Components.Count);
     }
 
     /// <summary>Verifies the assigned action runs for a click anywhere within the full bounds.</summary>
@@ -273,11 +267,11 @@ public sealed class TextButtonTests
             new MouseButtonReleasedEvent(secondMouse, MouseButtonEnum.Left, new(10f, 10f))
         );
         Assert.Equal(0, actionCount);
-        Assert.True(scene.RemoveChild(button));
+        Assert.True(scene.Children.Remove(button));
         eventHub.Publish(new GameObjectDeactivatedEvent(button));
         eventHub.Drain();
 
-        scene.AddChild(button);
+        scene.Children.Add(button);
         eventHub.Publish(new GameObjectActivatedEvent(button));
         eventHub.Drain();
         Publish(
@@ -373,7 +367,7 @@ public sealed class TextButtonTests
         var button = CreateButton("A");
         button.Arrange(new Rectangle<float>(4f, 5f, 60f, 24f));
         var scene = new Scene();
-        scene.AddChild(button);
+        scene.Children.Add(button);
         scene.Activate();
         gui.Initialize();
         eventHub.Publish(new SceneLoadedEvent(scene));
