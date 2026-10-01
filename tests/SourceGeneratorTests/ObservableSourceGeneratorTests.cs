@@ -204,8 +204,7 @@ public sealed class ObservableSourceGeneratorTests
         var output = (string)runMethod.Invoke(null, null)!;
 
         Assert.Equal(
-            "after:3,after:-1,after:5"
-                + "|Count,Count,Count|3:-1,5:9,-1:5|9|updated|initial:updated|True|Amount|4",
+            "after:3,after:-1" + "|Count,Count|3:-1,-1:5|9|updated|initial:updated|True|Amount|4",
             output
         );
     }
@@ -243,19 +242,19 @@ public sealed class ObservableSourceGeneratorTests
             generated,
             StringComparison.Ordinal
         );
-        Assert.Contains("set => SetExternal(value);", generated, StringComparison.Ordinal);
+        Assert.Contains("set => __SetExternal(value);", generated, StringComparison.Ordinal);
         Assert.Contains(
             "protected virtual void SetExternal(int value)",
             generated,
             StringComparison.Ordinal
         );
-        Assert.Contains("set => SetExplicitPublic(value);", generated, StringComparison.Ordinal);
+        Assert.Contains("set => __SetExplicitPublic(value);", generated, StringComparison.Ordinal);
         Assert.Contains(
             "protected virtual void SetExplicitPublic(int value)",
             generated,
             StringComparison.Ordinal
         );
-        Assert.DoesNotContain("set => SetInternal(value);", generated, StringComparison.Ordinal);
+        Assert.DoesNotContain("set => __SetInternal(value);", generated, StringComparison.Ordinal);
         Assert.DoesNotContain(
             result.Compilation.GetDiagnostics(),
             diagnostic => diagnostic.Severity == DiagnosticSeverity.Error
