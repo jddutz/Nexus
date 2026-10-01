@@ -8,7 +8,7 @@ public interface ISceneNode
     /// <summary>
     /// Gets the unique identifier of this scene node.
     /// </summary>
-    SceneNodeId Id { get; }
+    NodeId Id { get; }
 
     /// <summary>
     /// Gets the containing scene, or null when detached.

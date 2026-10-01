@@ -5,9 +5,9 @@ namespace Nexus.Game;
 /// </summary>
 public partial class Scene : IScene
 {
-    private readonly SceneNodeId _sceneNodeId = SceneNodeId.New();
+    private readonly NodeId _sceneNodeId = NodeId.New();
     private readonly ObservableCollection<ISceneNode> _children = [];
-    private readonly Dictionary<SceneNodeId, ISceneNode> _allSceneNodes = [];
+    private readonly Dictionary<NodeId, ISceneNode> _allSceneNodes = [];
 
     [Observable(PublicSetter = true)]
     private InputMap? _inputMap;
@@ -46,7 +46,7 @@ public partial class Scene : IScene
     public SceneId Id { get; }
 
     /// <inheritdoc />
-    SceneNodeId ISceneNode.Id => _sceneNodeId;
+    NodeId ISceneNode.Id => _sceneNodeId;
 
     /// <inheritdoc />
     IScene? ISceneNode.Scene
@@ -74,7 +74,7 @@ public partial class Scene : IScene
     public IObservableCollection<ISceneNode> Children => _children;
 
     /// <inheritdoc />
-    public IReadOnlyDictionary<SceneNodeId, ISceneNode> AllSceneNodes => _allSceneNodes;
+    public IReadOnlyDictionary<NodeId, ISceneNode> AllSceneNodes => _allSceneNodes;
 
     /// <summary>
     /// Gets the current set of render layers managed by the graphics system.
@@ -89,7 +89,7 @@ public partial class Scene : IScene
     /// </summary>
     /// <param name="sceneNodeId">The identifier of the node to find.</param>
     /// <returns>The matching node, or <see langword="null"/>.</returns>
-    public ISceneNode? GetSceneNode(SceneNodeId sceneNodeId) =>
+    public ISceneNode? GetSceneNode(NodeId sceneNodeId) =>
         _allSceneNodes.GetValueOrDefault(sceneNodeId);
 
     /// <inheritdoc />
@@ -252,7 +252,7 @@ public partial class Scene : IScene
     /// <param name="nodes">The nodes to validate.</param>
     private void ValidateSubtree(IEnumerable<ISceneNode> nodes)
     {
-        var identifiers = new HashSet<SceneNodeId>();
+        var identifiers = new HashSet<NodeId>();
         foreach (var node in nodes)
         {
             if (!identifiers.Add(node.Id))

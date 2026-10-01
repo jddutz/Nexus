@@ -8,7 +8,7 @@ public interface IScene : ISceneNode, IManagedEntity, IObservable
     /// <summary>
     /// Gets every node in the scene, including the scene node itself.
     /// </summary>
-    IReadOnlyDictionary<SceneNodeId, ISceneNode> AllSceneNodes { get; }
+    IReadOnlyDictionary<NodeId, ISceneNode> AllSceneNodes { get; }
 
     /// <summary>
     /// Gets a value indicating whether this scene is active.

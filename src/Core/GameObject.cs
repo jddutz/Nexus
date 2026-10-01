@@ -19,30 +19,30 @@ public partial class GameObject : IGameObject, IObservable
     /// Initializes a new instance of the <see cref="GameObject"/> class with a generated identifier.
     /// </summary>
     public GameObject()
-        : this(SceneNodeId.New(), []) { }
+        : this(NodeId.New(), []) { }
 
     /// <summary>Initializes a game object with a generated identifier and the specified components.</summary>
     /// <param name="components">The components owned by this game object.</param>
     public GameObject(IEnumerable<IComponent> components)
-        : this(SceneNodeId.New(), components) { }
+        : this(NodeId.New(), components) { }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="GameObject"/> class with the specified identifier.
     /// </summary>
     /// <param name="id">The identifier for the game object.</param>
     public GameObject(uint id)
-        : this(new SceneNodeId(id), []) { }
+        : this(new NodeId(id), []) { }
 
     /// <summary>Initializes a game object with the specified identifier and components.</summary>
     /// <param name="id">The identifier for the game object.</param>
     /// <param name="components">The components owned by this game object.</param>
     public GameObject(uint id, IEnumerable<IComponent> components)
-        : this(new SceneNodeId(id), components) { }
+        : this(new NodeId(id), components) { }
 
     /// <summary>Initializes a game object from an identifier and component sequence.</summary>
     /// <param name="id">The identifier for the game object.</param>
     /// <param name="components">The components owned by this game object.</param>
-    private GameObject(SceneNodeId id, IEnumerable<IComponent> components)
+    private GameObject(NodeId id, IEnumerable<IComponent> components)
     {
         ArgumentNullException.ThrowIfNull(components);
         Id = id;
@@ -64,7 +64,7 @@ public partial class GameObject : IGameObject, IObservable
     /// <summary>
     /// Gets the unique identifier for this game object.
     /// </summary>
-    public SceneNodeId Id { get; }
+    public NodeId Id { get; }
 
     /// <summary>
     /// Gets the containing scene, or null when detached.
