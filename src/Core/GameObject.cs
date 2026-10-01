@@ -242,23 +242,11 @@ public partial class GameObject : IGameObject
         if (IsActivated || !CanActivate())
             return;
 
-        var activatedComponents = new List<IComponent>();
-        ActivateTree(activatedComponents);
-        foreach (var component in activatedComponents)
-            ComponentAdded?.Invoke(component);
-    }
-
-    private void ActivateTree(List<IComponent> activatedComponents)
-    {
-        foreach (var child in _children)
-            if (child is GameObject gameObject)
-                gameObject.ActivateTree(activatedComponents);
-
         SetIsActivated(true);
         foreach (var component in _components)
         {
             component.Activate();
-            activatedComponents.Add(component);
+            ComponentAdded?.Invoke(component);
         }
     }
 

@@ -481,10 +481,10 @@ public class GameObjectTests
     }
 
     /// <summary>
-    /// Verifies active state propagates root-to-leaf before component notifications propagate leaf-to-root.
+    /// Verifies activation changes only this object's state and components.
     /// </summary>
     [Fact]
-    public void Activate_setsTreeStateTopDownAndNotifiesComponentsBottomUp()
+    public void Activate_activatesOnlyThisObjectAndItsComponents()
     {
         var rootComponent = new TestComponent();
         var childComponent = new TestComponent();
@@ -495,19 +495,19 @@ public class GameObjectTests
         root.AddChild(child);
         child.AddChild(leaf);
         var activationOrder = new List<IComponent>();
-        var entireTreeIsActiveAtNotification = true;
 
         root.ComponentAdded += component =>
         {
             activationOrder.Add(component);
-            entireTreeIsActiveAtNotification &=
-                root.IsActivated && child.IsActivated && leaf.IsActivated;
         };
 
         root.Activate();
 
-        Assert.Equal([leafComponent, childComponent, rootComponent], activationOrder);
-        Assert.True(entireTreeIsActiveAtNotification);
+        Assert.Equal([rootComponent], activationOrder);
+        Assert.True(root.IsActivated);
+        Assert.False(child.IsActivated);
+        Assert.False(leaf.IsActivated);
+        Assert.True(rootComponent.IsActivated);
     }
 
     /// <summary>

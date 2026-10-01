@@ -644,6 +644,7 @@ public class InputSystemTests
         Assert.Equal(0, firstCalls);
 
         gameSystem.Initialize();
+        gameSystem.Update(0);
         eventHub.Publish(new KeyPressedEvent(keyboard, KeyEnum.Escape));
         eventHub.Drain();
         Assert.Equal(1, firstCalls);
@@ -658,8 +659,12 @@ public class InputSystemTests
 
         gameSystem.SwitchScene(nextScene);
         Assert.False(scene.IsActivated);
-        Assert.True(nextScene.IsActivated);
         Assert.Same(nextScene, gameSystem.CurrentScene);
+        Assert.False(nextScene.IsActivated);
+
+        gameSystem.Update(0);
+
+        Assert.True(nextScene.IsActivated);
 
         eventHub.Publish(new KeyPressedEvent(keyboard, KeyEnum.Escape));
         eventHub.Drain();

@@ -34,10 +34,10 @@ public class GameSystemEventRegistrationTests
     }
 
     /// <summary>
-    /// Verifies initialization loads and activates the scene identified by game settings.
+    /// Verifies initialization loads the scene and Update activates its hierarchy.
     /// </summary>
     [Fact]
-    public void Initialize_loadsAndActivatesTheConfiguredInitialScene()
+    public void Update_activatesTheConfiguredInitialScene()
     {
         const string sceneName = "WelcomeScreen";
         var scene = new Scene(NodeId.New());
@@ -61,6 +61,11 @@ public class GameSystemEventRegistrationTests
 
         Assert.Same(scene, gameSystem.InitialScene);
         Assert.Same(scene, gameSystem.CurrentScene);
+        Assert.False(root.IsActivated);
+        Assert.False(child.IsActivated);
+
+        gameSystem.Update(0);
+
         Assert.True(root.IsActivated);
         Assert.True(child.IsActivated);
         Assert.True(rootComponent.IsActivated);

@@ -156,15 +156,7 @@ public partial class GameSystem(
         if (!TryActivate(gameObject))
             return;
 
-        RegisterEventHandlers(gameObject);
-
-        _logger.LogTrace(
-            "Activating game object. GameObjectType={GameObjectType}, ComponentCount={ComponentCount}",
-            gameObject.GetType().Name,
-            gameObject.Components.Count()
-        );
-
-        _eventHub.Publish(new GameObjectActivatedEvent(gameObject));
+        PublishActivatedSubtree(gameObject);
     }
 
     /// <summary>Publishes a game-object deactivation event.</summary>
@@ -201,6 +193,37 @@ public partial class GameSystem(
 
         entity.Activate();
         return entity.IsActivated;
+    }
+
+    /// <summary>
+    /// Registers and publishes activation events for an already activated object subtree.
+    /// </summary>
+    /// <param name="gameObject">The root of the activated subtree.</param>
+    private void PublishActivatedSubtree(IGameObject gameObject)
+    {
+        RegisterEventHandlers(gameObject);
+
+        _logger.LogTrace(
+            "Activating game object. GameObjectType={GameObjectType}, ComponentCount={ComponentCount}",
+            gameObject.GetType().Name,
+            gameObject.Components.Count()
+        );
+
+        _eventHub.Publish(new GameObjectActivatedEvent(gameObject));
+
+        foreach (var component in gameObject.Components)
+        {
+            _eventHub.Register(component);
+            _logger.LogTrace(
+                "Activating component. ComponentType={ComponentType}",
+                component.GetType().Name
+            );
+            _eventHub.Publish(new ComponentActivatedEvent(component));
+        }
+
+        foreach (var child in gameObject.Children.OfType<IGameObject>())
+            if (child.IsActivated)
+                PublishActivatedSubtree(child);
     }
 
     /// <summary>
@@ -414,8 +437,6 @@ public partial class GameSystem(
         var currentScene = CurrentScene;
         if (currentScene is not null)
         {
-            if (!currentScene.IsInitialized)
-                currentScene.Initialize();
             currentScene.PropertyChanged += OnCurrentScenePropertyChanged;
             SubscribeSceneNode(currentScene);
 
@@ -423,17 +444,6 @@ public partial class GameSystem(
                 scene.InputMapChanged += OnCurrentSceneInputMapChanged;
 
             _eventHub.Publish(new SceneLoadedEvent(currentScene));
-
-            if (!currentScene.IsActivated && currentScene.CanActivate())
-                currentScene.Activate();
-
-            if (currentScene.IsActivated)
-            {
-                if (currentScene is Scene inputScene)
-                    inputScene.InputMap?.Register(_eventHub);
-            }
-
-            RunLifecycleTraversal(currentScene, deltaTime: 0, updateEntities: false);
         }
 
         _logger.LogInformation(

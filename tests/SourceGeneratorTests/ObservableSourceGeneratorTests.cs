@@ -108,14 +108,6 @@ public sealed class ObservableSourceGeneratorTests
                         public List<string> Calls { get; } = new();
                         public event Action<string>? PropertyChanged;
 
-                        private bool ValidateCount(int value)
-                        {
-                            Calls.Add($"validate:{value}");
-                            return value >= 0;
-                        }
-
-                        private void BeforeCountChanges(int value) => Calls.Add($"before:{value}");
-
                         private void AfterCountChanges(int previousValue)
                         {
                             Calls.Add($"after:{previousValue}");
@@ -212,8 +204,8 @@ public sealed class ObservableSourceGeneratorTests
         var output = (string)runMethod.Invoke(null, null)!;
 
         Assert.Equal(
-            "validate:-1,validate:5,before:5,after:3,validate:9,before:9,after:5"
-                + "|Count,Count|5:9,3:5|9|updated|initial:updated|True|Amount|4",
+            "after:3,after:-1,after:5"
+                + "|Count,Count,Count|3:-1,5:9,-1:5|9|updated|initial:updated|True|Amount|4",
             output
         );
     }
@@ -267,6 +259,49 @@ public sealed class ObservableSourceGeneratorTests
         Assert.DoesNotContain(
             result.Compilation.GetDiagnostics(),
             diagnostic => diagnostic.Severity == DiagnosticSeverity.Error
+        );
+    }
+
+    /// <summary>
+    /// Verifies a partial protected setter declaration is completed by the generator.
+    /// </summary>
+    [Fact]
+    public void PartialProtectedSetterDeclarationIsImplemented()
+    {
+        var source =
+            ObservableContract
+            + """
+                namespace Probe
+                {
+                    public partial class Target
+                    {
+                        [Nexus.Core.Observable]
+                        private bool _isBooleanProperty;
+
+                        protected partial void SetIsBooleanProperty(bool value);
+                    }
+                }
+                """;
+
+        var result = RunGenerator(source);
+
+        Assert.DoesNotContain(
+            result.Diagnostics,
+            diagnostic => diagnostic.Severity == DiagnosticSeverity.Error
+        );
+        Assert.DoesNotContain(
+            result.Compilation.GetDiagnostics(),
+            diagnostic => diagnostic.Severity == DiagnosticSeverity.Error
+        );
+        Assert.Contains(
+            result.GeneratedSources,
+            generated =>
+                generated
+                    .SourceText.ToString()
+                    .Contains(
+                        "protected partial void SetIsBooleanProperty(bool value)",
+                        StringComparison.Ordinal
+                    )
         );
     }
 
@@ -409,11 +444,7 @@ public sealed class ObservableSourceGeneratorTests
     [InlineData("public int Value => 0; [Nexus.Core.Observable] private int _value;", "NXSOBS005")]
     [InlineData(
         "public int Value => 0; public virtual void SetValue(int value) { } [Nexus.Core.Observable] private int _value;",
-        "NXSOBS005"
-    )]
-    [InlineData(
-        "private bool ValidateValue(string value) => true; [Nexus.Core.Observable] private int _value;",
-        "NXSOBS006"
+        "NXSOBS012"
     )]
     public void InvalidAuthoringPatternsProduceDiagnostics(
         string members,
@@ -472,12 +503,18 @@ public sealed class ObservableSourceGeneratorTests
 
         var result = RunGenerator(source);
 
-        Assert.Equal(3, result.Diagnostics.Count(diagnostic => diagnostic.Id == "NXSOBS005"));
+        Assert.Equal(2, result.Diagnostics.Count(diagnostic => diagnostic.Id == "NXSOBS005"));
+        Assert.Contains(
+            result.Diagnostics,
+            diagnostic =>
+                diagnostic.Id == "NXSOBS012"
+                && diagnostic.Severity == DiagnosticSeverity.Error
+        );
         Assert.Empty(result.GeneratedSources);
     }
 
     /// <summary>
-    /// Verifies inherited events and hooks are called through accessible base members.
+    /// Verifies inherited events remain usable without generating a shadowing event.
     /// </summary>
     [Fact]
     public void InheritedNotificationAndHooksAreUsedWithoutShadowingTheEvent()
@@ -492,12 +529,6 @@ public sealed class ObservableSourceGeneratorTests
                         public event Action<string>? PropertyChanged;
                         public List<string> Calls { get; } = new();
                         protected void OnPropertyChanged(string propertyName) => PropertyChanged?.Invoke(propertyName);
-                        protected bool ValidateValue(int value)
-                        {
-                            Calls.Add("validate");
-                            return value > 0;
-                        }
-                        protected void BeforeValueChanges(int value) => Calls.Add("before");
                         protected void AfterValueChanges(int previousValue) => Calls.Add("after");
                     }
 
@@ -550,7 +581,7 @@ public sealed class ObservableSourceGeneratorTests
         var assembly = AssemblyLoadContext.Default.LoadFromStream(assemblyStream);
         var runMethod = assembly.GetType("Probe.RuntimeProbe")!.GetMethod("Run")!;
 
-        Assert.Equal("2|Value|validate,before,after|False", runMethod.Invoke(null, null));
+        Assert.Equal("2|Value|after|False", runMethod.Invoke(null, null));
     }
 
     /// <summary>

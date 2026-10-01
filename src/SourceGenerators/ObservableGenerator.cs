@@ -61,6 +61,15 @@ public sealed class ObservableGenerator : IIncrementalGenerator
         true
     );
 
+    private static readonly DiagnosticDescriptor SetterConflict = new(
+        "NXSOBS012",
+        "Observable setter conflicts with an existing member",
+        "Observable setter '{0}' conflicts with a member already declared in '{1}'; declare the setter as 'partial protected' so the generator can provide its implementation",
+        "Nexus.Observable",
+        DiagnosticSeverity.Error,
+        true
+    );
+
     private static readonly DiagnosticDescriptor InvalidHook = new(
         "NXSOBS006",
         "Observable hook has an incompatible signature",
@@ -217,8 +226,7 @@ public sealed class ObservableGenerator : IIncrementalGenerator
             new List<(
                 IFieldSymbol Field,
                 string PropertyName,
-                string? ValidateHook,
-                string? BeforeHook,
+                bool HasPartialSetter,
                 string? AfterHook,
                 Location Location
             )>();
@@ -247,28 +255,6 @@ public sealed class ObservableGenerator : IIncrementalGenerator
                 continue;
             }
 
-            var validateHook = FindHook(
-                context,
-                type,
-                item.Field,
-                "Validate" + propertyName,
-                "bool",
-                compilation,
-                out var hasValidateHook
-            );
-            if (hasValidateHook && validateHook is null)
-                continue;
-            var beforeHook = FindHook(
-                context,
-                type,
-                item.Field,
-                "Before" + propertyName + "Changes",
-                "void",
-                compilation,
-                out var hasBeforeHook
-            );
-            if (hasBeforeHook && beforeHook is null)
-                continue;
             var afterHook = FindHook(
                 context,
                 type,
@@ -280,13 +266,13 @@ public sealed class ObservableGenerator : IIncrementalGenerator
             );
             if (hasAfterHook && afterHook is null)
                 continue;
+            var hasPartialSetter = HasPartialSetter(type, "Set" + propertyName, item.Field.Type);
 
             plans.Add(
                 (
                     item.Field,
                     propertyName,
-                    hasValidateHook ? validateHook : null,
-                    hasBeforeHook ? beforeHook : null,
+                    hasPartialSetter,
                     hasAfterHook ? afterHook : null,
                     item.Location
                 )
@@ -354,6 +340,7 @@ public sealed class ObservableGenerator : IIncrementalGenerator
                                 method.Parameters[0].Type,
                                 plan.Field.Type
                             )
+                            && !(plan.HasPartialSetter && method.IsPartialDefinition)
                     ),
                     _ => false,
                 };
@@ -361,7 +348,12 @@ public sealed class ObservableGenerator : IIncrementalGenerator
                 if (conflict)
                 {
                     context.ReportDiagnostic(
-                        Diagnostic.Create(MemberConflict, plan.Location, member.Name, type.Name)
+                        Diagnostic.Create(
+                            member.Kind == "setter" ? SetterConflict : MemberConflict,
+                            plan.Location,
+                            member.Name,
+                            type.Name
+                        )
                     );
                     conflictedFields.Add(plan.Field);
                 }
@@ -474,8 +466,7 @@ public sealed class ObservableGenerator : IIncrementalGenerator
         List<(
             IFieldSymbol Field,
             string PropertyName,
-            string? ValidateHook,
-            string? BeforeHook,
+            bool HasPartialSetter,
             string? AfterHook,
             Location Location
         )> plans,
@@ -621,8 +612,7 @@ public sealed class ObservableGenerator : IIncrementalGenerator
         List<(
             IFieldSymbol Field,
             string PropertyName,
-            string? ValidateHook,
-            string? BeforeHook,
+            bool HasPartialSetter,
             string? AfterHook,
             Location Location
         )> plans,
@@ -750,6 +740,25 @@ public sealed class ObservableGenerator : IIncrementalGenerator
         return true;
     }
 
+    /// <summary>
+    /// Determines whether the containing type declares a matching partial setter definition.
+    /// </summary>
+    /// <param name="type">The type containing the observable field.</param>
+    /// <param name="setterName">The generated setter name.</param>
+    /// <param name="fieldType">The observable field type.</param>
+    /// <returns><see langword="true"/> when a matching partial setter declaration exists.</returns>
+    private static bool HasPartialSetter(
+        INamedTypeSymbol type,
+        string setterName,
+        ITypeSymbol fieldType
+    ) => type.GetMembers(setterName).OfType<IMethodSymbol>().Any(method =>
+        method.IsPartialDefinition
+        && !method.IsStatic
+        && method.Parameters.Length == 1
+        && method.Parameters[0].RefKind == RefKind.None
+        && SymbolEqualityComparer.Default.Equals(method.Parameters[0].Type, fieldType)
+    );
+
     /// Emits the property, typed event, and setter for a single backing field.
     /// </summary>
     /// <param name="builder">The source text builder.</param>
@@ -762,8 +771,7 @@ public sealed class ObservableGenerator : IIncrementalGenerator
         (
             IFieldSymbol Field,
             string PropertyName,
-            string? ValidateHook,
-            string? BeforeHook,
+            bool HasPartialSetter,
             string? AfterHook,
             Location Location
         ) plan,
@@ -836,7 +844,7 @@ public sealed class ObservableGenerator : IIncrementalGenerator
         builder.AppendLine("    /// <param name=\"value\">The value to assign.</param>");
         builder
             .Append("    ")
-            .Append("protected virtual void ")
+            .Append(plan.HasPartialSetter ? "protected partial void " : "protected virtual void ")
             .Append(setterName)
             .Append('(')
             .Append(typeName)
@@ -850,21 +858,7 @@ public sealed class ObservableGenerator : IIncrementalGenerator
             .AppendLine(", value))");
         builder.AppendLine("            return;");
 
-        if (plan.ValidateHook is not null)
-        {
-            builder
-                .Append("        if (!")
-                .Append(EscapeIdentifier(plan.ValidateHook))
-                .AppendLine("(value))");
-            builder.AppendLine("            return;");
-        }
-
         builder.Append("        var previousValue = ").Append(fieldName).AppendLine(";");
-        if (plan.BeforeHook is not null)
-            builder
-                .Append("        ")
-                .Append(EscapeIdentifier(plan.BeforeHook))
-                .AppendLine("(value);");
         builder.Append("        ").Append(fieldName).AppendLine(" = value;");
         builder.Append("        var assignedValue = ").Append(fieldName).AppendLine(";");
         if (plan.AfterHook is not null)
