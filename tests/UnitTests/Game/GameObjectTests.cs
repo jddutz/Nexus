@@ -452,11 +452,9 @@ public class GameObjectTests
         Assert.Equal(1, worldTransformChanges);
     }
 
-    /// <summary>
-    /// Verifies direct child collection changes notify listeners after the collection is updated.
-    /// </summary>
+    /// <summary>Verifies that direct child collection changes do not raise property notifications.</summary>
     [Fact]
-    public void AddChildAndRemoveChild_raisePropertyChangedForChildren()
+    public void AddChildAndRemoveChild_doNotRaisePropertyChangedForChildren()
     {
         var parent = new GameObject();
         var child = new GameObject();
@@ -473,11 +471,8 @@ public class GameObjectTests
         Assert.True(parent.RemoveChild(child));
         Assert.False(parent.RemoveChild(child));
 
-        Assert.Equal(
-            [nameof(IGameObject.Children), nameof(IGameObject.Children)],
-            changedProperties
-        );
-        Assert.Equal([1, 0], childCountsAtNotification);
+        Assert.Empty(changedProperties);
+        Assert.Empty(childCountsAtNotification);
     }
 
     /// <summary>

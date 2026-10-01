@@ -24,4 +24,12 @@ public interface ISceneNode
     /// Gets the scene nodes directly contained by this node.
     /// </summary>
     IObservableCollection<ISceneNode> Children { get; }
+
+    /// <summary>
+    /// Called when this node's parent or ancestor chain changes,
+    /// including when its subtree is detached from a scene.
+    /// Implementations update their hierarchy-dependent state,
+    /// then notify each child.
+    /// </summary>
+    void OnSceneHierarchyChanged();
 }

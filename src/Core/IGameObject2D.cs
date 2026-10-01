@@ -1,15 +1,9 @@
 namespace Nexus.Core;
 
-public interface IGameObject2D : IGameObject
+public interface IGameObject2D : IGameObject, ISpatialObject
 {
     /// <summary>Gets the transform relative to the parent.</summary>
     Matrix4X4<float> LocalTransform { get; }
-
-    /// <summary>Gets the local transform composed with spatial ancestors.</summary>
-    Matrix4X4<float> WorldTransform { get; }
-
-    /// <summary>Occurs when the world transform changes.</summary>
-    event Action<Matrix4X4<float>, Matrix4X4<float>> WorldTransformChanged;
 
     /// <summary>Gets or sets the position relative to the parent.</summary>
     Vector2D<float> Position { get; set; }

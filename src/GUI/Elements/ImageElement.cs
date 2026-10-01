@@ -360,9 +360,9 @@ public partial class ImageElement : Element
     }
 
     /// <inheritdoc />
-    protected override void OnHierarchyChanged()
+    public override void OnSceneHierarchyChanged()
     {
-        base.OnHierarchyChanged();
+        base.OnSceneHierarchyChanged();
         UpdateVisibilityAncestorSubscriptions();
         UpdateVisualComponent();
     }

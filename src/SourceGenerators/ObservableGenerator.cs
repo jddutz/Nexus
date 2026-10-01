@@ -228,6 +228,7 @@ public sealed class ObservableGenerator : IIncrementalGenerator
                 string PropertyName,
                 bool HasPartialSetter,
                 string? AfterHook,
+                bool HasPartialAfterHook,
                 Location Location
             )>();
         foreach (var item in fields)
@@ -262,7 +263,8 @@ public sealed class ObservableGenerator : IIncrementalGenerator
                 "After" + propertyName + "Changes",
                 "void",
                 compilation,
-                out var hasAfterHook
+                out var hasAfterHook,
+                out var hasPartialAfterHook
             );
             if (hasAfterHook && afterHook is null)
                 continue;
@@ -274,6 +276,7 @@ public sealed class ObservableGenerator : IIncrementalGenerator
                     propertyName,
                     hasPartialSetter,
                     hasAfterHook ? afterHook : null,
+                    hasPartialAfterHook,
                     item.Location
                 )
             );
@@ -403,7 +406,8 @@ public sealed class ObservableGenerator : IIncrementalGenerator
         string hookName,
         string returnType,
         Compilation compilation,
-        out bool hasHook
+        out bool hasHook,
+        out bool hasPartialImplementation
     )
     {
         var namedMembers = GetBaseTypeHierarchy(type)
@@ -411,6 +415,7 @@ public sealed class ObservableGenerator : IIncrementalGenerator
             .ToArray();
         var candidates = namedMembers.OfType<IMethodSymbol>().ToArray();
         hasHook = namedMembers.Length > 0;
+        hasPartialImplementation = false;
 
         foreach (var method in candidates)
         {
@@ -427,7 +432,16 @@ public sealed class ObservableGenerator : IIncrementalGenerator
                 && SymbolEqualityComparer.Default.Equals(method.Parameters[0].Type, field.Type)
                 && expectedReturn
             )
+            {
+                hasPartialImplementation = method.DeclaringSyntaxReferences.Any(reference =>
+                {
+                    var declaration = reference.GetSyntax() as MethodDeclarationSyntax;
+                    return declaration is not null
+                        && declaration.Modifiers.Any(SyntaxKind.PartialKeyword)
+                        && (declaration.Body is not null || declaration.ExpressionBody is not null);
+                });
                 return hookName;
+            }
         }
 
         if (hasHook)
@@ -468,6 +482,7 @@ public sealed class ObservableGenerator : IIncrementalGenerator
             string PropertyName,
             bool HasPartialSetter,
             string? AfterHook,
+            bool HasPartialAfterHook,
             Location Location
         )> plans,
         Compilation compilation,
@@ -614,6 +629,7 @@ public sealed class ObservableGenerator : IIncrementalGenerator
             string PropertyName,
             bool HasPartialSetter,
             string? AfterHook,
+            bool HasPartialAfterHook,
             Location Location
         )> plans,
         (
@@ -687,6 +703,19 @@ public sealed class ObservableGenerator : IIncrementalGenerator
             if (nullableWarningsEnabled && !nullableAnnotationsEnabled)
                 builder.Append(" = null!");
             builder.AppendLine(";");
+        }
+
+        foreach (var plan in plans.Where(plan => plan.HasPartialAfterHook))
+        {
+            var hookTypeName = plan
+                .Field.Type.WithNullableAnnotation(plan.Field.NullableAnnotation)
+                .ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+            builder
+                .Append("    protected virtual partial void ")
+                .Append(EscapeIdentifier(plan.AfterHook!))
+                .Append('(')
+                .Append(hookTypeName)
+                .AppendLine(" previousValue);");
         }
 
         if (notification.GenerateNotificationMethod)
@@ -776,6 +805,7 @@ public sealed class ObservableGenerator : IIncrementalGenerator
             string PropertyName,
             bool HasPartialSetter,
             string? AfterHook,
+            bool HasPartialAfterHook,
             Location Location
         ) plan,
         (

@@ -304,6 +304,49 @@ public sealed class ObservableSourceGeneratorTests
     }
 
     /// <summary>
+    /// Verifies implemented partial observable hooks receive a defining declaration.
+    /// </summary>
+    [Fact]
+    public void PartialObservableHookDeclarationIsGenerated()
+    {
+        var source =
+            ObservableContract
+            + """
+                namespace Probe
+                {
+                    public partial class Target
+                    {
+                        [Nexus.Core.Observable]
+                        private int _value;
+
+                        protected virtual partial void AfterValueChanges(int previousValue) { }
+                    }
+                }
+                """;
+
+        var result = RunGenerator(source);
+
+        Assert.DoesNotContain(
+            result.Diagnostics,
+            diagnostic => diagnostic.Severity == DiagnosticSeverity.Error
+        );
+        Assert.DoesNotContain(
+            result.Compilation.GetDiagnostics(),
+            diagnostic => diagnostic.Severity == DiagnosticSeverity.Error
+        );
+        Assert.Contains(
+            result.GeneratedSources,
+            generated =>
+                generated
+                    .SourceText.ToString()
+                    .Contains(
+                        "protected virtual partial void AfterValueChanges(int previousValue);",
+                        StringComparison.Ordinal
+                    )
+        );
+    }
+
+    /// <summary>
     /// Verifies non-partial declarations produce a diagnostic instead of invalid generated code.
     /// </summary>
     [Fact]

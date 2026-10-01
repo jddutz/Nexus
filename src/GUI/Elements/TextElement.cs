@@ -232,9 +232,9 @@ public partial class TextElement : Element
     }
 
     /// <inheritdoc />
-    protected override void OnHierarchyChanged()
+    public override void OnSceneHierarchyChanged()
     {
-        base.OnHierarchyChanged();
+        base.OnSceneHierarchyChanged();
         UpdateVisibilityAncestorSubscriptions();
         UpdateVisualComponent();
     }

@@ -221,9 +221,9 @@ public partial class TextButton : Element
     }
 
     /// <inheritdoc />
-    protected override void OnHierarchyChanged()
+    public override void OnSceneHierarchyChanged()
     {
-        base.OnHierarchyChanged();
+        base.OnSceneHierarchyChanged();
         UpdateVisibilityAncestorSubscriptions();
         UpdateVisualComponents();
     }

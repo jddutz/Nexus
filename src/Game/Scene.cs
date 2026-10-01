@@ -195,6 +195,13 @@ public partial class Scene : IScene
         Unregister(node);
     }
 
+    /// <inheritdoc />
+    public virtual void OnSceneHierarchyChanged()
+    {
+        foreach (var child in _children)
+            child.OnSceneHierarchyChanged();
+    }
+
     /// <summary>
     /// Adds a node and its existing descendants to the scene lookup and subscriptions.
     /// </summary>
@@ -221,6 +228,8 @@ public partial class Scene : IScene
 
         foreach (var child in node.Children)
             Register(child);
+
+        node.OnSceneHierarchyChanged();
     }
 
     /// <summary>
@@ -245,5 +254,6 @@ public partial class Scene : IScene
         node.Children.ItemRemoved -= Unregister;
 
         _allNodes.Remove(node.Id);
+        node.OnSceneHierarchyChanged();
     }
 }

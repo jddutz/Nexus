@@ -8,6 +8,7 @@ public class ObservableCollection<T> : IObservableCollection<T>, IReadOnlyObserv
 {
     private readonly List<T> _items = [];
     private readonly IEqualityComparer<T> _equalityComparer;
+    private IReadOnlyObservableCollection<T>? _readOnlyView;
 
     /// <summary>Initializes a collection using the default equality comparer.</summary>
     public ObservableCollection()
@@ -54,7 +55,8 @@ public class ObservableCollection<T> : IObservableCollection<T>, IReadOnlyObserv
     public bool IsReadOnly => false;
 
     /// <inheritdoc />
-    public IReadOnlyObservableCollection<T> AsReadOnly() => this;
+    public IReadOnlyObservableCollection<T> AsReadOnly() =>
+        _readOnlyView ??= new ReadOnlyView(this);
 
     /// <inheritdoc />
     public void Add(T item)
@@ -131,6 +133,31 @@ public class ObservableCollection<T> : IObservableCollection<T>, IReadOnlyObserv
             if (!((Predicate<T>)handler)(item))
                 throw new InvalidOperationException("The item failed collection validation.");
         }
+    }
+
+    private sealed class ReadOnlyView(ObservableCollection<T> source)
+        : IReadOnlyObservableCollection<T>
+    {
+        public event Action<T>? ItemAdded
+        {
+            add => source.ItemAdded += value;
+            remove => source.ItemAdded -= value;
+        }
+
+        public event Action<T>? ItemRemoved
+        {
+            add => source.ItemRemoved += value;
+            remove => source.ItemRemoved -= value;
+        }
+
+        public T this[int index] => source[index];
+
+        public int Count => source.Count;
+
+        public IEnumerator<T> GetEnumerator() => source.GetEnumerator();
+
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() =>
+            GetEnumerator();
     }
 
     /// <inheritdoc />

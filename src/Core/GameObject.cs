@@ -118,17 +118,14 @@ public partial class GameObject : IGameObject
     private void AfterParentChanges(ISceneNode? previousValue)
     {
         previousValue?.Children.Remove(this);
-        OnHierarchyChanged();
+        OnSceneHierarchyChanged();
     }
 
-    /// <summary>
-    /// Handles this game object's parent or ancestor chain changing.
-    /// </summary>
-    protected virtual void OnHierarchyChanged()
+    /// <inheritdoc />
+    public virtual void OnSceneHierarchyChanged()
     {
         foreach (var child in _children)
-            if (child is GameObject gameObject)
-                gameObject.OnHierarchyChanged();
+            child.OnSceneHierarchyChanged();
     }
 
     private void OnChildAdded(ISceneNode node)
@@ -148,7 +145,7 @@ public partial class GameObject : IGameObject
     /// <summary>
     /// Gets the observable, read-only collection of components attached to this game object.
     /// </summary>
-    public IReadOnlyObservableCollection<IComponent> Components => _components;
+    public IReadOnlyObservableCollection<IComponent> Components => _components.AsReadOnly();
 
     /// <summary>Occurs after a component is added to this object.</summary>
     public event Action<IComponent>? ComponentAdded;
@@ -277,6 +274,9 @@ public partial class GameObject : IGameObject
             OnDeactivated();
         else
             OnActivated();
+
+        PropertyChanged?.Invoke(nameof(IManagedEntity.IsActivated));
+        OnSceneHierarchyChanged();
     }
 
     /// <summary>
