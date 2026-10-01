@@ -22,9 +22,14 @@ public interface ISceneNode
     void SetRoot(ISceneNode? root);
 
     /// <summary>
-    /// Gets the parent node, or <see langword="null"/> when this node is a root or is detached.
+    /// Gets the parent node, or <see langword="null"/> when this node is detached.
     /// </summary>
-    ISceneNode? Parent { get; set; }
+    ISceneNode? Parent { get; }
+
+    /// <summary>
+    /// Sets the parent node, or <see langword="null"/> when this node is detached.
+    /// </summary>
+    void SetParent(ISceneNode? parent);
 
     /// <summary>
     /// Gets the scene nodes directly contained by this node.

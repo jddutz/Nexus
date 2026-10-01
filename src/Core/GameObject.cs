@@ -3,7 +3,7 @@ namespace Nexus.Core;
 /// <summary>
 /// Provides the default implementation of a game object.
 /// </summary>
-public partial class GameObject : IGameObject, IObservable
+public partial class GameObject : IGameObject
 {
     private readonly ObservableCollection<IComponent> _components = [];
     private readonly ObservableCollection<ISceneNode> _children = [];
