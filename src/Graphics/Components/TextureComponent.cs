@@ -9,6 +9,9 @@ public partial class TextureComponent : Component, IGraphicsComponent
         + System.Runtime.CompilerServices.Unsafe.SizeOf<Vector4D<float>>()
         + Marshal.SizeOf<Color>();
 
+    /// <inheritdoc />
+    public override string DisplayName => "Texture";
+
     [Observable(PublicSetter = true)]
     private ulong _renderLayerMask = 1;
 
@@ -37,10 +40,6 @@ public partial class TextureComponent : Component, IGraphicsComponent
         Mesh = centered ? BuiltInMesh.TexturedQuadCentered : BuiltInMesh.TexturedQuadOffset;
         _drawable = new TextureDrawable(this);
     }
-
-    /// <inheritdoc />
-    /// <inheritdoc />
-    public override string DisplayName => "Texture";
 
     /// <summary>Gets the mesh used by the drawable contributions.</summary>
     public Mesh Mesh { get; }

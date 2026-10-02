@@ -6,17 +6,21 @@ namespace Nexus.Graphics.Components;
 public partial class TextComponent : Component, IGraphicsComponent
 {
     private readonly List<(TextSpan Span, float VerticalOffset)> _spans = [];
-    private readonly ITextStyle _textStyle;
+
+    /// <inheritdoc />
+    public override string DisplayName => "Text";
 
     [Observable(PublicSetter = true)]
     private ulong _renderLayerMask = ulong.MaxValue;
 
     [Observable(PublicSetter = true)]
-    private Vector2D<float> _position;
-    private string _text = string.Empty;
+    private ITextStyle? _textStyle;
 
-    /// <inheritdoc />
-    public override string DisplayName => "Text";
+    [Observable(PublicSetter = true)]
+    private Rectangle<float> _bounds = new(0f, 0f, 0f, 0f);
+
+    [Observable(PublicSetter = true)]
+    private string _text = string.Empty;
 
     /// <summary>Updates spans after the render-layer mask changes.</summary>
     private void AfterRenderLayerMaskChanges(ulong previousValue)
@@ -30,13 +34,6 @@ public partial class TextComponent : Component, IGraphicsComponent
 
     /// <inheritdoc/>
     public event EventHandler<DrawableEventArgs>? DrawableRemoved;
-
-    /// <summary>Initializes a text component with the style used by its spans.</summary>
-    /// <param name="textStyle">The font and visual data used to render the component's text.</param>
-    public TextComponent(ITextStyle textStyle)
-    {
-        _textStyle = textStyle ?? throw new ArgumentNullException(nameof(textStyle));
-    }
 
     /// <summary>Updates spans after the component position changes.</summary>
     private void AfterPositionChanges(Vector2D<float> previousValue) =>

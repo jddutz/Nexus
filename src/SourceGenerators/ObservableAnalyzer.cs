@@ -14,7 +14,7 @@ public sealed class ObservableAnalyzer : DiagnosticAnalyzer
     private const string ObservableInterfaceName = "Nexus.Core.IObservable";
 
     private static readonly DiagnosticDescriptor InvalidPropertyChangedEvent = new(
-        "NXSOBS009",
+        "NXS009",
         "Invalid observable notification event",
         "IObservable.PropertyChanged must have type Action<string>, but '{0}' has type '{1}'",
         "Nexus.Observable",
@@ -109,7 +109,10 @@ public sealed class ObservableAnalyzer : DiagnosticAnalyzer
         {
             foreach (var candidateType in GetBaseTypes(type.BaseType))
             {
-                var inherited = candidateType.GetMembers("PropertyChanged").OfType<IEventSymbol>().FirstOrDefault();
+                var inherited = candidateType
+                    .GetMembers("PropertyChanged")
+                    .OfType<IEventSymbol>()
+                    .FirstOrDefault();
                 if (inherited is null)
                     continue;
 

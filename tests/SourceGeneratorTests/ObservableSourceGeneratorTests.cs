@@ -367,7 +367,7 @@ public sealed class ObservableSourceGeneratorTests
 
         var result = RunGenerator(source);
 
-        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Id == "NXSOBS002");
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Id == "NXS002");
         Assert.Empty(result.GeneratedSources);
     }
 
@@ -436,7 +436,7 @@ public sealed class ObservableSourceGeneratorTests
         Assert.Empty(result.GeneratedSources);
         Assert.DoesNotContain(
             result.Diagnostics,
-            diagnostic => diagnostic.Id.StartsWith("NXSOBS", StringComparison.Ordinal)
+            diagnostic => diagnostic.Id.StartsWith("NXS", StringComparison.Ordinal)
         );
     }
 
@@ -466,7 +466,7 @@ public sealed class ObservableSourceGeneratorTests
 
         var result = RunGenerator(source);
 
-        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Id == "NXSOBS007");
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Id == "NXS007");
         Assert.Empty(result.GeneratedSources);
     }
 
@@ -476,16 +476,16 @@ public sealed class ObservableSourceGeneratorTests
     /// <param name="members">Members included in the partial type.</param>
     /// <param name="expectedDiagnosticId">The diagnostic ID expected for the invalid declaration.</param>
     [Theory]
-    [InlineData("[Nexus.Core.Observable] private readonly int _value;", "NXSOBS001")]
-    [InlineData("[Nexus.Core.Observable(\"\")] private int _value;", "NXSOBS003")]
+    [InlineData("[Nexus.Core.Observable] private readonly int _value;", "NXS001")]
+    [InlineData("[Nexus.Core.Observable(\"\")] private int _value;", "NXS003")]
     [InlineData(
         "[Nexus.Core.Observable(\"Name\")] private int _first; [Nexus.Core.Observable(\"Name\")] private int _second;",
-        "NXSOBS004"
+        "NXS004"
     )]
-    [InlineData("public int Value => 0; [Nexus.Core.Observable] private int _value;", "NXSOBS005")]
+    [InlineData("public int Value => 0; [Nexus.Core.Observable] private int _value;", "NXS005")]
     [InlineData(
         "public int Value => 0; public virtual void SetValue(int value) { } [Nexus.Core.Observable] private int _value;",
-        "NXSOBS012"
+        "NXS012"
     )]
     public void InvalidAuthoringPatternsProduceDiagnostics(
         string members,
@@ -544,11 +544,11 @@ public sealed class ObservableSourceGeneratorTests
 
         var result = RunGenerator(source);
 
-        Assert.Equal(2, result.Diagnostics.Count(diagnostic => diagnostic.Id == "NXSOBS005"));
+        Assert.Equal(2, result.Diagnostics.Count(diagnostic => diagnostic.Id == "NXS005"));
         Assert.Contains(
             result.Diagnostics,
             diagnostic =>
-                diagnostic.Id == "NXSOBS012" && diagnostic.Severity == DiagnosticSeverity.Error
+                diagnostic.Id == "NXS012" && diagnostic.Severity == DiagnosticSeverity.Error
         );
         Assert.Empty(result.GeneratedSources);
     }
@@ -649,7 +649,7 @@ public sealed class ObservableSourceGeneratorTests
 
         var result = RunGenerator(source, LanguageVersion.CSharp7_3);
 
-        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Id == "NXSOBS008");
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Id == "NXS008");
         Assert.Empty(result.GeneratedSources);
     }
 
@@ -803,7 +803,7 @@ public sealed class ObservableSourceGeneratorTests
             .WithAnalyzers(ImmutableArray.Create<DiagnosticAnalyzer>(new ObservableAnalyzer()))
             .GetAnalyzerDiagnosticsAsync();
 
-        Assert.Contains(diagnostics, diagnostic => diagnostic.Id == "NXSOBS009");
+        Assert.Contains(diagnostics, diagnostic => diagnostic.Id == "NXS009");
     }
 
     /// <summary>
@@ -836,7 +836,7 @@ public sealed class ObservableSourceGeneratorTests
         Assert.Contains(
             diagnostics,
             diagnostic =>
-                diagnostic.Id == "NXSOBS009"
+                diagnostic.Id == "NXS009"
                 && diagnostic.GetMessage().Contains("Action<int>", StringComparison.Ordinal)
         );
     }

@@ -3,18 +3,13 @@ namespace Nexus.Graphics.Components;
 /// <summary>Draws a resizable texture region as four corners, four edges, and a center.</summary>
 public partial class NinePatchComponent : TextureComponent
 {
-    private Vector4D<float> _sourceBorders;
-
-    [Observable(PublicSetter = true)]
-    private Vector4D<float>? _destinationBorders;
+    /// <inheritdoc />
+    public override string DisplayName => "Nine Patch";
 
     /// <summary>Initializes a nine-patch component with a corner-pivoted quad by default.</summary>
     /// <param name="centered">Whether each patch quad is centered on its origin.</param>
     public NinePatchComponent(bool centered = false)
         : base(centered) { }
-
-    /// <inheritdoc />
-    public override string DisplayName => "Nine Patch";
 
     private void ValidateSourceBorders(Vector4D<float> value)
     {

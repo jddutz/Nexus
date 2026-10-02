@@ -17,7 +17,7 @@ public sealed class ObservableGenerator : IIncrementalGenerator
     private const string ObservableInterfaceName = "Nexus.Core.IObservable";
 
     private static readonly DiagnosticDescriptor UnsupportedField = new(
-        "NXSOBS001",
+        "NXS001",
         "Unsupported observable field",
         "Observable field '{0}' must be a non-static, non-const, non-readonly instance field",
         "Nexus.Observable",
@@ -26,7 +26,7 @@ public sealed class ObservableGenerator : IIncrementalGenerator
     );
 
     private static readonly DiagnosticDescriptor NonPartialType = new(
-        "NXSOBS002",
+        "NXS002",
         "Observable type must be partial",
         "Type '{0}' must be a partial class, and all containing types must be partial, to generate observable members",
         "Nexus.Observable",
@@ -35,7 +35,7 @@ public sealed class ObservableGenerator : IIncrementalGenerator
     );
 
     private static readonly DiagnosticDescriptor InvalidPropertyName = new(
-        "NXSOBS003",
+        "NXS003",
         "Invalid observable property name",
         "Observable field '{0}' does not have a valid property name; use [Observable(\"Name\")] to specify one",
         "Nexus.Observable",
@@ -44,7 +44,7 @@ public sealed class ObservableGenerator : IIncrementalGenerator
     );
 
     private static readonly DiagnosticDescriptor DuplicatePropertyName = new(
-        "NXSOBS004",
+        "NXS004",
         "Duplicate observable property name",
         "More than one observable field generates the member name '{0}'",
         "Nexus.Observable",
@@ -53,7 +53,7 @@ public sealed class ObservableGenerator : IIncrementalGenerator
     );
 
     private static readonly DiagnosticDescriptor MemberConflict = new(
-        "NXSOBS005",
+        "NXS005",
         "Observable member conflicts with an existing member",
         "Generated observable member '{0}' conflicts with a member already declared in '{1}'",
         "Nexus.Observable",
@@ -62,7 +62,7 @@ public sealed class ObservableGenerator : IIncrementalGenerator
     );
 
     private static readonly DiagnosticDescriptor SetterConflict = new(
-        "NXSOBS012",
+        "NXS012",
         "Observable setter conflicts with an existing member",
         "Observable setter '{0}' conflicts with a member already declared in '{1}'; declare the setter as 'partial protected' so the generator can provide its implementation",
         "Nexus.Observable",
@@ -71,7 +71,7 @@ public sealed class ObservableGenerator : IIncrementalGenerator
     );
 
     private static readonly DiagnosticDescriptor InvalidHook = new(
-        "NXSOBS006",
+        "NXS006",
         "Observable hook has an incompatible signature",
         "Hook '{0}' must be an accessible instance method with signature '{1}'",
         "Nexus.Observable",
@@ -80,7 +80,7 @@ public sealed class ObservableGenerator : IIncrementalGenerator
     );
 
     private static readonly DiagnosticDescriptor MissingNotificationMethod = new(
-        "NXSOBS007",
+        "NXS007",
         "Inherited observable event cannot be raised",
         "Type '{0}' inherits or explicitly implements IObservable.PropertyChanged but has no accessible void OnPropertyChanged(string) method",
         "Nexus.Observable",
@@ -89,7 +89,7 @@ public sealed class ObservableGenerator : IIncrementalGenerator
     );
 
     private static readonly DiagnosticDescriptor LanguageVersionTooLow = new(
-        "NXSOBS008",
+        "NXS008",
         "C# language version is unsupported",
         "Observable generation requires C# 8.0 or later",
         "Nexus.Observable",
@@ -98,7 +98,7 @@ public sealed class ObservableGenerator : IIncrementalGenerator
     );
 
     private static readonly DiagnosticDescriptor InvalidPropertyChangedEvent = new(
-        "NXSOBS011",
+        "NXS011",
         "Invalid observable notification event",
         "IObservable.PropertyChanged must have type Action<string>, but '{0}' has type '{1}'",
         "Nexus.Observable",
@@ -107,7 +107,7 @@ public sealed class ObservableGenerator : IIncrementalGenerator
     );
 
     private static readonly DiagnosticDescriptor SealedType = new(
-        "NXSOBS010",
+        "NXS010",
         "Observable type cannot be sealed",
         "Type '{0}' must not be sealed because generated setters are virtual",
         "Nexus.Observable",
