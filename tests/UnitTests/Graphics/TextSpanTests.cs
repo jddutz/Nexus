@@ -68,7 +68,7 @@ public sealed class TextSpanTests
 
     /// <summary>Verifies GUI placement survives text replacement without inheriting owner transforms.</summary>
     [Fact]
-    public void Arrange_preserves_explicit_placement_after_owner_and_text_changes()
+    public void Arrange_preserves_destination_placement_after_owner_and_text_changes()
     {
         var element = new TextElement("AB", CreateStyle());
         var owner = new GameObject2D { Position = new(100f, 200f) };
@@ -76,16 +76,14 @@ public sealed class TextSpanTests
         element.Arrange(new Rectangle<float>(3f, 4f, 2f, 1f));
         var first = DrawableTestData.TextDrawable(element);
 
-        Assert.Equal(3f, first.TransformationMatrix.M41);
-        Assert.Equal(4f, first.TransformationMatrix.M42);
+        Assert.Equal(new Vector2D<float>(3f, 5f), first.Instances[0].Position);
+        Assert.Equal(new Rectangle<float>(3f, 4f, 2f, 1f), first.LayoutBounds);
         owner.Position = new(300f, 400f);
-        Assert.Equal(3f, first.TransformationMatrix.M41);
-        Assert.Equal(4f, first.TransformationMatrix.M42);
+        Assert.Equal(new Vector2D<float>(3f, 5f), first.Instances[0].Position);
 
         element.Text = "BA";
         var replacement = DrawableTestData.TextDrawable(element);
-        Assert.Equal(3f, replacement.TransformationMatrix.M41);
-        Assert.Equal(4f, replacement.TransformationMatrix.M42);
+        Assert.Equal(new Vector2D<float>(3f, 5f), replacement.Instances[0].Position);
     }
 
     /// <summary>Verifies re-arrangement retains local bounds and avoids no-op invalidation.</summary>
@@ -94,7 +92,6 @@ public sealed class TextSpanTests
     {
         var element = new TextElement("A", CreateStyle());
         var span = DrawableTestData.TextDrawable(element);
-        var bounds = span.LayoutBounds;
         var changes = 0;
         span.InstanceDataChanged += (_, _) => changes++;
 
@@ -102,7 +99,7 @@ public sealed class TextSpanTests
         element.Arrange(new Rectangle<float>(2f, 3f, 1f, 1f));
 
         Assert.Same(span, DrawableTestData.TextDrawable(element));
-        Assert.Equal(bounds, span.LayoutBounds);
+        Assert.Equal(new Rectangle<float>(2f, 3f, 1f, 1f), span.LayoutBounds);
         Assert.Equal(1, changes);
     }
 
@@ -365,6 +362,94 @@ public sealed class TextSpanTests
         Assert.Equal(new MsdfMetadata(4, 48), style.Msdf);
         Assert.Equal(18, style.Size);
         Assert.Equal(Colors.WhiteSmoke, style.Color);
+    }
+
+    /// <summary>Verifies component defaults match the text layout contract.</summary>
+    [Fact]
+    public void TextComponent_uses_contract_defaults()
+    {
+        var component = new TextComponent(CreateStyle());
+
+        Assert.Equal(string.Empty, component.Text);
+        Assert.Equal(new Rectangle<float>(0f, 0f, 0f, 0f), component.Destination);
+        Assert.Equal(Vector2D<float>.Zero, component.Alignment);
+        Assert.Null(component.MaximumLines);
+        Assert.True(component.Wrap);
+        Assert.Equal(ulong.MaxValue, component.RenderLayerMask);
+        Assert.Equal(new Rectangle<float>(0f, 0f, 0f, 0f), component.LayoutBounds);
+    }
+
+    /// <summary>Verifies text layout inputs reject invalid values.</summary>
+    [Fact]
+    public void TextComponent_validates_layout_inputs()
+    {
+        var component = new TextComponent(CreateStyle()) { Text = "A" };
+        var removed = 0;
+        component.DrawableRemoved += (_, _) => removed++;
+
+        component.Text = null!;
+        Assert.Null(component.Text);
+        Assert.Empty(component.Drawables);
+        Assert.Equal(1, removed);
+
+        component.Text = "A";
+        Assert.Single(component.Drawables);
+        component.MaximumLines = 0;
+        Assert.Empty(component.Drawables);
+        component.MaximumLines = 1;
+        Assert.Single(component.Drawables);
+        component.Alignment = new(float.NaN, 0f);
+        Assert.Empty(component.Drawables);
+        component.Alignment = Vector2D<float>.Zero;
+        Assert.Single(component.Drawables);
+        component.Destination = new Rectangle<float>(0f, 0f, -1f, 1f);
+        Assert.Empty(component.Drawables);
+        component.Destination = new Rectangle<float>(0f, 0f, 1f, 1f);
+        Assert.Single(component.Drawables);
+        component.Destination = new Rectangle<float>(float.PositiveInfinity, 0f, 1f, 1f);
+        Assert.Empty(component.Drawables);
+    }
+
+    /// <summary>Verifies measurement accepts unconstrained dimensions without changing drawables.</summary>
+    [Fact]
+    public void TextComponent_measure_is_side_effect_free_and_accepts_infinity()
+    {
+        var component = new TextComponent(CreateStyle())
+        {
+            Destination = new Rectangle<float>(0f, 0f, 10f, 10f),
+            Text = "A",
+        };
+        var drawable = Assert.IsType<TextSpan>(Assert.Single(component.Drawables));
+        var added = 0;
+        var removed = 0;
+        component.DrawableAdded += (_, _) => added++;
+        component.DrawableRemoved += (_, _) => removed++;
+
+        Assert.Equal(
+            new Vector2D<float>(1f, 1f),
+            component.Measure(new(float.PositiveInfinity, float.PositiveInfinity))
+        );
+        Assert.Same(drawable, Assert.Single(component.Drawables));
+        Assert.Equal(0, added);
+        Assert.Equal(0, removed);
+        Assert.Throws<ArgumentOutOfRangeException>(() => component.Measure(new(float.NaN, 1f)));
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            component.Measure(new(1f, float.NegativeInfinity))
+        );
+    }
+
+    /// <summary>Verifies destination origin and alignment appear in final glyph bounds.</summary>
+    [Fact]
+    public void TextComponent_layout_bounds_use_destination_coordinates()
+    {
+        var component = new TextComponent(CreateStyle())
+        {
+            Destination = new Rectangle<float>(10f, 20f, 8f, 6f),
+            Alignment = new Vector2D<float>(0.5f, 0.5f),
+            Text = "A",
+        };
+
+        Assert.Equal(new Rectangle<float>(13.5f, 22.5f, 1f, 1f), component.LayoutBounds);
     }
 
     /// <summary>Verifies MSDF shaders and generated distance range are packed per glyph.</summary>

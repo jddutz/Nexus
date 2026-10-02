@@ -19,7 +19,7 @@ GUI owns measurement, arrangement, focus, and interaction. Graphics should accep
 
 ## Current status
 
-The public `TextComponent` is unfinished: its `Drawables` getter throws `NotImplementedException`, and drawable synchronization is not implemented. GUI currently uses its internal `GuiTextComponent` to prepare text output. The agreed design assigns text layout to Graphics; that ownership migration is still outstanding. Do not treat the intended TextComponent source/output contract as implemented.
+The public `TextComponent` is unfinished: its drawable collection is empty, span creation returns an empty span, and drawable synchronization is not implemented. GUI's `TextElement` and `TextButton` now use this component, but text layout and rendering are not expected to work until its implementation is completed. Do not treat the intended TextComponent source/output contract as implemented.
 
 ## Development
 

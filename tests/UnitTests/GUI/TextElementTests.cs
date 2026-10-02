@@ -22,6 +22,21 @@ public sealed class TextElementTests
         Assert.Equal(Vector2D<float>.Zero, element.Measure(Vector2D<float>.Zero));
     }
 
+    /// <summary>Verifies a text element can be initialized before its rendering style is assigned.</summary>
+    [Fact]
+    public void Parameterless_construction_defers_drawables_until_style_is_assigned()
+    {
+        var element = new TextElement { Text = "A" };
+        var graphics = Assert.Single(element.Components.OfType<IGraphicsComponent>());
+
+        Assert.Equal("A", element.Text);
+        Assert.Empty(graphics.Drawables);
+
+        element.Style = new TestTextStyle();
+
+        Assert.Equal("A", DrawableTestData.RenderedText(element));
+    }
+
     /// <summary>Verifies horizontal and vertical alignment position the rendered glyph bounds.</summary>
     [Fact]
     public void Arrange_positionsTextUsingConfiguredAlignment()

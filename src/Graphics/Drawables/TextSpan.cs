@@ -39,6 +39,21 @@ public sealed class TextSpan : IDrawable
     public IReadOnlyList<(FontGlyph Glyph, Vector2D<float> Position, Color Color)> Instances =>
         _instances;
 
+    /// <summary>Replaces prepared glyph instances and notifies instance-data observers.</summary>
+    /// <param name="instances">The glyph metrics, positions, and colors to render.</param>
+    internal void UpdateInstances(
+        IReadOnlyList<(FontGlyph Glyph, Vector2D<float> Position, Color Color)> instances
+    )
+    {
+        ArgumentNullException.ThrowIfNull(instances);
+        var replacement = instances.ToArray();
+        if (_instances.SequenceEqual(replacement))
+            return;
+
+        _instances = replacement;
+        InstanceDataChanged?.Invoke(this, EventArgs.Empty);
+    }
+
     /// <inheritdoc />
     public DrawableId Id { get; } = DrawableId.New();
 

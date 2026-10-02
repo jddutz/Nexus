@@ -5,7 +5,6 @@
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <WarningsNotAsErrors>NXS013</WarningsNotAsErrors>
   </PropertyGroup>
 
   <ItemGroup>

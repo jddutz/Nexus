@@ -33,7 +33,7 @@ public partial class TextButton : Element
     private readonly Vector4D<float> _sourceBorders;
     private readonly ISamplingBehavior _samplingBehavior;
     private NinePatchComponent? _background;
-    private GuiTextComponent? _text;
+    private TextComponent? _text;
     private float _horizontalPadding;
     private float _verticalPadding;
 
@@ -143,7 +143,7 @@ public partial class TextButton : Element
     private void CreateVisualComponents()
     {
         var background = new NinePatchComponent { };
-        var text = new GuiTextComponent(_textStyle);
+        var text = new TextComponent(_textStyle);
         background.Texture = _texture;
         background.RenderLayerMask = _backgroundRenderLayerMask;
         background.SamplingBehavior = _samplingBehavior;
@@ -251,36 +251,37 @@ public partial class TextButton : Element
         if (_text.Text != visibleLabel)
             _text.Text = visibleLabel;
 
-        _text.Alignment = new Vector2D<float>(
-            _labelAlignment switch
-            {
-                TextButtonLabelAlignment.Start => 0f,
-                TextButtonLabelAlignment.Center => 0.5f,
-                TextButtonLabelAlignment.End => 1f,
-                _ => throw new InvalidOperationException("Unknown label alignment."),
-            },
-            0.5f
-        );
-
-        var textBounds = _text.LayoutBounds;
-        var textX = _labelAlignment switch
+        var horizontalAlignment = _labelAlignment switch
         {
-            TextButtonLabelAlignment.Start => bounds.Origin.X + _horizontalPadding,
-            TextButtonLabelAlignment.Center => bounds.Origin.X
-                + (bounds.Size.X - textBounds.Size.X) / 2f,
-            TextButtonLabelAlignment.End => bounds.Max.X - _horizontalPadding - textBounds.Size.X,
+            TextButtonLabelAlignment.Start => 0f,
+            TextButtonLabelAlignment.Center => 0.5f,
+            TextButtonLabelAlignment.End => 1f,
             _ => throw new InvalidOperationException("Unknown label alignment."),
         };
+        var destination = _labelAlignment switch
+        {
+            TextButtonLabelAlignment.Start => new Rectangle<float>(
+                bounds.Origin.X + _horizontalPadding,
+                bounds.Origin.Y,
+                MathF.Max(0f, bounds.Size.X - _horizontalPadding),
+                bounds.Size.Y
+            ),
+            TextButtonLabelAlignment.End => new Rectangle<float>(
+                bounds.Origin.X,
+                bounds.Origin.Y,
+                MathF.Max(0f, bounds.Size.X - _horizontalPadding),
+                bounds.Size.Y
+            ),
+            _ => bounds,
+        };
+        _text.Destination = destination;
+        _text.Alignment = new Vector2D<float>(horizontalAlignment, 0.5f);
+        var textBounds = _text.LayoutBounds;
         var textOrigin = new Vector2D<float>(
-            MathF.Round(textX),
-            MathF.Round(bounds.Origin.Y + (bounds.Size.Y - textBounds.Size.Y) / 2f)
+            MathF.Round(textBounds.Origin.X),
+            MathF.Round(textBounds.Origin.Y)
         );
-        var textPosition = new Vector2D<float>(
-            textOrigin.X - textBounds.Origin.X,
-            textOrigin.Y - textBounds.Origin.Y
-        );
-        _text.Position = textPosition;
-        SetPosition(textPosition);
+        SetPosition(textOrigin);
         _background.Destination = bounds;
     }
 
@@ -304,7 +305,7 @@ public partial class TextButton : Element
 
         for (var lineIndex = 0; lineIndex < lines.Length; lineIndex++)
         {
-            var bounds = GuiTextComponent.CreateSpan(style, lines[lineIndex]).LayoutBounds;
+            var bounds = MeasureTextBounds(style, lines[lineIndex]);
             width = MathF.Max(width, bounds.Size.X);
             top = MathF.Min(top, bounds.Origin.Y + lineIndex * lineHeight);
             bottom = MathF.Max(bottom, bounds.Max.Y + lineIndex * lineHeight);
@@ -328,12 +329,22 @@ public partial class TextButton : Element
         foreach (var rune in label.EnumerateRunes())
         {
             var candidate = prefix.ToString() + rune;
-            if (GuiTextComponent.CreateSpan(style, candidate).LayoutBounds.Size.X > availableWidth)
+            if (MeasureTextBounds(style, candidate).Size.X > availableWidth)
                 break;
 
             prefix.Append(rune);
         }
 
         return prefix.ToString();
+    }
+
+    /// <summary>Measures text by preparing it with a temporary graphics component.</summary>
+    /// <param name="style">The font and visual style used by the text.</param>
+    /// <param name="text">The text to measure.</param>
+    /// <returns>The glyph bounds in text-local coordinates.</returns>
+    private static Rectangle<float> MeasureTextBounds(ITextStyle style, string text)
+    {
+        var component = new TextComponent(style) { Text = text };
+        return component.LayoutBounds;
     }
 }

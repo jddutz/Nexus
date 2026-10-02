@@ -7,18 +7,21 @@ using Nexus.Graphics.Text;
 public partial class TextElement : Element
 {
     private readonly List<IObservable> _visibilityAncestors = [];
-    private readonly ITextStyle _style;
 
     [Observable]
-    private string _text;
+    private string _text = string.Empty;
 
     [Observable]
     private int? _maximumLines;
 
     [Observable]
-    private ulong _renderLayerMask;
-    private GuiTextComponent? _textComponent;
+    private ulong _renderLayerMask = ulong.MaxValue;
+    private TextComponent? _textComponent;
     private Rectangle<float>? _layoutBounds;
+
+    /// <summary>Gets or sets the font and visual style used by the text element.</summary>
+    [Observable(PublicSetter = true)]
+    private ITextStyle? _style;
 
     [Observable]
     private AlignHorizontal _horizontalAlignment = AlignHorizontal.Center;
@@ -35,14 +38,6 @@ public partial class TextElement : Element
     private void BeforeVerticalAlignmentChanges(AlignVertical value)
     {
         if (!Enum.IsDefined(value))
-            throw new ArgumentOutOfRangeException(nameof(value));
-    }
-
-    private void BeforeTextChanges(string value) => ArgumentNullException.ThrowIfNull(value);
-
-    private void BeforeMaximumLinesChanges(int? value)
-    {
-        if (value is <= 0)
             throw new ArgumentOutOfRangeException(nameof(value));
     }
 
@@ -67,8 +62,20 @@ public partial class TextElement : Element
             _textComponent.RenderLayerMask = RenderLayerMask;
     }
 
-    /// <summary>Gets the style used to measure and render the text.</summary>
-    public ITextStyle Style => _style;
+    /// <summary>Updates the graphics component when the text style changes.</summary>
+    /// <param name="previousValue">The previous text style.</param>
+    protected virtual partial void AfterStyleChanges(ITextStyle? previousValue)
+    {
+        if (_textComponent is not null)
+            _textComponent.TextStyle = Style;
+        ReapplyLayout();
+    }
+
+    /// <summary>Initializes an empty text element.</summary>
+    public TextElement()
+    {
+        UpdateVisualComponent();
+    }
 
     /// <summary>Initializes a text element with source text, style, and optional line limit.</summary>
     /// <param name="text">The complete source text.</param>
@@ -80,19 +87,17 @@ public partial class TextElement : Element
         ITextStyle style,
         int? maximumLines = null,
         ulong renderLayerMask = ulong.MaxValue
-    )
-        : base()
+    ) : this()
     {
         ArgumentNullException.ThrowIfNull(text);
         ArgumentNullException.ThrowIfNull(style);
         if (maximumLines is <= 0)
             throw new ArgumentOutOfRangeException(nameof(maximumLines));
 
-        _text = text;
-        _style = style;
-        _maximumLines = maximumLines;
-        _renderLayerMask = renderLayerMask;
-        UpdateVisualComponent();
+        Text = text;
+        Style = style;
+        MaximumLines = maximumLines;
+        RenderLayerMask = renderLayerMask;
     }
 
     /// <inheritdoc />
@@ -100,15 +105,17 @@ public partial class TextElement : Element
     {
         if (!IsEffectivelyVisible)
             return Vector2D<float>.Zero;
+        if (Style is not { } style)
+            return Vector2D<float>.Zero;
 
         var wrappedText = WrapTextToBounds(
-            _text,
-            _style,
+            Text,
+            style,
             constraint.X,
             constraint.Y,
-            _maximumLines
+            MaximumLines
         );
-        var measuredSize = MeasureWrappedText(_style, wrappedText);
+        var measuredSize = MeasureWrappedText(style, wrappedText);
         return new(
             MathF.Min(measuredSize.X, constraint.X),
             MathF.Min(measuredSize.Y, constraint.Y)
@@ -123,33 +130,31 @@ public partial class TextElement : Element
 
         _layoutBounds = bounds;
         base.Arrange(bounds);
+        if (Style is not { } style)
+        {
+            SetPosition(bounds.Origin);
+            SetBounds(new Rectangle<float>(bounds.Origin, Vector2D<float>.Zero));
+            return;
+        }
+
         var wrappedText = WrapTextToBounds(
-            _text,
-            _style,
+            Text,
+            style,
             bounds.Size.X,
             bounds.Size.Y,
-            _maximumLines
+            MaximumLines
         );
         if (_textComponent.Text != wrappedText)
             _textComponent.Text = wrappedText;
 
+        _textComponent.Destination = bounds;
         _textComponent.Alignment = new Vector2D<float>(
             GetHorizontalAlignment(),
             GetVerticalAlignment()
         );
-
         var textBounds = _textComponent.LayoutBounds;
-        var textOrigin = new Vector2D<float>(
-            bounds.Origin.X + GetHorizontalOffset(bounds.Size.X, textBounds.Size.X),
-            bounds.Origin.Y + GetVerticalOffset(bounds.Size.Y, textBounds.Size.Y)
-        );
-        var textPosition = new Vector2D<float>(
-            textOrigin.X - textBounds.Origin.X,
-            textOrigin.Y - textBounds.Origin.Y
-        );
-        _textComponent.Position = textPosition;
-        SetPosition(textPosition);
-        SetBounds(new Rectangle<float>(textOrigin, textBounds.Size));
+        SetPosition(textBounds.Origin);
+        SetBounds(textBounds);
     }
 
     /// <summary>Reapplies the last parent-assigned rectangle after layout-affecting state changes.</summary>
@@ -162,44 +167,21 @@ public partial class TextElement : Element
     /// <summary>Creates a fresh text component from the retained text configuration.</summary>
     private void CreateVisualComponent()
     {
-        var textComponent = new GuiTextComponent(_style);
-        textComponent.RenderLayerMask = _renderLayerMask;
-        textComponent.Text = _text;
+        var textComponent = new TextComponent
+        {
+            TextStyle = Style,
+            RenderLayerMask = RenderLayerMask,
+            Text = Text,
+        };
         _textComponent = textComponent;
         AddComponent(textComponent);
         if (_layoutBounds is { } bounds)
             Arrange(bounds);
     }
 
-    /// <summary>Gets the horizontal offset for the selected alignment.</summary>
-    /// <param name="availableSize">The element's available width.</param>
-    /// <param name="contentSize">The rendered text width.</param>
-    /// <returns>The offset from the element's left edge.</returns>
-    private float GetHorizontalOffset(float availableSize, float contentSize) =>
-        _horizontalAlignment switch
-        {
-            AlignHorizontal.Left => 0f,
-            AlignHorizontal.Center => (availableSize - contentSize) / 2f,
-            AlignHorizontal.Right => availableSize - contentSize,
-            _ => throw new InvalidOperationException(),
-        };
-
-    /// <summary>Gets the vertical offset for the selected alignment.</summary>
-    /// <param name="availableSize">The element's available height.</param>
-    /// <param name="contentSize">The rendered text height.</param>
-    /// <returns>The offset from the element's top edge.</returns>
-    private float GetVerticalOffset(float availableSize, float contentSize) =>
-        _verticalAlignment switch
-        {
-            AlignVertical.Top => 0f,
-            AlignVertical.Center => (availableSize - contentSize) / 2f,
-            AlignVertical.Bottom => availableSize - contentSize,
-            _ => throw new InvalidOperationException(),
-        };
-
     /// <summary>Gets the normalized horizontal alignment value for the text component.</summary>
     private float GetHorizontalAlignment() =>
-        _horizontalAlignment switch
+        HorizontalAlignment switch
         {
             AlignHorizontal.Left => 0f,
             AlignHorizontal.Center => 0.5f,
@@ -209,7 +191,7 @@ public partial class TextElement : Element
 
     /// <summary>Gets the normalized vertical alignment value for the text component.</summary>
     private float GetVerticalAlignment() =>
-        _verticalAlignment switch
+        VerticalAlignment switch
         {
             AlignVertical.Top => 0f,
             AlignVertical.Center => 0.5f,
@@ -376,7 +358,17 @@ public partial class TextElement : Element
     /// <param name="text">The candidate line.</param>
     /// <returns>The visible glyph width.</returns>
     private static float MeasureTextWidth(ITextStyle style, string text) =>
-        GuiTextComponent.CreateSpan(style, text).LayoutBounds.Size.X;
+        MeasureTextBounds(style, text).Size.X;
+
+    /// <summary>Measures text by preparing it with a temporary graphics component.</summary>
+    /// <param name="style">The font and visual style used by the text.</param>
+    /// <param name="text">The text to measure.</param>
+    /// <returns>The glyph bounds in text-local coordinates.</returns>
+    private static Rectangle<float> MeasureTextBounds(ITextStyle style, string text)
+    {
+        var component = new TextComponent(style) { Text = text };
+        return component.LayoutBounds;
+    }
 
     /// <summary>Returns the longest leading rune sequence that fits within the available width.</summary>
     /// <param name="style">The font metrics used to measure glyphs.</param>
@@ -416,7 +408,7 @@ public partial class TextElement : Element
 
         for (var lineIndex = 0; lineIndex < lines.Length; lineIndex++)
         {
-            var bounds = GuiTextComponent.CreateSpan(style, lines[lineIndex]).LayoutBounds;
+            var bounds = MeasureTextBounds(style, lines[lineIndex]);
             width = MathF.Max(width, bounds.Size.X);
             top = MathF.Min(top, bounds.Origin.Y + lineIndex * lineHeight);
             bottom = MathF.Max(bottom, bounds.Max.Y + lineIndex * lineHeight);
