@@ -1,29 +1,14 @@
-namespace Nexus.Graphics;
+namespace Nexus.Graphics.Drawables;
 
 /// <summary>
 /// Defines the geometry, resource, instance, and shader data required to render an object.
 /// </summary>
-public interface IDrawable
+public interface IDrawable : IObservable
 {
     /// <summary>
     /// Gets the unique identifier of the drawable.
     /// </summary>
     DrawableId Id { get; }
-
-    /// <summary>
-    /// Occurs when the drawable's render-layer mask changes.
-    /// </summary>
-    event EventHandler? RenderLayerChanged;
-
-    /// <summary>
-    /// Occurs when the drawable's mesh changes.
-    /// </summary>
-    event EventHandler? MeshChanged;
-
-    /// <summary>
-    /// Occurs when the drawable's texture or sampling behavior changes.
-    /// </summary>
-    event EventHandler? TextureChanged;
 
     /// <summary>
     /// Occurs when the drawable's instance data changes.
@@ -34,11 +19,6 @@ public interface IDrawable
     /// Occurs when the drawable's uniform data changes.
     /// </summary>
     event EventHandler? UniformDataChanged;
-
-    /// <summary>
-    /// Occurs when one or more shader contracts used by the drawable change.
-    /// </summary>
-    event EventHandler? ShaderChanged;
 
     /// <summary>
     /// Gets the mask identifying the render layers on which the drawable is visible.
@@ -61,23 +41,9 @@ public interface IDrawable
     ulong InstanceCount { get; }
 
     /// <summary>
-    /// Gets the packed instance data required by the specified shader inputs.
-    /// </summary>
-    /// <param name="layout">The ordered instance inputs required by a shader contract.</param>
-    /// <returns>The packed instance-buffer data.</returns>
-    ReadOnlyMemory<byte> GetInstanceData(ShaderInput[] layout);
-
-    /// <summary>
     /// Gets the sampling behavior used when sampling the drawable's texture.
     /// </summary>
     ISamplingBehavior SamplingBehavior { get; }
-
-    /// <summary>
-    /// Gets the packed uniform data required by the specified shader inputs.
-    /// </summary>
-    /// <param name="layout">The ordered uniform inputs required by a shader contract.</param>
-    /// <returns>The packed uniform-buffer data.</returns>
-    ReadOnlyMemory<byte> GetUniformData(ShaderInput[] layout);
 
     /// <summary>
     /// Gets the vertex shader contract used to render the drawable.
@@ -103,4 +69,22 @@ public interface IDrawable
     /// Gets the fragment shader contract used to render the drawable.
     /// </summary>
     FragmentShader? FragmentShader { get; }
+
+    /// <summary>
+    /// Writes packed instance data required by the specified shader inputs.
+    /// </summary>
+    /// <param name="start">The zero-based index of the first instance to write.</param>
+    /// <param name="count">The number of instances to write.</param>
+    /// <param name="layout">The ordered instance inputs required by a shader contract.</param>
+    /// <param name="target">The destination buffer for the packed instance data.</param>
+    void WriteInstanceDataTo(ulong start, ulong count, ShaderInput[] layout, Span<byte> target);
+
+    /// <summary>
+    /// Writes packed uniform data required by the specified shader inputs.
+    /// </summary>
+    /// <param name="start">The zero-based index of the uniform block to write.</param>
+    /// <param name="count">The number of uniform blocks to write.</param>
+    /// <param name="layout">The ordered uniform inputs required by a shader contract.</param>
+    /// <param name="target">The destination buffer for the packed uniform data.</param>
+    void WriteUniformDataTo(ulong start, ulong count, ShaderInput[] layout, Span<byte> target);
 }

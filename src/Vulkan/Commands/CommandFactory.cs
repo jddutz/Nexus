@@ -137,7 +137,10 @@ public unsafe class CommandFactory(
                 switch (binding.DescriptorType)
                 {
                     case DescriptorType.UniformBuffer:
-                        var uniformData = drawable.GetUniformData(vertexShader.UniformLayout);
+                        var uniformData = new byte[
+                            checked(vertexShader.UniformLayout.Sum(input => input.Size))
+                        ];
+                        drawable.WriteUniformDataTo(0, 1, vertexShader.UniformLayout, uniformData);
                         var uniformBuffer = bufferManager.CreateUniformBuffer(
                             checked((ulong)uniformData.Length)
                         );
@@ -151,7 +154,7 @@ public unsafe class CommandFactory(
                                 vertexShader.UniformLayout
                             )
                         );
-                        bufferManager.UpdateBuffer(uniformBuffer, uniformData.Span);
+                        bufferManager.UpdateBuffer(uniformBuffer, uniformData);
                         descriptorSetPool.WriteUniformBuffer(
                             descriptorSet,
                             binding.Binding,
@@ -283,8 +286,9 @@ public unsafe class CommandFactory(
         {
             var uniform = allocation.UniformBuffers[index];
             var layout = allocation.VertexShader.UniformLayout;
-            var data = drawable.GetUniformData(layout);
-            if (data.IsEmpty)
+            var data = new byte[checked(layout.Sum(input => input.Size))];
+            drawable.WriteUniformDataTo(0, 1, layout, data);
+            if (data.Length == 0)
                 throw new InvalidOperationException("Uniform data cannot be empty.");
 
             var buffer = uniform.Buffer;
@@ -295,7 +299,7 @@ public unsafe class CommandFactory(
                 capacity = checked((ulong)data.Length);
             }
 
-            bufferManager.UpdateBuffer(buffer, data.Span);
+            bufferManager.UpdateBuffer(buffer, data);
             descriptorSetPool.WriteUniformBuffer(
                 uniform.DescriptorSet,
                 uniform.Binding,
@@ -473,8 +477,9 @@ public unsafe class CommandFactory(
         if (_diagnostics?.IsEnabled != true)
             return;
 
-        var bytes = drawable.GetInstanceData(layout).ToArray();
         var stride = checked((uint)layout.Sum(input => (long)input.Size));
+        var bytes = new byte[checked((int)(drawable.InstanceCount * stride))];
+        drawable.WriteInstanceDataTo(0, drawable.InstanceCount, layout, bytes);
         var instanceCount = stride == 0 ? 0 : checked((int)(bytes.Length / (long)stride));
         var decoded = new List<string>();
         for (var instanceIndex = 0; instanceIndex < instanceCount; instanceIndex++)

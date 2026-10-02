@@ -5,14 +5,31 @@ namespace Nexus.Graphics.Components;
 /// </summary>
 public partial class TextComponent : Component, IGraphicsComponent
 {
-    private readonly Dictionary<DrawableId, TextSpan> _textSpans = [];
+    private readonly Dictionary<DrawableId, TextSpan> _spans = [];
+
+    /// <inheritdoc/>
+    public event EventHandler<DrawableEventArgs>? DrawableAdded;
+
+    /// <inheritdoc/>
+    public event EventHandler<DrawableEventArgs>? DrawableRemoved;
+
+    private void Create(TextSpan span)
+    {
+        _spans.Add(span.InstanceDataChanged, )
+    }
+
+    private void Destroy(TextSpan span)
+    {
+        DrawableRemoved?.Invoke(this, new DrawableEventArgs(span));
+        _spans.Remove(span.Id);
+    }
 
     private void ClearTextSpans()
     {
-        foreach (var span in _textSpans.Values)
+        foreach (var span in _spans.Values)
             DrawableRemoved?.Invoke(this, new DrawableEventArgs(span));
 
-        _textSpans.Clear();
+        _spans.Clear();
     }
 
     /// <inheritdoc />
@@ -21,10 +38,10 @@ public partial class TextComponent : Component, IGraphicsComponent
     [Observable(PublicSetter = true)]
     private ulong _renderLayerMask = ulong.MaxValue;
 
-    /// <summary>Updates spans after the render-layer mask changes.</summary>
+    /// <summary>Update spans after the render-layer mask changes.</summary>
     protected virtual partial void AfterRenderLayerMaskChanges()
     {
-        foreach (var span in _textSpans.Values)
+        foreach (var span in _spans.Values)
             span.RenderLayerMask = RenderLayerMask;
     }
 
@@ -64,21 +81,15 @@ public partial class TextComponent : Component, IGraphicsComponent
 
             var verticalOffset = lineIndex * lineHeight;
             span.TransformationMatrix = CreateSpanTransformation(verticalOffset);
-            _textSpans.Add((span, verticalOffset));
+            _spans.Add((span, verticalOffset));
         }
 
         foreach (var removedSpan in removedSpans)
             DrawableRemoved?.Invoke(this, new DrawableEventArgs(removedSpan));
 
-        foreach (var (span, _) in _textSpans)
+        foreach (var (span, _) in _spans)
             DrawableAdded?.Invoke(this, new DrawableEventArgs(span));
     }
-
-    /// <inheritdoc/>
-    public event EventHandler<DrawableEventArgs>? DrawableAdded;
-
-    /// <inheritdoc/>
-    public event EventHandler<DrawableEventArgs>? DrawableRemoved;
 
     /// <summary>Updates spans after the component position changes.</summary>
     private void AfterPositionChanges(Vector2D<float> previousValue) =>
@@ -86,21 +97,21 @@ public partial class TextComponent : Component, IGraphicsComponent
 
     /// <summary>Gets the spans as drawable contributions for the graphics system.</summary>
     public IReadOnlyList<IDrawable> Drawables =>
-        _textSpans.Select(item => (IDrawable)item.Span).ToArray();
+        _spans.Select(item => (IDrawable)item.Span).ToArray();
 
     /// <summary>Gets the combined visible glyph bounds for all text lines.</summary>
     public Rectangle<float> LayoutBounds
     {
         get
         {
-            if (_textSpans.Count == 0)
+            if (_spans.Count == 0)
                 return new Rectangle<float>(0f, 0f, 0f, 0f);
 
             var left = float.PositiveInfinity;
             var top = float.PositiveInfinity;
             var right = float.NegativeInfinity;
             var bottom = float.NegativeInfinity;
-            foreach (var (span, verticalOffset) in _textSpans)
+            foreach (var (span, verticalOffset) in _spans)
             {
                 var bounds = span.LayoutBounds;
                 left = MathF.Min(left, bounds.Origin.X);
@@ -116,7 +127,7 @@ public partial class TextComponent : Component, IGraphicsComponent
     /// <summary>Updates every span from the explicit text origin and its line offset.</summary>
     private void UpdateTransformationMatrix()
     {
-        foreach (var (span, verticalOffset) in _textSpans)
+        foreach (var (span, verticalOffset) in _spans)
             span.TransformationMatrix = CreateSpanTransformation(verticalOffset);
     }
 

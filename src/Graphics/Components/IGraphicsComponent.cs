@@ -1,9 +1,8 @@
 namespace Nexus.Graphics.Components;
 
 /// <summary>
-/// Marks a component that the graphics system can activate and deactivate. Carries no members
-/// of its own; <see cref="IDrawable"/> and camera components are the concrete
-/// specializations the graphics system knows how to handle.
+/// A component that exposes drawables to the graphics system and reports
+/// when drawables are added or removed.
 /// </summary>
 public interface IGraphicsComponent : IComponent
 {

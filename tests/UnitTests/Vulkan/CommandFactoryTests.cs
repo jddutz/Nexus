@@ -565,17 +565,7 @@ public class CommandFactoryTests
         IShaderContract? geometryShader
     ) : IDrawable
     {
-        event EventHandler? IDrawable.RenderLayerChanged
-        {
-            add { }
-            remove { }
-        }
-        event EventHandler? IDrawable.MeshChanged
-        {
-            add { }
-            remove { }
-        }
-        event EventHandler? IDrawable.TextureChanged
+        event Action<string>? IObservable.PropertyChanged
         {
             add { }
             remove { }
@@ -586,11 +576,6 @@ public class CommandFactoryTests
             remove { }
         }
         event EventHandler? IDrawable.UniformDataChanged
-        {
-            add { }
-            remove { }
-        }
-        event EventHandler? IDrawable.ShaderChanged
         {
             add { }
             remove { }

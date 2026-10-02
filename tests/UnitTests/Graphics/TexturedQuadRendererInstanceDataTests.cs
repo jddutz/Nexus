@@ -69,25 +69,23 @@ public sealed class TextureComponentInstanceDataTests
     public void PropertyChanges_raise_matching_drawable_events()
     {
         var renderer = new TextureComponent();
+        var drawable = renderer.Drawables.Single();
         var renderLayerChanges = 0;
-        var textureChanges = 0;
+        var samplingBehaviorChanges = 0;
         var instanceDataChanges = 0;
-        var uniformDataChanges = 0;
 
-        renderer.RenderLayerChanged += (_, _) => renderLayerChanges++;
-        renderer.TextureChanged += (_, _) => textureChanges++;
-        renderer.InstanceDataChanged += (_, _) => instanceDataChanges++;
-        renderer.UniformDataChanged += (_, _) => uniformDataChanges++;
+        renderer.RenderLayerMaskChanged += (_, _) => renderLayerChanges++;
+        renderer.SamplingBehaviorChanged += (_, _) => samplingBehaviorChanges++;
+        drawable.InstanceDataChanged += (_, _) => instanceDataChanges++;
 
         renderer.RenderLayerMask = 2;
         renderer.SamplingBehavior = SamplingBehaviors.PixelPerfect;
         renderer.TexCoord = new(0.1f, 0.2f, 0.3f, 0.4f);
-        renderer.View = Matrix4X4.CreateTranslation(1f, 2f, 0f);
+        renderer.Destination = new(1f, 2f, 3f, 4f);
 
         Assert.Equal(1, renderLayerChanges);
-        Assert.Equal(1, textureChanges);
-        Assert.Equal(1, instanceDataChanges);
-        Assert.Equal(1, uniformDataChanges);
+        Assert.Equal(1, samplingBehaviorChanges);
+        Assert.Equal(2, instanceDataChanges);
     }
 
     /// <summary>
@@ -257,8 +255,9 @@ public sealed class TextureComponentInstanceDataTests
     public void Destination_changes_raise_instance_data_event_only_when_changed()
     {
         var component = new TextureComponent();
+        var drawable = component.Drawables.Single();
         var changes = 0;
-        component.InstanceDataChanged += (_, _) => changes++;
+        drawable.InstanceDataChanged += (_, _) => changes++;
         var destination = new Rectangle<float>(2f, 3f, 4f, 5f);
 
         component.Destination = destination;

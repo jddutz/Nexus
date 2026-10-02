@@ -88,17 +88,7 @@ public class DefaultBatchStrategyTests
 
     private sealed class TestDrawable(ulong id) : IDrawable
     {
-        event EventHandler? IDrawable.RenderLayerChanged
-        {
-            add { }
-            remove { }
-        }
-        event EventHandler? IDrawable.MeshChanged
-        {
-            add { }
-            remove { }
-        }
-        event EventHandler? IDrawable.TextureChanged
+        event Action<string>? IObservable.PropertyChanged
         {
             add { }
             remove { }
@@ -109,11 +99,6 @@ public class DefaultBatchStrategyTests
             remove { }
         }
         event EventHandler? IDrawable.UniformDataChanged
-        {
-            add { }
-            remove { }
-        }
-        event EventHandler? IDrawable.ShaderChanged
         {
             add { }
             remove { }

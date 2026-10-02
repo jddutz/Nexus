@@ -26,6 +26,7 @@
 
   <ItemGroup>
     <Using Include="Xunit" />
+    <Using Include="Nexus.Graphics.Drawables" />
     <Using Include="Nexus.Audio.Components" />
     <Using Include="Nexus.Graphics.Components" />
     <Using Include="Nexus.Physics.Components" />

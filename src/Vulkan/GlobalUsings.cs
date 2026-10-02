@@ -14,6 +14,7 @@ global using Nexus.Core.Performance;
 global using Nexus.Graphics;
 global using Nexus.Graphics.Cameras;
 global using Nexus.Graphics.Components;
+global using Nexus.Graphics.Drawables;
 global using Nexus.Graphics.Geometry;
 global using Nexus.Graphics.Shaders;
 global using Nexus.Graphics.Text;

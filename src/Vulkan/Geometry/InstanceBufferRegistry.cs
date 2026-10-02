@@ -41,8 +41,10 @@ public unsafe class InstanceBufferRegistry : IInstanceBufferRegistry
         ArgumentNullException.ThrowIfNull(drawable);
         ArgumentNullException.ThrowIfNull(layout);
 
-        var data = drawable.GetInstanceData(layout);
-        if (data.IsEmpty)
+        var stride = checked((ulong)layout.Sum(input => input.Size));
+        var data = new byte[checked((int)(drawable.InstanceCount * stride))];
+        drawable.WriteInstanceDataTo(0, drawable.InstanceCount, layout, data);
+        if (data.Length == 0)
             throw new InvalidOperationException("Instance data cannot be empty.");
 
         var newBuffer = CreateBuffer(data);

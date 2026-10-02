@@ -1,180 +1,223 @@
 namespace Nexus.Graphics.Components;
 
 /// <summary>Draws a resizable texture region as four corners, four edges, and a center.</summary>
-public partial class NinePatchComponent : TextureComponent
+public partial class NinePatchComponent : Component, IGraphicsComponent
 {
+    private NinePatch? _drawable;
+    private IReadOnlyList<IDrawable> _drawables = Array.Empty<IDrawable>();
+
+    /// <summary>Initializes a nine-patch component.</summary>
+    /// <param name="texture">The texture to draw, or <see langword="null"/> for no drawable.</param>
+    public NinePatchComponent(ITexture? texture = null)
+    {
+        _texture = texture;
+        SynchronizeDrawable();
+    }
+
     /// <inheritdoc />
-    public override string DisplayName => "Nine Patch";
+    public IReadOnlyList<IDrawable> Drawables => _drawables;
+
+    /// <inheritdoc />
+    public event EventHandler<DrawableEventArgs>? DrawableAdded;
+
+    /// <inheritdoc />
+    public event EventHandler<DrawableEventArgs>? DrawableRemoved;
 
     [Observable(PublicSetter = true)]
     private ulong _renderLayerMask = ulong.MaxValue;
 
+    /// <inheritdoc />
+    protected virtual partial void AfterRenderLayerMaskChanges(ulong previousValue) =>
+        UpdateDrawable(drawable => drawable.RenderLayerMask = RenderLayerMask);
+
     [Observable(PublicSetter = true)]
-    private Rectangle<float> _bounds = new(0f, 0f, 0f, 0f);
+    private ITexture? _texture;
 
-    private void ValidateSourceBorders(Vector4D<float> value)
+    /// <inheritdoc />
+    protected virtual partial void AfterTextureChanges() =>
+        UpdateDrawable(drawable => drawable.Texture = Texture!);
+
+    [Observable(PublicSetter = true)]
+    private ISamplingBehavior? _samplingBehavior = SamplingBehaviors.Smooth;
+
+    /// <inheritdoc />
+    protected virtual partial void AfterSamplingBehaviorChanges() =>
+        UpdateDrawable(drawable => drawable.SamplingBehavior = SamplingBehavior!);
+
+    [Observable(PublicSetter = true)]
+    private VertexShader? _vertexShader = BuiltInShaders.TexturedQuadVertexShader;
+
+    /// <inheritdoc />
+    protected virtual partial void AfterVertexShaderChanges(VertexShader? previousValue) =>
+        UpdateDrawable(drawable => drawable.VertexShader = VertexShader);
+
+    [Observable(PublicSetter = true)]
+    private FragmentShader? _fragmentShader = BuiltInShaders.TexturedQuadFragmentShader;
+
+    /// <inheritdoc />
+    protected virtual partial void AfterFragmentShaderChanges(FragmentShader? previousValue) =>
+        UpdateDrawable(drawable => drawable.FragmentShader = FragmentShader);
+
+    [Observable(PublicSetter = true)]
+    private Rectangle<float> _destination = new(0f, 0f, 1f, 1f);
+
+    /// <inheritdoc />
+    protected virtual partial void AfterDestinationChanges() =>
+        UpdateDrawable(drawable => drawable.Destination = Destination);
+
+    [Observable(PublicSetter = true)]
+    private Vector4D<float> _texCoord = new(0f, 0f, 1f, 1f);
+
+    /// <inheritdoc />
+    protected virtual partial void AfterTexCoordChanges() =>
+        UpdateDrawable(drawable => drawable.TexCoord = TexCoord);
+
+    [Observable(PublicSetter = true)]
+    private Vector4D<float> _sourceBorders = new(0f, 0f, 0f, 0f);
+
+    /// <inheritdoc />
+    protected virtual partial void AfterSourceBordersChanges() =>
+        UpdateDrawable(drawable => drawable.SourceBorders = SourceBorders);
+
+    [Observable(PublicSetter = true)]
+    private Color _color = Colors.White;
+
+    /// <inheritdoc />
+    protected virtual partial void AfterColorChanges() =>
+        UpdateDrawable(drawable => drawable.Color = Color);
+
+    /// <summary>Validates component state and synchronizes the rendering drawable.</summary>
+    private void SynchronizeDrawable()
     {
-        if (
-            !float.IsFinite(value.X)
-            || !float.IsFinite(value.Y)
-            || !float.IsFinite(value.Z)
-            || !float.IsFinite(value.W)
-            || value.X < 0f
-            || value.Y < 0f
-            || value.Z < 0f
-            || value.W < 0f
-        )
-            throw new ArgumentOutOfRangeException(
-                nameof(value),
-                "Source borders must be finite and non-negative."
+        if (!IsValidState())
+        {
+            UnregisterDrawable();
+            return;
+        }
+
+        if (_drawable is null)
+        {
+            RegisterDrawable(
+                new NinePatch(_texture!)
+                {
+                    RenderLayerMask = _renderLayerMask,
+                    SamplingBehavior = _samplingBehavior!,
+                    VertexShader = _vertexShader,
+                    FragmentShader = _fragmentShader,
+                    Destination = _destination,
+                    TexCoord = _texCoord,
+                    SourceBorders = _sourceBorders,
+                    Color = _color,
+                }
             );
-
-        ValidateSourceBordersValue(value);
+        }
     }
 
-    /// <inheritdoc />
-    protected override int GetInstanceCount() => 9;
-
-    /// <inheritdoc />
-    protected override void ValidateTextureInput(Texture? texture, Vector4D<float> texCoord)
+    /// <summary>Validates state and updates one property on the current drawable.</summary>
+    /// <param name="update">The drawable update to apply.</param>
+    private void UpdateDrawable(Action<NinePatch> update)
     {
-        if (
-            !float.IsFinite(texCoord.X)
-            || !float.IsFinite(texCoord.Y)
-            || !float.IsFinite(texCoord.Z)
-            || !float.IsFinite(texCoord.W)
-            || texCoord.X < 0f
-            || texCoord.Y < 0f
-            || texCoord.Z <= 0f
-            || texCoord.W <= 0f
-            || texCoord.X + texCoord.Z > 1f
-            || texCoord.Y + texCoord.W > 1f
-        )
-            throw new ArgumentOutOfRangeException(
-                nameof(texCoord),
-                "The source region must fit within the texture UV range."
-            );
-
-        if (texture is not null)
-            ValidateBordersFit(_sourceBorders, texture, texCoord);
-    }
-
-    /// <inheritdoc />
-    protected override void ValidateSourceBordersValue(Vector4D<float> sourceBorders)
-    {
-        if (Texture is not null)
-            ValidateBordersFit(sourceBorders, Texture, TexCoord);
-    }
-
-    /// <inheritdoc />
-    protected override void GetInstance(
-        int instanceIndex,
-        out Matrix4X4<float> transform,
-        out Vector4D<float> texCoord
-    )
-    {
-        if ((uint)instanceIndex >= 9u)
-            throw new ArgumentOutOfRangeException(nameof(instanceIndex));
-
-        var textureWidth = Texture?.Width ?? 1f;
-        var textureHeight = Texture?.Height ?? 1f;
-        var sourceLeft = SourceBorders.X / textureWidth;
-        var sourceTop = SourceBorders.Y / textureHeight;
-        var sourceRight = SourceBorders.Z / textureWidth;
-        var sourceBottom = SourceBorders.W / textureHeight;
-        var destinationLeft = FitBorders(
-            SourceBorders.X,
-            SourceBorders.Z,
-            Destination.Size.X,
-            out var destinationRight
-        );
-        var destinationTop = FitBorders(
-            SourceBorders.Y,
-            SourceBorders.W,
-            Destination.Size.Y,
-            out var destinationBottom
-        );
-        var destinationWidths = new[]
+        if (!IsValidState())
         {
-            destinationLeft,
-            Destination.Size.X - destinationLeft - destinationRight,
-            destinationRight,
-        };
-        var destinationHeights = new[]
-        {
-            destinationTop,
-            Destination.Size.Y - destinationTop - destinationBottom,
-            destinationBottom,
-        };
-        var sourceWidths = new[] { sourceLeft, TexCoord.Z - sourceLeft - sourceRight, sourceRight };
-        var sourceHeights = new[]
-        {
-            sourceTop,
-            TexCoord.W - sourceTop - sourceBottom,
-            sourceBottom,
-        };
-        var column = instanceIndex % 3;
-        var row = instanceIndex / 3;
-        var x = column == 0 ? 0f : destinationWidths[0] + (column == 2 ? destinationWidths[1] : 0f);
-        var y = row == 0 ? 0f : destinationHeights[0] + (row == 2 ? destinationHeights[1] : 0f);
-        var u =
-            TexCoord.X
-            + (column == 0 ? 0f : sourceWidths[0] + (column == 2 ? sourceWidths[1] : 0f));
-        var v =
-            TexCoord.Y + (row == 0 ? 0f : sourceHeights[0] + (row == 2 ? sourceHeights[1] : 0f));
+            UnregisterDrawable();
+            return;
+        }
 
-        transform = CreateRectangleTransform(
-            x,
-            y,
-            destinationWidths[column],
-            destinationHeights[row],
-            IsCentered
-        );
-        texCoord = InsetTexCoord(
-            new(u, v, sourceWidths[column], sourceHeights[row]),
-            insetLeft: column == 0,
-            insetTop: row == 0,
-            insetRight: column == 2,
-            insetBottom: row == 2
-        );
+        if (_drawable is null)
+        {
+            SynchronizeDrawable();
+            return;
+        }
+
+        update(_drawable);
     }
 
-    /// <summary>Fits opposing destination borders within a possibly smaller destination.</summary>
-    /// <param name="leading">The left or top border.</param>
-    /// <param name="trailing">The right or bottom border.</param>
-    /// <param name="extent">The destination extent.</param>
-    /// <param name="fittedTrailing">The fitted right or bottom border.</param>
-    /// <returns>The fitted left or top border.</returns>
-    private static float FitBorders(
-        float leading,
-        float trailing,
-        float extent,
-        out float fittedTrailing
-    )
-    {
-        var borderExtent = leading + trailing;
-        var scale = borderExtent > extent && borderExtent > 0f ? extent / borderExtent : 1f;
-        fittedTrailing = trailing * scale;
-        return leading * scale;
-    }
+    /// <summary>Determines whether all component values can produce a drawable.</summary>
+    private bool IsValidState() =>
+        _texture is not null
+        && _samplingBehavior is not null
+        && _vertexShader is not null
+        && _fragmentShader is not null
+        && IsValidDestination(_destination)
+        && IsValidTexCoord(_texCoord)
+        && IsValidSourceBorders(_sourceBorders)
+        && IsValidBordersFit(_sourceBorders, _texture, _texCoord)
+        && IsValidColor(_color);
 
-    /// <summary>Ensures source-pixel border sums fit the selected UV rectangle.</summary>
-    /// <param name="sourceBorders">The source border widths.</param>
-    /// <param name="texture">The source texture.</param>
-    /// <param name="texCoord">The selected UV rectangle.</param>
-    private static void ValidateBordersFit(
+    /// <summary>Validates destination coordinates and positive extents.</summary>
+    private static bool IsValidDestination(Rectangle<float> destination) =>
+        float.IsFinite(destination.Origin.X)
+        && float.IsFinite(destination.Origin.Y)
+        && float.IsFinite(destination.Size.X)
+        && float.IsFinite(destination.Size.Y)
+        && destination.Size.X > 0f
+        && destination.Size.Y > 0f;
+
+    /// <summary>Validates a normalized texture region.</summary>
+    private static bool IsValidTexCoord(Vector4D<float> texCoord) =>
+        float.IsFinite(texCoord.X)
+        && float.IsFinite(texCoord.Y)
+        && float.IsFinite(texCoord.Z)
+        && float.IsFinite(texCoord.W)
+        && texCoord.X >= 0f
+        && texCoord.Y >= 0f
+        && texCoord.Z > 0f
+        && texCoord.W > 0f
+        && texCoord.X + texCoord.Z <= 1f
+        && texCoord.Y + texCoord.W <= 1f;
+
+    /// <summary>Validates finite, non-negative source border widths.</summary>
+    private static bool IsValidSourceBorders(Vector4D<float> sourceBorders) =>
+        float.IsFinite(sourceBorders.X)
+        && float.IsFinite(sourceBorders.Y)
+        && float.IsFinite(sourceBorders.Z)
+        && float.IsFinite(sourceBorders.W)
+        && sourceBorders.X >= 0f
+        && sourceBorders.Y >= 0f
+        && sourceBorders.Z >= 0f
+        && sourceBorders.W >= 0f;
+
+    /// <summary>Validates that source borders fit the selected texture region.</summary>
+    private static bool IsValidBordersFit(
         Vector4D<float> sourceBorders,
-        Texture texture,
+        ITexture? texture,
         Vector4D<float> texCoord
-    )
+    ) =>
+        texture is null
+        || (
+            sourceBorders.X + sourceBorders.Z <= texCoord.Z * texture.Width
+            && sourceBorders.Y + sourceBorders.W <= texCoord.W * texture.Height
+        );
+
+    /// <summary>Validates color channels in the normalized color range.</summary>
+    private static bool IsValidColor(Color color) =>
+        float.IsFinite(color.R)
+        && float.IsFinite(color.G)
+        && float.IsFinite(color.B)
+        && float.IsFinite(color.A)
+        && color.R is >= 0f and <= 1f
+        && color.G is >= 0f and <= 1f
+        && color.B is >= 0f and <= 1f
+        && color.A is >= 0f and <= 1f;
+
+    /// <summary>Registers a newly valid drawable with this component.</summary>
+    /// <param name="drawable">The drawable to expose.</param>
+    private void RegisterDrawable(NinePatch drawable)
     {
-        if (
-            sourceBorders.X + sourceBorders.Z > texCoord.Z * texture.Width
-            || sourceBorders.Y + sourceBorders.W > texCoord.W * texture.Height
-        )
-            throw new ArgumentOutOfRangeException(
-                nameof(sourceBorders),
-                "Source borders must fit within the selected texture region."
-            );
+        _drawable = drawable;
+        _drawables = [drawable];
+        DrawableAdded?.Invoke(this, new DrawableEventArgs(drawable));
+    }
+
+    /// <summary>Unregisters the current drawable when component state is invalid.</summary>
+    private void UnregisterDrawable()
+    {
+        if (_drawable is null)
+            return;
+
+        var drawable = _drawable;
+        _drawable = null;
+        _drawables = Array.Empty<IDrawable>();
+        DrawableRemoved?.Invoke(this, new DrawableEventArgs(drawable));
     }
 }

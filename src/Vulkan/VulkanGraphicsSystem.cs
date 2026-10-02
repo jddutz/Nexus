@@ -34,6 +34,7 @@ public unsafe class VulkanGraphicsSystem(
     private readonly Dictionary<ComponentId, RenderBatchCollection> _batches = [];
     private readonly List<ViewComponent> _activeViews = [];
     private readonly Dictionary<DrawableId, DrawableRegistration> _drawables = [];
+    private readonly Dictionary<DrawableId, Action<string>> _drawablePropertyChangedHandlers = [];
     private readonly HashSet<IGraphicsComponent> _components = [];
 
     /// <summary>Creates the render batches enabled by a view.</summary>
@@ -121,12 +122,12 @@ public unsafe class VulkanGraphicsSystem(
             transientCommands
         );
 
-        drawable.RenderLayerChanged += OnDrawableRenderLayerChanged;
-        drawable.MeshChanged += OnDrawableMeshChanged;
-        drawable.TextureChanged += OnDrawableTextureChanged;
+        Action<string> propertyChanged = propertyName =>
+            OnDrawablePropertyChanged(drawable, propertyName);
+        _drawablePropertyChangedHandlers.Add(drawable.Id, propertyChanged);
+        drawable.PropertyChanged += propertyChanged;
         drawable.InstanceDataChanged += OnDrawableInstanceDataChanged;
         drawable.UniformDataChanged += OnDrawableUniformDataChanged;
-        drawable.ShaderChanged += OnDrawableShaderChanged;
 
         foreach (var batches in GetDrawableBatches(drawable.RenderLayerMask))
         foreach (var command in persistentCommands)
@@ -252,7 +253,7 @@ public unsafe class VulkanGraphicsSystem(
     /// <summary>Moves a drawable's commands when its view membership changes.</summary>
     /// <param name="sender">The drawable that changed.</param>
     /// <param name="e">The event data.</param>
-    private void OnDrawableRenderLayerChanged(object? sender, EventArgs e)
+    private void OnDrawableRenderLayerMaskChanged(object? sender, EventArgs e)
     {
         if (sender is not IDrawable drawable || !_drawables.ContainsKey(drawable.Id))
             return;
@@ -271,6 +272,33 @@ public unsafe class VulkanGraphicsSystem(
             AddToBatches(batches, command);
     }
 
+    /// <summary>Routes observable drawable properties to their Vulkan update operation.</summary>
+    /// <param name="drawable">The drawable whose property changed.</param>
+    /// <param name="propertyName">The changed property name.</param>
+    private void OnDrawablePropertyChanged(IDrawable drawable, string propertyName)
+    {
+        switch (propertyName)
+        {
+            case nameof(IDrawable.RenderLayerMask):
+                OnDrawableRenderLayerMaskChanged(drawable, EventArgs.Empty);
+                break;
+            case nameof(IDrawable.Mesh):
+                UpdateDrawable(drawable, commandFactory.UpdateMesh);
+                break;
+            case nameof(IDrawable.Texture):
+            case nameof(IDrawable.SamplingBehavior):
+                UpdateDrawable(drawable, commandFactory.UpdateTexture);
+                break;
+            case nameof(IDrawable.VertexShader):
+            case nameof(IDrawable.TessellationControlShader):
+            case nameof(IDrawable.TessellationEvalShader):
+            case nameof(IDrawable.GeometryShader):
+            case nameof(IDrawable.FragmentShader):
+                UpdateDrawable(drawable, commandFactory.UpdateShaders, replaceAllCommands: true);
+                break;
+        }
+    }
+
     /// <summary>Updates instance buffers and draw counts for a changed drawable.</summary>
     /// <param name="sender">The drawable that changed.</param>
     /// <param name="e">The event data.</param>
@@ -282,24 +310,6 @@ public unsafe class VulkanGraphicsSystem(
     /// <param name="e">The event data.</param>
     private void OnDrawableUniformDataChanged(object? sender, EventArgs e) =>
         UpdateDrawable(sender, commandFactory.UpdateUniformData);
-
-    /// <summary>Updates image and sampler descriptors for a changed drawable.</summary>
-    /// <param name="sender">The drawable that changed.</param>
-    /// <param name="e">The event data.</param>
-    private void OnDrawableTextureChanged(object? sender, EventArgs e) =>
-        UpdateDrawable(sender, commandFactory.UpdateTexture);
-
-    /// <summary>Updates vertex-buffer bindings for a changed drawable.</summary>
-    /// <param name="sender">The drawable that changed.</param>
-    /// <param name="e">The event data.</param>
-    private void OnDrawableMeshChanged(object? sender, EventArgs e) =>
-        UpdateDrawable(sender, commandFactory.UpdateMesh);
-
-    /// <summary>Updates pipelines and dependent commands for a changed drawable.</summary>
-    /// <param name="sender">The drawable that changed.</param>
-    /// <param name="e">The event data.</param>
-    private void OnDrawableShaderChanged(object? sender, EventArgs e) =>
-        UpdateDrawable(sender, commandFactory.UpdateShaders, replaceAllCommands: true);
 
     /// <summary>Applies the factory update for an active drawable.</summary>
     /// <param name="sender">The object that raised the drawable event.</param>
@@ -424,12 +434,10 @@ public unsafe class VulkanGraphicsSystem(
         if (!_drawables.Remove(drawable.Id, out var registration))
             return;
 
-        drawable.RenderLayerChanged -= OnDrawableRenderLayerChanged;
-        drawable.MeshChanged -= OnDrawableMeshChanged;
-        drawable.TextureChanged -= OnDrawableTextureChanged;
+        if (_drawablePropertyChangedHandlers.Remove(drawable.Id, out var propertyChanged))
+            drawable.PropertyChanged -= propertyChanged;
         drawable.InstanceDataChanged -= OnDrawableInstanceDataChanged;
         drawable.UniformDataChanged -= OnDrawableUniformDataChanged;
-        drawable.ShaderChanged -= OnDrawableShaderChanged;
 
         RemoveDrawableFromViewBatches(registration);
         RemoveDrawableFromBatches(_setupBatches, registration);
