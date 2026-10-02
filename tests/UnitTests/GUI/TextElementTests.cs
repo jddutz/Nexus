@@ -46,19 +46,20 @@ public sealed class TextElementTests
         var bounds = new Rectangle<float>(10f, 20f, 8f, 6f);
 
         element.Arrange(bounds);
-        Assert.Equal(bounds, element.Bounds);
+        var text = Assert.IsType<TextComponent>(Assert.Single(element.Components));
+        Assert.Equal(text.LayoutBounds, element.Bounds);
         Assert.Equal(
             new Rectangle<float>(13.5f, 22.5f, 1f, 1f),
-            Assert.IsType<TextComponent>(Assert.Single(element.Components)).LayoutBounds
+            text.LayoutBounds
         );
 
         element.HorizontalAlignment = AlignHorizontal.Right;
         element.VerticalAlignment = AlignVertical.Bottom;
 
-        Assert.Equal(bounds, element.Bounds);
+        Assert.Equal(text.LayoutBounds, element.Bounds);
         Assert.Equal(
             new Rectangle<float>(17f, 25f, 1f, 1f),
-            Assert.IsType<TextComponent>(Assert.Single(element.Components)).LayoutBounds
+            text.LayoutBounds
         );
     }
 
@@ -89,6 +90,7 @@ public sealed class TextElementTests
 
         parent.IsVisible = false;
         Assert.Empty(element.Components);
+        Assert.Equal(Vector2D<float>.Zero, element.Bounds.Size);
         Assert.Equal(Vector2D<float>.Zero, element.Measure(new(20f, 20f)));
         element.Text = "BA";
 
@@ -99,7 +101,9 @@ public sealed class TextElementTests
         Assert.NotSame(original, recreated);
         Assert.Equal(2UL, DrawableTestData.TextInstanceCount(element));
         Assert.Equal(new Vector2D<float>(2f, 1f), element.Measure(new(20f, 20f)));
-        Assert.Equal(bounds, element.Bounds);
+        var text = Assert.IsType<TextComponent>(Assert.Single(element.Components));
+        Assert.Equal(bounds, text.Destination);
+        Assert.Equal(text.LayoutBounds, element.Bounds);
     }
 
     /// <summary>Verifies text, line-limit, and alignment changes reapply the assigned layout.</summary>
@@ -112,19 +116,21 @@ public sealed class TextElementTests
 
         element.Text = "AB";
         Assert.Equal(2UL, DrawableTestData.TextInstanceCount(element));
-        Assert.Equal(bounds, element.Bounds);
+        var text = Assert.IsType<TextComponent>(Assert.Single(element.Components));
+        Assert.Equal(bounds, text.Destination);
+        Assert.Equal(text.LayoutBounds, element.Bounds);
 
         element.MaximumLines = 1;
         Assert.Equal(1UL, DrawableTestData.TextInstanceCount(element));
-        Assert.Equal(bounds, element.Bounds);
-        var text = Assert.IsType<TextComponent>(Assert.Single(element.Components));
+        Assert.Equal(bounds, text.Destination);
+        Assert.Equal(text.LayoutBounds, element.Bounds);
         Assert.Equal(1, text.MaximumLines);
         Assert.Equal("AB", text.Text);
         Assert.True(text.Wrap);
 
         element.HorizontalAlignment = AlignHorizontal.Right;
         element.VerticalAlignment = AlignVertical.Bottom;
-        Assert.Equal(bounds, element.Bounds);
+        Assert.Equal(text.LayoutBounds, element.Bounds);
     }
 
     /// <summary>Verifies a hidden element retains newly assigned bounds for restoration.</summary>
@@ -139,14 +145,14 @@ public sealed class TextElementTests
         var hiddenBounds = new Rectangle<float>(5f, 6f, 8f, 7f);
 
         element.Arrange(hiddenBounds);
+        Assert.Equal(hiddenBounds.Origin, element.Bounds.Origin);
+        Assert.Equal(Vector2D<float>.Zero, element.Bounds.Size);
         parent.IsVisible = true;
 
-        Assert.Equal(hiddenBounds, element.Bounds);
         Assert.Equal(1UL, DrawableTestData.TextInstanceCount(element));
-        Assert.Equal(
-            hiddenBounds,
-            Assert.IsType<TextComponent>(Assert.Single(element.Components)).Destination
-        );
+        var text = Assert.IsType<TextComponent>(Assert.Single(element.Components));
+        Assert.Equal(hiddenBounds, text.Destination);
+        Assert.Equal(text.LayoutBounds, element.Bounds);
     }
 
     /// <summary>Creates a text element with deterministic in-memory font data.</summary>

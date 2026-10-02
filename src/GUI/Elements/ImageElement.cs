@@ -4,9 +4,52 @@ namespace Nexus.GUI.Elements;
 public partial class ImageElement : Element
 {
     private readonly List<IObservable> _visibilityAncestors = [];
+    private Texture? _texture;
+    private Rectangle<int>? _sourceRegion;
 
-    [Observable(PublicSetter = true)]
-    private ImageSource? _imageSource = null;
+    /// <summary>Gets or sets the texture containing the image.</summary>
+    public Texture? Texture
+    {
+        get => _texture;
+        set
+        {
+            if (EqualityComparer<Texture?>.Default.Equals(_texture, value))
+                return;
+            if (value is not null)
+                ValidateTexture(value, _sourceRegion);
+
+            var previousValue = _texture;
+            _texture = value;
+            InvalidateGeometry();
+            NotifyPropertyChanged(nameof(Texture));
+            TextureChanged?.Invoke(previousValue, value);
+        }
+    }
+
+    /// <summary>Occurs when the texture changes.</summary>
+    public event Action<Texture?, Texture?>? TextureChanged;
+
+    /// <summary>Gets or sets the source pixel rectangle, or null for the full texture.</summary>
+    public Rectangle<int>? SourceRegion
+    {
+        get => _sourceRegion;
+        set
+        {
+            if (EqualityComparer<Rectangle<int>?>.Default.Equals(_sourceRegion, value))
+                return;
+            if (value is { } sourceRegion)
+                ValidateSourceRegion(sourceRegion, _texture);
+
+            var previousValue = _sourceRegion;
+            _sourceRegion = value;
+            InvalidateGeometry();
+            NotifyPropertyChanged(nameof(SourceRegion));
+            SourceRegionChanged?.Invoke(previousValue, value);
+        }
+    }
+
+    /// <summary>Occurs when the source region changes.</summary>
+    public event Action<Rectangle<int>?, Rectangle<int>?>? SourceRegionChanged;
 
     [Observable(PublicSetter = true)]
     private SizingMode _sizingMode = SizingMode.Original;
@@ -30,6 +73,8 @@ public partial class ImageElement : Element
     private TextureComponent? _imageComponent;
     private Rectangle<float>? _layoutBounds;
 
+    /// <summary>Validates the proposed sizing mode and custom-size configuration.</summary>
+    /// <param name="value">The proposed sizing mode.</param>
     private void BeforeSizingModeChanges(SizingMode value)
     {
         if (!Enum.IsDefined(value))
@@ -40,45 +85,60 @@ public partial class ImageElement : Element
             );
     }
 
+    /// <summary>Validates the proposed horizontal alignment.</summary>
+    /// <param name="value">The proposed horizontal alignment.</param>
     private void BeforeHorizontalAlignmentChanges(AlignHorizontal value)
     {
         if (!Enum.IsDefined(value))
             throw new ArgumentOutOfRangeException(nameof(value));
     }
 
+    /// <summary>Validates the proposed vertical alignment.</summary>
+    /// <param name="value">The proposed vertical alignment.</param>
     private void BeforeVerticalAlignmentChanges(AlignVertical value)
     {
         if (!Enum.IsDefined(value))
             throw new ArgumentOutOfRangeException(nameof(value));
     }
 
+    /// <summary>Rejects a null sampling behavior.</summary>
+    /// <param name="value">The proposed sampling behavior.</param>
     private void BeforeSamplingBehaviorChanges(ISamplingBehavior value) =>
         ArgumentNullException.ThrowIfNull(value);
 
-    protected virtual partial void AfterImageSourceChanges(ImageSource? previousValue) =>
-        InvalidateGeometry();
-
+    /// <summary>Rebuilds image geometry after the sizing mode changes.</summary>
+    /// <param name="previousValue">The previous sizing mode.</param>
     protected virtual partial void AfterSizingModeChanges(SizingMode previousValue) =>
         InvalidateGeometry();
 
+    /// <summary>Rebuilds image geometry after horizontal alignment changes.</summary>
+    /// <param name="previousValue">The previous horizontal alignment.</param>
     protected virtual partial void AfterHorizontalAlignmentChanges(AlignHorizontal previousValue) =>
         InvalidateGeometry();
 
+    /// <summary>Rebuilds image geometry after vertical alignment changes.</summary>
+    /// <param name="previousValue">The previous vertical alignment.</param>
     protected virtual partial void AfterVerticalAlignmentChanges(AlignVertical previousValue) =>
         InvalidateGeometry();
 
+    /// <summary>Updates texture sampling after its behavior changes.</summary>
+    /// <param name="previousValue">The previous sampling behavior.</param>
     protected virtual partial void AfterSamplingBehaviorChanges(ISamplingBehavior previousValue)
     {
         if (_imageComponent is not null)
             _imageComponent.SamplingBehavior = SamplingBehavior;
     }
 
+    /// <summary>Updates the image component after its color changes.</summary>
+    /// <param name="previousValue">The previous color.</param>
     protected virtual partial void AfterColorChanges(Color previousValue)
     {
         if (_imageComponent is not null)
             _imageComponent.Color = Color;
     }
 
+    /// <summary>Updates the image component after its render-layer mask changes.</summary>
+    /// <param name="previousValue">The previous render-layer mask.</param>
     protected virtual partial void AfterRenderLayerMaskChanges(ulong previousValue)
     {
         if (_imageComponent is not null)
@@ -123,16 +183,16 @@ public partial class ImageElement : Element
     public override Vector2D<float> Measure(Vector2D<float> constraint)
     {
         ValidateAvailableSize(constraint, nameof(constraint));
-        var imageSource = ImageSource;
+        var texture = Texture;
         if (
             !IsEffectivelyVisible
-            || imageSource is null
+            || texture is null
             || constraint.X == 0f
             || constraint.Y == 0f
         )
             return Vector2D<float>.Zero;
 
-        var imageSize = GetImageSize(imageSource, constraint);
+        var imageSize = GetImageSize(GetEffectiveSourceRegion(texture), constraint);
         return new(MathF.Min(imageSize.X, constraint.X), MathF.Min(imageSize.Y, constraint.Y));
     }
 
@@ -155,22 +215,23 @@ public partial class ImageElement : Element
     /// <summary>Synchronizes visual-component ownership, source data, and actual hit bounds.</summary>
     private void UpdateVisualComponent()
     {
-        var imageSource = ImageSource;
-        if (!IsEffectivelyVisible || _layoutBounds is not { } bounds || imageSource is null)
+        var texture = Texture;
+        if (!IsEffectivelyVisible || _layoutBounds is not { } bounds || texture is null)
         {
             RemoveVisualComponent();
-            SetBounds(EmptyBounds);
+            SetHitTestBounds(EmptyBounds);
             return;
         }
 
         if (bounds.Size.X <= 0f || bounds.Size.Y <= 0f)
         {
             RemoveVisualComponent();
-            SetBounds(EmptyBounds);
+            SetHitTestBounds(EmptyBounds);
             return;
         }
 
-        var imageSize = GetImageSize(imageSource, bounds.Size);
+        var sourceRegion = GetEffectiveSourceRegion(texture);
+        var imageSize = GetImageSize(sourceRegion, bounds.Size);
         var imageX = GetHorizontalOffset(bounds.Size.X, imageSize.X);
         var imageY = GetVerticalOffset(bounds.Size.Y, imageSize.Y);
         var left = MathF.Max(0f, imageX);
@@ -180,11 +241,11 @@ public partial class ImageElement : Element
         if (right <= left || bottom <= top)
         {
             RemoveVisualComponent();
-            SetBounds(EmptyBounds);
+            SetHitTestBounds(EmptyBounds);
             return;
         }
 
-        var sourceTexCoord = GetActiveTexCoord(imageSource);
+        var sourceTexCoord = GetActiveTexCoord(texture, sourceRegion);
         var leftFraction = (left - imageX) / imageSize.X;
         var topFraction = (top - imageY) / imageSize.Y;
         var rightFraction = (right - imageX) / imageSize.X;
@@ -196,7 +257,7 @@ public partial class ImageElement : Element
             (bottomFraction - topFraction) * sourceTexCoord.W
         );
 
-        SetBounds(
+        SetHitTestBounds(
             new Rectangle<float>(
                 bounds.Origin.X + left,
                 bounds.Origin.Y + top,
@@ -212,7 +273,7 @@ public partial class ImageElement : Element
 
         SynchronizeVisualComponent(
             _imageComponent,
-            imageSource,
+            texture,
             new Rectangle<float>(
                 bounds.Origin.X + left,
                 bounds.Origin.Y + top,
@@ -229,12 +290,12 @@ public partial class ImageElement : Element
     /// <param name="texCoord">The clipped normalized source rectangle.</param>
     private void SynchronizeVisualComponent(
         TextureComponent component,
-        ImageSource imageSource,
+        Texture texture,
         Rectangle<float> destination,
         Vector4D<float> texCoord
     )
     {
-        component.Texture = imageSource.Texture;
+        component.Texture = texture;
         component.Destination = destination;
         component.TexCoord = texCoord;
         component.Color = Color;
@@ -254,10 +315,10 @@ public partial class ImageElement : Element
     /// <summary>Calculates the uncapped image size for the selected sizing mode.</summary>
     /// <param name="availableSize">The assigned rectangle or measure constraint.</param>
     /// <returns>The image size before clipping.</returns>
-    private Vector2D<float> GetImageSize(ImageSource imageSource, Vector2D<float> availableSize)
+    private Vector2D<float> GetImageSize(Rectangle<int> sourceRegion, Vector2D<float> availableSize)
     {
-        var sourceWidth = imageSource.SourceRegion.Size.X;
-        var sourceHeight = imageSource.SourceRegion.Size.Y;
+        var sourceWidth = sourceRegion.Size.X;
+        var sourceHeight = sourceRegion.Size.Y;
         var sourceSize = new Vector2D<float>(sourceWidth, sourceHeight);
         var imageSize = SizingMode switch
         {
@@ -319,18 +380,69 @@ public partial class ImageElement : Element
 
     /// <summary>Gets the currently selected normalized source rectangle.</summary>
     /// <returns>The custom UV rectangle in custom mode, or the source pixel rectangle normalized.</returns>
-    private Vector4D<float> GetActiveTexCoord(ImageSource imageSource)
+    private Vector4D<float> GetActiveTexCoord(Texture texture, Rectangle<int> region)
     {
         if (SizingMode == SizingMode.Custom)
             return _customTexCoord!.Value;
 
-        var region = imageSource.SourceRegion;
         return new(
-            (float)region.Origin.X / imageSource.Texture.Width,
-            (float)region.Origin.Y / imageSource.Texture.Height,
-            (float)region.Size.X / imageSource.Texture.Width,
-            (float)region.Size.Y / imageSource.Texture.Height
+            (float)region.Origin.X / texture.Width,
+            (float)region.Origin.Y / texture.Height,
+            (float)region.Size.X / texture.Width,
+            (float)region.Size.Y / texture.Height
         );
+    }
+
+    /// <summary>Gets the configured source rectangle or the full texture when omitted.</summary>
+    /// <param name="texture">The texture providing default dimensions.</param>
+    /// <returns>The effective pixel rectangle.</returns>
+    private Rectangle<int> GetEffectiveSourceRegion(Texture texture) =>
+        SourceRegion ?? new Rectangle<int>(0, 0, (int)texture.Width, (int)texture.Height);
+
+    /// <summary>Validates texture dimensions and that its source region fits within it.</summary>
+    /// <param name="texture">The texture to validate.</param>
+    /// <param name="sourceRegion">The optional source pixel rectangle.</param>
+    private static void ValidateTexture(Texture texture, Rectangle<int>? sourceRegion)
+    {
+        if (
+            texture.Width == 0
+            || texture.Height == 0
+            || texture.Width > int.MaxValue
+            || texture.Height > int.MaxValue
+        )
+            throw new ArgumentOutOfRangeException(
+                nameof(texture),
+                "Texture dimensions must be positive and representable as pixel coordinates."
+            );
+
+        if (sourceRegion is { } region)
+            ValidateSourceRegion(region, texture);
+    }
+
+    /// <summary>Validates that a source rectangle is positive and contained by its texture.</summary>
+    /// <param name="sourceRegion">The proposed source rectangle.</param>
+    /// <param name="texture">The texture, when available for containment validation.</param>
+    private static void ValidateSourceRegion(Rectangle<int> sourceRegion, Texture? texture)
+    {
+        var origin = sourceRegion.Origin;
+        var size = sourceRegion.Size;
+        if (
+            origin.X < 0
+            || origin.Y < 0
+            || size.X <= 0
+            || size.Y <= 0
+            || (
+                texture is not null
+                && (
+                    (long)origin.X + size.X > texture.Width
+                    || (long)origin.Y + size.Y > texture.Height
+                )
+            )
+        )
+            throw new ArgumentOutOfRangeException(
+                nameof(sourceRegion),
+                "The source rectangle must have positive dimensions and fit inside the texture."
+            );
     }
 
     /// <summary>Subscribes to visibility changes on the current ancestor chain.</summary>
@@ -367,7 +479,11 @@ public partial class ImageElement : Element
     }
 
     /// <inheritdoc />
-    protected override void AfterIsVisibleChanges() => UpdateVisualComponent();
+    protected override void AfterIsVisibleChanges()
+    {
+        base.AfterIsVisibleChanges();
+        UpdateVisualComponent();
+    }
 
     /// <summary>Validates a positive finite logical size.</summary>
     /// <param name="size">The proposed size.</param>

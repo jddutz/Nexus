@@ -97,7 +97,8 @@ public sealed class TextButtonTests
         Assert.Equal(Vector2D<float>.Zero, button.Measure(new(100f, 100f)));
         var hiddenBounds = new Rectangle<float>(0f, 0f, 40f, 30f);
         button.Arrange(hiddenBounds);
-        Assert.Equal(hiddenBounds, button.Bounds);
+        Assert.Equal(hiddenBounds.Origin, button.Bounds.Origin);
+        Assert.Equal(Vector2D<float>.Zero, button.Bounds.Size);
         button.Label = "BA";
         button.Padding = new(6f, 5f);
 
@@ -133,6 +134,7 @@ public sealed class TextButtonTests
         parent.AddChild(button);
 
         Assert.Empty(button.Components);
+        Assert.Equal(Vector2D<float>.Zero, button.Bounds.Size);
         parent.IsVisible = true;
         Assert.Equal(2, button.Components.Count());
     }

@@ -71,6 +71,39 @@ public sealed class ImageElementTests
         Assert.Equal(0.25f, quad.TexCoord.W, 6);
     }
 
+    /// <summary>Verifies the element validates source regions against its assigned texture.</summary>
+    [Fact]
+    public void SourceRegion_rejectsInvalidRectangles()
+    {
+        var element = CreateImageElement(8, 4);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            element.SourceRegion = new Rectangle<int>(-1, 0, 2, 2)
+        );
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            element.SourceRegion = new Rectangle<int>(7, 0, 2, 2)
+        );
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            element.SourceRegion = new Rectangle<int>(0, 0, 0, 2)
+        );
+    }
+
+    /// <summary>Verifies source regions can be configured before their texture is assigned.</summary>
+    [Fact]
+    public void SourceRegion_isValidatedWhenTextureIsAssigned()
+    {
+        var element = new ImageElement
+        {
+            SourceRegion = new Rectangle<int>(0, 0, 5, 3),
+        };
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => element.Texture = CreateTexture(4, 2));
+        Assert.Null(element.Texture);
+
+        element.Texture = CreateTexture(6, 4);
+        Assert.Equal(new Rectangle<int>(0, 0, 5, 3), element.SourceRegion);
+    }
+
     /// <summary>Verifies zero-sized arrangement and ancestor visibility control drawable ownership.</summary>
     [Fact]
     public void VisibilityAndZeroSize_removeAndRecreateVisualComponent()
@@ -83,7 +116,8 @@ public sealed class ImageElementTests
 
         parent.IsVisible = false;
         Assert.Empty(element.Components);
-        element.ImageSource = new ImageSource(CreateTexture(6, 3));
+        Assert.Equal(Vector2D<float>.Zero, element.Bounds.Size);
+        element.Texture = CreateTexture(6, 3);
         parent.IsVisible = true;
 
         var recreated = element.GetComponent<TextureComponent>();
@@ -98,7 +132,7 @@ public sealed class ImageElementTests
 
     /// <summary>Verifies an image without a source remains empty until one is assigned.</summary>
     [Fact]
-    public void MissingImageSource_keepsImageElementEmptyUntilAssigned()
+    public void MissingTexture_keepsImageElementEmptyUntilAssigned()
     {
         var element = new ImageElement();
 
@@ -107,7 +141,7 @@ public sealed class ImageElementTests
         Assert.Empty(element.Components);
         AssertBounds(new Rectangle<float>(0f, 0f, 0f, 0f), element.Bounds);
 
-        element.ImageSource = new ImageSource(CreateTexture(4, 2));
+        element.Texture = CreateTexture(4, 2);
         element.Arrange(new Rectangle<float>(0f, 0f, 10f, 10f));
 
         Assert.NotNull(element.GetComponent<TextureComponent>());
@@ -124,7 +158,8 @@ public sealed class ImageElementTests
         Rectangle<int>? sourceRegion = null
     ) => new()
     {
-        ImageSource = new ImageSource(CreateTexture(width, height), sourceRegion),
+        Texture = CreateTexture(width, height),
+        SourceRegion = sourceRegion,
     };
 
     /// <summary>Creates a deterministic in-memory RGBA texture.</summary>

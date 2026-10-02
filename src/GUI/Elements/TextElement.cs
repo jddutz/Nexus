@@ -132,9 +132,12 @@ public partial class TextElement : Element
     public override void Arrange(Rectangle<float> bounds)
     {
         _layoutBounds = bounds;
-        base.Arrange(bounds);
+        RetainAllocation(bounds);
         if (!IsEffectivelyVisible || _textComponent is null)
+        {
+            SetHitTestBounds(new Rectangle<float>(bounds.Origin, Vector2D<float>.Zero));
             return;
+        }
 
         _textComponent.Text = Text;
         _textComponent.MaximumLines = MaximumLines;
@@ -144,6 +147,7 @@ public partial class TextElement : Element
             GetHorizontalAlignment(),
             GetVerticalAlignment()
         );
+        SetHitTestBounds(_textComponent.LayoutBounds);
     }
 
     /// <summary>Reapplies the last parent-assigned rectangle after layout-affecting state changes.</summary>
@@ -213,9 +217,14 @@ public partial class TextElement : Element
         {
             RemoveVisualComponent();
         }
+
+        if (!IsEffectivelyVisible)
+        {
+            var origin = _layoutBounds?.Origin ?? Vector2D<float>.Zero;
+            SetHitTestBounds(new Rectangle<float>(origin, Vector2D<float>.Zero));
+        }
     }
 
-    /// <summary>Subscribes to visibility changes on the current ancestor chain.</summary>
     /// <summary>Subscribes to visibility changes on the current ancestor chain.</summary>
     private void UpdateVisibilityAncestorSubscriptions()
     {
@@ -233,8 +242,6 @@ public partial class TextElement : Element
         }
     }
 
-    /// <summary>Updates text component ownership when an ancestor's visibility changes.</summary>
-    /// <param name="propertyName">The name of the changed property.</param>
     /// <summary>Updates the text component when an ancestor's visibility changes.</summary>
     /// <param name="propertyName">The name of the changed property.</param>
     private void OnAncestorPropertyChanged(string propertyName)
@@ -252,6 +259,10 @@ public partial class TextElement : Element
     }
 
     /// <inheritdoc />
-    protected override void AfterIsVisibleChanges() => UpdateVisualComponent();
+    protected override void AfterIsVisibleChanges()
+    {
+        base.AfterIsVisibleChanges();
+        UpdateVisualComponent();
+    }
 
 }

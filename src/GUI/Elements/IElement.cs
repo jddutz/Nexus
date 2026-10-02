@@ -39,7 +39,7 @@ public interface IElement : IGameObject
     /// <returns>The measured size.</returns>
     Vector2D<float> Measure(Vector2D<float> constraint);
 
-    /// <summary>Arranges the element within the specified bounds.</summary>
-    /// <param name="bounds">The bounds assigned to the element.</param>
+    /// <summary>Arranges the element within the specified allocation.</summary>
+    /// <param name="bounds">The allocation assigned to the element.</param>
     void Arrange(Rectangle<float> bounds);
 }

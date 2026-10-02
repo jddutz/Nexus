@@ -192,9 +192,13 @@ public partial class TextButton : Element
             if (_background is null && _text is null)
                 CreateVisualComponents();
         }
-        else if (_background is not null || _text is not null)
+        else
         {
-            RemoveVisualComponents();
+            if (_background is not null || _text is not null)
+                RemoveVisualComponents();
+
+            var origin = _layoutBounds?.Origin ?? Vector2D<float>.Zero;
+            SetHitTestBounds(new Rectangle<float>(origin, Vector2D<float>.Zero));
         }
     }
 
@@ -232,7 +236,11 @@ public partial class TextButton : Element
     }
 
     /// <inheritdoc />
-    protected override void AfterIsVisibleChanges() => UpdateVisualComponents();
+    protected override void AfterIsVisibleChanges()
+    {
+        base.AfterIsVisibleChanges();
+        UpdateVisualComponents();
+    }
 
     /// <inheritdoc />
     public override Vector2D<float> Measure(Vector2D<float> constraint)
@@ -265,7 +273,10 @@ public partial class TextButton : Element
         _layoutBounds = bounds;
         base.Arrange(bounds);
         if (!IsEffectivelyVisible || _text is null || _background is null)
+        {
+            SetHitTestBounds(new Rectangle<float>(bounds.Origin, Vector2D<float>.Zero));
             return;
+        }
 
         var horizontalAlignment = LabelAlignment switch
         {

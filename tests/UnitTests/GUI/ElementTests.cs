@@ -41,4 +41,24 @@ public class ElementTests
             changedProperties
         );
     }
+
+    /// <summary>Verifies hidden elements expose zero-size bounds and restore their allocation.</summary>
+    [Fact]
+    public void Visibility_collapsesAndRestoresBoundsForSelfAndAncestor()
+    {
+        var bounds = new Rectangle<float>(1f, 2f, 3f, 4f);
+        var element = new Element { Bounds = bounds };
+
+        element.IsVisible = false;
+        Assert.Equal(new Rectangle<float>(bounds.Origin, Vector2D<float>.Zero), element.Bounds);
+        element.IsVisible = true;
+        Assert.Equal(bounds, element.Bounds);
+
+        var parent = new Element();
+        parent.AddChild(element);
+        parent.IsVisible = false;
+        Assert.Equal(new Rectangle<float>(bounds.Origin, Vector2D<float>.Zero), element.Bounds);
+        parent.IsVisible = true;
+        Assert.Equal(bounds, element.Bounds);
+    }
 }
