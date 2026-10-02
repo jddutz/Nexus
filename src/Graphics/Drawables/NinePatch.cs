@@ -58,8 +58,11 @@ public partial class NinePatch : IDrawable
     /// <inheritdoc />
     public event EventHandler? InstanceDataChanged;
 
+    // Required by IDrawable; this drawable's uniform data is immutable and cannot change.
+#pragma warning disable CS0067
     /// <inheritdoc />
     public event EventHandler? UniformDataChanged;
+#pragma warning restore CS0067
 
     /// <summary>Raises instance-data invalidation after geometry changes.</summary>
     protected virtual partial void AfterDestinationChanges() =>

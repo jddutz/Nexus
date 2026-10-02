@@ -131,6 +131,11 @@ public partial class TextElement : Element
         if (_textComponent.Text != wrappedText)
             _textComponent.Text = wrappedText;
 
+        _textComponent.Alignment = new Vector2D<float>(
+            GetHorizontalAlignment(),
+            GetVerticalAlignment()
+        );
+
         var textBounds = _textComponent.LayoutBounds;
         var textOrigin = new Vector2D<float>(
             bounds.Origin.X + GetHorizontalOffset(bounds.Size.X, textBounds.Size.X),
@@ -187,6 +192,26 @@ public partial class TextElement : Element
             AlignVertical.Top => 0f,
             AlignVertical.Center => (availableSize - contentSize) / 2f,
             AlignVertical.Bottom => availableSize - contentSize,
+            _ => throw new InvalidOperationException(),
+        };
+
+    /// <summary>Gets the normalized horizontal alignment value for the text component.</summary>
+    private float GetHorizontalAlignment() =>
+        _horizontalAlignment switch
+        {
+            AlignHorizontal.Left => 0f,
+            AlignHorizontal.Center => 0.5f,
+            AlignHorizontal.Right => 1f,
+            _ => throw new InvalidOperationException(),
+        };
+
+    /// <summary>Gets the normalized vertical alignment value for the text component.</summary>
+    private float GetVerticalAlignment() =>
+        _verticalAlignment switch
+        {
+            AlignVertical.Top => 0f,
+            AlignVertical.Center => 0.5f,
+            AlignVertical.Bottom => 1f,
             _ => throw new InvalidOperationException(),
         };
 

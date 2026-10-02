@@ -257,6 +257,17 @@ public partial class TextButton : Element
         if (_text.Text != visibleLabel)
             _text.Text = visibleLabel;
 
+        _text.Alignment = new Vector2D<float>(
+            _labelAlignment switch
+            {
+                TextButtonLabelAlignment.Start => 0f,
+                TextButtonLabelAlignment.Center => 0.5f,
+                TextButtonLabelAlignment.End => 1f,
+                _ => throw new InvalidOperationException("Unknown label alignment."),
+            },
+            0.5f
+        );
+
         var textBounds = _text.LayoutBounds;
         var textX = _labelAlignment switch
         {
