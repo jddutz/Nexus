@@ -14,7 +14,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\SourceGenerators\Nexus.SourceGenerators.csproj" />
+    <ProjectReference Include="..\..\codegen\Nexus.SourceGenerators.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -64,7 +64,7 @@ public sealed class ObservableGenerator : IIncrementalGenerator
     private static readonly DiagnosticDescriptor SetterConflict = new(
         "NXS012",
         "Observable setter conflicts with an existing member",
-        "Observable setter '{0}' conflicts with a member already declared in '{1}'; declare the setter as 'partial protected' so the generator can provide its implementation",
+        "Observable setter '{0}' conflicts with a member already declared in '{1}'",
         "Nexus.Observable",
         DiagnosticSeverity.Error,
         true
@@ -82,7 +82,7 @@ public sealed class ObservableGenerator : IIncrementalGenerator
     private static readonly DiagnosticDescriptor MissingNotificationMethod = new(
         "NXS007",
         "Inherited observable event cannot be raised",
-        "Type '{0}' inherits or explicitly implements IObservable.PropertyChanged but has no accessible void OnPropertyChanged(string) method",
+        "Type '{0}' inherits IObservable.PropertyChanged but has no accessible void NotifyPropertyChanged(string) method",
         "Nexus.Observable",
         DiagnosticSeverity.Error,
         true
@@ -187,15 +187,18 @@ public sealed class ObservableGenerator : IIncrementalGenerator
             members.Add((candidate.Field, candidate.ExplicitName, candidate.Location));
         }
 
+        var generatedTypes = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
         foreach (
-            var group in groups.OrderBy(item => GetMetadataName(item.Key), StringComparer.Ordinal)
+            var group in groups
+                .OrderBy(item => GetInheritanceDepth(item.Key))
+                .ThenBy(item => GetMetadataName(item.Key), StringComparer.Ordinal)
         )
             GenerateType(
                 context,
                 group.Key,
                 group.Value,
                 compilation,
-                new HashSet<INamedTypeSymbol>(groups.Keys, SymbolEqualityComparer.Default)
+                generatedTypes
             );
     }
 
@@ -213,6 +216,9 @@ public sealed class ObservableGenerator : IIncrementalGenerator
         HashSet<INamedTypeSymbol> generatedTypes
     )
     {
+        if (!ImplementsObservable(type, compilation))
+            return;
+
         if (type.TypeKind != TypeKind.Class || !AreAllContainingTypesPartial(type))
         {
             foreach (var item in fields)
@@ -226,7 +232,6 @@ public sealed class ObservableGenerator : IIncrementalGenerator
             new List<(
                 IFieldSymbol Field,
                 string PropertyName,
-                bool HasPartialSetter,
                 string? AfterHook,
                 string? AfterHookWithPreviousValue,
                 bool HasPartialAfterHook,
@@ -339,13 +344,10 @@ public sealed class ObservableGenerator : IIncrementalGenerator
                 );
                 continue;
             }
-            var hasPartialSetter = HasPartialSetter(type, "Set" + propertyName, item.Field.Type);
-
             plans.Add(
                 (
                     item.Field,
                     propertyName,
-                    hasPartialSetter,
                     hasAfterHook ? afterHook : null,
                     hasAfterHookWithPreviousValue ? afterHookWithPreviousValue : null,
                     hasPartialAfterHook,
@@ -376,6 +378,7 @@ public sealed class ObservableGenerator : IIncrementalGenerator
             var members = new[]
             {
                 (Name: plan.PropertyName, Kind: "property"),
+                (Name: "__Set" + plan.PropertyName, Kind: "wrapper"),
                 (Name: "Set" + plan.PropertyName, Kind: "setter"),
             }.Concat(
                 GeneratesChangedEvent(plan.Field)
@@ -405,7 +408,7 @@ public sealed class ObservableGenerator : IIncrementalGenerator
                     .ToArray();
                 var conflict = member.Kind switch
                 {
-                    "property" or "event" => existingMembers.Length > 0,
+                    "property" or "event" or "wrapper" => existingMembers.Length > 0,
                     "setter" => existingMembers.Any(existing =>
                         existing is not IMethodSymbol method
                         || method.MethodKind == MethodKind.Ordinary
@@ -416,7 +419,6 @@ public sealed class ObservableGenerator : IIncrementalGenerator
                                 method.Parameters[0].Type,
                                 plan.Field.Type
                             )
-                            && !(plan.HasPartialSetter && method.IsPartialDefinition)
                     ),
                     _ => false,
                 };
@@ -459,6 +461,20 @@ public sealed class ObservableGenerator : IIncrementalGenerator
 
         var source = EmitSource(type, plans, notification.Value, compilation);
         context.AddSource(CreateHintName(type), SourceText.From(source, Encoding.UTF8));
+        generatedTypes.Add(type);
+    }
+
+    /// <summary>
+    /// Gets a type's inheritance depth so observable base classes are processed before derived classes.
+    /// </summary>
+    /// <param name="type">The type whose base classes are counted.</param>
+    /// <returns>The number of base classes.</returns>
+    private static int GetInheritanceDepth(INamedTypeSymbol type)
+    {
+        var depth = 0;
+        for (var current = type.BaseType; current is not null; current = current.BaseType)
+            depth++;
+        return depth;
     }
 
     /// <summary>
@@ -561,18 +577,12 @@ public sealed class ObservableGenerator : IIncrementalGenerator
     /// <param name="plans">The valid observable fields.</param>
     /// <param name="compilation">The consuming compilation.</param>
     /// <returns>The notification strategy, or <see langword="null"/> after reporting an error.</returns>
-    private static (
-        bool IsObservable,
-        bool GeneratePropertyChanged,
-        bool GenerateNotificationMethod,
-        string? NotifyMethod
-    )? GetNotificationStrategy(
+    private static (bool GenerateNotificationMethod, string? NotifyMethod)? GetNotificationStrategy(
         SourceProductionContext context,
         INamedTypeSymbol type,
         List<(
             IFieldSymbol Field,
             string PropertyName,
-            bool HasPartialSetter,
             string? AfterHook,
             string? AfterHookWithPreviousValue,
             bool HasPartialAfterHook,
@@ -584,13 +594,8 @@ public sealed class ObservableGenerator : IIncrementalGenerator
     )
     {
         var observableInterface = compilation.GetTypeByMetadataName(ObservableInterfaceName);
-        var implementsObservable =
-            observableInterface is not null
-            && type.AllInterfaces.Any(candidate =>
-                SymbolEqualityComparer.Default.Equals(candidate, observableInterface)
-            );
-        if (!implementsObservable)
-            return (false, false, false, null);
+        if (observableInterface is null)
+            return null;
 
         var interfaceEvent = observableInterface!
             .GetMembers("PropertyChanged")
@@ -642,21 +647,21 @@ public sealed class ObservableGenerator : IIncrementalGenerator
                 && SymbolEqualityComparer.Default.Equals(implementation, implementedDirectEvent)
             )
             {
-                var directNotificationMethod = FindNotificationMethod(type, compilation);
-                return directNotificationMethod is not null
-                    ? (true, false, false, directNotificationMethod)
-                    : (true, false, true, "OnPropertyChanged");
+                var declaredNotificationMethod = FindDeclaredNotificationMethod(type, compilation);
+                return declaredNotificationMethod is not null
+                    ? (false, declaredNotificationMethod)
+                    : (true, "NotifyPropertyChanged");
             }
 
             var notificationMethod = FindNotificationMethod(type, compilation);
             if (notificationMethod is not null)
-                return (true, false, false, notificationMethod);
+                return (false, notificationMethod);
 
             if (
                 implementation.ContainingType is INamedTypeSymbol implementationType
                 && generatedTypes.Contains(implementationType)
             )
-                return (true, false, false, "OnPropertyChanged");
+                return (false, "NotifyPropertyChanged");
 
             foreach (var plan in plans)
                 context.ReportDiagnostic(
@@ -664,9 +669,6 @@ public sealed class ObservableGenerator : IIncrementalGenerator
                 );
             return null;
         }
-
-        if (directMember is IEventSymbol)
-            return (true, false, false, null);
 
         if (directMember is not null)
         {
@@ -690,10 +692,10 @@ public sealed class ObservableGenerator : IIncrementalGenerator
                 )
                 {
                     if (notificationMethod is not null)
-                        return (true, false, false, notificationMethod);
+                        return (false, notificationMethod);
 
                     if (generatedTypes.Contains(inheritedMember))
-                        return (true, false, false, "OnPropertyChanged");
+                        return (false, "NotifyPropertyChanged");
                 }
 
                 foreach (var plan in plans)
@@ -705,7 +707,22 @@ public sealed class ObservableGenerator : IIncrementalGenerator
             inheritedMember = inheritedMember.BaseType;
         }
 
-        return (true, true, false, null);
+        return null;
+    }
+
+    /// <summary>
+    /// Determines whether a type implements the observable contract directly or through a base type.
+    /// </summary>
+    /// <param name="type">The type containing observable fields.</param>
+    /// <param name="compilation">The consuming compilation.</param>
+    /// <returns><see langword="true"/> when the type implements <see cref="ObservableInterfaceName"/>.</returns>
+    private static bool ImplementsObservable(INamedTypeSymbol type, Compilation compilation)
+    {
+        var observableInterface = compilation.GetTypeByMetadataName(ObservableInterfaceName);
+        return observableInterface is not null
+            && type.AllInterfaces.Any(candidate =>
+                SymbolEqualityComparer.Default.Equals(candidate, observableInterface)
+            );
     }
 
     /// <summary>
@@ -721,7 +738,6 @@ public sealed class ObservableGenerator : IIncrementalGenerator
         List<(
             IFieldSymbol Field,
             string PropertyName,
-            bool HasPartialSetter,
             string? AfterHook,
             string? AfterHookWithPreviousValue,
             bool HasPartialAfterHook,
@@ -729,8 +745,6 @@ public sealed class ObservableGenerator : IIncrementalGenerator
             Location Location
         )> plans,
         (
-            bool IsObservable,
-            bool GeneratePropertyChanged,
             bool GenerateNotificationMethod,
             string? NotifyMethod
         ) notification,
@@ -789,33 +803,29 @@ public sealed class ObservableGenerator : IIncrementalGenerator
             builder.AppendLine("{");
         }
 
-        if (notification.GeneratePropertyChanged)
-        {
-            builder.AppendLine("    /// <summary>Occurs when a property value changes.</summary>");
-            builder.Append("    public event global::System.Action<string>");
-            if (nullableAnnotationsEnabled)
-                builder.Append('?');
-            builder.Append(" PropertyChanged");
-            if (nullableWarningsEnabled && !nullableAnnotationsEnabled)
-                builder.Append(" = null!");
-            builder.AppendLine(";");
-        }
-
         foreach (var plan in plans)
         {
             if (plan.AfterHook is not null && plan.HasPartialAfterHook)
+            {
+                builder
+                    .AppendLine("    /// <summary>Runs after the property value changes.</summary>");
                 builder
                     .Append("    protected virtual partial void ")
                     .Append(EscapeIdentifier(plan.AfterHook))
                     .AppendLine("();");
+            }
             else if (
                 plan.AfterHook is null
                 && !HasInheritedHook(type, plan.PropertyName, false, plan.Field.Type)
             )
+            {
+                builder
+                    .AppendLine("    /// <summary>Runs after the property value changes.</summary>");
                 builder
                     .Append("    protected virtual void After")
                     .Append(EscapeIdentifier(plan.PropertyName))
                     .AppendLine("Changes() { }");
+            }
 
             if (
                 plan.AfterHookWithPreviousValue is not null
@@ -823,6 +833,11 @@ public sealed class ObservableGenerator : IIncrementalGenerator
             )
             {
                 var hookTypeName = GetHookTypeName(plan.Field);
+                builder
+                    .AppendLine("    /// <summary>Runs after the property value changes.</summary>")
+                    .AppendLine(
+                        "    /// <param name=\"previousValue\">The value before the change.</param>"
+                    );
                 builder
                     .Append("    protected virtual partial void ")
                     .Append(EscapeIdentifier(plan.AfterHookWithPreviousValue))
@@ -836,6 +851,11 @@ public sealed class ObservableGenerator : IIncrementalGenerator
             )
             {
                 var hookTypeName = GetHookTypeName(plan.Field);
+                builder
+                    .AppendLine("    /// <summary>Runs after the property value changes.</summary>")
+                    .AppendLine(
+                        "    /// <param name=\"previousValue\">The value before the change.</param>"
+                    );
                 builder
                     .Append("    protected virtual void After")
                     .Append(EscapeIdentifier(plan.PropertyName))
@@ -852,7 +872,7 @@ public sealed class ObservableGenerator : IIncrementalGenerator
                 "    /// <param name=\"propertyName\">The name of the changed property.</param>"
             );
             builder.AppendLine(
-                "    protected virtual void OnPropertyChanged(string propertyName) => PropertyChanged?.Invoke(propertyName);"
+                "    protected void NotifyPropertyChanged(string propertyName) => PropertyChanged?.Invoke(propertyName);"
             );
         }
 
@@ -895,28 +915,6 @@ public sealed class ObservableGenerator : IIncrementalGenerator
 
         return true;
     }
-
-    /// <summary>
-    /// Determines whether the containing type declares a matching partial setter definition.
-    /// </summary>
-    /// <param name="type">The type containing the observable field.</param>
-    /// <param name="setterName">The generated setter name.</param>
-    /// <param name="fieldType">The observable field type.</param>
-    /// <returns><see langword="true"/> when a matching partial setter declaration exists.</returns>
-    private static bool HasPartialSetter(
-        INamedTypeSymbol type,
-        string setterName,
-        ITypeSymbol fieldType
-    ) =>
-        type.GetMembers(setterName)
-            .OfType<IMethodSymbol>()
-            .Any(method =>
-                method.IsPartialDefinition
-                && !method.IsStatic
-                && method.Parameters.Length == 1
-                && method.Parameters[0].RefKind == RefKind.None
-                && SymbolEqualityComparer.Default.Equals(method.Parameters[0].Type, fieldType)
-            );
 
     /// <summary>
     /// Gets the fully qualified hook parameter type, preserving a nullable field annotation.
@@ -969,7 +967,7 @@ public sealed class ObservableGenerator : IIncrementalGenerator
                 )
             );
 
-    /// Emits the property, typed event, and setter for a single backing field.
+    /// <summary>Emits the property, typed event, and mutation methods for one backing field.</summary>
     /// </summary>
     /// <param name="builder">The source text builder.</param>
     /// <param name="plan">The validated field and its generated hook names.</param>
@@ -981,7 +979,6 @@ public sealed class ObservableGenerator : IIncrementalGenerator
         (
             IFieldSymbol Field,
             string PropertyName,
-            bool HasPartialSetter,
             string? AfterHook,
             string? AfterHookWithPreviousValue,
             bool HasPartialAfterHook,
@@ -989,8 +986,6 @@ public sealed class ObservableGenerator : IIncrementalGenerator
             Location Location
         ) plan,
         (
-            bool IsObservable,
-            bool GeneratePropertyChanged,
             bool GenerateNotificationMethod,
             string? NotifyMethod
         ) notification,
@@ -1087,21 +1082,12 @@ public sealed class ObservableGenerator : IIncrementalGenerator
             .Append(EscapeIdentifier(plan.PropertyName))
             .AppendLine("Changes(previousValue);");
 
-        if (notification.IsObservable)
-        {
-            if (notification.NotifyMethod is null)
-                builder
-                    .Append("        PropertyChanged?.Invoke(nameof(")
-                    .Append(propertyName)
-                    .AppendLine("));");
-            else
-                builder
-                    .Append("        ")
-                    .Append(EscapeIdentifier(notification.NotifyMethod))
-                    .Append("(nameof(")
-                    .Append(propertyName)
-                    .AppendLine("));");
-        }
+        builder
+            .Append("        ")
+            .Append(EscapeIdentifier(notification.NotifyMethod!))
+            .Append("(nameof(")
+            .Append(propertyName)
+            .AppendLine("));");
 
         if (generatesChangedEvent)
             builder
@@ -1114,7 +1100,7 @@ public sealed class ObservableGenerator : IIncrementalGenerator
         builder.AppendLine("    /// <param name=\"value\">The value to assign.</param>");
         builder
             .Append("    ")
-            .Append(plan.HasPartialSetter ? "protected partial void " : "protected virtual void ")
+            .Append("protected virtual void ")
             .Append(setterName)
             .Append('(')
             .Append(typeName)
@@ -1250,24 +1236,58 @@ public sealed class ObservableGenerator : IIncrementalGenerator
         foreach (var candidateType in GetBaseTypeHierarchy(type))
         {
             foreach (
-                var method in candidateType.GetMembers("OnPropertyChanged").OfType<IMethodSymbol>()
+                var method in candidateType
+                    .GetMembers("NotifyPropertyChanged")
+                    .OfType<IMethodSymbol>()
             )
             {
-                if (
-                    IsAccessibleFromGeneratedType(method, type, compilation)
-                    && !method.IsStatic
-                    && method.ReturnsVoid
-                    && !method.IsGenericMethod
-                    && method.Parameters.Length == 1
-                    && method.Parameters[0].RefKind == RefKind.None
-                    && SymbolEqualityComparer.Default.Equals(method.Parameters[0].Type, stringType)
-                )
+                if (CanNotifyPropertyChanged(method, type, compilation, stringType))
                     return method.Name;
             }
         }
 
         return null;
     }
+
+    /// <summary>
+    /// Finds a compatible notification method declared by the class that owns the event.
+    /// </summary>
+    /// <param name="type">The class that declares the event.</param>
+    /// <param name="compilation">The consuming compilation.</param>
+    /// <returns>The method name when a compatible method is declared.</returns>
+    private static string? FindDeclaredNotificationMethod(
+        INamedTypeSymbol type,
+        Compilation compilation
+    )
+    {
+        var stringType = compilation.GetSpecialType(SpecialType.System_String);
+        return type.GetMembers("NotifyPropertyChanged")
+            .OfType<IMethodSymbol>()
+            .FirstOrDefault(method => CanNotifyPropertyChanged(method, type, compilation, stringType))
+            ?.Name;
+    }
+
+    /// <summary>
+    /// Checks whether a notification method can be called from generated code.
+    /// </summary>
+    /// <param name="method">The candidate method.</param>
+    /// <param name="type">The generated class.</param>
+    /// <param name="compilation">The consuming compilation.</param>
+    /// <param name="stringType">The compilation's string type symbol.</param>
+    /// <returns><see langword="true"/> when the method accepts one string and returns void.</returns>
+    private static bool CanNotifyPropertyChanged(
+        IMethodSymbol method,
+        INamedTypeSymbol type,
+        Compilation compilation,
+        ITypeSymbol stringType
+    ) =>
+        IsAccessibleFromGeneratedType(method, type, compilation)
+        && !method.IsStatic
+        && method.ReturnsVoid
+        && !method.IsGenericMethod
+        && method.Parameters.Length == 1
+        && method.Parameters[0].RefKind == RefKind.None
+        && SymbolEqualityComparer.Default.Equals(method.Parameters[0].Type, stringType);
 
     /// <summary>
     /// Determines whether a method can be called from generated code in the target type.

@@ -168,7 +168,7 @@ public unsafe class CommandFactory(
                             descriptorSet,
                             binding.Binding,
                             uniformBuffer,
-                            uniformData.Span,
+                            uniformData.AsSpan(),
                             DescribeUniformSemantic(vertexShader.UniformLayout),
                             "Initial"
                         );
@@ -313,7 +313,7 @@ public unsafe class CommandFactory(
                 uniform.DescriptorSet,
                 uniform.Binding,
                 buffer,
-                data.Span,
+                data.AsSpan(),
                 DescribeUniformSemantic(layout),
                 "Final"
             );

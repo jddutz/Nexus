@@ -1,7 +1,7 @@
 namespace Nexus.Core;
 
 /// <summary>
-/// Marks an instance field for generation of a read-only property and change notification.
+/// Marks an instance field for generation of an observable property and change notification.
 /// </summary>
 /// <param name="propertyName">An optional property name that overrides field-name derivation.</param>
 [AttributeUsage(AttributeTargets.Field)]
@@ -13,7 +13,7 @@ public sealed class ObservableAttribute(string? propertyName = null) : Attribute
     public string? PropertyName { get; } = propertyName;
 
     /// <summary>
-    /// Gets or sets whether the generated setter method is public.
+    /// Gets or sets whether the generated property setter is public.
     /// </summary>
     public bool PublicSetter { get; set; } = true;
 

@@ -5,6 +5,9 @@ namespace Nexus.Game;
 /// </summary>
 public partial class Scene : IScene
 {
+    /// <inheritdoc />
+    public event Action<string>? PropertyChanged;
+
     /// <summary>Initializes a scene with a generated identifier.</summary>
     public Scene()
         : this(NodeId.New()) { }
@@ -151,7 +154,7 @@ public partial class Scene : IScene
         if (_isInitialized)
             return;
 
-        SetIsInitialized(true);
+        IsInitialized = true;
     }
 
     [Observable(PublicSetter = false)]
@@ -166,7 +169,7 @@ public partial class Scene : IScene
         if (IsActivated || !CanActivate())
             return;
 
-        SetIsActivated(true);
+        IsActivated = true;
     }
 
     /// <inheritdoc />
@@ -178,7 +181,7 @@ public partial class Scene : IScene
         if (!IsActivated)
             return;
 
-        SetIsActivated(false);
+        IsActivated = false;
     }
 
     private void OnChildAdded(ISceneNode node)

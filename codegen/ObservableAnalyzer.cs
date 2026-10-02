@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
+using Microsoft.CodeAnalysis.Operations;
 
 namespace Nexus.SourceGenerators;
 
@@ -22,11 +23,20 @@ public sealed class ObservableAnalyzer : DiagnosticAnalyzer
         true
     );
 
+    private static readonly DiagnosticDescriptor DirectBackingFieldAccess = new(
+        "NXS013",
+        "Observable backing field accessed directly",
+        "Direct access to observable backing field '{0}' bypasses property notifications",
+        "Nexus.Observable",
+        DiagnosticSeverity.Warning,
+        true
+    );
+
     /// <summary>
     /// Gets the diagnostics supported by this analyzer.
     /// </summary>
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics =>
-        ImmutableArray.Create(InvalidPropertyChangedEvent);
+        ImmutableArray.Create(InvalidPropertyChangedEvent, DirectBackingFieldAccess);
 
     /// <summary>
     /// Registers the observable event validation analysis.
@@ -47,12 +57,53 @@ public sealed class ObservableAnalyzer : DiagnosticAnalyzer
             if (observableAttribute is null || observableInterface is null)
                 return;
 
+            startContext.RegisterOperationAction(
+                operationContext =>
+                    AnalyzeFieldReference(
+                        operationContext,
+                        observableAttribute,
+                        observableInterface
+                    ),
+                OperationKind.FieldReference
+            );
+
             startContext.RegisterSymbolAction(
                 symbolContext =>
                     AnalyzeType(symbolContext, observableAttribute, observableInterface),
                 SymbolKind.NamedType
             );
         });
+    }
+
+    /// <summary>
+    /// Warns when source code accesses an observable backing field directly.
+    /// </summary>
+    /// <param name="context">The field-reference analysis context.</param>
+    /// <param name="observableAttribute">The exact ObservableAttribute symbol.</param>
+    private static void AnalyzeFieldReference(
+        OperationAnalysisContext context,
+        INamedTypeSymbol observableAttribute,
+        INamedTypeSymbol observableInterface
+    )
+    {
+        if (
+            context.Operation is not IFieldReferenceOperation fieldReference
+            || !fieldReference.Field.ContainingType.AllInterfaces.Any(candidate =>
+                SymbolEqualityComparer.Default.Equals(candidate, observableInterface)
+            )
+            || !fieldReference.Field.GetAttributes().Any(attribute =>
+                SymbolEqualityComparer.Default.Equals(attribute.AttributeClass, observableAttribute)
+            )
+        )
+            return;
+
+        context.ReportDiagnostic(
+            Diagnostic.Create(
+                DirectBackingFieldAccess,
+                fieldReference.Syntax.GetLocation(),
+                fieldReference.Field.Name
+            )
+        );
     }
 
     /// <summary>

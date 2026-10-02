@@ -17,13 +17,13 @@ public sealed class TextureComponentInstanceDataTests
     /// Verifies that the demo grid serializes one complete, distinct, and source-equivalent record per quad.
     /// </summary>
     [Fact]
-    public void GetInstanceData_DemoGrid_ProducesCompleteDistinctSourceEquivalentRecords()
+    public void WriteInstanceDataTo_DemoGrid_ProducesCompleteDistinctSourceEquivalentRecords()
     {
         var layout = BuiltInShaders.TexturedQuadVertexShader.InstanceLayout;
         var components = CreateDemoGrid();
         var drawables = components.Select(component => component.Drawables.Single()).ToArray();
         var records = drawables
-            .Select(drawable => drawable.GetInstanceData(layout).ToArray())
+            .Select(drawable => Tests.DrawableTestData.ReadInstances(drawable, layout).ToArray())
             .ToArray();
 
         Assert.Equal(144, records.Length);
@@ -68,7 +68,7 @@ public sealed class TextureComponentInstanceDataTests
     [Fact]
     public void PropertyChanges_raise_matching_drawable_events()
     {
-        var renderer = new TextureComponent();
+        var renderer = new TextureComponent(CreateTexture());
         var drawable = renderer.Drawables.Single();
         var renderLayerChanges = 0;
         var samplingBehaviorChanges = 0;
@@ -113,7 +113,7 @@ public sealed class TextureComponentInstanceDataTests
                 var atlasIndex = index % (atlasColumns * atlasRows);
                 var centerX = -1.0f + (x + 0.5f) * cellWidth;
                 var centerY = -1.0f + (y + 0.5f) * cellHeight;
-                var renderer = new TextureComponent(centered: true)
+                var renderer = new TextureComponent(CreateTexture())
                 {
                     TexCoord = new(
                         (atlasIndex % atlasColumns) * regionWidth,
@@ -149,7 +149,7 @@ public sealed class TextureComponentInstanceDataTests
         };
         var drawable = component.Drawables.Single();
         var layout = BuiltInShaders.TexturedQuadVertexShader.InstanceLayout;
-        var data = drawable.GetInstanceData(layout).ToArray();
+        var data = Tests.DrawableTestData.ReadInstances(drawable, layout).ToArray();
         var transformOffset = GetOffset(layout, InputSemantics.Transform);
         var textureRegionOffset = GetOffset(layout, InputSemantics.TextureRegion);
 
@@ -168,17 +168,16 @@ public sealed class TextureComponentInstanceDataTests
 
         Assert.Equal(7.5f, topLeftTransform.M11);
         Assert.Equal(6f, topLeftTransform.M22);
-        Assert.Equal(0.205f, topLeftRegion.X, 6);
-        Assert.Equal(0.10625f, topLeftRegion.Y, 6);
-        Assert.Equal(0.095f, topLeftRegion.Z, 6);
-        Assert.Equal(0.09375f, topLeftRegion.W, 6);
+        Assert.Equal(0.2f, topLeftRegion.X, 6);
+        Assert.Equal(0.1f, topLeftRegion.Y, 6);
+        Assert.Equal(0.1f, topLeftRegion.Z, 6);
+        Assert.Equal(0.1f, topLeftRegion.W, 6);
         Assert.Equal(0.3f, centerRegion.X);
         Assert.Equal(0.2f, centerRegion.Y);
         Assert.Equal(0.3f, centerRegion.Z);
         Assert.Equal(0.3f, centerRegion.W);
-        Assert.Throws<ArgumentOutOfRangeException>(() =>
-            component.SourceBorders = new(26f, 0f, 25f, 0f)
-        );
+        component.SourceBorders = new(26f, 0f, 25f, 0f);
+        Assert.Empty(component.Drawables);
     }
 
     /// <summary>Verifies source borders remain fixed while the center stretches.</summary>
@@ -193,7 +192,7 @@ public sealed class TextureComponentInstanceDataTests
         };
         var drawable = component.Drawables.Single();
         var layout = BuiltInShaders.TexturedQuadVertexShader.InstanceLayout;
-        var data = drawable.GetInstanceData(layout).ToArray();
+        var data = Tests.DrawableTestData.ReadInstances(drawable, layout).ToArray();
         var transformOffset = GetOffset(layout, InputSemantics.Transform);
         var textureRegionOffset = GetOffset(layout, InputSemantics.TextureRegion);
         var topLeftTransform = MemoryMarshal.Read<Matrix4X4<float>>(
@@ -205,22 +204,20 @@ public sealed class TextureComponentInstanceDataTests
 
         Assert.Equal(64f, topLeftTransform.M11);
         Assert.Equal(19f, topLeftTransform.M22);
-        Assert.Equal(63.5f / 384f, topLeftRegion.Z, 6);
-        Assert.Equal(63.5f / 128f, topLeftRegion.W, 6);
+        Assert.Equal(64f / 384f, topLeftRegion.Z, 6);
+        Assert.Equal(64f / 128f, topLeftRegion.W, 6);
     }
 
     /// <summary>Verifies destination coordinates are packed without owner or local transforms.</summary>
     [Fact]
     public void Destination_packs_explicit_rectangle()
     {
-        var component = new TextureComponent
+        var component = new TextureComponent(CreateTexture())
         {
             Destination = new Rectangle<float>(10f, 20f, 30f, 40f),
         };
 
-        var data = new byte[component.GetInstanceData(0, Span<byte>.Empty)];
-        component.GetInstanceData(0, data);
-        var transform = MemoryMarshal.Read<Matrix4X4<float>>(data);
+        var transform = ReadTransform(component);
 
         Assert.Equal(30f, transform.M11);
         Assert.Equal(40f, transform.M22);
@@ -228,33 +225,30 @@ public sealed class TextureComponentInstanceDataTests
         Assert.Equal(20f, transform.M42);
     }
 
-    /// <summary>Verifies centered and corner meshes describe the same destination extents.</summary>
+    /// <summary>Verifies component and direct drawable serialization use the same explicit destination.</summary>
     [Fact]
-    public void Centered_and_corner_meshes_pack_equal_destination_extents()
+    public void Component_and_drawable_pack_equal_destination_extents()
     {
         var destination = new Rectangle<float>(10f, 20f, 30f, 40f);
-        var corner = new TextureComponent { Destination = destination };
-        var centered = new TextureComponent(true) { Destination = destination };
-        var cornerData = new byte[corner.GetInstanceData(0, Span<byte>.Empty)];
-        var centeredData = new byte[centered.GetInstanceData(0, Span<byte>.Empty)];
-        corner.GetInstanceData(0, cornerData);
-        centered.GetInstanceData(0, centeredData);
+        var texture = CreateTexture();
+        var component = new TextureComponent(texture) { Destination = destination };
+        var drawable = new TexturedQuad(texture) { Destination = destination };
+        var layout = BuiltInShaders.TexturedQuadVertexShader.InstanceLayout;
+        var data = Tests.DrawableTestData.ReadInstances(drawable, layout);
+        var transform = MemoryMarshal.Read<Matrix4X4<float>>(data.Span);
 
-        var cornerTransform = MemoryMarshal.Read<Matrix4X4<float>>(cornerData);
-        var centeredTransform = MemoryMarshal.Read<Matrix4X4<float>>(centeredData);
-        Assert.Equal(cornerTransform.M11, centeredTransform.M11);
-        Assert.Equal(cornerTransform.M22, centeredTransform.M22);
-        Assert.Equal(destination.Origin.X, cornerTransform.M41);
-        Assert.Equal(destination.Origin.Y, cornerTransform.M42);
-        Assert.Equal(destination.Origin.X + destination.Size.X / 2f, centeredTransform.M41);
-        Assert.Equal(destination.Origin.Y + destination.Size.Y / 2f, centeredTransform.M42);
+        Assert.Equal(ReadTransform(component), transform);
+        Assert.Equal(destination.Size.X, transform.M11);
+        Assert.Equal(destination.Size.Y, transform.M22);
+        Assert.Equal(destination.Origin.X, transform.M41);
+        Assert.Equal(destination.Origin.Y, transform.M42);
     }
 
     /// <summary>Verifies destination changes notify once and equal assignments are ignored.</summary>
     [Fact]
     public void Destination_changes_raise_instance_data_event_only_when_changed()
     {
-        var component = new TextureComponent();
+        var component = new TextureComponent(CreateTexture());
         var drawable = component.Drawables.Single();
         var changes = 0;
         drawable.InstanceDataChanged += (_, _) => changes++;
@@ -266,28 +260,28 @@ public sealed class TextureComponentInstanceDataTests
         Assert.Equal(1, changes);
     }
 
-    /// <summary>Verifies invalid destination origins and extents are rejected.</summary>
+    /// <summary>Verifies invalid destinations remove the drawable and valid state recreates it.</summary>
     [Fact]
-    public void Destination_rejects_nonfinite_or_nonpositive_values()
+    public void Destination_invalid_values_remove_drawable_until_state_is_valid()
     {
-        var component = new TextureComponent();
+        var component = new TextureComponent(CreateTexture());
+        var previous = Assert.Single(component.Drawables);
 
-        Assert.Throws<ArgumentOutOfRangeException>(() =>
-            component.Destination = new Rectangle<float>(float.NaN, 0f, 1f, 1f)
-        );
-        Assert.Throws<ArgumentOutOfRangeException>(() =>
-            component.Destination = new Rectangle<float>(0f, 0f, 0f, 1f)
-        );
-        Assert.Throws<ArgumentOutOfRangeException>(() =>
-            component.Destination = new Rectangle<float>(0f, 0f, 1f, float.PositiveInfinity)
-        );
+        component.Destination = new Rectangle<float>(float.NaN, 0f, 1f, 1f);
+        Assert.Empty(component.Drawables);
+        component.Destination = new Rectangle<float>(0f, 0f, 0f, 1f);
+        Assert.Empty(component.Drawables);
+        component.Destination = new Rectangle<float>(0f, 0f, 1f, float.PositiveInfinity);
+        Assert.Empty(component.Drawables);
+        component.Destination = new Rectangle<float>(0f, 0f, 1f, 1f);
+        Assert.NotSame(previous, Assert.Single(component.Drawables));
     }
 
     /// <summary>Verifies changing the owner does not move explicit destination geometry.</summary>
     [Fact]
     public void Owner_changes_do_not_move_destination_geometry()
     {
-        var component = new TextureComponent
+        var component = new TextureComponent(CreateTexture())
         {
             Destination = new Rectangle<float>(10f, 20f, 30f, 40f),
         };
@@ -305,10 +299,16 @@ public sealed class TextureComponentInstanceDataTests
     /// <returns>The packed transform.</returns>
     private static Matrix4X4<float> ReadTransform(TextureComponent component)
     {
-        var data = new byte[component.GetInstanceData(0, Span<byte>.Empty)];
-        component.GetInstanceData(0, data);
-        return MemoryMarshal.Read<Matrix4X4<float>>(data);
+        var data = Tests.DrawableTestData.ReadInstances(
+            Assert.Single(component.Drawables),
+            BuiltInShaders.TexturedQuadVertexShader.InstanceLayout
+        );
+        return MemoryMarshal.Read<Matrix4X4<float>>(data.Span);
     }
+
+    /// <summary>Creates a texture required to produce a textured drawable.</summary>
+    /// <returns>A single white texel.</returns>
+    private static Texture CreateTexture() => new("test", 1, 1, [Colors.White]);
 
     /// <summary>
     /// Gets the byte offset of an input semantic in an instance layout.

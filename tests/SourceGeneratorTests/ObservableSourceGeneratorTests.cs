@@ -83,7 +83,7 @@ public sealed class ObservableSourceGeneratorTests
                 generated
                     .SourceText.ToString()
                     .Contains(
-                        "protected virtual void OnPropertyChanged(string propertyName)",
+                        "protected void NotifyPropertyChanged(string propertyName)",
                         StringComparison.Ordinal
                     )
         );
@@ -120,8 +120,10 @@ public sealed class ObservableSourceGeneratorTests
                         public void ScheduleReentrantChange(int value) => _reentrantValue = value;
                     }
 
-                    public partial class PlainTarget
+                    public partial class PlainTarget : IObservable
                     {
+                        public event Action<string>? PropertyChanged;
+
                         [Nexus.Core.Observable]
                         private string _displayName = "initial";
 
@@ -134,6 +136,8 @@ public sealed class ObservableSourceGeneratorTests
 
                     public partial class GeneratedNotificationTarget : IObservable
                     {
+                        public event Action<string>? PropertyChanged;
+
                         [Nexus.Core.Observable]
                         private int _amount;
                     }
@@ -154,7 +158,13 @@ public sealed class ObservableSourceGeneratorTests
                             var target = new ObservableTarget();
                             var propertyNotifications = new List<string>();
                             var valueChanges = new List<string>();
-                            target.PropertyChanged += propertyNotifications.Add;
+                            target.PropertyChanged += name =>
+                            {
+                                propertyNotifications.Add(name);
+                                target.Calls.Add("notify:" + name);
+                            };
+                            target.CountChanged += (previous, current) =>
+                                target.Calls.Add($"changed:{previous}:{current}");
                             target.CountChanged += (previous, current) => valueChanges.Add($"{previous}:{current}");
                             target.Count = 3;
                             target.Count = -1;
@@ -204,8 +214,24 @@ public sealed class ObservableSourceGeneratorTests
         var output = (string)runMethod.Invoke(null, null)!;
 
         Assert.Equal(
-            "after:3,after:-1" + "|Count,Count|3:-1,-1:5|9|updated|initial:updated|True|Amount|4",
+            "after:3,notify:Count,changed:3:-1,after:-1,notify:Count,changed:-1:5"
+                + "|Count,Count|3:-1,-1:5|9|updated|initial:updated|False|Amount|4",
             output
+        );
+
+        var observableSource = Assert.Single(
+            result.GeneratedSources,
+            generated =>
+                generated
+                    .SourceText.ToString()
+                    .Contains("class ObservableTarget", StringComparison.Ordinal)
+        ).SourceText.ToString();
+        Assert.Contains("private void __SetCount(int value)", observableSource, StringComparison.Ordinal);
+        Assert.Contains("protected virtual void SetCount(int value)", observableSource, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "event global::System.Action<string> PropertyChanged",
+            observableSource,
+            StringComparison.Ordinal
         );
     }
 
@@ -220,8 +246,10 @@ public sealed class ObservableSourceGeneratorTests
             + """
                 namespace Probe
                 {
-                    public partial class Target
+                    public partial class Target : IObservable
                     {
+                        public event Action<string>? PropertyChanged;
+
                         [Nexus.Core.Observable]
                         private int _value;
                         public int HookCalls { get; private set; }
@@ -338,8 +366,10 @@ public sealed class ObservableSourceGeneratorTests
             + """
                 namespace Probe
                 {
-                    public partial class Target
+                    public partial class Target : IObservable
                     {
+                        public event Action<string>? PropertyChanged;
+
                         [Nexus.Core.Observable(PublicSetter = false)]
                         private int _internal;
 
@@ -379,18 +409,20 @@ public sealed class ObservableSourceGeneratorTests
     }
 
     /// <summary>
-    /// Verifies a partial protected setter declaration is completed by the generator.
+    /// Verifies partial setter declarations conflict with the generated virtual mutation method.
     /// </summary>
     [Fact]
-    public void PartialProtectedSetterDeclarationIsImplemented()
+    public void PartialProtectedSetterDeclarationProducesConflict()
     {
         var source =
             ObservableContract
             + """
                 namespace Probe
                 {
-                    public partial class Target
+                    public partial class Target : IObservable
                     {
+                        public event Action<string>? PropertyChanged;
+
                         [Nexus.Core.Observable]
                         private bool _isBooleanProperty;
 
@@ -401,24 +433,8 @@ public sealed class ObservableSourceGeneratorTests
 
         var result = RunGenerator(source);
 
-        Assert.DoesNotContain(
-            result.Diagnostics,
-            diagnostic => diagnostic.Severity == DiagnosticSeverity.Error
-        );
-        Assert.DoesNotContain(
-            result.Compilation.GetDiagnostics(),
-            diagnostic => diagnostic.Severity == DiagnosticSeverity.Error
-        );
-        Assert.Contains(
-            result.GeneratedSources,
-            generated =>
-                generated
-                    .SourceText.ToString()
-                    .Contains(
-                        "protected partial void SetIsBooleanProperty(bool value)",
-                        StringComparison.Ordinal
-                    )
-        );
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Id == "NXS012");
+        Assert.Empty(result.GeneratedSources);
     }
 
     /// <summary>
@@ -432,8 +448,10 @@ public sealed class ObservableSourceGeneratorTests
             + """
                 namespace Probe
                 {
-                    public partial class Target
+                    public partial class Target : IObservable
                     {
+                        public event Action<string>? PropertyChanged;
+
                         [Nexus.Core.Observable]
                         private int _value;
 
@@ -475,8 +493,10 @@ public sealed class ObservableSourceGeneratorTests
             + """
                 namespace Probe
                 {
-                    public class NotPartial
+                    public class NotPartial : IObservable
                     {
+                        public event Action<string>? PropertyChanged;
+
                         [Nexus.Core.Observable]
                         private int _value;
                     }
@@ -500,8 +520,10 @@ public sealed class ObservableSourceGeneratorTests
             + """
                 namespace Probe
                 {
-                    public partial class Target
+                    public partial class Target : IObservable
                     {
+                        public event Action<string>? PropertyChanged;
+
                         [Nexus.Core.Observable("ExplicitName")]
                         private int _value;
 
@@ -615,8 +637,10 @@ public sealed class ObservableSourceGeneratorTests
             + $$"""
                 namespace Probe
                 {
-                    public partial class Target
+                    public partial class Target : IObservable
                     {
+                        public event Action<string>? PropertyChanged;
+
                         {{members}}
                     }
                 }
@@ -639,8 +663,11 @@ public sealed class ObservableSourceGeneratorTests
             + """
                 namespace Probe
                 {
-                    public class Base
+                    public class Base : IObservable
                     {
+                        public event Action<string>? PropertyChanged;
+                        protected void NotifyPropertyChanged(string propertyName) =>
+                            PropertyChanged?.Invoke(propertyName);
                         public int Value => 1;
                         public virtual void SetCurrent(int value) { }
                         public event Action<int, int>? NameChanged;
@@ -686,7 +713,7 @@ public sealed class ObservableSourceGeneratorTests
                     {
                         public event Action<string>? PropertyChanged;
                         public List<string> Calls { get; } = new();
-                        protected void OnPropertyChanged(string propertyName) => PropertyChanged?.Invoke(propertyName);
+                        protected void NotifyPropertyChanged(string propertyName) => PropertyChanged?.Invoke(propertyName);
                         protected void AfterValueChanges(int previousValue) => Calls.Add("after");
                     }
 
@@ -754,11 +781,17 @@ public sealed class ObservableSourceGeneratorTests
             {
                 [AttributeUsage(AttributeTargets.Field)]
                 public sealed class ObservableAttribute : Attribute { }
+
+                public interface IObservable
+                {
+                    event Action<string> PropertyChanged;
+                }
             }
             namespace Probe
             {
-                public partial class Target
+                public partial class Target : Nexus.Core.IObservable
                 {
+                    public event Action<string> PropertyChanged;
                     [Nexus.Core.Observable]
                     private int _value;
                 }
@@ -783,11 +816,17 @@ public sealed class ObservableSourceGeneratorTests
             {
                 [AttributeUsage(AttributeTargets.Field)]
                 public sealed class ObservableAttribute : Attribute { }
+
+                public interface IObservable
+                {
+                    event Action<string> PropertyChanged;
+                }
             }
             namespace Probe
             {
-                public partial class Target
+                public partial class Target : Nexus.Core.IObservable
                 {
+                    public event Action<string> PropertyChanged;
                     [Nexus.Core.Observable]
                     private int _value;
                 }
@@ -818,11 +857,17 @@ public sealed class ObservableSourceGeneratorTests
             {
                 [AttributeUsage(AttributeTargets.Field)]
                 public sealed class ObservableAttribute : Attribute { }
+
+                public interface IObservable
+                {
+                    event Action<string> PropertyChanged;
+                }
             }
             namespace Probe
             {
-                public partial class Target
+                public partial class Target : Nexus.Core.IObservable
                 {
+                    public event Action<string> PropertyChanged;
                     [Nexus.Core.Observable]
                     private object _value = new();
                 }
@@ -857,8 +902,10 @@ public sealed class ObservableSourceGeneratorTests
             + """
                 namespace Probe
                 {
-                    public partial class Target
+                    public partial class Target : IObservable
                     {
+                        public event Action<string>? PropertyChanged;
+
                         [Nexus.Core.Observable]
                         private string? _value;
                     }
@@ -900,6 +947,56 @@ public sealed class ObservableSourceGeneratorTests
     }
 
     /// <summary>
+    /// Verifies generation is limited to observable classes and never supplies a missing event.
+    /// </summary>
+    [Fact]
+    public void GenerationRequiresObservableContractAndAuthoredEvent()
+    {
+        var source =
+            ObservableContract
+            + """
+                namespace Probe
+                {
+                    public partial class Unrelated
+                    {
+                        [Nexus.Core.Observable]
+                        private int _value;
+                    }
+
+                    public partial class MissingEvent : IObservable
+                    {
+                        [Nexus.Core.Observable]
+                        private int _value;
+                    }
+
+                    public partial class Valid : IObservable
+                    {
+                        public event Action<string>? PropertyChanged;
+
+                        [Nexus.Core.Observable]
+                        private int _value;
+                    }
+                }
+                """;
+
+        var result = RunGenerator(source);
+
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+        Assert.Contains("partial class Valid", generated, StringComparison.Ordinal);
+        Assert.DoesNotContain("partial class Unrelated", generated, StringComparison.Ordinal);
+        Assert.DoesNotContain("partial class MissingEvent", generated, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "event global::System.Action<string> PropertyChanged",
+            generated,
+            StringComparison.Ordinal
+        );
+        Assert.Contains(
+            result.Compilation.GetDiagnostics(),
+            diagnostic => diagnostic.Id == "CS0535"
+        );
+    }
+
+    /// <summary>
     /// Verifies the analyzer reports an invalid existing IObservable event signature.
     /// </summary>
     [Fact]
@@ -922,6 +1019,50 @@ public sealed class ObservableSourceGeneratorTests
             .GetAnalyzerDiagnosticsAsync();
 
         Assert.Contains(diagnostics, diagnostic => diagnostic.Id == "NXS009");
+    }
+
+    /// <summary>
+    /// Verifies direct backing-field reads and writes produce analyzer warnings.
+    /// </summary>
+    [Fact]
+    public async Task AnalyzerWarnsAboutDirectObservableBackingFieldAccess()
+    {
+        var source =
+            ObservableContract
+            + """
+                namespace Probe
+                {
+                    public class Unrelated
+                    {
+                        [Nexus.Core.Observable]
+                        private int _ignored;
+
+                        public int Read() => _ignored;
+                    }
+
+                    public class Target : IObservable
+                    {
+                        public event Action<string>? PropertyChanged;
+
+                        [Nexus.Core.Observable]
+                        private int _value;
+
+                        public int Read() => _value;
+                        public void Write(int value) => _value = value;
+                    }
+                }
+                """;
+        var compilation = CreateCompilation(source, LanguageVersion.CSharp12);
+        var diagnostics = await compilation
+            .WithAnalyzers(ImmutableArray.Create<DiagnosticAnalyzer>(new ObservableAnalyzer()))
+            .GetAnalyzerDiagnosticsAsync();
+
+        var backingFieldWarnings = diagnostics.Where(diagnostic => diagnostic.Id == "NXS013");
+        Assert.Equal(2, backingFieldWarnings.Count());
+        Assert.All(
+            backingFieldWarnings,
+            diagnostic => Assert.Equal(DiagnosticSeverity.Warning, diagnostic.Severity)
+        );
     }
 
     /// <summary>

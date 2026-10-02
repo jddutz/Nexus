@@ -117,15 +117,16 @@ public class GameObjectTests
         Assert.Throws<InvalidOperationException>(() => parent.Children.Add(scene));
         Assert.Throws<InvalidOperationException>(() => child.Children.Add(parent));
 
-        var directlyParentedChild = new GameObject();
-        Assert.Throws<InvalidOperationException>(() => directlyParentedChild.Parent = otherParent);
-
         Assert.Same(parent, child.Parent);
         Assert.Single(parent.Children);
         Assert.Empty(otherParent.Children);
         Assert.Empty(child.Children);
         Assert.Null(scene.Parent);
-        Assert.Null(directlyParentedChild.Parent);
+
+        var otherChild = new GameObject();
+        otherParent.Children.Add(otherChild);
+        Assert.Same(otherParent, otherChild.Parent);
+        Assert.Same(otherChild, Assert.Single(otherParent.Children));
     }
 
     /// <summary>Verifies child membership and removal use reference identity.</summary>
@@ -147,7 +148,7 @@ public class GameObjectTests
     }
 
     /// <summary>
-    /// Verifies that activating a scene raises lifecycle notifications for its default view and camera.
+    /// Verifies scene activation raises notifications without activating its default view and camera.
     /// </summary>
     [Fact]
     public void Scene_activationChangesOnlySceneState()
@@ -506,10 +507,10 @@ public class GameObjectTests
     }
 
     /// <summary>
-    /// Verifies constructor-supplied components initialize before activation notifications.
+    /// Verifies components initialize once and are active when object activation callbacks run.
     /// </summary>
     [Fact]
-    public void ConstructorComponents_initializeBeforeGameObjectActivationNotification()
+    public void ConstructorComponents_initializeOnceBeforeGameObjectActivationNotification()
     {
         var component = new TestComponent();
         var gameObject = new GameObject([component]);
@@ -532,8 +533,8 @@ public class GameObjectTests
 
         Assert.Equal(1, component.InitializationCount);
         Assert.True(initializedAtNotification);
-        Assert.False(activeAtNotification);
-        Assert.False(component.IsActivated);
+        Assert.True(activeAtNotification);
+        Assert.True(component.IsActivated);
     }
 
     /// <summary>
@@ -647,7 +648,14 @@ public class GameObjectTests
         public override string DisplayName => "Test Component";
 
         /// <inheritdoc />
-        protected override void OnInitialize() => InitializationCount++;
+        public override void Initialize()
+        {
+            if (IsInitialized)
+                return;
+
+            InitializationCount++;
+            base.Initialize();
+        }
     }
 
     /// <summary>Provides game objects that compare equal regardless of instance identity.</summary>

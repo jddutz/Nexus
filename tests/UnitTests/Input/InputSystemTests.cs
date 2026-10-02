@@ -726,7 +726,7 @@ public class InputSystemTests
     {
         /// <summary>Changes the current scene using the protected generated setter.</summary>
         /// <param name="scene">The scene to activate, or <see langword="null"/>.</param>
-        public void SwitchScene(IScene? scene) => SetCurrentScene(scene);
+        public void SwitchScene(IScene? scene) => CurrentScene = scene;
     }
 
     /// <summary>

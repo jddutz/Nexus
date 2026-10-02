@@ -31,10 +31,9 @@ public partial class TextButton : Element
     private readonly ulong _backgroundRenderLayerMask;
     private readonly ulong _textRenderLayerMask;
     private readonly Vector4D<float> _sourceBorders;
-    private readonly Vector4D<float>? _destinationBorders;
     private readonly ISamplingBehavior _samplingBehavior;
     private NinePatchComponent? _background;
-    private TextComponent? _text;
+    private GuiTextComponent? _text;
     private float _horizontalPadding;
     private float _verticalPadding;
 
@@ -55,7 +54,7 @@ public partial class TextButton : Element
             throw new ArgumentOutOfRangeException(nameof(value));
     }
 
-    private void AfterLabelChanges(string previousValue)
+    protected virtual partial void AfterLabelChanges(string previousValue)
     {
         if (_text is not null)
             _text.Text = Label;
@@ -85,7 +84,7 @@ public partial class TextButton : Element
 
             _horizontalPadding = value.X;
             _verticalPadding = value.Y;
-            OnPropertyChanged(nameof(Padding));
+            NotifyPropertyChanged(nameof(Padding));
         }
     }
 
@@ -144,7 +143,7 @@ public partial class TextButton : Element
     private void CreateVisualComponents()
     {
         var background = new NinePatchComponent { };
-        var text = new TextComponent(_textStyle) { };
+        var text = new GuiTextComponent(_textStyle);
         background.Texture = _texture;
         background.RenderLayerMask = _backgroundRenderLayerMask;
         background.SamplingBehavior = _samplingBehavior;
@@ -222,12 +221,7 @@ public partial class TextButton : Element
     }
 
     /// <inheritdoc />
-    protected override void OnPropertyChanged(string propertyName)
-    {
-        base.OnPropertyChanged(propertyName);
-        if (propertyName == nameof(IsVisible))
-            UpdateVisualComponents();
-    }
+    protected override void AfterIsVisibleChanges() => UpdateVisualComponents();
 
     /// <inheritdoc />
     public override Vector2D<float> Measure(Vector2D<float> constraint)
@@ -310,7 +304,7 @@ public partial class TextButton : Element
 
         for (var lineIndex = 0; lineIndex < lines.Length; lineIndex++)
         {
-            var bounds = new TextSpan(style, lines[lineIndex]).LayoutBounds;
+            var bounds = GuiTextComponent.CreateSpan(style, lines[lineIndex]).LayoutBounds;
             width = MathF.Max(width, bounds.Size.X);
             top = MathF.Min(top, bounds.Origin.Y + lineIndex * lineHeight);
             bottom = MathF.Max(bottom, bounds.Max.Y + lineIndex * lineHeight);
@@ -334,7 +328,7 @@ public partial class TextButton : Element
         foreach (var rune in label.EnumerateRunes())
         {
             var candidate = prefix.ToString() + rune;
-            if (new TextSpan(style, candidate).LayoutBounds.Size.X > availableWidth)
+            if (GuiTextComponent.CreateSpan(style, candidate).LayoutBounds.Size.X > availableWidth)
                 break;
 
             prefix.Append(rune);

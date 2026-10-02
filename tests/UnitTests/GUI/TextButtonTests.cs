@@ -41,11 +41,11 @@ public sealed class TextButtonTests
             first.GetComponent<NinePatchComponent>(),
             second.GetComponent<NinePatchComponent>()
         );
-        Assert.NotSame(first.GetComponent<TextComponent>(), second.GetComponent<TextComponent>());
+        Assert.NotSame(DrawableTestData.TextGraphics(first), DrawableTestData.TextGraphics(second));
         Assert.Equal("B", first.Label);
-        Assert.Equal("B", first.GetComponent<TextComponent>()?.Text);
+        Assert.Equal("B", DrawableTestData.RenderedText(first));
         Assert.Equal("A", second.Label);
-        Assert.Equal("A", second.GetComponent<TextComponent>()?.Text);
+        Assert.Equal("A", DrawableTestData.RenderedText(second));
     }
 
     /// <summary>
@@ -59,7 +59,7 @@ public sealed class TextButtonTests
         Assert.Equal(new Vector2D<float>(10f, 7f), button.Measure(new(100f, 100f)));
         button.Arrange(new Rectangle<float>(0f, 0f, 9f, 7f));
         Assert.Equal("AB", button.Label);
-        Assert.Equal("A", button.GetComponent<TextComponent>()?.Text);
+        Assert.Equal("A", DrawableTestData.RenderedText(button));
 
         Assert.Equal(new Vector2D<float>(10f, 7f), button.Measure(new(100f, 100f)));
     }
@@ -74,7 +74,7 @@ public sealed class TextButtonTests
         var bounds = new Rectangle<float>(4f, 5f, 60f, 24f);
         button.Arrange(bounds);
         var originalBackground = button.GetComponent<NinePatchComponent>();
-        var originalText = button.GetComponent<TextComponent>();
+        var originalText = DrawableTestData.TextGraphics(button);
         var addedComponents = new List<IComponent>();
         var removedComponents = new List<IComponent>();
         scene.Children.Add(parent);
@@ -96,13 +96,13 @@ public sealed class TextButtonTests
         button.IsVisible = true;
 
         var recreatedBackground = button.GetComponent<NinePatchComponent>();
-        var recreatedText = button.GetComponent<TextComponent>();
+        var recreatedText = DrawableTestData.TextGraphics(button);
         Assert.NotNull(recreatedBackground);
         Assert.NotNull(recreatedText);
         Assert.NotSame(originalBackground, recreatedBackground);
         Assert.NotSame(originalText, recreatedText);
-        Assert.Equal("BA", recreatedText.Text);
-        Assert.Equal(4, addedComponents.Count);
+        Assert.Equal("BA", DrawableTestData.RenderedText(button));
+        Assert.Equal(2, addedComponents.Count);
         Assert.Equal(2, removedComponents.Count);
         Assert.Equal(bounds, button.Bounds);
         Assert.Equal(new Vector2D<float>(14f, 11f), button.Measure(new(100f, 100f)));
@@ -135,7 +135,7 @@ public sealed class TextButtonTests
 
         Assert.Equal(bounds, button.Bounds);
         Assert.Equal(bounds, button.GetComponent<NinePatchComponent>()!.Destination);
-        Assert.NotEqual(bounds.Size, button.GetComponent<TextComponent>()!.LayoutBounds.Size);
+        Assert.NotEqual(bounds.Size, DrawableTestData.TextDrawable(button).LayoutBounds.Size);
     }
 
     /// <summary>
@@ -265,10 +265,12 @@ public sealed class TextButtonTests
         );
         Assert.Equal(0, actionCount);
         Assert.True(scene.Children.Remove(button));
+        button.Deactivate();
         eventHub.Publish(new GameObjectDeactivatedEvent(button));
         eventHub.Drain();
 
         scene.Children.Add(button);
+        button.Activate();
         eventHub.Publish(new GameObjectActivatedEvent(button));
         eventHub.Drain();
         Publish(
@@ -366,6 +368,7 @@ public sealed class TextButtonTests
         var scene = new Scene();
         scene.Children.Add(button);
         scene.Activate();
+        button.Activate();
         gui.Initialize();
         eventHub.Publish(new SceneLoadedEvent(scene));
         eventHub.Drain();
@@ -469,7 +472,8 @@ public sealed class TextButtonTests
         public IReadOnlyDictionary<
             (int LeftCodepoint, int RightCodepoint),
             double
-        > Kerning { get; } = new Dictionary<(int, int), double>();
+        > Kerning
+        { get; } = new Dictionary<(int, int), double>();
 
         /// <inheritdoc/>
         public Color Color { get; } = Colors.White;

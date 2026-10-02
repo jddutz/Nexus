@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/codegen/">
+    <Project Path="codegen/Nexus.SourceGenerators.csproj" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="src/AssetPipeline/Nexus.AssetPipeline.csproj" />
     <Project Path="src/Assets/Nexus.Assets.csproj" />
@@ -15,9 +18,6 @@
     <Project Path="src/Platform/Nexus.Platform.csproj" />
     <Project Path="src/Runtime/Nexus.Runtime.csproj" />
     <Project Path="src/Testing/Nexus.Testing.csproj" />
-  </Folder>
-  <Folder Name="/src/SourceGenerators/">
-    <Project Path="src/SourceGenerators/Nexus.SourceGenerators.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/HelloNexus/HelloNexus.csproj" />

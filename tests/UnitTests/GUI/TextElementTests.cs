@@ -50,7 +50,7 @@ public sealed class TextElementTests
         element.Arrange(new Rectangle<float>(0f, 0f, measuredSize.X, measuredSize.Y));
 
         Assert.Equal(new Vector2D<float>(1f, 1f), measuredSize);
-        Assert.Equal("A", element.GetComponent<TextComponent>()!.Text);
+        Assert.Equal("A", DrawableTestData.RenderedText(element));
         Assert.Equal(1f, element.Bounds.Size.Y);
     }
 
@@ -62,7 +62,7 @@ public sealed class TextElementTests
         var element = CreateTextElement("AB");
         var bounds = new Rectangle<float>(2f, 3f, 8f, 4f);
         element.Arrange(bounds);
-        var original = element.GetComponent<TextComponent>();
+        var original = DrawableTestData.TextGraphics(element);
         parent.AddChild(element);
 
         parent.IsVisible = false;
@@ -72,10 +72,10 @@ public sealed class TextElementTests
 
         parent.IsVisible = true;
 
-        var recreated = element.GetComponent<TextComponent>();
+        var recreated = DrawableTestData.TextGraphics(element);
         Assert.NotNull(recreated);
         Assert.NotSame(original, recreated);
-        Assert.Equal("BA", recreated.Text);
+        Assert.Equal("BA", DrawableTestData.RenderedText(element));
         Assert.Equal(new Vector2D<float>(2f, 1f), element.Measure(new(20f, 20f)));
         Assert.Equal(new Rectangle<float>(5f, 4.5f, 2f, 1f), element.Bounds);
         Assert.Equal(new Vector2D<float>(5f, 4.5f), element.Position);
@@ -90,12 +90,12 @@ public sealed class TextElementTests
         element.Arrange(bounds);
 
         element.Text = "AB";
-        Assert.Equal("A\nB", element.GetComponent<TextComponent>()!.Text);
+        Assert.Equal("A\nB", DrawableTestData.RenderedText(element));
         Assert.Equal(new Rectangle<float>(10f, 20f, 1f, 2f), element.Bounds);
         Assert.Equal(new Vector2D<float>(10f, 20f), element.Position);
 
         element.MaximumLines = 1;
-        Assert.Equal("A", element.GetComponent<TextComponent>()!.Text);
+        Assert.Equal("A", DrawableTestData.RenderedText(element));
         Assert.Equal(new Vector2D<float>(10f, 20.5f), element.Position);
         Assert.Equal(new Rectangle<float>(10f, 20.5f, 1f, 1f), element.Bounds);
 
@@ -138,7 +138,8 @@ public sealed class TextElementTests
         public IReadOnlyDictionary<
             (int LeftCodepoint, int RightCodepoint),
             double
-        > Kerning { get; } = new Dictionary<(int, int), double>();
+        > Kerning
+        { get; } = new Dictionary<(int, int), double>();
 
         /// <inheritdoc />
         public Color Color { get; } = Colors.White;

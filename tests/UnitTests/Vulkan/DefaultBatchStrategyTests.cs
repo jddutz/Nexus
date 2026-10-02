@@ -1,5 +1,6 @@
 namespace Tests;
 
+using Nexus.Core;
 using Nexus.Graphics;
 using Nexus.Graphics.Geometry;
 using Nexus.Graphics.Shaders;
@@ -86,50 +87,76 @@ public class DefaultBatchStrategyTests
         public void Record(Vk vk, CommandBuffer commandBuffer) { }
     }
 
+    /// <summary>Provides drawable identity for command ordering tests.</summary>
+    /// <param name="id">The drawable identifier used when comparing commands.</param>
     private sealed class TestDrawable(ulong id) : IDrawable
     {
+        /// <inheritdoc />
         event Action<string>? IObservable.PropertyChanged
         {
             add { }
             remove { }
         }
+        /// <inheritdoc />
         event EventHandler? IDrawable.InstanceDataChanged
         {
             add { }
             remove { }
         }
+        /// <inheritdoc />
         event EventHandler? IDrawable.UniformDataChanged
         {
             add { }
             remove { }
         }
 
+        /// <inheritdoc />
         public DrawableId Id => id;
 
+        /// <inheritdoc />
         public ulong RenderLayerMask => 0;
 
+        /// <inheritdoc />
         public Mesh Mesh => null!;
 
+        /// <inheritdoc />
         public ITexture Texture => null!;
 
+        /// <inheritdoc />
         public ulong InstanceCount => 1;
 
+        /// <inheritdoc />
         public ISamplingBehavior SamplingBehavior => null!;
 
-        public ReadOnlyMemory<byte> GetInstanceData(ShaderInput[] layout) =>
-            ReadOnlyMemory<byte>.Empty;
+        /// <inheritdoc />
+        public void WriteInstanceDataTo(
+            ulong start,
+            ulong count,
+            ShaderInput[] layout,
+            Span<byte> target
+        ) => target.Clear();
 
-        public ReadOnlyMemory<byte> GetUniformData(ShaderInput[] layout) =>
-            ReadOnlyMemory<byte>.Empty;
+        /// <inheritdoc />
+        public void WriteUniformDataTo(
+            ulong start,
+            ulong count,
+            ShaderInput[] layout,
+            Span<byte> target
+        ) => target.Clear();
 
+        /// <inheritdoc />
         public VertexShader? VertexShader => null;
 
+        /// <inheritdoc />
         public IShaderContract? TessellationControlShader => null;
 
+        /// <inheritdoc />
         public IShaderContract? TessellationEvalShader => null;
 
+        /// <inheritdoc />
         public IShaderContract? GeometryShader => null;
 
+        /// <inheritdoc />
         public FragmentShader? FragmentShader => null;
     }
 }

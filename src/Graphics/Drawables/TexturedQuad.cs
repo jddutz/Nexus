@@ -50,6 +50,9 @@ public partial class TexturedQuad : IDrawable
     /// <inheritdoc />
     public event EventHandler? InstanceDataChanged;
 
+    /// <inheritdoc />
+    public event Action<string>? PropertyChanged;
+
     // Required by IDrawable; this drawable's uniform data is immutable and cannot change.
 #pragma warning disable CS0067
     /// <inheritdoc />

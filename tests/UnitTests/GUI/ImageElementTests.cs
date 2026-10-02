@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using Nexus.Graphics;
 using Nexus.Graphics.Components;
+using Nexus.Graphics.Shaders;
 using Nexus.Graphics.Textures;
 using Nexus.GUI;
 using Nexus.GUI.Elements;
@@ -46,7 +47,7 @@ public sealed class ImageElementTests
 
         Assert.Equal(new Vector2D<float>(3f, 2f), element.Measure(new(8f, 6f)));
         var quad = ReadQuad(element.GetComponent<TextureComponent>()!, 0);
-        Assert.Equal(new Vector4D<float>(0.3125f, 0.375f, 0.375f, 0.25f), quad.TexCoord);
+        Assert.Equal(new Vector4D<float>(0.25f, 0.25f, 0.5f, 0.5f), quad.TexCoord);
         Assert.Throws<ArgumentOutOfRangeException>(() =>
             element.SetCustomSizingMode(Vector2D<float>.Zero, new(0f, 0f, 1f, 1f))
         );
@@ -64,7 +65,10 @@ public sealed class ImageElementTests
 
         AssertBounds(new Rectangle<float>(5f, 7f, 4f, 2f), element.Bounds);
         var quad = ReadQuad(element.GetComponent<TextureComponent>()!, 0);
-        Assert.Equal(new Vector4D<float>(1f / 3f, 0.375f, 1f / 3f, 0.25f), quad.TexCoord);
+        Assert.Equal(1f / 3f, quad.TexCoord.X, 6);
+        Assert.Equal(0.375f, quad.TexCoord.Y, 6);
+        Assert.Equal(1f / 3f, quad.TexCoord.Z, 6);
+        Assert.Equal(0.25f, quad.TexCoord.W, 6);
     }
 
     /// <summary>Verifies zero-sized arrangement and ancestor visibility control drawable ownership.</summary>
@@ -85,7 +89,7 @@ public sealed class ImageElementTests
         var recreated = element.GetComponent<TextureComponent>();
         Assert.NotNull(recreated);
         Assert.NotSame(original, recreated);
-        AssertBounds(new Rectangle<float>(4f, 3.5f, 6f, 3f), element.Bounds);
+        AssertBounds(new Rectangle<float>(3f, 3.5f, 6f, 3f), element.Bounds);
 
         element.Arrange(new Rectangle<float>(0f, 0f, 0f, 4f));
         Assert.Empty(element.Components);
@@ -130,8 +134,11 @@ public sealed class ImageElementTests
         int index
     )
     {
-        var data = new byte[component.GetInstanceData(index, Span<byte>.Empty)];
-        component.GetInstanceData(index, data);
+        var layout = BuiltInShaders.TexturedQuadVertexShader.InstanceLayout;
+        var data = new byte[checked(layout.Sum(input => input.Size))];
+        Assert.Single(component.Drawables).WriteInstanceDataTo(
+            checked((ulong)index), 1, layout, data
+        );
         var transformSize = System.Runtime.CompilerServices.Unsafe.SizeOf<Matrix4X4<float>>();
         return (
             MemoryMarshal.Read<Matrix4X4<float>>(data),

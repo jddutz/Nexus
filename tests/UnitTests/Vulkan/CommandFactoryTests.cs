@@ -554,6 +554,15 @@ public class CommandFactoryTests
         public void WriteTo(ulong start, ulong count, ColorFormatEnum format, Span<byte> target) { }
     }
 
+    /// <summary>Provides drawable resources and zero-filled data for command factory tests.</summary>
+    /// <param name="mesh">The mesh rendered by the drawable.</param>
+    /// <param name="texture">The initial texture resource.</param>
+    /// <param name="samplingBehavior">The texture sampling behavior.</param>
+    /// <param name="vertexShader">The optional vertex shader.</param>
+    /// <param name="fragmentShader">The optional fragment shader.</param>
+    /// <param name="tessellationControlShader">The optional tessellation-control shader.</param>
+    /// <param name="tessellationEvalShader">The optional tessellation-evaluation shader.</param>
+    /// <param name="geometryShader">The optional geometry shader.</param>
     private sealed class TestDrawable(
         Mesh mesh,
         ITexture texture,
@@ -565,39 +574,65 @@ public class CommandFactoryTests
         IShaderContract? geometryShader
     ) : IDrawable
     {
+        /// <inheritdoc />
         event Action<string>? IObservable.PropertyChanged
         {
             add { }
             remove { }
         }
+        /// <inheritdoc />
         event EventHandler? IDrawable.InstanceDataChanged
         {
             add { }
             remove { }
         }
+        /// <inheritdoc />
         event EventHandler? IDrawable.UniformDataChanged
         {
             add { }
             remove { }
         }
 
+        /// <inheritdoc />
         public DrawableId Id => new(1);
+        /// <inheritdoc />
         public ulong RenderLayerMask => ulong.MaxValue;
+        /// <inheritdoc />
         public Mesh Mesh => mesh;
+        /// <inheritdoc />
         public ITexture Texture { get; set; } = texture;
+        /// <summary>Gets the test texture's color format.</summary>
         public ColorFormatEnum TextureFormat => ColorFormatEnum.RGBA8UNorm;
+        /// <inheritdoc />
         public ulong InstanceCount { get; set; } = 1;
+        /// <inheritdoc />
         public ISamplingBehavior SamplingBehavior => samplingBehavior;
 
-        public ReadOnlyMemory<byte> GetInstanceData(ShaderInput[] layout) =>
-            ReadOnlyMemory<byte>.Empty;
+        /// <inheritdoc />
+        public void WriteInstanceDataTo(
+            ulong start,
+            ulong count,
+            ShaderInput[] layout,
+            Span<byte> target
+        ) => target.Clear();
 
-        public ReadOnlyMemory<byte> GetUniformData(ShaderInput[] layout) => new byte[16];
+        /// <inheritdoc />
+        public void WriteUniformDataTo(
+            ulong start,
+            ulong count,
+            ShaderInput[] layout,
+            Span<byte> target
+        ) => target.Clear();
 
+        /// <inheritdoc />
         public VertexShader? VertexShader => vertexShader;
+        /// <inheritdoc />
         public IShaderContract? TessellationControlShader => tessellationControlShader;
+        /// <inheritdoc />
         public IShaderContract? TessellationEvalShader => tessellationEvalShader;
+        /// <inheritdoc />
         public IShaderContract? GeometryShader => geometryShader;
+        /// <inheritdoc />
         public FragmentShader? FragmentShader => fragmentShader;
     }
 

@@ -31,7 +31,7 @@ public class GraphicalUserInterfaceTests
         var element = new LayoutProbeElement(arrange: (_, _) => layoutCount++);
         var scene = new Scene();
         scene.Children.Add(element);
-        scene.Activate();
+        ActivateScene(scene);
         gui.Initialize();
 
         eventHub.Publish(new SceneLoadedEvent(scene));
@@ -76,7 +76,7 @@ public class GraphicalUserInterfaceTests
         root.AddChild(initiallyDiscoveredChild);
         var scene = new Scene();
         scene.Children.Add(root);
-        scene.Activate();
+        ActivateScene(scene);
         gui.Initialize();
 
         eventHub.Publish(new SceneLoadedEvent(scene));
@@ -96,6 +96,7 @@ public class GraphicalUserInterfaceTests
 
         var child = new LayoutProbeElement(arrange: (_, _) => childArrangementCount++);
         root.AddChild(child);
+        child.Activate();
         eventHub.Publish(new GameObjectActivatedEvent(child));
         eventHub.Drain();
         gui.Update(0);
@@ -104,6 +105,7 @@ public class GraphicalUserInterfaceTests
         Assert.Equal(1, childArrangementCount);
 
         Assert.True(root.RemoveChild(child));
+        child.Deactivate();
         eventHub.Publish(new GameObjectDeactivatedEvent(child));
         eventHub.Drain();
         gui.Update(0);
@@ -134,7 +136,7 @@ public class GraphicalUserInterfaceTests
 
         var scene = new Scene();
         scene.Children.Add(element);
-        scene.Activate();
+        ActivateScene(scene);
         gui.Initialize();
         eventHub.Publish(new SceneLoadedEvent(scene));
         eventHub.Drain();
@@ -179,7 +181,7 @@ public class GraphicalUserInterfaceTests
         parent.AddChild(child);
         var scene = new Scene();
         scene.Children.Add(parent);
-        scene.Activate();
+        ActivateScene(scene);
         gui.Initialize();
         eventHub.Publish(new SceneLoadedEvent(scene));
         eventHub.Drain();
@@ -218,7 +220,7 @@ public class GraphicalUserInterfaceTests
         var scene = new Scene();
         scene.Children.Add(element);
         scene.Children.Add(nonFocusableElement);
-        scene.Activate();
+        ActivateScene(scene);
         gui.Initialize();
         eventHub.Publish(new SceneLoadedEvent(scene));
         eventHub.Drain();
@@ -253,7 +255,7 @@ public class GraphicalUserInterfaceTests
         element.FocusLost += (_, _) => lostCount++;
         var scene = new Scene();
         scene.Children.Add(element);
-        scene.Activate();
+        ActivateScene(scene);
         gui.Initialize();
         eventHub.Publish(new SceneLoadedEvent(scene));
         eventHub.Drain();
@@ -289,7 +291,7 @@ public class GraphicalUserInterfaceTests
         scene.Children.Add(first);
         scene.Children.Add(skipped);
         scene.Children.Add(last);
-        scene.Activate();
+        ActivateScene(scene);
         gui.Initialize();
         eventHub.Publish(new SceneLoadedEvent(scene));
         eventHub.Drain();
@@ -313,7 +315,7 @@ public class GraphicalUserInterfaceTests
         var element = new LayoutProbeElement();
         var scene = new Scene();
         scene.Children.Add(element);
-        scene.Activate();
+        ActivateScene(scene);
         gui.Initialize();
         eventHub.Publish(new SceneLoadedEvent(scene));
         eventHub.Drain();
@@ -389,7 +391,7 @@ public class GraphicalUserInterfaceTests
         );
         var scene = new Scene();
         scene.Children.Add(element);
-        scene.Activate();
+        ActivateScene(scene);
         gui.Initialize();
         eventHub.Publish(new SceneLoadedEvent(scene));
         eventHub.Drain();
@@ -435,7 +437,7 @@ public class GraphicalUserInterfaceTests
         );
         var scene = new Scene();
         scene.Children.Add(element);
-        scene.Activate();
+        ActivateScene(scene);
         gui.Initialize();
         eventHub.Publish(new SceneLoadedEvent(scene));
         eventHub.Drain();
@@ -460,7 +462,7 @@ public class GraphicalUserInterfaceTests
         var scene = new Scene();
         scene.Children.Add(element);
         element.Activate();
-        scene.Activate();
+        ActivateScene(scene);
         gui.Initialize();
         eventHub.Publish(new SceneLoadedEvent(scene));
         eventHub.Drain();
@@ -472,6 +474,30 @@ public class GraphicalUserInterfaceTests
 
         Assert.Equal(2, arrangedBounds.Count);
         Assert.Equal(new Rectangle<float>(Vector2D<float>.Zero, new(1280, 720)), arrangedBounds[1]);
+    }
+
+    /// <summary>Activates a test scene and its hierarchy without assuming scene activation cascades.</summary>
+    /// <param name="scene">The scene to activate.</param>
+    private static void ActivateScene(Scene scene)
+    {
+        scene.Initialize();
+        scene.Activate();
+        foreach (var child in scene.Children)
+            ActivateNode(child);
+    }
+
+    /// <summary>Initializes and activates a node and its descendants in parent-first order.</summary>
+    /// <param name="node">The subtree root to activate.</param>
+    private static void ActivateNode(ISceneNode node)
+    {
+        if (node is IGameObject gameObject)
+        {
+            gameObject.Initialize();
+            gameObject.Activate();
+        }
+
+        foreach (var child in node.Children)
+            ActivateNode(child);
     }
 
     /// <summary>

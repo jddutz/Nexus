@@ -101,7 +101,9 @@ public partial class Element : GameObject2D, IElement
     /// <param name="isFocused">Whether this element should be focused.</param>
     private bool ValidateFocused(bool value) => !value || CanFocus;
 
-    private void AfterFocusedChanges(bool previousValue)
+    /// <summary>Raises the focus lifecycle event after the observable focus state changes.</summary>
+    /// <param name="previousValue">The focus state before the change.</param>
+    protected virtual partial void AfterIsFocusedChanges(bool previousValue)
     {
         if (IsFocused)
             FocusGained?.Invoke(this, EventArgs.Empty);

@@ -14,3 +14,4 @@ NXS009 | Nexus.Observable | Error | Invalid PropertyChanged event type
 NXS010 | Nexus.Observable | Error | Generated setters require a non-sealed class
 NXS011 | Nexus.Observable | Error | Invalid PropertyChanged event for code generation
 NXS012 | Nexus.Observable | Error | Observable setter conflicts with an existing member
+NXS013 | Nexus.Observable | Warning | Observable backing field accessed directly

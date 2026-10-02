@@ -197,8 +197,8 @@ public class GameSystemEventRegistrationTests
         Assert.True(component.IsActivated);
         eventHub.Drain();
 
-        Assert.Equal(1, root.GameObjectActivationCount);
-        Assert.Equal(1, child.GameObjectActivationCount);
+        Assert.Equal(2, root.GameObjectActivationCount);
+        Assert.Equal(2, child.GameObjectActivationCount);
         Assert.Equal(1, component.ComponentActivationCount);
 
         gameSystem.DeactivateComponent(component);

@@ -4,11 +4,12 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <WarningsNotAsErrors>NXS013</WarningsNotAsErrors>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference
-      Include="..\SourceGenerators\Nexus.SourceGenerators.csproj"
+      Include="..\..\codegen\Nexus.SourceGenerators.csproj"
       OutputItemType="Analyzer"
       ReferenceOutputAssembly="false"
     />

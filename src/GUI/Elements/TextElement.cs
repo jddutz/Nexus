@@ -17,7 +17,7 @@ public partial class TextElement : Element
 
     [Observable]
     private ulong _renderLayerMask;
-    private TextComponent? _textComponent;
+    private GuiTextComponent? _textComponent;
     private Rectangle<float>? _layoutBounds;
 
     [Observable]
@@ -46,20 +46,22 @@ public partial class TextElement : Element
             throw new ArgumentOutOfRangeException(nameof(value));
     }
 
-    private void AfterHorizontalAlignmentChanges(AlignHorizontal previousValue) => ReapplyLayout();
+    protected virtual partial void AfterHorizontalAlignmentChanges(AlignHorizontal previousValue) =>
+        ReapplyLayout();
 
-    private void AfterVerticalAlignmentChanges(AlignVertical previousValue) => ReapplyLayout();
+    protected virtual partial void AfterVerticalAlignmentChanges(AlignVertical previousValue) =>
+        ReapplyLayout();
 
-    private void AfterMaximumLinesChanges(int? previousValue) => ReapplyLayout();
+    protected virtual partial void AfterMaximumLinesChanges(int? previousValue) => ReapplyLayout();
 
-    private void AfterTextChanges(string previousValue)
+    protected virtual partial void AfterTextChanges(string previousValue)
     {
         if (_textComponent is not null && _layoutBounds is null)
             _textComponent.Text = Text;
         ReapplyLayout();
     }
 
-    private void AfterRenderLayerMaskChanges(ulong previousValue)
+    protected virtual partial void AfterRenderLayerMaskChanges(ulong previousValue)
     {
         if (_textComponent is not null)
             _textComponent.RenderLayerMask = RenderLayerMask;
@@ -160,7 +162,7 @@ public partial class TextElement : Element
     /// <summary>Creates a fresh text component from the retained text configuration.</summary>
     private void CreateVisualComponent()
     {
-        var textComponent = new TextComponent(_style) { };
+        var textComponent = new GuiTextComponent(_style);
         textComponent.RenderLayerMask = _renderLayerMask;
         textComponent.Text = _text;
         _textComponent = textComponent;
@@ -272,12 +274,7 @@ public partial class TextElement : Element
     }
 
     /// <inheritdoc />
-    protected override void OnPropertyChanged(string propertyName)
-    {
-        base.OnPropertyChanged(propertyName);
-        if (propertyName == nameof(IsVisible))
-            UpdateVisualComponent();
-    }
+    protected override void AfterIsVisibleChanges() => UpdateVisualComponent();
 
     /// <summary>Wraps source text to a width and maximum number of lines.</summary>
     /// <param name="text">The complete source text.</param>
@@ -379,7 +376,7 @@ public partial class TextElement : Element
     /// <param name="text">The candidate line.</param>
     /// <returns>The visible glyph width.</returns>
     private static float MeasureTextWidth(ITextStyle style, string text) =>
-        new TextSpan(style, text).LayoutBounds.Size.X;
+        GuiTextComponent.CreateSpan(style, text).LayoutBounds.Size.X;
 
     /// <summary>Returns the longest leading rune sequence that fits within the available width.</summary>
     /// <param name="style">The font metrics used to measure glyphs.</param>
@@ -419,7 +416,7 @@ public partial class TextElement : Element
 
         for (var lineIndex = 0; lineIndex < lines.Length; lineIndex++)
         {
-            var bounds = new TextSpan(style, lines[lineIndex]).LayoutBounds;
+            var bounds = GuiTextComponent.CreateSpan(style, lines[lineIndex]).LayoutBounds;
             width = MathF.Max(width, bounds.Size.X);
             top = MathF.Min(top, bounds.Origin.Y + lineIndex * lineHeight);
             bottom = MathF.Max(bottom, bounds.Max.Y + lineIndex * lineHeight);

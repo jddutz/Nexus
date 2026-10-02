@@ -9,7 +9,7 @@
 
   <ItemGroup>
     <ProjectReference
-      Include="..\SourceGenerators\Nexus.SourceGenerators.csproj"
+      Include="..\..\codegen\Nexus.SourceGenerators.csproj"
       OutputItemType="Analyzer"
       ReferenceOutputAssembly="false"
     />

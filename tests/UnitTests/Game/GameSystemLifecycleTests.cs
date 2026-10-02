@@ -27,6 +27,7 @@ public class GameSystemLifecycleTests
         scene.Children.Add(parent);
         var gameSystem = CreateGameSystem(scene);
         gameSystem.Initialize();
+        gameSystem.Update(0);
         calls.Clear();
 
         gameSystem.Update(0.25);
@@ -50,6 +51,7 @@ public class GameSystemLifecycleTests
         scene.Children.Add(parent);
         var gameSystem = CreateGameSystem(scene);
         gameSystem.Initialize();
+        gameSystem.Update(0);
 
         Assert.Equal(1, parent.InitializeCount);
         Assert.Equal(1, child.InitializeCount);
@@ -94,6 +96,7 @@ public class GameSystemLifecycleTests
         scene.Children.Add(parent);
         var gameSystem = CreateGameSystem(scene);
         gameSystem.Initialize();
+        gameSystem.Update(0);
         parent.OnUpdate = () =>
         {
             parent.OnUpdate = null;
@@ -105,8 +108,8 @@ public class GameSystemLifecycleTests
 
         Assert.False(child.IsActivated);
         Assert.False(component.IsActivated);
-        Assert.Equal(0, child.UpdateCount);
-        Assert.Equal(0, component.UpdateCount);
+        Assert.Equal(1, child.UpdateCount);
+        Assert.Equal(1, component.UpdateCount);
         Assert.Equal(1, child.InitializeCount);
         Assert.Equal(1, component.InitializeCount);
 
@@ -114,8 +117,8 @@ public class GameSystemLifecycleTests
 
         Assert.True(child.IsActivated);
         Assert.True(component.IsActivated);
-        Assert.Equal(1, child.UpdateCount);
-        Assert.Equal(1, component.UpdateCount);
+        Assert.Equal(2, child.UpdateCount);
+        Assert.Equal(2, component.UpdateCount);
         Assert.Equal(1, child.InitializeCount);
         Assert.Equal(1, component.InitializeCount);
     }
@@ -170,6 +173,7 @@ public class GameSystemLifecycleTests
         scene.Children.Add(destination);
         var gameSystem = CreateGameSystem(scene);
         gameSystem.Initialize();
+        gameSystem.Update(0);
 
         Assert.True(source.Children.Remove(movedObject));
         destination.Children.Add(movedObject);

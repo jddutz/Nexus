@@ -58,28 +58,31 @@ public partial class ImageElement : Element
     private void BeforeSamplingBehaviorChanges(ISamplingBehavior value) =>
         ArgumentNullException.ThrowIfNull(value);
 
-    private void AfterImageSourceChanges(ImageSource previousValue) => InvalidateGeometry();
-
-    private void AfterSizingModeChanges(SizingMode previousValue) => InvalidateGeometry();
-
-    private void AfterHorizontalAlignmentChanges(AlignHorizontal previousValue) =>
+    protected virtual partial void AfterImageSourceChanges(ImageSource previousValue) =>
         InvalidateGeometry();
 
-    private void AfterVerticalAlignmentChanges(AlignVertical previousValue) => InvalidateGeometry();
+    protected virtual partial void AfterSizingModeChanges(SizingMode previousValue) =>
+        InvalidateGeometry();
 
-    private void AfterSamplingBehaviorChanges(ISamplingBehavior previousValue)
+    protected virtual partial void AfterHorizontalAlignmentChanges(AlignHorizontal previousValue) =>
+        InvalidateGeometry();
+
+    protected virtual partial void AfterVerticalAlignmentChanges(AlignVertical previousValue) =>
+        InvalidateGeometry();
+
+    protected virtual partial void AfterSamplingBehaviorChanges(ISamplingBehavior previousValue)
     {
         if (_imageComponent is not null)
             _imageComponent.SamplingBehavior = _samplingBehavior;
     }
 
-    private void AfterColorChanges(Color previousValue)
+    protected virtual partial void AfterColorChanges(Color previousValue)
     {
         if (_imageComponent is not null)
             _imageComponent.Color = _color;
     }
 
-    private void AfterRenderLayerMaskChanges(ulong previousValue)
+    protected virtual partial void AfterRenderLayerMaskChanges(ulong previousValue)
     {
         if (_imageComponent is not null)
             _imageComponent.RenderLayerMask = _renderLayerMask;
@@ -113,13 +116,13 @@ public partial class ImageElement : Element
         if (_customSize != customSize)
         {
             _customSize = customSize;
-            OnPropertyChanged(nameof(CustomSize));
+            NotifyPropertyChanged(nameof(CustomSize));
             configurationChanged = true;
         }
         if (_customTexCoord != customTexCoord)
         {
             _customTexCoord = customTexCoord;
-            OnPropertyChanged(nameof(CustomTexCoord));
+            NotifyPropertyChanged(nameof(CustomTexCoord));
             configurationChanged = true;
         }
 
@@ -369,12 +372,7 @@ public partial class ImageElement : Element
     }
 
     /// <inheritdoc />
-    protected override void OnPropertyChanged(string propertyName)
-    {
-        base.OnPropertyChanged(propertyName);
-        if (propertyName == nameof(IsVisible))
-            UpdateVisualComponent();
-    }
+    protected override void AfterIsVisibleChanges() => UpdateVisualComponent();
 
     /// <summary>Validates a positive finite logical size.</summary>
     /// <param name="size">The proposed size.</param>

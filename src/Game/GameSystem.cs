@@ -12,7 +12,7 @@ public partial class GameSystem(
     ILogger<GameSystem> logger,
     ISceneRegistry sceneRegistry,
     IOptions<GameSettings> gameSettings
-) : IGameSystem
+) : IGameSystem, IObservable
 {
     private readonly IEventHub _eventHub = eventHub;
     private readonly ILogger<GameSystem> _logger = logger;
@@ -22,6 +22,9 @@ public partial class GameSystem(
         ReferenceEqualityComparer.Instance
     );
     private bool _isTraversing;
+
+    /// <inheritdoc />
+    public event Action<string>? PropertyChanged;
 
     /// <summary>
     /// Represents an entity and its expected ownership in a lifecycle traversal snapshot.
@@ -97,7 +100,7 @@ public partial class GameSystem(
         );
 
         _logger.LogTrace("Activating scene...");
-        SetCurrentScene(initialScene);
+        CurrentScene = initialScene;
         _logger.LogTrace("Scene activation complete.");
         _logger.LogInformation("Game system initialized and initial scene activated.");
     }
@@ -411,27 +414,27 @@ public partial class GameSystem(
     /// <summary>
     /// Deactivates the previous scene and activates the newly assigned scene.
     /// </summary>
-    /// <param name="previousScene">The scene active before the assignment.</param>
-    protected virtual void AfterCurrentSceneChanges(IScene? previousScene)
+    /// <param name="previousValue">The scene active before the assignment.</param>
+    protected virtual partial void AfterCurrentSceneChanges(IScene? previousValue)
     {
-        if (previousScene is not null)
+        if (previousValue is not null)
         {
-            previousScene.PropertyChanged -= OnCurrentScenePropertyChanged;
-            UnsubscribeSceneNode(previousScene);
+            previousValue.PropertyChanged -= OnCurrentScenePropertyChanged;
+            UnsubscribeSceneNode(previousValue);
 
-            if (previousScene is Scene previousInputScene)
+            if (previousValue is Scene previousInputScene)
             {
                 previousInputScene.InputMapChanged -= OnCurrentSceneInputMapChanged;
                 previousInputScene.InputMap?.Unregister(_eventHub);
             }
 
-            foreach (var child in previousScene.Children.ToArray().Reverse())
+            foreach (var child in previousValue.Children.ToArray().Reverse())
                 DeactivateSubtree(child);
 
-            if (previousScene.IsActivated)
-                previousScene.Deactivate();
+            if (previousValue.IsActivated)
+                previousValue.Deactivate();
 
-            _eventHub.Publish(new SceneUnloadedEvent(previousScene));
+            _eventHub.Publish(new SceneUnloadedEvent(previousValue));
         }
 
         var currentScene = CurrentScene;
@@ -448,7 +451,7 @@ public partial class GameSystem(
 
         _logger.LogInformation(
             "Active scene changed. PreviousSceneType={PreviousSceneType}, CurrentSceneType={CurrentSceneType}",
-            previousScene?.GetType().Name ?? "None",
+            previousValue?.GetType().Name ?? "None",
             currentScene?.GetType().Name ?? "None"
         );
     }

@@ -106,12 +106,24 @@ public class ObservableCollectionTests
 
         collection.CopyTo(copy, 0);
 
-        Assert.Same(collection, readOnly);
+        Assert.NotSame(collection, readOnly);
+        Assert.IsNotAssignableFrom<IList<string>>(readOnly);
         Assert.False(collection.IsReadOnly);
         Assert.Equal(2, collection.Count);
         Assert.Equal(1, collection.IndexOf("second"));
         Assert.Contains("first", collection);
         Assert.Equal(["first", "second"], copy);
         Assert.Equal(["first", "second"], readOnly);
+
+        var added = new List<string>();
+        var removed = new List<string>();
+        readOnly.ItemAdded += added.Add;
+        readOnly.ItemRemoved += removed.Add;
+        collection.Add("third");
+        Assert.Equal(["first", "second", "third"], readOnly);
+        Assert.Equal(["third"], added);
+        Assert.True(collection.Remove("first"));
+        Assert.Equal(["second", "third"], readOnly);
+        Assert.Equal(["first"], removed);
     }
 }
