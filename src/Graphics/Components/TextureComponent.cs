@@ -15,11 +15,7 @@ public partial class TextureComponent : Component, IGraphicsComponent
     [Observable(PublicSetter = true, GenerateChangedEvent = false)]
     private Texture? _texture;
 
-    [Observable(PublicSetter = true)]
-    private Vector2D<float> _size = new(1f, 1f);
-
-    [Observable(PublicSetter = true)]
-    private Matrix4X4<float> _transformationMatrix = Matrix4X4<float>.Identity;
+    private Rectangle<float> _destination = new(0f, 0f, 1f, 1f);
 
     [Observable(PublicSetter = true)]
     private Vector4D<float> _texCoord = new(0f, 0f, 1f, 1f);
@@ -51,6 +47,22 @@ public partial class TextureComponent : Component, IGraphicsComponent
 
     /// <summary>Gets whether the shared quad is centered on its origin.</summary>
     protected bool IsCentered { get; }
+
+    /// <summary>Gets or sets the explicit visual destination rectangle.</summary>
+    public Rectangle<float> Destination
+    {
+        get => _destination;
+        set
+        {
+            ValidateDestinationValue(value);
+            if (_destination == value)
+                return;
+
+            _destination = value;
+            OnPropertyChanged(nameof(Destination));
+            InstanceDataChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
 
     /// <summary>Gets the number of instance records produced by this component.</summary>
     public int InstanceCount => GetInstanceCount();
@@ -87,8 +99,6 @@ public partial class TextureComponent : Component, IGraphicsComponent
     private void BeforeSamplingBehaviorChanges(ISamplingBehavior value) =>
         ArgumentNullException.ThrowIfNull(value);
 
-    private void BeforeSizeChanges(Vector2D<float> value) => ValidateSizeValue(value);
-
     private void BeforeTexCoordChanges(Vector4D<float> value) =>
         ValidateTextureInput(Texture, value);
 
@@ -101,10 +111,7 @@ public partial class TextureComponent : Component, IGraphicsComponent
     private void AfterSamplingBehaviorChanges(ISamplingBehavior previousValue) =>
         TextureChanged?.Invoke(this, EventArgs.Empty);
 
-    private void AfterSizeChanges(Vector2D<float> previousValue) =>
-        InstanceDataChanged?.Invoke(this, EventArgs.Empty);
-
-    private void AfterTransformationMatrixChanges(Matrix4X4<float> previousValue) =>
+    private void AfterDestinationChanges(Rectangle<float> previousValue) =>
         InstanceDataChanged?.Invoke(this, EventArgs.Empty);
 
     private void AfterTexCoordChanges(Vector4D<float> previousValue) =>
@@ -115,22 +122,6 @@ public partial class TextureComponent : Component, IGraphicsComponent
 
     private void AfterViewChanges(Matrix4X4<float> previousValue) =>
         UniformDataChanged?.Invoke(this, EventArgs.Empty);
-
-    /// <inheritdoc />
-    protected override void OnOwnerChanged()
-    {
-        InstanceDataChanged?.Invoke(this, EventArgs.Empty);
-        base.OnOwnerChanged();
-    }
-
-    /// <inheritdoc />
-    protected override void OnOwnerPropertyChanged(string propertyName)
-    {
-        if (propertyName == nameof(IGameObject2D.WorldTransform))
-            InstanceDataChanged?.Invoke(this, EventArgs.Empty);
-
-        base.OnOwnerPropertyChanged(propertyName);
-    }
 
     /// <summary>Gets the instance count for the concrete component.</summary>
     /// <returns>The number of packed records.</returns>
@@ -149,7 +140,13 @@ public partial class TextureComponent : Component, IGraphicsComponent
         if (instanceIndex != 0)
             throw new ArgumentOutOfRangeException(nameof(instanceIndex));
 
-        transform = CreateRectangleTransform(0f, 0f, Size.X, Size.Y, IsCentered);
+        transform = CreateRectangleTransform(
+            0f,
+            0f,
+            Destination.Size.X,
+            Destination.Size.Y,
+            IsCentered
+        );
         texCoord = InsetTexCoord(
             TexCoord,
             insetLeft: true,
@@ -204,7 +201,7 @@ public partial class TextureComponent : Component, IGraphicsComponent
     protected void NotifyInstanceDataChanged() =>
         InstanceDataChanged?.Invoke(this, EventArgs.Empty);
 
-    /// <summary>Composes a rectangle transform with this component and its owner transforms.</summary>
+    /// <summary>Creates a transform for a rectangle within the component destination.</summary>
     /// <param name="x">The local left edge.</param>
     /// <param name="y">The local top edge.</param>
     /// <param name="width">The rectangle width.</param>
@@ -219,29 +216,27 @@ public partial class TextureComponent : Component, IGraphicsComponent
         bool centered
     )
     {
-        var offsetX = centered ? x + (width - Size.X) / 2f : x;
-        var offsetY = centered ? y + (height - Size.Y) / 2f : y;
-        var localTransform =
-            Matrix4X4.CreateScale(width, height, 1f)
-            * Matrix4X4.CreateTranslation(offsetX, offsetY, 0f)
-            * TransformationMatrix;
-        var ownerTransform = GetOwnerTransformationMatrix();
-        return localTransform * ownerTransform;
+        var offsetX = Destination.Origin.X + x + (centered ? width / 2f : 0f);
+        var offsetY = Destination.Origin.Y + y + (centered ? height / 2f : 0f);
+        return Matrix4X4.CreateScale(width, height, 1f)
+            * Matrix4X4.CreateTranslation(offsetX, offsetY, 0f);
     }
 
-    /// <summary>Gets the owning 2D object's world transform, or identity when there is no 2D owner.</summary>
-    /// <returns>The owner world transform.</returns>
-    protected Matrix4X4<float> GetOwnerTransformationMatrix() =>
-        Owner is IGameObject2D gameObject ? gameObject.WorldTransform : Matrix4X4<float>.Identity;
-
-    /// <summary>Validates a positive finite destination size.</summary>
-    /// <param name="size">The requested destination size.</param>
-    private static void ValidateSizeValue(Vector2D<float> size)
+    /// <summary>Validates a finite destination origin and positive finite extents.</summary>
+    /// <param name="destination">The requested visual destination.</param>
+    private static void ValidateDestinationValue(Rectangle<float> destination)
     {
-        if (!float.IsFinite(size.X) || !float.IsFinite(size.Y) || size.X <= 0f || size.Y <= 0f)
+        if (
+            !float.IsFinite(destination.Origin.X)
+            || !float.IsFinite(destination.Origin.Y)
+            || !float.IsFinite(destination.Size.X)
+            || !float.IsFinite(destination.Size.Y)
+            || destination.Size.X <= 0f
+            || destination.Size.Y <= 0f
+        )
             throw new ArgumentOutOfRangeException(
-                nameof(size),
-                "Both size dimensions must be positive and finite."
+                nameof(destination),
+                "Destination origin must be finite and both extents must be positive and finite."
             );
     }
 

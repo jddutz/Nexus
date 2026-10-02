@@ -50,6 +50,8 @@ public partial class TextElement : Element
 
     private void AfterVerticalAlignmentChanges(AlignVertical previousValue) => ReapplyLayout();
 
+    private void AfterMaximumLinesChanges(int? previousValue) => ReapplyLayout();
+
     private void AfterTextChanges(string previousValue)
     {
         if (_textComponent is not null && _layoutBounds is null)
@@ -134,7 +136,12 @@ public partial class TextElement : Element
             bounds.Origin.X + GetHorizontalOffset(bounds.Size.X, textBounds.Size.X),
             bounds.Origin.Y + GetVerticalOffset(bounds.Size.Y, textBounds.Size.Y)
         );
-        SetPosition(new(textOrigin.X - textBounds.Origin.X, textOrigin.Y - textBounds.Origin.Y));
+        var textPosition = new Vector2D<float>(
+            textOrigin.X - textBounds.Origin.X,
+            textOrigin.Y - textBounds.Origin.Y
+        );
+        _textComponent.Position = textPosition;
+        SetPosition(textPosition);
         SetBounds(new Rectangle<float>(textOrigin, textBounds.Size));
     }
 

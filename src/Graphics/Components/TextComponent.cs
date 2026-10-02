@@ -10,6 +10,9 @@ public partial class TextComponent : Component, IGraphicsComponent
 
     [Observable(PublicSetter = true)]
     private ulong _renderLayerMask = ulong.MaxValue;
+
+    [Observable(PublicSetter = true)]
+    private Vector2D<float> _position;
     private string _text = string.Empty;
 
     /// <inheritdoc />
@@ -35,8 +38,9 @@ public partial class TextComponent : Component, IGraphicsComponent
         _textStyle = textStyle ?? throw new ArgumentNullException(nameof(textStyle));
     }
 
-    /// <inheritdoc />
-    protected override void OnInitialize() => UpdateTransformationMatrix();
+    /// <summary>Updates spans after the component position changes.</summary>
+    private void AfterPositionChanges(Vector2D<float> previousValue) =>
+        UpdateTransformationMatrix();
 
     /// <summary>Gets or sets the text represented by this component.</summary>
     public string Text
@@ -73,9 +77,7 @@ public partial class TextComponent : Component, IGraphicsComponent
                     continue;
 
                 var verticalOffset = lineIndex * lineHeight;
-                span.TransformationMatrix =
-                    Matrix4X4.CreateTranslation(0f, verticalOffset, 0f)
-                    * GetOwnerTransformationMatrix();
+                span.TransformationMatrix = CreateSpanTransformation(verticalOffset);
                 _spans.Add((span, verticalOffset));
             }
 
@@ -84,6 +86,8 @@ public partial class TextComponent : Component, IGraphicsComponent
 
             foreach (var (span, _) in _spans)
                 DrawableAdded?.Invoke(this, new DrawableEventArgs(span));
+
+            OnPropertyChanged(nameof(Text));
         }
     }
 
@@ -116,32 +120,16 @@ public partial class TextComponent : Component, IGraphicsComponent
         }
     }
 
-    /// <inheritdoc/>
-    protected override void OnOwnerChanged()
-    {
-        UpdateTransformationMatrix();
-        base.OnOwnerChanged();
-    }
-
-    /// <inheritdoc/>
-    protected override void OnOwnerPropertyChanged(string propertyName)
-    {
-        if (propertyName == nameof(IGameObject2D.WorldTransform))
-            UpdateTransformationMatrix();
-
-        base.OnOwnerPropertyChanged(propertyName);
-    }
-
-    /// <summary>Copies the owning 2D game object's transform to every text span.</summary>
+    /// <summary>Updates every span from the explicit text origin and its line offset.</summary>
     private void UpdateTransformationMatrix()
     {
-        var ownerTransform = GetOwnerTransformationMatrix();
         foreach (var (span, verticalOffset) in _spans)
-            span.TransformationMatrix =
-                Matrix4X4.CreateTranslation(0f, verticalOffset, 0f) * ownerTransform;
+            span.TransformationMatrix = CreateSpanTransformation(verticalOffset);
     }
 
-    /// <summary>Gets the owning 2D game object's transform, or identity when none is available.</summary>
-    private Matrix4X4<float> GetOwnerTransformationMatrix() =>
-        Owner is IGameObject2D gameObject ? gameObject.WorldTransform : Matrix4X4<float>.Identity;
+    /// <summary>Creates a span transform from the explicit point and line offset.</summary>
+    /// <param name="verticalOffset">The line's scaled vertical offset.</param>
+    /// <returns>The transform used by the span's glyph instances.</returns>
+    private Matrix4X4<float> CreateSpanTransformation(float verticalOffset) =>
+        Matrix4X4.CreateTranslation(Position.X, Position.Y + verticalOffset, 0f);
 }

@@ -80,56 +80,111 @@ public sealed class TextComponentTests
     }
 
     /// <summary>
-    /// Verifies an owning 2D transform reaches the text span and every packed glyph instance.
+    /// Verifies explicit point placement reaches the text span and every packed glyph instance.
     /// </summary>
     [Fact]
-    public void Owner_transform_is_applied_to_spans_and_glyph_instances()
+    public void Position_is_applied_to_spans_and_glyph_instances()
     {
         var style = CreateStyle();
-        var component = new TextComponent(style) { Text = "AB" };
+        var component = new TextComponent(style)
+        {
+            Position = new Vector2D<float>(3f, 4f),
+            Text = "AB",
+        };
         var gameObject = new GameObject2D([component]);
-        gameObject.Position = new Vector2D<float>(3f, 4f);
         var span = Assert.IsType<TextSpan>(Assert.Single(component.Drawables));
 
-        Assert.Equal(gameObject.WorldTransform, span.TransformationMatrix);
+        Assert.Equal(
+            new Vector2D<float>(3f, 4f),
+            new(span.TransformationMatrix.M41, span.TransformationMatrix.M42)
+        );
 
         gameObject.Position = new Vector2D<float>(10f, 20f);
 
-        Assert.Equal(gameObject.WorldTransform, span.TransformationMatrix);
-        var glyphData = span.GetInstanceData(BuiltInShaders.MsdfTextVertexShader.InstanceLayout);
-        var untransformedData = new TextSpan(style, "AB").GetInstanceData(
-            BuiltInShaders.MsdfTextVertexShader.InstanceLayout
+        Assert.Equal(
+            new Vector2D<float>(3f, 4f),
+            new(span.TransformationMatrix.M41, span.TransformationMatrix.M42)
         );
+        var glyphData = span.GetInstanceData(BuiltInShaders.MsdfTextVertexShader.InstanceLayout);
+        var positionedData = new TextSpan(style, "AB")
+        {
+            TransformationMatrix = Matrix4X4.CreateTranslation(3f, 4f, 0f),
+        }.GetInstanceData(BuiltInShaders.MsdfTextVertexShader.InstanceLayout);
         var glyphStride = glyphData.Length / 2;
 
         for (var glyphIndex = 0; glyphIndex < 2; glyphIndex++)
         {
             var offset = glyphIndex * glyphStride;
             var glyphTransform = MemoryMarshal.Read<Matrix4X4<float>>(glyphData.Span[offset..]);
-            var untransformedGlyphTransform = MemoryMarshal.Read<Matrix4X4<float>>(
-                untransformedData.Span[offset..]
+            var positionedGlyphTransform = MemoryMarshal.Read<Matrix4X4<float>>(
+                positionedData.Span[offset..]
             );
 
-            Assert.Equal(untransformedGlyphTransform * gameObject.WorldTransform, glyphTransform);
+            Assert.Equal(positionedGlyphTransform, glyphTransform);
         }
 
         component.Text = "BA";
 
         var replacementSpan = Assert.IsType<TextSpan>(Assert.Single(component.Drawables));
-        Assert.Equal(gameObject.WorldTransform, replacementSpan.TransformationMatrix);
+        Assert.Equal(
+            new Vector2D<float>(3f, 4f),
+            new(replacementSpan.TransformationMatrix.M41, replacementSpan.TransformationMatrix.M42)
+        );
     }
 
     /// <summary>
-    /// Verifies initialization uses the owning game object's transform.
+    /// Verifies owner assignment does not alter explicit text placement.
     /// </summary>
     [Fact]
-    public void Initialize_refreshes_span_transform_after_game_model_assignment()
+    public void Initialize_preserves_explicit_position_after_game_model_assignment()
     {
-        var component = new TextComponent(CreateStyle()) { Text = "A" };
+        var component = new TextComponent(CreateStyle())
+        {
+            Position = new Vector2D<float>(10f, 20f),
+            Text = "A",
+        };
         var gameObject = new GameObject2D([component]) { Position = new Vector2D<float>(10f, 20f) };
         var span = Assert.IsType<TextSpan>(Assert.Single(component.Drawables));
 
-        Assert.Equal(gameObject.WorldTransform, span.TransformationMatrix);
+        Assert.Equal(
+            new Vector2D<float>(10f, 20f),
+            new(span.TransformationMatrix.M41, span.TransformationMatrix.M42)
+        );
+        gameObject.Position = new Vector2D<float>(30f, 40f);
+        Assert.Equal(
+            new Vector2D<float>(10f, 20f),
+            new(span.TransformationMatrix.M41, span.TransformationMatrix.M42)
+        );
+    }
+
+    /// <summary>Verifies moving text preserves its local measurement and drawable identity.</summary>
+    [Fact]
+    public void Position_changes_update_instances_without_recreating_spans()
+    {
+        var component = new TextComponent(CreateStyle()) { Text = "A" };
+        var span = Assert.IsType<TextSpan>(Assert.Single(component.Drawables));
+        var bounds = component.LayoutBounds;
+        var changes = 0;
+        span.InstanceDataChanged += (_, _) => changes++;
+
+        component.Position = new Vector2D<float>(2f, 3f);
+        component.Position = new Vector2D<float>(2f, 3f);
+
+        Assert.Same(span, Assert.Single(component.Drawables));
+        Assert.Equal(bounds, component.LayoutBounds);
+        Assert.Equal(1, changes);
+    }
+
+    /// <summary>Verifies empty lines retain their line-height spacing.</summary>
+    [Fact]
+    public void Empty_lines_preserve_multiline_spacing()
+    {
+        var component = new TextComponent(CreateStyle()) { Text = "A\n\nB" };
+        var spans = component.Drawables.Cast<TextSpan>().ToArray();
+
+        Assert.Equal(2, spans.Length);
+        Assert.Equal(2f, spans[1].TransformationMatrix.M42);
+        Assert.Equal(new Rectangle<float>(0f, 0f, 1f, 3f), component.LayoutBounds);
     }
 
     /// <summary>
@@ -153,6 +208,20 @@ public sealed class TextComponentTests
         Assert.Equal("B", span.Text);
         Assert.Same(previousSpan, Assert.Single(removed));
         Assert.Same(span, Assert.Single(added));
+    }
+
+    /// <summary>Verifies text changes notify observers when measurement becomes empty.</summary>
+    [Fact]
+    public void Text_changes_notify_observers_including_empty_text()
+    {
+        var component = new TextComponent(CreateStyle());
+        var changedProperties = new List<string>();
+        component.PropertyChanged += propertyName => changedProperties.Add(propertyName);
+
+        component.Text = "A";
+        component.Text = string.Empty;
+
+        Assert.Equal([nameof(TextComponent.Text), nameof(TextComponent.Text)], changedProperties);
     }
 
     /// <summary>
@@ -354,6 +423,20 @@ public sealed class TextComponentTests
         Assert.Equal(1f, transformation.M22);
         Assert.Equal(0f, transformation.M41);
         Assert.Equal(2f, transformation.M42);
+    }
+
+    /// <summary>Verifies span transform changes notify instance-data observers without no-op invalidation.</summary>
+    [Fact]
+    public void TransformationMatrix_changes_notify_instance_data_observers()
+    {
+        var span = new TextSpan(CreateStyle(), "A");
+        var changes = 0;
+        span.InstanceDataChanged += (_, _) => changes++;
+
+        span.TransformationMatrix = Matrix4X4.CreateTranslation(2f, 3f, 0f);
+        span.TransformationMatrix = Matrix4X4.CreateTranslation(2f, 3f, 0f);
+
+        Assert.Equal(1, changes);
     }
 
     /// <summary>

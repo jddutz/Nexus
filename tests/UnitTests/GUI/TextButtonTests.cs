@@ -134,10 +134,7 @@ public sealed class TextButtonTests
         button.Arrange(bounds);
 
         Assert.Equal(bounds, button.Bounds);
-        Assert.Equal(
-            new Vector2D<float>(60f, 24f),
-            button.GetComponent<NinePatchComponent>()!.Size
-        );
+        Assert.Equal(bounds, button.GetComponent<NinePatchComponent>()!.Destination);
         Assert.NotEqual(bounds.Size, button.GetComponent<TextComponent>()!.LayoutBounds.Size);
     }
 

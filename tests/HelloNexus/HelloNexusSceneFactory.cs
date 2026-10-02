@@ -59,7 +59,7 @@ internal sealed class HelloNexusSceneFactory(
         var backgroundTexture = new TextureComponent
         {
             Texture = textureProvider.Get((ContentId)"hello_nexus_background_image"),
-            Size = new(mainWindow.Size.X, mainWindow.Size.Y),
+            Destination = new Rectangle<float>(0f, 0f, mainWindow.Size.X, mainWindow.Size.Y),
             RenderLayerMask = backgroundLayer,
         };
         var backgroundElement = new BackgroundElement(backgroundTexture);
@@ -85,8 +85,7 @@ internal sealed class HelloNexusSceneFactory(
             verticalPadding: 10f,
             backgroundRenderLayerMask: backgroundLayer,
             textRenderLayerMask: foregroundLayer,
-            sourceBorders: new(64f, 64f, 64f, 64f),
-            destinationBorders: new(19f, 19f, 19f, 19f)
+            sourceBorders: new(64f, 64f, 64f, 64f)
         );
         var buttonFocused = false;
         buttonElement.Action = () => buttonElement.Label = "Physics Test Started";
@@ -163,11 +162,11 @@ internal sealed class HelloNexusSceneFactory(
                     : new Vector2D<float>(bounds.Size.Y * textureAspectRatio, bounds.Size.Y);
 
             Position = bounds.Origin;
-            _texture.Size = imageSize;
-            _texture.TransformationMatrix = Matrix4X4.CreateTranslation(
-                (bounds.Size.X - imageSize.X) / 2f,
-                (bounds.Size.Y - imageSize.Y) / 2f,
-                0f
+            _texture.Destination = new Rectangle<float>(
+                bounds.Origin.X + (bounds.Size.X - imageSize.X) / 2f,
+                bounds.Origin.Y + (bounds.Size.Y - imageSize.Y) / 2f,
+                imageSize.X,
+                imageSize.Y
             );
         }
     }
@@ -373,14 +372,8 @@ internal sealed class HelloNexusSceneFactory(
         /// <param name="texture">The icon texture.</param>
         /// <param name="renderLayerMask">The render layer selected by the header view.</param>
         public AudioIconElement(Texture texture, ulong renderLayerMask)
-            : this(
-                new TextureComponent
-                {
-                    Texture = texture,
-                    Size = new Vector2D<float>(IconSize, IconSize),
-                    RenderLayerMask = renderLayerMask,
-                }
-            ) { }
+            : this(new TextureComponent { Texture = texture, RenderLayerMask = renderLayerMask })
+        { }
 
         /// <summary>
         /// Initializes the icon from its owned texture component.
@@ -410,7 +403,7 @@ internal sealed class HelloNexusSceneFactory(
                 visibleSize
             );
             Position = Bounds.Origin;
-            _texture.Size = visibleSize;
+            _texture.Destination = new Rectangle<float>(Bounds.Origin, visibleSize);
             _texture.TexCoord = new(cropOrigin.X, cropOrigin.Y, cropRatio.X, cropRatio.Y);
         }
     }

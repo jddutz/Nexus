@@ -110,8 +110,7 @@ public partial class TextButton : Element
         ulong backgroundRenderLayerMask = ulong.MaxValue,
         ulong textRenderLayerMask = ulong.MaxValue,
         Vector4D<float>? sourceBorders = null,
-        ISamplingBehavior? samplingBehavior = null,
-        Vector4D<float>? destinationBorders = null
+        ISamplingBehavior? samplingBehavior = null
     )
         : base()
     {
@@ -131,7 +130,6 @@ public partial class TextButton : Element
         _backgroundRenderLayerMask = backgroundRenderLayerMask;
         _textRenderLayerMask = textRenderLayerMask;
         _sourceBorders = sourceBorders ?? new Vector4D<float>(12f, 12f, 12f, 12f);
-        _destinationBorders = destinationBorders;
         _samplingBehavior = samplingBehavior ?? SamplingBehaviors.PixelPerfect;
         SetCanFocus(true);
         InputMap.OnMouseButtonReleased(MouseButtonEnum.Left).Invoke(InvokeAction);
@@ -151,16 +149,11 @@ public partial class TextButton : Element
         background.RenderLayerMask = _backgroundRenderLayerMask;
         background.SamplingBehavior = _samplingBehavior;
         background.SourceBorders = _sourceBorders;
-        background.DestinationBorders = _destinationBorders;
         _background = background;
         _text = text;
         text.RenderLayerMask = _textRenderLayerMask;
         text.Text = _label;
         var labelSize = MeasureLabel(_textStyle, _label);
-        background.Size = new Vector2D<float>(
-            MathF.Max(float.Epsilon, MathF.Ceiling(labelSize.X) + _horizontalPadding * 2f),
-            MathF.Max(float.Epsilon, MathF.Ceiling(labelSize.Y) + _verticalPadding * 2f)
-        );
         AddComponent(background);
         AddComponent(text);
         if (Bounds.Size.X > 0f && Bounds.Size.Y > 0f)
@@ -277,13 +270,13 @@ public partial class TextButton : Element
             MathF.Round(textX),
             MathF.Round(bounds.Origin.Y + (bounds.Size.Y - textBounds.Size.Y) / 2f)
         );
-        SetPosition(new(textOrigin.X - textBounds.Origin.X, textOrigin.Y - textBounds.Origin.Y));
-        _background.Size = bounds.Size;
-        _background.TransformationMatrix = Matrix4X4.CreateTranslation(
-            bounds.Origin.X - Position.X,
-            bounds.Origin.Y - Position.Y,
-            0f
+        var textPosition = new Vector2D<float>(
+            textOrigin.X - textBounds.Origin.X,
+            textOrigin.Y - textBounds.Origin.Y
         );
+        _text.Position = textPosition;
+        SetPosition(textPosition);
+        _background.Destination = bounds;
     }
 
     /// <summary>

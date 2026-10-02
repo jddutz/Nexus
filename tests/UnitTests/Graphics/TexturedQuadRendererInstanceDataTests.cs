@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using Nexus.Core;
 using Nexus.Graphics;
 using Nexus.Graphics.Shaders;
 using Silk.NET.Maths;
@@ -20,7 +21,7 @@ public sealed class TextureComponentInstanceDataTests
     {
         var layout = BuiltInShaders.TexturedQuadVertexShader.InstanceLayout;
         var components = CreateDemoGrid();
-        var drawables = components.Select(component => (IDrawable)component).ToArray();
+        var drawables = components.Select(component => component.Drawables.Single()).ToArray();
         var records = drawables
             .Select(drawable => drawable.GetInstanceData(layout).ToArray())
             .ToArray();
@@ -51,7 +52,8 @@ public sealed class TextureComponentInstanceDataTests
             );
             var color = MemoryMarshal.Read<Color>(record.AsSpan(colorOffset));
 
-            Assert.Equal(components[index].TransformationMatrix, transform);
+            Assert.Equal(components[index].Destination.Size.X, transform.M11);
+            Assert.Equal(components[index].Destination.Size.Y, transform.M22);
             Assert.Equal(components[index].TexCoord, textureRegion);
             Assert.Equal(components[index].Color, color);
             transforms.Add(transform);
@@ -121,9 +123,12 @@ public sealed class TextureComponentInstanceDataTests
                         regionWidth,
                         regionHeight
                     ),
-                    TransformationMatrix =
-                        Matrix4X4.CreateScale(cellWidth * 0.9f, cellHeight * 0.9f, 1.0f)
-                        * Matrix4X4.CreateTranslation(centerX, centerY, 0f),
+                    Destination = new Rectangle<float>(
+                        centerX - cellWidth * 0.45f,
+                        centerY - cellHeight * 0.45f,
+                        cellWidth * 0.9f,
+                        cellHeight * 0.9f
+                    ),
                 };
 
                 renderers[index] = renderer;
@@ -140,11 +145,11 @@ public sealed class TextureComponentInstanceDataTests
         var component = new NinePatchComponent
         {
             Texture = new Texture("test", 100, 80, new Color[100 * 80]),
-            Size = new(15f, 12f),
+            Destination = new Rectangle<float>(0f, 0f, 15f, 12f),
             TexCoord = new(0.2f, 0.1f, 0.5f, 0.5f),
             SourceBorders = new(10f, 8f, 10f, 8f),
         };
-        var drawable = (IDrawable)component;
+        var drawable = component.Drawables.Single();
         var layout = BuiltInShaders.TexturedQuadVertexShader.InstanceLayout;
         var data = drawable.GetInstanceData(layout).ToArray();
         var transformOffset = GetOffset(layout, InputSemantics.Transform);
@@ -178,18 +183,17 @@ public sealed class TextureComponentInstanceDataTests
         );
     }
 
-    /// <summary>Verifies destination caps can preserve source corner aspect ratio.</summary>
+    /// <summary>Verifies source borders remain fixed while the center stretches.</summary>
     [Fact]
-    public void NinePatch_usesIndependentDestinationBorderSizes()
+    public void NinePatch_uses_source_borders_for_destination_caps()
     {
         var component = new NinePatchComponent
         {
             Texture = new Texture("capsule", 384, 128, new Color[384 * 128]),
-            Size = new(160f, 38f),
+            Destination = new Rectangle<float>(0f, 0f, 160f, 38f),
             SourceBorders = new(64f, 64f, 64f, 64f),
-            DestinationBorders = new(19f, 19f, 19f, 19f),
         };
-        var drawable = (IDrawable)component;
+        var drawable = component.Drawables.Single();
         var layout = BuiltInShaders.TexturedQuadVertexShader.InstanceLayout;
         var data = drawable.GetInstanceData(layout).ToArray();
         var transformOffset = GetOffset(layout, InputSemantics.Transform);
@@ -201,10 +205,110 @@ public sealed class TextureComponentInstanceDataTests
             data.AsSpan(textureRegionOffset, 16)
         );
 
-        Assert.Equal(19f, topLeftTransform.M11);
+        Assert.Equal(64f, topLeftTransform.M11);
         Assert.Equal(19f, topLeftTransform.M22);
         Assert.Equal(63.5f / 384f, topLeftRegion.Z, 6);
         Assert.Equal(63.5f / 128f, topLeftRegion.W, 6);
+    }
+
+    /// <summary>Verifies destination coordinates are packed without owner or local transforms.</summary>
+    [Fact]
+    public void Destination_packs_explicit_rectangle()
+    {
+        var component = new TextureComponent
+        {
+            Destination = new Rectangle<float>(10f, 20f, 30f, 40f),
+        };
+
+        var data = new byte[component.GetInstanceData(0, Span<byte>.Empty)];
+        component.GetInstanceData(0, data);
+        var transform = MemoryMarshal.Read<Matrix4X4<float>>(data);
+
+        Assert.Equal(30f, transform.M11);
+        Assert.Equal(40f, transform.M22);
+        Assert.Equal(10f, transform.M41);
+        Assert.Equal(20f, transform.M42);
+    }
+
+    /// <summary>Verifies centered and corner meshes describe the same destination extents.</summary>
+    [Fact]
+    public void Centered_and_corner_meshes_pack_equal_destination_extents()
+    {
+        var destination = new Rectangle<float>(10f, 20f, 30f, 40f);
+        var corner = new TextureComponent { Destination = destination };
+        var centered = new TextureComponent(true) { Destination = destination };
+        var cornerData = new byte[corner.GetInstanceData(0, Span<byte>.Empty)];
+        var centeredData = new byte[centered.GetInstanceData(0, Span<byte>.Empty)];
+        corner.GetInstanceData(0, cornerData);
+        centered.GetInstanceData(0, centeredData);
+
+        var cornerTransform = MemoryMarshal.Read<Matrix4X4<float>>(cornerData);
+        var centeredTransform = MemoryMarshal.Read<Matrix4X4<float>>(centeredData);
+        Assert.Equal(cornerTransform.M11, centeredTransform.M11);
+        Assert.Equal(cornerTransform.M22, centeredTransform.M22);
+        Assert.Equal(destination.Origin.X, cornerTransform.M41);
+        Assert.Equal(destination.Origin.Y, cornerTransform.M42);
+        Assert.Equal(destination.Origin.X + destination.Size.X / 2f, centeredTransform.M41);
+        Assert.Equal(destination.Origin.Y + destination.Size.Y / 2f, centeredTransform.M42);
+    }
+
+    /// <summary>Verifies destination changes notify once and equal assignments are ignored.</summary>
+    [Fact]
+    public void Destination_changes_raise_instance_data_event_only_when_changed()
+    {
+        var component = new TextureComponent();
+        var changes = 0;
+        component.InstanceDataChanged += (_, _) => changes++;
+        var destination = new Rectangle<float>(2f, 3f, 4f, 5f);
+
+        component.Destination = destination;
+        component.Destination = destination;
+
+        Assert.Equal(1, changes);
+    }
+
+    /// <summary>Verifies invalid destination origins and extents are rejected.</summary>
+    [Fact]
+    public void Destination_rejects_nonfinite_or_nonpositive_values()
+    {
+        var component = new TextureComponent();
+
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            component.Destination = new Rectangle<float>(float.NaN, 0f, 1f, 1f)
+        );
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            component.Destination = new Rectangle<float>(0f, 0f, 0f, 1f)
+        );
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            component.Destination = new Rectangle<float>(0f, 0f, 1f, float.PositiveInfinity)
+        );
+    }
+
+    /// <summary>Verifies changing the owner does not move explicit destination geometry.</summary>
+    [Fact]
+    public void Owner_changes_do_not_move_destination_geometry()
+    {
+        var component = new TextureComponent
+        {
+            Destination = new Rectangle<float>(10f, 20f, 30f, 40f),
+        };
+        var first = ReadTransform(component);
+        var owner = new GameObject2D([component]) { Position = new(100f, 200f) };
+        var second = ReadTransform(component);
+
+        Assert.Equal(first, second);
+        owner.Position = new(300f, 400f);
+        Assert.Equal(first, ReadTransform(component));
+    }
+
+    /// <summary>Reads the packed transform for a single texture instance.</summary>
+    /// <param name="component">The component to inspect.</param>
+    /// <returns>The packed transform.</returns>
+    private static Matrix4X4<float> ReadTransform(TextureComponent component)
+    {
+        var data = new byte[component.GetInstanceData(0, Span<byte>.Empty)];
+        component.GetInstanceData(0, data);
+        return MemoryMarshal.Read<Matrix4X4<float>>(data);
     }
 
     /// <summary>

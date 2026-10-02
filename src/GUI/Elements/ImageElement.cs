@@ -216,27 +216,28 @@ public partial class ImageElement : Element
 
         SynchronizeVisualComponent(
             _imageComponent,
-            new Vector2D<float>(right - left, bottom - top),
-            new Vector2D<float>(left, top),
+            new Rectangle<float>(
+                bounds.Origin.X + left,
+                bounds.Origin.Y + top,
+                right - left,
+                bottom - top
+            ),
             texCoord
         );
     }
 
     /// <summary>Applies retained source and visual settings to the current texture component.</summary>
     /// <param name="component">The owned visual component.</param>
-    /// <param name="size">The clipped destination size.</param>
-    /// <param name="offset">The clipped destination offset within the element.</param>
+    /// <param name="destination">The clipped visual destination.</param>
     /// <param name="texCoord">The clipped normalized source rectangle.</param>
     private void SynchronizeVisualComponent(
         TextureComponent component,
-        Vector2D<float> size,
-        Vector2D<float> offset,
+        Rectangle<float> destination,
         Vector4D<float> texCoord
     )
     {
         component.Texture = _imageSource.Texture;
-        component.Size = size;
-        component.TransformationMatrix = Matrix4X4.CreateTranslation(offset.X, offset.Y, 0f);
+        component.Destination = destination;
         component.TexCoord = texCoord;
         component.Color = _color;
         component.SamplingBehavior = _samplingBehavior;
