@@ -3,7 +3,7 @@ namespace Nexus.GUI;
 /// <summary>
 /// Defines the dimensions, hit-test bounds, and layout protocol of a GUI element.
 /// </summary>
-public interface IElement
+public interface IElement : IGameObject
 {
     /// <summary>Gets or sets whether this element is visible.</summary>
     /// <remarks>An element is effectively visible only when it and all ancestor elements are visible.</remarks>

@@ -95,8 +95,9 @@ public sealed class TextButtonTests
         Assert.Empty(button.Components);
         Assert.Equal(2, removedComponents.Count);
         Assert.Equal(Vector2D<float>.Zero, button.Measure(new(100f, 100f)));
-        button.Arrange(new Rectangle<float>(0f, 0f, 10f, 10f));
-        Assert.Equal(bounds, button.Bounds);
+        var hiddenBounds = new Rectangle<float>(0f, 0f, 40f, 30f);
+        button.Arrange(hiddenBounds);
+        Assert.Equal(hiddenBounds, button.Bounds);
         button.Label = "BA";
         button.Padding = new(6f, 5f);
 
@@ -111,7 +112,14 @@ public sealed class TextButtonTests
         Assert.Equal(2UL, DrawableTestData.TextInstanceCount(button));
         Assert.Equal(2, addedComponents.Count);
         Assert.Equal(2, removedComponents.Count);
-        Assert.Equal(bounds, button.Bounds);
+        Assert.Equal(hiddenBounds, button.Bounds);
+        Assert.Equal(hiddenBounds, recreatedBackground.Destination);
+        Assert.Equal(
+            new Rectangle<float>(6f, 5f, 28f, 20f),
+            Assert.IsType<TextComponent>(
+                Assert.Single(button.Components.OfType<TextComponent>())
+            ).Destination
+        );
         Assert.Equal(new Vector2D<float>(14f, 11f), button.Measure(new(100f, 100f)));
     }
 
@@ -137,7 +145,6 @@ public sealed class TextButtonTests
     {
         var button = CreateButton("A");
         var bounds = new Rectangle<float>(4f, 5f, 60f, 24f);
-        button.Position = new Vector2D<float>(100f, 200f);
 
         button.Arrange(bounds);
 
@@ -148,7 +155,6 @@ public sealed class TextButtonTests
         Assert.Equal("A", text.Text);
         Assert.False(text.Wrap);
         Assert.Equal(1, text.MaximumLines);
-        Assert.Equal(new Vector2D<float>(100f, 200f), button.Position);
         Assert.Equal(1UL, DrawableTestData.TextInstanceCount(button));
     }
 
@@ -161,8 +167,6 @@ public sealed class TextButtonTests
         var button = CreateButton("A");
         var measuredSize = button.Measure(new(100f, 100f));
         var bounds = new Rectangle<float>(0f, 0f, 60f, 24f);
-        button.Position = new Vector2D<float>(12f, 34f);
-
         button.Arrange(bounds);
         var text = Assert.IsType<TextComponent>(Assert.Single(button.Components.OfType<TextComponent>()));
         var centeredTextOrigin = text.LayoutBounds.Origin.X;
@@ -176,7 +180,6 @@ public sealed class TextButtonTests
         Assert.True(centeredTextOrigin < endTextOrigin);
         Assert.Equal(new Rectangle<float>(8f, 6f, 44f, 12f), text.Destination);
         Assert.Equal(bounds, button.Bounds);
-        Assert.Equal(new Vector2D<float>(12f, 34f), button.Position);
         Assert.Equal(
             new Vector2D<float>(measuredSize.X + 8f, measuredSize.Y + 6f),
             button.Measure(new(100f, 100f))

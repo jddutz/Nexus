@@ -44,11 +44,9 @@ public sealed class TextElementTests
     {
         var element = CreateTextElement("A");
         var bounds = new Rectangle<float>(10f, 20f, 8f, 6f);
-        element.Position = new Vector2D<float>(100f, 200f);
 
         element.Arrange(bounds);
         Assert.Equal(bounds, element.Bounds);
-        Assert.Equal(new Vector2D<float>(100f, 200f), element.Position);
         Assert.Equal(
             new Rectangle<float>(13.5f, 22.5f, 1f, 1f),
             Assert.IsType<TextComponent>(Assert.Single(element.Components)).LayoutBounds
@@ -58,7 +56,6 @@ public sealed class TextElementTests
         element.VerticalAlignment = AlignVertical.Bottom;
 
         Assert.Equal(bounds, element.Bounds);
-        Assert.Equal(new Vector2D<float>(100f, 200f), element.Position);
         Assert.Equal(
             new Rectangle<float>(17f, 25f, 1f, 1f),
             Assert.IsType<TextComponent>(Assert.Single(element.Components)).LayoutBounds
@@ -103,12 +100,11 @@ public sealed class TextElementTests
         Assert.Equal(2UL, DrawableTestData.TextInstanceCount(element));
         Assert.Equal(new Vector2D<float>(2f, 1f), element.Measure(new(20f, 20f)));
         Assert.Equal(bounds, element.Bounds);
-        Assert.Equal(Vector2D<float>.Zero, element.Position);
     }
 
     /// <summary>Verifies text, line-limit, and alignment changes reapply the assigned layout.</summary>
     [Fact]
-    public void LayoutPropertyChanges_rewrapAndRepositionImmediately()
+    public void LayoutPropertyChanges_rewrapAndReapplyLayoutImmediately()
     {
         var element = CreateTextElement("A");
         var bounds = new Rectangle<float>(10f, 20f, 1f, 2f);
@@ -117,7 +113,6 @@ public sealed class TextElementTests
         element.Text = "AB";
         Assert.Equal(2UL, DrawableTestData.TextInstanceCount(element));
         Assert.Equal(bounds, element.Bounds);
-        Assert.Equal(Vector2D<float>.Zero, element.Position);
 
         element.MaximumLines = 1;
         Assert.Equal(1UL, DrawableTestData.TextInstanceCount(element));
@@ -130,7 +125,6 @@ public sealed class TextElementTests
         element.HorizontalAlignment = AlignHorizontal.Right;
         element.VerticalAlignment = AlignVertical.Bottom;
         Assert.Equal(bounds, element.Bounds);
-        Assert.Equal(Vector2D<float>.Zero, element.Position);
     }
 
     /// <summary>Verifies a hidden element retains newly assigned bounds for restoration.</summary>
@@ -149,6 +143,10 @@ public sealed class TextElementTests
 
         Assert.Equal(hiddenBounds, element.Bounds);
         Assert.Equal(1UL, DrawableTestData.TextInstanceCount(element));
+        Assert.Equal(
+            hiddenBounds,
+            Assert.IsType<TextComponent>(Assert.Single(element.Components)).Destination
+        );
     }
 
     /// <summary>Creates a text element with deterministic in-memory font data.</summary>

@@ -33,6 +33,7 @@ public partial class TextButton : Element
     private readonly ISamplingBehavior _samplingBehavior;
     private NinePatchComponent? _background;
     private TextComponent? _text;
+    private Rectangle<float>? _layoutBounds;
     private float _horizontalPadding;
     private float _verticalPadding;
 
@@ -45,14 +46,20 @@ public partial class TextButton : Element
     [Observable(PublicSetter = true)]
     private Action? _action;
 
+    /// <summary>Rejects a null label value.</summary>
+    /// <param name="value">The proposed label.</param>
     private void BeforeLabelChanges(string value) => ArgumentNullException.ThrowIfNull(value);
 
+    /// <summary>Validates the proposed label alignment.</summary>
+    /// <param name="value">The proposed label alignment.</param>
     private void BeforeLabelAlignmentChanges(TextButtonLabelAlignment value)
     {
         if (!Enum.IsDefined(value))
             throw new ArgumentOutOfRangeException(nameof(value));
     }
 
+    /// <summary>Updates the text component after the button label changes.</summary>
+    /// <param name="previousValue">The previous label.</param>
     protected virtual partial void AfterLabelChanges(string previousValue)
     {
         if (_text is not null)
@@ -140,7 +147,6 @@ public partial class TextButton : Element
     /// <summary>Invokes the action assigned to this button, if any.</summary>
     private void InvokeAction() => Action?.Invoke();
 
-    /// <summary>
     /// <summary>Creates fresh visual components from the button's retained configuration.</summary>
     private void CreateVisualComponents()
     {
@@ -160,8 +166,8 @@ public partial class TextButton : Element
         _text = text;
         AddComponent(background);
         AddComponent(text);
-        if (Bounds.Size.X > 0f && Bounds.Size.Y > 0f)
-            Arrange(Bounds);
+        if (_layoutBounds is { } bounds)
+            Arrange(bounds);
     }
 
     /// <summary>Removes the current visual components and releases their references.</summary>
@@ -234,26 +240,32 @@ public partial class TextButton : Element
         if (!IsEffectivelyVisible)
             return Vector2D<float>.Zero;
 
+        if (
+            float.IsNaN(constraint.X)
+            || constraint.X < 0f
+            || float.IsNaN(constraint.Y)
+            || constraint.Y < 0f
+        )
+            throw new ArgumentOutOfRangeException(nameof(constraint));
+
         var textConstraint = new Vector2D<float>(
             MathF.Max(0f, constraint.X - 2f * _horizontalPadding),
             MathF.Max(0f, constraint.Y - 2f * _verticalPadding)
         );
         var labelSize = _text?.Measure(textConstraint) ?? Vector2D<float>.Zero;
-        var desiredSize = new Vector2D<float>(
-            MathF.Ceiling(labelSize.X) + _horizontalPadding * 2f,
-            MathF.Ceiling(labelSize.Y) + _verticalPadding * 2f
+        return new(
+            MathF.Min(labelSize.X + _horizontalPadding * 2f, constraint.X),
+            MathF.Min(labelSize.Y + _verticalPadding * 2f, constraint.Y)
         );
-
-        return new(MathF.Min(desiredSize.X, constraint.X), MathF.Min(desiredSize.Y, constraint.Y));
     }
 
     /// <inheritdoc />
     public override void Arrange(Rectangle<float> bounds)
     {
+        _layoutBounds = bounds;
+        base.Arrange(bounds);
         if (!IsEffectivelyVisible || _text is null || _background is null)
             return;
-
-        base.Arrange(bounds);
 
         var horizontalAlignment = LabelAlignment switch
         {
@@ -278,7 +290,7 @@ public partial class TextButton : Element
     /// <summary>Reapplies the most recently assigned bounds to the active visuals.</summary>
     private void ReapplyLayout()
     {
-        if (_text is not null && _background is not null && IsEffectivelyVisible)
-            Arrange(Bounds);
+        if (_layoutBounds is { } bounds)
+            Arrange(bounds);
     }
 }

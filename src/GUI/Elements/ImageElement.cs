@@ -196,7 +196,6 @@ public partial class ImageElement : Element
             (bottomFraction - topFraction) * sourceTexCoord.W
         );
 
-        SetPosition(bounds.Origin);
         SetBounds(
             new Rectangle<float>(
                 bounds.Origin.X + left,

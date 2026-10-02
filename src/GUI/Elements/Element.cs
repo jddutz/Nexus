@@ -3,7 +3,7 @@ namespace Nexus.GUI.Elements;
 /// <summary>
 /// Represents a two-dimensional user-interface element with virtual layout behavior.
 /// </summary>
-public partial class Element : GameObject2D, IElement
+public partial class Element : GameObject, IElement
 {
     [Observable]
     private float? _height = null;
@@ -32,8 +32,7 @@ public partial class Element : GameObject2D, IElement
     /// </summary>
     /// <param name="components">The components owned by the element.</param>
     public Element(IEnumerable<Nexus.Core.IComponent>? components = null)
-        : base(components ?? [])
-    { }
+        : base(components ?? []) { }
 
     /// <summary>Occurs when this element receives focus.</summary>
     public event EventHandler? FocusGained;
@@ -88,9 +87,9 @@ public partial class Element : GameObject2D, IElement
         return true;
     }
 
-    /// <summary>Updates focus state on behalf of the GUI focus manager.</summary>
-    /// <param name="isFocused">Whether this element should be focused.</param>
-    private bool ValidateFocused(bool value) => !value || CanFocus;
+    /// <summary>Rejects focus when this element is not focusable.</summary>
+    /// <param name="value">Whether this element should be focused.</param>
+    private bool ValidateIsFocused(bool value) => !value || CanFocus;
 
     /// <summary>Raises the focus lifecycle event after the observable focus state changes.</summary>
     /// <param name="previousValue">The focus state before the change.</param>

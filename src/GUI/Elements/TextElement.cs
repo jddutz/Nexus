@@ -29,21 +29,29 @@ public partial class TextElement : Element
     [Observable]
     private AlignVertical _verticalAlignment = AlignVertical.Center;
 
+    /// <summary>Validates the proposed horizontal alignment.</summary>
+    /// <param name="value">The proposed horizontal alignment.</param>
     private void BeforeHorizontalAlignmentChanges(AlignHorizontal value)
     {
         if (!Enum.IsDefined(value))
             throw new ArgumentOutOfRangeException(nameof(value));
     }
 
+    /// <summary>Validates the proposed vertical alignment.</summary>
+    /// <param name="value">The proposed vertical alignment.</param>
     private void BeforeVerticalAlignmentChanges(AlignVertical value)
     {
         if (!Enum.IsDefined(value))
             throw new ArgumentOutOfRangeException(nameof(value));
     }
 
+    /// <summary>Reapplies text placement after horizontal alignment changes.</summary>
+    /// <param name="previousValue">The previous horizontal alignment.</param>
     protected virtual partial void AfterHorizontalAlignmentChanges(AlignHorizontal previousValue) =>
         ReapplyLayout();
 
+    /// <summary>Reapplies text placement after vertical alignment changes.</summary>
+    /// <param name="previousValue">The previous vertical alignment.</param>
     protected virtual partial void AfterVerticalAlignmentChanges(AlignVertical previousValue) =>
         ReapplyLayout();
 
@@ -65,6 +73,8 @@ public partial class TextElement : Element
         ReapplyLayout();
     }
 
+    /// <summary>Updates the text drawable after the render-layer mask changes.</summary>
+    /// <param name="previousValue">The previous render-layer mask.</param>
     protected virtual partial void AfterRenderLayerMaskChanges(ulong previousValue)
     {
         if (_textComponent is not null)
@@ -122,10 +132,10 @@ public partial class TextElement : Element
     public override void Arrange(Rectangle<float> bounds)
     {
         _layoutBounds = bounds;
+        base.Arrange(bounds);
         if (!IsEffectivelyVisible || _textComponent is null)
             return;
 
-        base.Arrange(bounds);
         _textComponent.Text = Text;
         _textComponent.MaximumLines = MaximumLines;
         _textComponent.Wrap = true;
@@ -161,6 +171,7 @@ public partial class TextElement : Element
     }
 
     /// <summary>Gets the normalized horizontal alignment value for the text component.</summary>
+    /// <returns>The normalized horizontal alignment.</returns>
     private float GetHorizontalAlignment() =>
         HorizontalAlignment switch
         {
@@ -171,6 +182,7 @@ public partial class TextElement : Element
         };
 
     /// <summary>Gets the normalized vertical alignment value for the text component.</summary>
+    /// <returns>The normalized vertical alignment.</returns>
     private float GetVerticalAlignment() =>
         VerticalAlignment switch
         {
@@ -204,6 +216,7 @@ public partial class TextElement : Element
     }
 
     /// <summary>Subscribes to visibility changes on the current ancestor chain.</summary>
+    /// <summary>Subscribes to visibility changes on the current ancestor chain.</summary>
     private void UpdateVisibilityAncestorSubscriptions()
     {
         foreach (var ancestor in _visibilityAncestors)
@@ -221,6 +234,8 @@ public partial class TextElement : Element
     }
 
     /// <summary>Updates text component ownership when an ancestor's visibility changes.</summary>
+    /// <param name="propertyName">The name of the changed property.</param>
+    /// <summary>Updates the text component when an ancestor's visibility changes.</summary>
     /// <param name="propertyName">The name of the changed property.</param>
     private void OnAncestorPropertyChanged(string propertyName)
     {
