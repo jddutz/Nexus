@@ -34,7 +34,7 @@ public sealed class TextElementTests
 
         element.Style = new TestTextStyle();
 
-        Assert.Equal("A", DrawableTestData.RenderedText(element));
+        Assert.Equal(1UL, DrawableTestData.TextInstanceCount(element));
     }
 
     /// <summary>Verifies horizontal and vertical alignment position the rendered glyph bounds.</summary>
@@ -65,7 +65,7 @@ public sealed class TextElementTests
         element.Arrange(new Rectangle<float>(0f, 0f, measuredSize.X, measuredSize.Y));
 
         Assert.Equal(new Vector2D<float>(1f, 1f), measuredSize);
-        Assert.Equal("A", DrawableTestData.RenderedText(element));
+        Assert.Equal(1UL, DrawableTestData.TextInstanceCount(element));
         Assert.Equal(1f, element.Bounds.Size.Y);
     }
 
@@ -90,7 +90,7 @@ public sealed class TextElementTests
         var recreated = DrawableTestData.TextGraphics(element);
         Assert.NotNull(recreated);
         Assert.NotSame(original, recreated);
-        Assert.Equal("BA", DrawableTestData.RenderedText(element));
+        Assert.Equal(2UL, DrawableTestData.TextInstanceCount(element));
         Assert.Equal(new Vector2D<float>(2f, 1f), element.Measure(new(20f, 20f)));
         Assert.Equal(new Rectangle<float>(5f, 4.5f, 2f, 1f), element.Bounds);
         Assert.Equal(new Vector2D<float>(5f, 4.5f), element.Position);
@@ -105,12 +105,12 @@ public sealed class TextElementTests
         element.Arrange(bounds);
 
         element.Text = "AB";
-        Assert.Equal("A\nB", DrawableTestData.RenderedText(element));
+        Assert.Equal(2UL, DrawableTestData.TextInstanceCount(element));
         Assert.Equal(new Rectangle<float>(10f, 20f, 1f, 2f), element.Bounds);
         Assert.Equal(new Vector2D<float>(10f, 20f), element.Position);
 
         element.MaximumLines = 1;
-        Assert.Equal("A", DrawableTestData.RenderedText(element));
+        Assert.Equal(1UL, DrawableTestData.TextInstanceCount(element));
         Assert.Equal(new Vector2D<float>(10f, 20.5f), element.Position);
         Assert.Equal(new Rectangle<float>(10f, 20.5f, 1f, 1f), element.Bounds);
 

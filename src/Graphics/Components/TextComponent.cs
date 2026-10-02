@@ -220,9 +220,15 @@ public partial class TextComponent : Component, IGraphicsComponent
 
         if (_spans.Count == 0)
         {
-            RegisterDrawable(
-                new TextSpan(style, instances) { RenderLayerMask = RenderLayerMask }
-            );
+            var span = new TextSpan
+            {
+                Texture = style.Texture,
+                GlyphScale = GetScale(style),
+                DistanceRange = checked((float)style.Msdf.DistanceRange),
+                RenderLayerMask = RenderLayerMask,
+            };
+            span.SetInstances(instances);
+            RegisterDrawable(span);
             return;
         }
 

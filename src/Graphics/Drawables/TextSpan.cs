@@ -1,40 +1,19 @@
 namespace Nexus.Graphics.Drawables;
 
-using System.Collections.ObjectModel;
-
+using System.Runtime.Versioning;
 using Nexus.Assets.Fonts;
 
 /// <summary>
-/// Renders prepared glyph instances that share one text rendering style. Instance positions are
-/// baseline origins in GUI coordinates, where +X points right and +Y points down.
+/// Renders prepared glyph instances that share one atlas and MSDF configuration. Instance
+/// positions are baseline origins in GUI coordinates, where +X points right and +Y points down.
 /// </summary>
 public partial class TextSpan : IDrawable
 {
     private const int InstanceDataSize = 100;
-    private GlyphInstance[] _instances;
-    private ReadOnlyCollection<GlyphInstance> _instancesView;
+    private readonly List<GlyphInstance> _instances = [];
 
     [Observable(PublicSetter = true)]
     private ulong _renderLayerMask = ulong.MaxValue;
-
-    /// <summary>Initializes a span with the shared style and prepared glyph instances.</summary>
-    /// <param name="textStyle">The shared font, size, atlas, and shader settings.</param>
-    /// <param name="instances">The immutable glyph metrics, positions, and colors to render.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="instances"/> is null.</exception>
-    public TextSpan(ITextStyle? textStyle, IReadOnlyList<GlyphInstance> instances)
-    {
-        ArgumentNullException.ThrowIfNull(instances);
-
-        TextStyle = textStyle;
-        _instances = instances.ToArray();
-        _instancesView = Array.AsReadOnly(_instances);
-    }
-
-    /// <summary>Gets the shared style used to render the glyph instances.</summary>
-    public ITextStyle? TextStyle { get; }
-
-    /// <summary>Gets the prepared glyph instances rendered by this span.</summary>
-    public IReadOnlyList<GlyphInstance> Instances => _instancesView;
 
     /// <summary>Replaces one prepared glyph instance and notifies instance-data observers.</summary>
     /// <param name="index">The zero-based index of the instance to replace.</param>
@@ -42,7 +21,7 @@ public partial class TextSpan : IDrawable
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="index"/> is outside the collection.</exception>
     public void SetInstance(int index, GlyphInstance instance)
     {
-        if ((uint)index >= (uint)_instances.Length)
+        if ((uint)index >= (uint)_instances.Count)
             throw new ArgumentOutOfRangeException(nameof(index));
 
         if (_instances[index] == instance)
@@ -58,18 +37,21 @@ public partial class TextSpan : IDrawable
     public void SetInstances(IReadOnlyList<GlyphInstance> instances)
     {
         ArgumentNullException.ThrowIfNull(instances);
-        var replacement = instances.ToArray();
-        ReplaceInstances(replacement);
+        var replacement = instances.ToList();
+        if (_instances.SequenceEqual(replacement))
+            return;
+
+        _instances.Clear();
+        _instances.AddRange(replacement);
+        InstanceDataChanged?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>Appends one prepared glyph instance and notifies instance-data observers.</summary>
     /// <param name="instance">The immutable glyph metrics, position, and color to render.</param>
     public void AddInstance(GlyphInstance instance)
     {
-        var replacement = new GlyphInstance[checked(_instances.Length + 1)];
-        Array.Copy(_instances, replacement, _instances.Length);
-        replacement[^1] = instance;
-        ReplaceInstances(replacement);
+        _instances.Add(instance);
+        InstanceDataChanged?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>Removes the instance at the specified index and notifies observers.</summary>
@@ -77,39 +59,20 @@ public partial class TextSpan : IDrawable
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="index"/> is outside the collection.</exception>
     public void RemoveInstanceAt(int index)
     {
-        if ((uint)index >= (uint)_instances.Length)
+        if ((uint)index >= (uint)_instances.Count)
             throw new ArgumentOutOfRangeException(nameof(index));
 
-        var replacement = new GlyphInstance[_instances.Length - 1];
-        Array.Copy(_instances, 0, replacement, 0, index);
-        Array.Copy(
-            _instances,
-            index + 1,
-            replacement,
-            index,
-            _instances.Length - index - 1
-        );
-        ReplaceInstances(replacement);
+        _instances.RemoveAt(index);
+        InstanceDataChanged?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>Removes all instances and notifies observers when the span is non-empty.</summary>
     public void ClearInstances()
     {
-        if (_instances.Length == 0)
+        if (_instances.Count == 0)
             return;
 
-        ReplaceInstances([]);
-    }
-
-    /// <summary>Replaces the owned collection when its contents differ.</summary>
-    /// <param name="replacement">The new collection owned by the span.</param>
-    private void ReplaceInstances(GlyphInstance[] replacement)
-    {
-        if (_instances.SequenceEqual(replacement))
-            return;
-
-        _instances = replacement;
-        _instancesView = Array.AsReadOnly(_instances);
+        _instances.Clear();
         InstanceDataChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -119,38 +82,20 @@ public partial class TextSpan : IDrawable
     /// <inheritdoc />
     public Mesh Mesh { get; } = BuiltInMesh.TexturedQuadOffset;
 
-    /// <inheritdoc />
-    public ITexture Texture => TextStyle?.Texture ?? BuiltInTextures.Invalid;
+    /// <summary>Gets or sets the atlas texture containing the glyph images.</summary>
+    [Observable(PublicSetter = true)]
+    private ITexture _texture = BuiltInTextures.Invalid;
+
+    /// <summary>Gets or sets the scale converting glyph plane bounds into rendering units.</summary>
+    [Observable(PublicSetter = true)]
+    private float _glyphScale = 1f;
+
+    /// <summary>Gets or sets the MSDF distance range encoded in atlas pixels.</summary>
+    [Observable(PublicSetter = true)]
+    private float _distanceRange = 4f;
 
     /// <inheritdoc />
-    public ulong InstanceCount => checked((ulong)_instances.Length);
-
-    /// <summary>Gets the combined glyph bounds in span-local coordinates.</summary>
-    public Rectangle<float> LayoutBounds
-    {
-        get
-        {
-            var textStyle = TextStyle;
-            if (_instances.Length == 0 || textStyle is null)
-                return new Rectangle<float>(0f, 0f, 0f, 0f);
-
-            var left = float.PositiveInfinity;
-            var top = float.PositiveInfinity;
-            var right = float.NegativeInfinity;
-            var bottom = float.NegativeInfinity;
-            var scale = (float)(textStyle.Size / textStyle.FontMetrics.EmSize);
-            foreach (var instance in _instances)
-            {
-                var bounds = instance.Glyph.PlaneBounds;
-                left = MathF.Min(left, instance.Position.X + (float)bounds.Left * scale);
-                top = MathF.Min(top, instance.Position.Y - (float)bounds.Top * scale);
-                right = MathF.Max(right, instance.Position.X + (float)bounds.Right * scale);
-                bottom = MathF.Max(bottom, instance.Position.Y - (float)bounds.Bottom * scale);
-            }
-
-            return new Rectangle<float>(left, top, right - left, bottom - top);
-        }
-    }
+    public ulong InstanceCount => checked((ulong)_instances.Count);
 
     /// <inheritdoc />
     public ISamplingBehavior SamplingBehavior { get; } = SamplingBehaviors.Smooth;
@@ -182,6 +127,18 @@ public partial class TextSpan : IDrawable
     public event Action<string>? PropertyChanged;
 #pragma warning restore CS0067
 
+    /// <summary>Raises instance-data invalidation after the atlas texture changes.</summary>
+    protected virtual partial void AfterTextureChanges() =>
+        InstanceDataChanged?.Invoke(this, EventArgs.Empty);
+
+    /// <summary>Raises instance-data invalidation after the glyph scale changes.</summary>
+    protected virtual partial void AfterGlyphScaleChanges() =>
+        InstanceDataChanged?.Invoke(this, EventArgs.Empty);
+
+    /// <summary>Raises instance-data invalidation after the MSDF distance range changes.</summary>
+    protected virtual partial void AfterDistanceRangeChanges() =>
+        InstanceDataChanged?.Invoke(this, EventArgs.Empty);
+
     /// <inheritdoc />
     public void WriteInstanceDataTo(
         ulong start,
@@ -198,21 +155,15 @@ public partial class TextSpan : IDrawable
         if (count == 0)
             return;
 
-        var textStyle =
-            TextStyle
-            ?? throw new InvalidOperationException(
-                "Cannot write text instance data without a text style."
-            );
-
         ValidateInstanceLayout(layout);
         var requiredBytes = checked((ulong)InstanceDataSize * count);
         if ((ulong)target.Length < requiredBytes)
             throw new ArgumentException("The target span is too small.", nameof(target));
 
-        var scale = checked((float)(textStyle.Size / textStyle.FontMetrics.EmSize));
-        var textureWidth = textStyle.Texture.Width;
-        var textureHeight = textStyle.Texture.Height;
-        var distanceRange = checked((float)textStyle.Msdf.DistanceRange);
+        var textureWidth = Texture.Width;
+        var textureHeight = Texture.Height;
+        var scale = GlyphScale;
+        var distanceRange = DistanceRange;
 
         for (var offset = 0UL; offset < count; offset++)
         {

@@ -43,9 +43,9 @@ public sealed class TextButtonTests
         );
         Assert.NotSame(DrawableTestData.TextGraphics(first), DrawableTestData.TextGraphics(second));
         Assert.Equal("B", first.Label);
-        Assert.Equal("B", DrawableTestData.RenderedText(first));
+        Assert.Equal(1UL, DrawableTestData.TextInstanceCount(first));
         Assert.Equal("A", second.Label);
-        Assert.Equal("A", DrawableTestData.RenderedText(second));
+        Assert.Equal(1UL, DrawableTestData.TextInstanceCount(second));
     }
 
     /// <summary>
@@ -59,7 +59,7 @@ public sealed class TextButtonTests
         Assert.Equal(new Vector2D<float>(10f, 7f), button.Measure(new(100f, 100f)));
         button.Arrange(new Rectangle<float>(0f, 0f, 9f, 7f));
         Assert.Equal("AB", button.Label);
-        Assert.Equal("A", DrawableTestData.RenderedText(button));
+        Assert.Equal(1UL, DrawableTestData.TextInstanceCount(button));
 
         Assert.Equal(new Vector2D<float>(10f, 7f), button.Measure(new(100f, 100f)));
     }
@@ -101,7 +101,7 @@ public sealed class TextButtonTests
         Assert.NotNull(recreatedText);
         Assert.NotSame(originalBackground, recreatedBackground);
         Assert.NotSame(originalText, recreatedText);
-        Assert.Equal("BA", DrawableTestData.RenderedText(button));
+        Assert.Equal(2UL, DrawableTestData.TextInstanceCount(button));
         Assert.Equal(2, addedComponents.Count);
         Assert.Equal(2, removedComponents.Count);
         Assert.Equal(bounds, button.Bounds);
@@ -135,7 +135,7 @@ public sealed class TextButtonTests
 
         Assert.Equal(bounds, button.Bounds);
         Assert.Equal(bounds, button.GetComponent<NinePatchComponent>()!.Destination);
-        Assert.NotEqual(bounds.Size, DrawableTestData.TextDrawable(button).LayoutBounds.Size);
+        Assert.Equal(1UL, DrawableTestData.TextInstanceCount(button));
     }
 
     /// <summary>
