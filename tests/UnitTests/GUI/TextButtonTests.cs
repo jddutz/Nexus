@@ -3,6 +3,7 @@ using Nexus.Core;
 using Nexus.Core.Events;
 using Nexus.Game;
 using Nexus.Graphics;
+using Nexus.Graphics.Components;
 using Nexus.Graphics.Text;
 using Nexus.Graphics.Textures;
 using Nexus.GUI;
@@ -62,6 +63,10 @@ public sealed class TextButtonTests
         button.Arrange(new Rectangle<float>(0f, 0f, 9f, 7f));
         Assert.Equal("AB", button.Label);
         Assert.Equal(1UL, DrawableTestData.TextInstanceCount(button));
+        var text = Assert.IsType<TextComponent>(Assert.Single(button.Components.OfType<TextComponent>()));
+        Assert.Equal("AB", text.Text);
+        Assert.False(text.Wrap);
+        Assert.Equal(1, text.MaximumLines);
 
         Assert.Equal(new Vector2D<float>(10f, 7f), button.Measure(new(100f, 100f)));
     }
@@ -132,16 +137,23 @@ public sealed class TextButtonTests
     {
         var button = CreateButton("A");
         var bounds = new Rectangle<float>(4f, 5f, 60f, 24f);
+        button.Position = new Vector2D<float>(100f, 200f);
 
         button.Arrange(bounds);
 
         Assert.Equal(bounds, button.Bounds);
         Assert.Equal(bounds, button.GetComponent<NinePatchComponent>()!.Destination);
+        var text = Assert.IsType<TextComponent>(Assert.Single(button.Components.OfType<TextComponent>()));
+        Assert.Equal(new Rectangle<float>(8f, 8f, 52f, 18f), text.Destination);
+        Assert.Equal("A", text.Text);
+        Assert.False(text.Wrap);
+        Assert.Equal(1, text.MaximumLines);
+        Assert.Equal(new Vector2D<float>(100f, 200f), button.Position);
         Assert.Equal(1UL, DrawableTestData.TextInstanceCount(button));
     }
 
     /// <summary>
-    /// Verifies padding affects measured size and alignment changes label placement.
+    /// Verifies padding and alignment update the text layout without moving the button.
     /// </summary>
     [Fact]
     public void PaddingAndAlignment_controlMeasurementAndLabelPosition()
@@ -149,19 +161,22 @@ public sealed class TextButtonTests
         var button = CreateButton("A");
         var measuredSize = button.Measure(new(100f, 100f));
         var bounds = new Rectangle<float>(0f, 0f, 60f, 24f);
+        button.Position = new Vector2D<float>(12f, 34f);
 
         button.Arrange(bounds);
-        var centeredPosition = button.Position.X;
+        var text = Assert.IsType<TextComponent>(Assert.Single(button.Components.OfType<TextComponent>()));
+        var centeredTextOrigin = text.LayoutBounds.Origin.X;
         button.LabelAlignment = TextButtonLabelAlignment.Start;
-        button.Arrange(bounds);
-        var startPosition = button.Position.X;
+        var startTextOrigin = text.LayoutBounds.Origin.X;
         button.LabelAlignment = TextButtonLabelAlignment.End;
-        button.Arrange(bounds);
-        var endPosition = button.Position.X;
+        var endTextOrigin = text.LayoutBounds.Origin.X;
         button.Padding = new(8f, 6f);
 
-        Assert.NotEqual(centeredPosition, startPosition);
-        Assert.True(startPosition < endPosition);
+        Assert.True(startTextOrigin < centeredTextOrigin);
+        Assert.True(centeredTextOrigin < endTextOrigin);
+        Assert.Equal(new Rectangle<float>(8f, 6f, 44f, 12f), text.Destination);
+        Assert.Equal(bounds, button.Bounds);
+        Assert.Equal(new Vector2D<float>(12f, 34f), button.Position);
         Assert.Equal(
             new Vector2D<float>(measuredSize.X + 8f, measuredSize.Y + 6f),
             button.Measure(new(100f, 100f))

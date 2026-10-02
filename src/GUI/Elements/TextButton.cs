@@ -1,6 +1,5 @@
 namespace Nexus.GUI.Elements;
 
-using System.Text;
 using Nexus.Graphics.Components;
 using Nexus.Graphics.Text;
 using Nexus.Graphics.Textures;
@@ -60,6 +59,12 @@ public partial class TextButton : Element
             _text.Text = Label;
     }
 
+    /// <summary>Reapplies layout when label alignment changes.</summary>
+    /// <param name="previousValue">The previous label alignment.</param>
+    protected virtual partial void AfterLabelAlignmentChanges(
+        TextButtonLabelAlignment previousValue
+    ) => ReapplyLayout();
+
     /// <summary>
     /// Gets or sets the horizontal and vertical padding around the label.
     /// </summary>
@@ -85,6 +90,7 @@ public partial class TextButton : Element
             _horizontalPadding = value.X;
             _verticalPadding = value.Y;
             NotifyPropertyChanged(nameof(Padding));
+            ReapplyLayout();
         }
     }
 
@@ -139,16 +145,19 @@ public partial class TextButton : Element
     private void CreateVisualComponents()
     {
         var background = new NinePatchComponent { };
-        var text = new TextComponent(_textStyle);
+        var text = new TextComponent(_textStyle)
+        {
+            RenderLayerMask = _textRenderLayerMask,
+            Text = Label,
+            Wrap = false,
+            MaximumLines = 1,
+        };
         background.Texture = _texture;
         background.RenderLayerMask = _backgroundRenderLayerMask;
         background.SamplingBehavior = _samplingBehavior;
         background.SourceBorders = _sourceBorders;
         _background = background;
         _text = text;
-        text.RenderLayerMask = _textRenderLayerMask;
-        text.Text = Label;
-        var labelSize = MeasureLabel(_textStyle, Label);
         AddComponent(background);
         AddComponent(text);
         if (Bounds.Size.X > 0f && Bounds.Size.Y > 0f)
@@ -225,7 +234,11 @@ public partial class TextButton : Element
         if (!IsEffectivelyVisible)
             return Vector2D<float>.Zero;
 
-        var labelSize = MeasureLabel(_textStyle, Label);
+        var textConstraint = new Vector2D<float>(
+            MathF.Max(0f, constraint.X - 2f * _horizontalPadding),
+            MathF.Max(0f, constraint.Y - 2f * _verticalPadding)
+        );
+        var labelSize = _text?.Measure(textConstraint) ?? Vector2D<float>.Zero;
         var desiredSize = new Vector2D<float>(
             MathF.Ceiling(labelSize.X) + _horizontalPadding * 2f,
             MathF.Ceiling(labelSize.Y) + _verticalPadding * 2f
@@ -242,11 +255,6 @@ public partial class TextButton : Element
 
         base.Arrange(bounds);
 
-        var labelWidth = MathF.Max(0f, bounds.Size.X - _horizontalPadding * 2f);
-        var visibleLabel = FitTextToWidth(_textStyle, Label, labelWidth);
-        if (_text.Text != visibleLabel)
-            _text.Text = visibleLabel;
-
         var horizontalAlignment = LabelAlignment switch
         {
             TextButtonLabelAlignment.Start => 0f,
@@ -254,79 +262,23 @@ public partial class TextButton : Element
             TextButtonLabelAlignment.End => 1f,
             _ => throw new InvalidOperationException("Unknown label alignment."),
         };
-        var destination = LabelAlignment switch
-        {
-            TextButtonLabelAlignment.Start => new Rectangle<float>(
-                bounds.Origin.X + _horizontalPadding,
-                bounds.Origin.Y,
-                MathF.Max(0f, bounds.Size.X - _horizontalPadding),
-                bounds.Size.Y
-            ),
-            TextButtonLabelAlignment.End => new Rectangle<float>(
-                bounds.Origin.X,
-                bounds.Origin.Y,
-                MathF.Max(0f, bounds.Size.X - _horizontalPadding),
-                bounds.Size.Y
-            ),
-            _ => bounds,
-        };
-        _text.Destination = destination;
-        _text.Alignment = new Vector2D<float>(horizontalAlignment, 0.5f);
-        var textBounds = _text.LayoutBounds;
-        var textOrigin = new Vector2D<float>(
-            MathF.Round(textBounds.Origin.X),
-            MathF.Round(textBounds.Origin.Y)
+        _text.Text = Label;
+        _text.Wrap = false;
+        _text.MaximumLines = 1;
+        _text.Destination = new Rectangle<float>(
+            bounds.Origin.X + _horizontalPadding,
+            bounds.Origin.Y + _verticalPadding,
+            MathF.Max(0f, bounds.Size.X - 2f * _horizontalPadding),
+            MathF.Max(0f, bounds.Size.Y - 2f * _verticalPadding)
         );
-        SetPosition(textOrigin);
+        _text.Alignment = new Vector2D<float>(horizontalAlignment, 0.5f);
         _background.Destination = bounds;
     }
 
-    /// <summary>
-    /// Measures the combined visible bounds of newline-separated label spans.
-    /// </summary>
-    /// <param name="style">The font metrics used to measure the label.</param>
-    /// <param name="label">The complete label.</param>
-    /// <returns>The combined glyph bounds size.</returns>
-    private static Vector2D<float> MeasureLabel(ITextStyle style, string label)
+    /// <summary>Reapplies the most recently assigned bounds to the active visuals.</summary>
+    private void ReapplyLayout()
     {
-        if (label.Length == 0)
-            return Vector2D<float>.Zero;
-
-        return MeasureTextBounds(style, label).Size;
-    }
-
-    /// <summary>
-    /// Returns the longest leading rune sequence that fits within the available width.
-    /// </summary>
-    /// <param name="style">The font metrics used to measure the label.</param>
-    /// <param name="label">The complete label to fit.</param>
-    /// <param name="availableWidth">The maximum visible width.</param>
-    /// <returns>The fitting label prefix.</returns>
-    private static string FitTextToWidth(ITextStyle style, string label, float availableWidth)
-    {
-        var prefix = new StringBuilder();
-        foreach (var rune in label.EnumerateRunes())
-        {
-            var candidate = prefix.ToString() + rune;
-            if (MeasureTextBounds(style, candidate).Size.X > availableWidth)
-                break;
-
-            prefix.Append(rune);
-        }
-
-        return prefix.ToString();
-    }
-
-    /// <summary>Measures text by preparing it with a temporary graphics component.</summary>
-    /// <param name="style">The font and visual style used by the text.</param>
-    /// <param name="text">The text to measure.</param>
-    /// <returns>The glyph bounds in text-local coordinates.</returns>
-    private static Rectangle<float> MeasureTextBounds(ITextStyle style, string text)
-    {
-        var component = new TextComponent(style) { Text = text };
-        var size = component.Measure(
-            new Vector2D<float>(float.PositiveInfinity, float.PositiveInfinity)
-        );
-        return new Rectangle<float>(0f, 0f, size.X, size.Y);
+        if (_text is not null && _background is not null && IsEffectivelyVisible)
+            Arrange(Bounds);
     }
 }

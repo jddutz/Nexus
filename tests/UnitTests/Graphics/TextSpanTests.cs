@@ -269,7 +269,6 @@ public sealed class TextSpanTests
     /// <summary>Verifies unsupported text with no prepared glyphs removes the drawable.</summary>
     /// <param name="text">The input without known glyphs.</param>
     [Theory]
-    [InlineData(" ")]
     [InlineData("?")]
     public void Text_without_known_glyphs_removes_drawable(string text)
     {
@@ -685,6 +684,29 @@ public sealed class TextSpanTests
         Assert.Equal(1f, ReadTransform(span).M41);
         Assert.Equal(2f, ReadTransform(span, 1).M41);
         Assert.Equal(1.5f, ReadTransform(span, 2).M41);
+    }
+
+    /// <summary>Verifies vertical alignment uses line boxes and preserves leading empty lines.</summary>
+    [Fact]
+    public void TextComponent_vertical_alignment_uses_logical_line_boxes()
+    {
+        var component = new TextComponent(
+            CreateStyle(fontMetrics: new FontMetrics(1, 1, 0, 2))
+        )
+        {
+            Destination = new Rectangle<float>(3f, 4f, 4f, 5f),
+            Alignment = new Vector2D<float>(0f, 0.5f),
+            Text = "A",
+        };
+        var span = Assert.IsType<TextSpan>(Assert.Single(component.Drawables));
+
+        Assert.Equal(5.5f, component.LayoutBounds.Origin.Y);
+        Assert.Equal(5.5f, ReadTransform(span).M42);
+
+        component.Text = "\nA";
+
+        Assert.Equal(6.5f, component.LayoutBounds.Origin.Y);
+        Assert.Equal(6.5f, ReadTransform(span).M42);
     }
 
     /// <summary>Verifies style changes synchronize configuration without replacing the span.</summary>

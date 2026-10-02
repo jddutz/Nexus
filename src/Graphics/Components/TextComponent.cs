@@ -98,7 +98,11 @@ public partial class TextComponent : Component, IGraphicsComponent
     /// <summary>Gets the drawables currently exposed by this component.</summary>
     public IReadOnlyList<IDrawable> Drawables => _drawables;
 
-    /// <summary>Measures fitted text without changing drawable membership or placement.</summary>
+    /// <summary>
+    /// Measures fitted text without changing drawable membership or placement. Height fitting
+    /// and the returned vertical size use complete logical line boxes; glyph bounds remain visible
+    /// geometry and do not determine line spacing.
+    /// </summary>
     /// <param name="constraint">The available width and height; positive infinity is unconstrained.</param>
     /// <returns>The measured extent of the fitted lines.</returns>
     /// <exception cref="ArgumentOutOfRangeException">A constraint is NaN or negative.</exception>
@@ -239,6 +243,7 @@ public partial class TextComponent : Component, IGraphicsComponent
         ArgumentNullException.ThrowIfNull(text);
         var scale = GetScale(style);
         var lineHeight = GetLineHeight(style, scale);
+        var baselineOffset = GetBaselineOffset(style, scale);
         if (text.Length == 0 || maximumLines == 0 || availableWidth == 0f || availableHeight == 0f)
             return TextLayoutResult.Empty;
 
@@ -269,6 +274,7 @@ public partial class TextComponent : Component, IGraphicsComponent
         var verticalSlack = float.IsFinite(availableHeight)
             ? (availableHeight - blockHeight) * alignment.Y
             : 0f;
+        var baselineOrigin = origin.Y + verticalSlack + baselineOffset;
         var prepared = new List<GlyphInstance>();
         var measuredWidth = 0f;
 
@@ -287,24 +293,12 @@ public partial class TextComponent : Component, IGraphicsComponent
                         instance.Glyph,
                         new Vector2D<float>(
                             instance.Position.X + lineOffset,
-                            instance.Position.Y
+                            instance.Position.Y + baselineOrigin
                         ),
                         instance.Color
                     )
                 );
             }
-        }
-
-        var unshiftedBounds = CalculateGlyphBounds(style, prepared);
-        var verticalShift = origin.Y + verticalSlack - unshiftedBounds.Origin.Y;
-        for (var index = 0; index < prepared.Count; index++)
-        {
-            var instance = prepared[index];
-            prepared[index] = new GlyphInstance(
-                instance.Glyph,
-                new Vector2D<float>(instance.Position.X, instance.Position.Y + verticalShift),
-                instance.Color
-            );
         }
 
         var instances = prepared.ToArray();
@@ -637,6 +631,20 @@ public partial class TextComponent : Component, IGraphicsComponent
             throw new InvalidOperationException("Text style line height must be finite and positive.");
 
         return lineHeight;
+    }
+
+    /// <summary>Gets the baseline offset from the top of a logical line box.</summary>
+    /// <param name="style">The style supplying the font ascender.</param>
+    /// <param name="scale">The font-unit scale.</param>
+    /// <returns>The finite baseline offset.</returns>
+    /// <exception cref="InvalidOperationException">The ascender metric is invalid.</exception>
+    private static float GetBaselineOffset(ITextStyle style, float scale)
+    {
+        var baselineOffset = (float)style.FontMetrics.Ascender * scale;
+        if (!float.IsFinite(baselineOffset))
+            throw new InvalidOperationException("Text style ascender must be finite.");
+
+        return baselineOffset;
     }
 
     /// <summary>Registers a new glyph span with this component.</summary>

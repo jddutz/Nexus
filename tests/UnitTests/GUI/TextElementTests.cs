@@ -38,22 +38,31 @@ public sealed class TextElementTests
         Assert.Equal(1UL, DrawableTestData.TextInstanceCount(element));
     }
 
-    /// <summary>Verifies horizontal and vertical alignment position the rendered glyph bounds.</summary>
+    /// <summary>Verifies alignment affects text without replacing the assigned element bounds.</summary>
     [Fact]
-    public void Arrange_positionsTextUsingConfiguredAlignment()
+    public void Arrange_keepsElementPlacementIndependentFromTextAlignment()
     {
         var element = CreateTextElement("A");
         var bounds = new Rectangle<float>(10f, 20f, 8f, 6f);
+        element.Position = new Vector2D<float>(100f, 200f);
 
         element.Arrange(bounds);
-        Assert.Equal(new Rectangle<float>(13.5f, 22.5f, 1f, 1f), element.Bounds);
-        Assert.Equal(new Vector2D<float>(13.5f, 22.5f), element.Position);
+        Assert.Equal(bounds, element.Bounds);
+        Assert.Equal(new Vector2D<float>(100f, 200f), element.Position);
+        Assert.Equal(
+            new Rectangle<float>(13.5f, 22.5f, 1f, 1f),
+            Assert.IsType<TextComponent>(Assert.Single(element.Components)).LayoutBounds
+        );
 
         element.HorizontalAlignment = AlignHorizontal.Right;
         element.VerticalAlignment = AlignVertical.Bottom;
 
-        Assert.Equal(new Rectangle<float>(17f, 25f, 1f, 1f), element.Bounds);
-        Assert.Equal(new Vector2D<float>(17f, 25f), element.Position);
+        Assert.Equal(bounds, element.Bounds);
+        Assert.Equal(new Vector2D<float>(100f, 200f), element.Position);
+        Assert.Equal(
+            new Rectangle<float>(17f, 25f, 1f, 1f),
+            Assert.IsType<TextComponent>(Assert.Single(element.Components)).LayoutBounds
+        );
     }
 
     /// <summary>Verifies a line is omitted when its complete line box exceeds available height.</summary>
@@ -93,8 +102,8 @@ public sealed class TextElementTests
         Assert.NotSame(original, recreated);
         Assert.Equal(2UL, DrawableTestData.TextInstanceCount(element));
         Assert.Equal(new Vector2D<float>(2f, 1f), element.Measure(new(20f, 20f)));
-        Assert.Equal(new Rectangle<float>(5f, 4.5f, 2f, 1f), element.Bounds);
-        Assert.Equal(new Vector2D<float>(5f, 4.5f), element.Position);
+        Assert.Equal(bounds, element.Bounds);
+        Assert.Equal(Vector2D<float>.Zero, element.Position);
     }
 
     /// <summary>Verifies text, line-limit, and alignment changes reapply the assigned layout.</summary>
@@ -107,18 +116,39 @@ public sealed class TextElementTests
 
         element.Text = "AB";
         Assert.Equal(2UL, DrawableTestData.TextInstanceCount(element));
-        Assert.Equal(new Rectangle<float>(10f, 20f, 1f, 2f), element.Bounds);
-        Assert.Equal(new Vector2D<float>(10f, 20f), element.Position);
+        Assert.Equal(bounds, element.Bounds);
+        Assert.Equal(Vector2D<float>.Zero, element.Position);
 
         element.MaximumLines = 1;
         Assert.Equal(1UL, DrawableTestData.TextInstanceCount(element));
-        Assert.Equal(new Vector2D<float>(10f, 20.5f), element.Position);
-        Assert.Equal(new Rectangle<float>(10f, 20.5f, 1f, 1f), element.Bounds);
+        Assert.Equal(bounds, element.Bounds);
+        var text = Assert.IsType<TextComponent>(Assert.Single(element.Components));
+        Assert.Equal(1, text.MaximumLines);
+        Assert.Equal("AB", text.Text);
+        Assert.True(text.Wrap);
 
         element.HorizontalAlignment = AlignHorizontal.Right;
         element.VerticalAlignment = AlignVertical.Bottom;
-        Assert.Equal(new Vector2D<float>(10f, 21f), element.Position);
-        Assert.Equal(new Rectangle<float>(10f, 21f, 1f, 1f), element.Bounds);
+        Assert.Equal(bounds, element.Bounds);
+        Assert.Equal(Vector2D<float>.Zero, element.Position);
+    }
+
+    /// <summary>Verifies a hidden element retains newly assigned bounds for restoration.</summary>
+    [Fact]
+    public void Arrange_stores_bounds_while_hidden()
+    {
+        var parent = new Element();
+        var element = CreateTextElement("A");
+        element.Arrange(new Rectangle<float>(1f, 2f, 4f, 3f));
+        parent.AddChild(element);
+        parent.IsVisible = false;
+        var hiddenBounds = new Rectangle<float>(5f, 6f, 8f, 7f);
+
+        element.Arrange(hiddenBounds);
+        parent.IsVisible = true;
+
+        Assert.Equal(hiddenBounds, element.Bounds);
+        Assert.Equal(1UL, DrawableTestData.TextInstanceCount(element));
     }
 
     /// <summary>Creates a text element with deterministic in-memory font data.</summary>
