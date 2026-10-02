@@ -126,13 +126,51 @@ public sealed class ObservableGenerator : IIncrementalGenerator
             static (node, _) => node is VariableDeclaratorSyntax,
             static (attributeContext, _) => CreateCandidate(attributeContext)
         );
+        var eventOwners = context
+            .SyntaxProvider.CreateSyntaxProvider(
+                static (node, _) =>
+                    node is ClassDeclarationSyntax declaration
+                    && HasPropertyChangedEvent(declaration),
+                static (syntaxContext, _) =>
+                    syntaxContext.SemanticModel.GetDeclaredSymbol(
+                        (ClassDeclarationSyntax)syntaxContext.Node
+                    )
+            )
+            .Where(static type => type is not null)
+            .Select(static (type, _) => type!);
 
         context.RegisterSourceOutput(
-            candidates.Collect().Combine(context.CompilationProvider),
+            candidates
+                .Collect()
+                .Combine(eventOwners.Collect())
+                .Combine(context.CompilationProvider),
             static (productionContext, input) =>
-                Generate(productionContext, input.Left, input.Right)
+                Generate(
+                    productionContext,
+                    input.Left.Left,
+                    input.Left.Right,
+                    input.Right
+                )
         );
     }
+
+    /// <summary>
+    /// Checks whether a class declaration directly declares a PropertyChanged event.
+    /// </summary>
+    /// <param name="declaration">The class declaration to inspect.</param>
+    /// <returns><see langword="true"/> when the class declares a matching event.</returns>
+    private static bool HasPropertyChangedEvent(ClassDeclarationSyntax declaration) =>
+        declaration.Members.Any(member =>
+            member switch
+            {
+                EventFieldDeclarationSyntax eventField => eventField.Declaration.Variables.Any(
+                    variable => variable.Identifier.ValueText == "PropertyChanged"
+                ),
+                EventDeclarationSyntax eventDeclaration =>
+                    eventDeclaration.Identifier.ValueText == "PropertyChanged",
+                _ => false,
+            }
+        );
 
     /// <summary>
     /// Converts an attributed field into the symbol data used by generation.
@@ -169,6 +207,7 @@ public sealed class ObservableGenerator : IIncrementalGenerator
             string? ExplicitName,
             Location Location
         )> fields,
+        ImmutableArray<INamedTypeSymbol> eventOwners,
         Compilation compilation
     )
     {
@@ -185,6 +224,38 @@ public sealed class ObservableGenerator : IIncrementalGenerator
             }
 
             members.Add((candidate.Field, candidate.ExplicitName, candidate.Location));
+        }
+
+        var observableInterface = compilation.GetTypeByMetadataName(ObservableInterfaceName);
+        var interfaceEvent = observableInterface?
+            .GetMembers("PropertyChanged")
+            .OfType<IEventSymbol>()
+            .FirstOrDefault();
+        if (interfaceEvent is not null)
+        {
+            foreach (var type in eventOwners)
+            {
+                if (!ImplementsObservable(type, compilation))
+                    continue;
+
+                if (
+                    type.FindImplementationForInterfaceMember(interfaceEvent)
+                    is not IEventSymbol implementation
+                )
+                    continue;
+
+                var eventOwner = implementation.ContainingType.OriginalDefinition;
+                if (
+                    !SymbolEqualityComparer.Default.Equals(eventOwner, type.OriginalDefinition)
+                    || groups.ContainsKey(type.OriginalDefinition)
+                )
+                    continue;
+
+                groups.Add(
+                    type.OriginalDefinition,
+                    new List<(IFieldSymbol Field, string? ExplicitName, Location Location)>()
+                );
+            }
         }
 
         var generatedTypes = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
@@ -439,10 +510,10 @@ public sealed class ObservableGenerator : IIncrementalGenerator
         }
         plans.RemoveAll(plan => conflictedFields.Contains(plan.Field));
 
-        if (plans.Count == 0)
+        if (plans.Count == 0 && fields.Count > 0)
             return;
 
-        if (type.IsSealed)
+        if (plans.Count > 0 && type.IsSealed)
         {
             foreach (var plan in plans)
                 context.ReportDiagnostic(Diagnostic.Create(SealedType, plan.Location, type.Name));
@@ -461,7 +532,7 @@ public sealed class ObservableGenerator : IIncrementalGenerator
 
         var source = EmitSource(type, plans, notification.Value, compilation);
         context.AddSource(CreateHintName(type), SourceText.From(source, Encoding.UTF8));
-        generatedTypes.Add(type);
+        generatedTypes.Add(type.OriginalDefinition);
     }
 
     /// <summary>
@@ -659,7 +730,7 @@ public sealed class ObservableGenerator : IIncrementalGenerator
 
             if (
                 implementation.ContainingType is INamedTypeSymbol implementationType
-                && generatedTypes.Contains(implementationType)
+                && generatedTypes.Contains(implementationType.OriginalDefinition)
             )
                 return (false, "NotifyPropertyChanged");
 
@@ -694,7 +765,7 @@ public sealed class ObservableGenerator : IIncrementalGenerator
                     if (notificationMethod is not null)
                         return (false, notificationMethod);
 
-                    if (generatedTypes.Contains(inheritedMember))
+                    if (generatedTypes.Contains(inheritedMember.OriginalDefinition))
                         return (false, "NotifyPropertyChanged");
                 }
 

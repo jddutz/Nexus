@@ -90,6 +90,106 @@ public sealed class ObservableSourceGeneratorTests
     }
 
     /// <summary>
+    /// Verifies an event-owning base receives a notification bridge without observable fields.
+    /// </summary>
+    [Fact]
+    public void EventOwnerWithoutObservableFieldsGetsNotificationBridge()
+    {
+        var source =
+            ObservableContract
+            + """
+                namespace Probe
+                {
+                    public partial class EventOwner : IObservable
+                    {
+                        public event Action<string>? PropertyChanged;
+                    }
+
+                    public partial class StandaloneEventOwner : IObservable
+                    {
+                        public event Action<string>? PropertyChanged;
+                    }
+
+                    public partial class DerivedTarget : EventOwner
+                    {
+                        [Nexus.Core.Observable]
+                        private int _value;
+                    }
+                }
+                """;
+
+        var result = RunGenerator(source);
+
+        Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Id == "NXS007");
+        Assert.DoesNotContain(
+            result.Compilation.GetDiagnostics(),
+            diagnostic => diagnostic.Severity == DiagnosticSeverity.Error
+        );
+        var baseGenerated = Assert.Single(
+            result.GeneratedSources,
+            generated =>
+                generated
+                    .SourceText.ToString()
+                    .Contains("partial class EventOwner", StringComparison.Ordinal)
+        ).SourceText.ToString();
+        Assert.Contains(
+            "protected void NotifyPropertyChanged(string propertyName)",
+            baseGenerated,
+            StringComparison.Ordinal
+        );
+        Assert.DoesNotContain("public int Value", baseGenerated, StringComparison.Ordinal);
+        var standaloneGenerated = Assert.Single(
+            result.GeneratedSources,
+            generated =>
+                generated
+                    .SourceText.ToString()
+                    .Contains("partial class StandaloneEventOwner", StringComparison.Ordinal)
+        ).SourceText.ToString();
+        Assert.Contains(
+            "protected void NotifyPropertyChanged(string propertyName)",
+            standaloneGenerated,
+            StringComparison.Ordinal
+        );
+    }
+
+    /// <summary>
+    /// Verifies generic base definitions are recognized as owning generated notification bridges.
+    /// </summary>
+    [Fact]
+    public void GenericBaseNotificationBridgeIsInheritedByConstructedDerivedType()
+    {
+        var source =
+            ObservableContract
+            + """
+                namespace Probe
+                {
+                    public partial class GenericBase<T> : IObservable
+                    {
+                        public event Action<string>? PropertyChanged;
+
+                        [Nexus.Core.Observable]
+                        private T _baseValue = default!;
+                    }
+
+                    public partial class DerivedTarget : GenericBase<int>
+                    {
+                        [Nexus.Core.Observable]
+                        private int _derivedValue;
+                    }
+                }
+                """;
+
+        var result = RunGenerator(source);
+
+        Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Id == "NXS007");
+        Assert.DoesNotContain(
+            result.Compilation.GetDiagnostics(),
+            diagnostic => diagnostic.Severity == DiagnosticSeverity.Error
+        );
+        Assert.Equal(2, result.GeneratedSources.Length);
+    }
+
+    /// <summary>
     /// Verifies generated source compiles and that the generated setters preserve v1 behavior.
     /// </summary>
     [Fact]
@@ -581,17 +681,17 @@ public sealed class ObservableSourceGeneratorTests
     }
 
     /// <summary>
-    /// Verifies inherited events without a raiser are diagnosed rather than shadowed.
+    /// Verifies the event-owning base receives a bridge when only its derived type has observable fields.
     /// </summary>
     [Fact]
-    public void InheritedNotificationWithoutRaiserProducesDiagnostic()
+    public void InheritedNotificationWithoutRaiserGetsGeneratedBridge()
     {
         var source =
             ObservableContract
             + """
                 namespace Probe
                 {
-                    public abstract class ObservableBase : Nexus.Core.IObservable
+                    public abstract partial class ObservableBase : Nexus.Core.IObservable
                     {
                         public event Action<string>? PropertyChanged;
                     }
@@ -606,8 +706,18 @@ public sealed class ObservableSourceGeneratorTests
 
         var result = RunGenerator(source);
 
-        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Id == "NXS007");
-        Assert.Empty(result.GeneratedSources);
+        Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Id == "NXS007");
+        Assert.DoesNotContain(
+            result.Compilation.GetDiagnostics(),
+            diagnostic => diagnostic.Severity == DiagnosticSeverity.Error
+        );
+        Assert.Contains(
+            result.GeneratedSources,
+            generated =>
+                generated
+                    .SourceText.ToString()
+                    .Contains("partial class ObservableBase", StringComparison.Ordinal)
+        );
     }
 
     /// <summary>
