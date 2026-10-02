@@ -292,24 +292,7 @@ public partial class TextButton : Element
         if (label.Length == 0)
             return Vector2D<float>.Zero;
 
-        var scale = style.FontMetrics.EmSize == 0 ? 1.0 : style.Size / style.FontMetrics.EmSize;
-        var lineHeight = (float)(style.FontMetrics.LineHeight * scale);
-        var lines = label.Split('\n');
-        var top = float.PositiveInfinity;
-        var bottom = float.NegativeInfinity;
-        var width = 0f;
-
-        for (var lineIndex = 0; lineIndex < lines.Length; lineIndex++)
-        {
-            var bounds = MeasureTextBounds(style, lines[lineIndex]);
-            width = MathF.Max(width, bounds.Size.X);
-            top = MathF.Min(top, bounds.Origin.Y + lineIndex * lineHeight);
-            bottom = MathF.Max(bottom, bounds.Max.Y + lineIndex * lineHeight);
-        }
-
-        return float.IsFinite(top) && float.IsFinite(bottom)
-            ? new Vector2D<float>(width, bottom - top)
-            : Vector2D<float>.Zero;
+        return MeasureTextBounds(style, label).Size;
     }
 
     /// <summary>
@@ -341,6 +324,9 @@ public partial class TextButton : Element
     private static Rectangle<float> MeasureTextBounds(ITextStyle style, string text)
     {
         var component = new TextComponent(style) { Text = text };
-        return component.LayoutBounds;
+        var size = component.Measure(
+            new Vector2D<float>(float.PositiveInfinity, float.PositiveInfinity)
+        );
+        return new Rectangle<float>(0f, 0f, size.X, size.Y);
     }
 }

@@ -29,6 +29,8 @@ public sealed class TextButtonTests
         var second = CreateButton("A");
 
         first.Label = "B";
+        first.Arrange(new Rectangle<float>(0f, 0f, 20f, 20f));
+        second.Arrange(new Rectangle<float>(0f, 0f, 20f, 20f));
 
         Assert.Null(first.Parent);
         Assert.Null(first.Root);

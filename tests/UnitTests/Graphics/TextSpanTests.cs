@@ -6,6 +6,7 @@ using Nexus.Graphics.Geometry;
 using Nexus.Graphics.Shaders;
 using Nexus.Graphics.Text;
 using Nexus.Graphics.Textures;
+using Nexus.GUI;
 using Nexus.GUI.Elements;
 using Silk.NET.Maths;
 using Tests;
@@ -62,6 +63,7 @@ public sealed class TextSpanTests
     public void Render_layer_mask_is_applied_to_existing_and_future_spans()
     {
         var element = new TextElement("A", CreateStyle());
+        element.Arrange(new Rectangle<float>(0f, 0f, 2f, 1f));
         var first = DrawableTestData.TextDrawable(element);
 
         element.RenderLayerMask = 2;
@@ -69,7 +71,7 @@ public sealed class TextSpanTests
         element.Text = "B";
 
         var replacement = DrawableTestData.TextDrawable(element);
-        Assert.NotSame(first, replacement);
+        Assert.Same(first, replacement);
         Assert.Equal(2UL, replacement.RenderLayerMask);
     }
 
@@ -100,6 +102,7 @@ public sealed class TextSpanTests
     public void Arrange_updates_instances_without_recreating_span()
     {
         var element = new TextElement("A", CreateStyle());
+        element.Arrange(new Rectangle<float>(0f, 0f, 1f, 1f));
         var span = DrawableTestData.TextDrawable(element);
         var changes = 0;
         span.InstanceDataChanged += (_, _) => changes++;
@@ -228,11 +231,12 @@ public sealed class TextSpanTests
         Assert.Equal(2f, ReadTransform(span, 1).M42);
     }
 
-    /// <summary>Verifies text replacement publishes removal and addition of prepared drawables.</summary>
+    /// <summary>Verifies source text changes update the existing prepared drawable.</summary>
     [Fact]
-    public void Text_replaces_existing_prepared_span()
+    public void Text_changes_reuse_existing_prepared_span()
     {
         var element = new TextElement("A", CreateStyle());
+        element.Arrange(new Rectangle<float>(0f, 0f, 1f, 1f));
         var graphics = DrawableTestData.TextGraphics(element);
         var previous = Assert.Single(graphics.Drawables);
         var removed = new List<IDrawable>();
@@ -243,8 +247,9 @@ public sealed class TextSpanTests
         element.Text = "B";
 
         Assert.Equal("B", element.Text);
-        Assert.Same(previous, Assert.Single(removed));
-        Assert.Same(DrawableTestData.TextDrawable(element), Assert.Single(added));
+        Assert.Same(previous, DrawableTestData.TextDrawable(element));
+        Assert.Empty(removed);
+        Assert.Empty(added);
     }
 
     /// <summary>Verifies GUI source-text changes notify observers, including an empty value.</summary>
@@ -261,17 +266,18 @@ public sealed class TextSpanTests
         Assert.Equal([nameof(TextElement.Text), nameof(TextElement.Text)], properties);
     }
 
-    /// <summary>Verifies empty or unsupported input prepares an empty glyph collection.</summary>
+    /// <summary>Verifies unsupported text with no prepared glyphs removes the drawable.</summary>
     /// <param name="text">The input without known glyphs.</param>
     [Theory]
     [InlineData(" ")]
     [InlineData("?")]
-    public void Text_without_known_glyphs_prepares_empty_span(string text)
+    public void Text_without_known_glyphs_removes_drawable(string text)
     {
-        var span = CreateSpan(CreateStyle(), text);
+        var element = new TextElement(text, CreateStyle());
+        element.Arrange(new Rectangle<float>(0f, 0f, 2f, 1f));
+        var graphics = Assert.Single(element.Components.OfType<IGraphicsComponent>());
 
-        Assert.Equal(0UL, span.InstanceCount);
-        Assert.Empty(ReadInstances(span).ToArray());
+        Assert.Empty(graphics.Drawables);
     }
 
     /// <summary>Verifies an initially empty GUI element does not allocate a text drawable.</summary>
@@ -288,16 +294,16 @@ public sealed class TextSpanTests
     public void Text_transitions_replace_prepared_drawables()
     {
         var element = new TextElement("A", CreateStyle());
+        element.Arrange(new Rectangle<float>(0f, 0f, 1f, 1f));
         var original = DrawableTestData.TextDrawable(element);
+        var graphics = Assert.Single(element.Components.OfType<IGraphicsComponent>());
 
         element.Text = string.Empty;
-        var empty = DrawableTestData.TextDrawable(element);
-        Assert.NotSame(original, empty);
-        Assert.Equal(0UL, empty.InstanceCount);
+        Assert.Empty(graphics.Drawables);
 
         element.Text = "B";
-        var visible = DrawableTestData.TextDrawable(element);
-        Assert.NotSame(empty, visible);
+        var visible = Assert.IsType<TextSpan>(Assert.Single(graphics.Drawables));
+        Assert.NotSame(original, visible);
         Assert.Equal(1UL, visible.InstanceCount);
     }
 
@@ -332,9 +338,9 @@ public sealed class TextSpanTests
         Assert.Equal(2f, last.M41);
     }
 
-    /// <summary>Verifies unknown glyphs do not advance the pen or interrupt kerning.</summary>
+    /// <summary>Verifies an unsupported rune resets kerning without advancing the pen.</summary>
     [Fact]
-    public void Unsupported_glyph_is_skipped_without_affecting_layout()
+    public void Unsupported_glyph_resets_kerning_without_advancing_pen()
     {
         var style = new TestTextStyle(
             CreateStyle().Glyphs,
@@ -345,7 +351,33 @@ public sealed class TextSpanTests
         var second = MemoryMarshal.Read<Matrix4X4<float>>(data.Span[100..]);
 
         Assert.Equal(2UL, span.InstanceCount);
-        Assert.Equal(0.75f, second.M41);
+        Assert.Equal(1f, second.M41);
+    }
+
+    /// <summary>Verifies automatic wrapping prefers a space before splitting a following word.</summary>
+    [Fact]
+    public void TextComponent_wraps_at_word_boundary_when_separator_exceeds_width()
+    {
+        var component = new TextComponent(CreateStyle())
+        {
+            Destination = new Rectangle<float>(0f, 0f, 2f, 2f),
+            Text = "A B",
+        };
+        var span = Assert.IsType<TextSpan>(Assert.Single(component.Drawables));
+
+        Assert.Equal(2UL, span.InstanceCount);
+        Assert.Equal(1f, ReadTransform(span, 1).M42);
+    }
+
+    /// <summary>Verifies invalid font scale and line-height metrics are rejected explicitly.</summary>
+    [Theory]
+    [InlineData(0d, 1d)]
+    [InlineData(1d, 0d)]
+    public void TextComponent_rejects_invalid_font_metrics(double emSize, double lineHeight)
+    {
+        var style = CreateStyle(fontMetrics: new FontMetrics(emSize, 1, 0, lineHeight));
+
+        Assert.Throws<InvalidOperationException>(() => new TextComponent(style));
     }
 
     /// <summary>Verifies each prepared glyph contributes one complete 100-byte instance.</summary>
@@ -521,7 +553,11 @@ public sealed class TextSpanTests
     [Fact]
     public void TextComponent_validates_layout_inputs()
     {
-        var component = new TextComponent(CreateStyle()) { Text = "A" };
+        var component = new TextComponent(CreateStyle())
+        {
+            Destination = new Rectangle<float>(0f, 0f, 2f, 2f),
+            Text = "A",
+        };
         var removed = 0;
         component.DrawableRemoved += (_, _) => removed++;
 
@@ -576,6 +612,136 @@ public sealed class TextSpanTests
         );
     }
 
+    /// <summary>Verifies a one-line limit still fills the first permitted line.</summary>
+    [Fact]
+    public void TextComponent_maximum_lines_limits_line_creation_not_character_processing()
+    {
+        var component = new TextComponent(CreateStyle())
+        {
+            Destination = new Rectangle<float>(0f, 0f, 4f, 1f),
+            MaximumLines = 1,
+            Text = "AB",
+        };
+
+        Assert.Equal(2UL, Assert.IsType<TextSpan>(Assert.Single(component.Drawables)).InstanceCount);
+    }
+
+    /// <summary>Verifies CRLF is treated as one line break and LF is not emitted as text.</summary>
+    [Fact]
+    public void TextComponent_normalizes_crlf_before_rune_enumeration()
+    {
+        var component = new TextComponent(CreateStyle())
+        {
+            Destination = new Rectangle<float>(0f, 0f, 4f, 2f),
+            Text = "A\r\nB",
+        };
+        var span = Assert.IsType<TextSpan>(Assert.Single(component.Drawables));
+
+        Assert.Equal(2UL, span.InstanceCount);
+        Assert.Equal(1f, ReadTransform(span, 1).M42);
+    }
+
+    /// <summary>Verifies zero width remains constrained and non-wrapping text keeps only its prefix.</summary>
+    [Fact]
+    public void TextComponent_zero_width_and_nonwrapping_width_fit_visible_prefixes()
+    {
+        var component = new TextComponent(CreateStyle())
+        {
+            Destination = new Rectangle<float>(0f, 0f, 1f, 1f),
+            Wrap = false,
+            Text = "AB",
+        };
+
+        Assert.Equal(1UL, Assert.IsType<TextSpan>(Assert.Single(component.Drawables)).InstanceCount);
+        Assert.Equal(Vector2D<float>.Zero, component.Measure(new(0f, 1f)));
+    }
+
+    /// <summary>Verifies measurement and arrangement retain the same complete lines by height.</summary>
+    [Fact]
+    public void TextComponent_measure_and_arrangement_apply_the_same_height_fitting()
+    {
+        var component = new TextComponent(CreateStyle())
+        {
+            Destination = new Rectangle<float>(0f, 0f, 4f, 1f),
+            Text = "A\nB",
+        };
+
+        Assert.Equal(new Vector2D<float>(1f, 1f), component.Measure(new(4f, 1f)));
+        Assert.Equal(1UL, Assert.IsType<TextSpan>(Assert.Single(component.Drawables)).InstanceCount);
+    }
+
+    /// <summary>Verifies each line aligns against its own measured extent.</summary>
+    [Fact]
+    public void TextComponent_horizontal_alignment_is_calculated_per_line()
+    {
+        var component = new TextComponent(CreateStyle())
+        {
+            Destination = new Rectangle<float>(0f, 0f, 4f, 2f),
+            Alignment = new Vector2D<float>(0.5f, 0f),
+            Text = "AB\nA",
+        };
+        var span = Assert.IsType<TextSpan>(Assert.Single(component.Drawables));
+
+        Assert.Equal(1f, ReadTransform(span).M41);
+        Assert.Equal(2f, ReadTransform(span, 1).M41);
+        Assert.Equal(1.5f, ReadTransform(span, 2).M41);
+    }
+
+    /// <summary>Verifies style changes synchronize configuration without replacing the span.</summary>
+    [Fact]
+    public void TextComponent_style_changes_reuse_and_resynchronize_the_span()
+    {
+        var component = new TextComponent(CreateStyle())
+        {
+            Destination = new Rectangle<float>(0f, 0f, 2f, 2f),
+            Text = "A",
+        };
+        var span = Assert.IsType<TextSpan>(Assert.Single(component.Drawables));
+        var replacementStyle = CreateStyle(msdf: new(2.5, 1), size: 2);
+
+        component.RenderLayerMask = 4;
+        component.TextStyle = replacementStyle;
+
+        Assert.Same(span, Assert.Single(component.Drawables));
+        Assert.Same(replacementStyle.Texture, span.Texture);
+        Assert.Equal(2f, span.GlyphScale);
+        Assert.Equal(2.5f, span.DistanceRange);
+        Assert.Equal(4UL, span.RenderLayerMask);
+    }
+
+    /// <summary>Verifies measurement ignores destination and alignment validity.</summary>
+    [Fact]
+    public void TextComponent_measure_validates_only_its_own_inputs()
+    {
+        var component = new TextComponent(CreateStyle())
+        {
+            Destination = new Rectangle<float>(0f, 0f, 1f, 1f),
+            Text = "A",
+        };
+        component.Destination = new Rectangle<float>(float.PositiveInfinity, 0f, 1f, 1f);
+        component.Alignment = new Vector2D<float>(float.NaN, 0f);
+
+        Assert.Equal(new Vector2D<float>(1f, 1f), component.Measure(new(4f, 4f)));
+    }
+
+    /// <summary>Verifies unsupported runes break kerning and zero-area glyphs do not affect visible bounds.</summary>
+    [Fact]
+    public void TextComponent_unsupported_runes_reset_kerning_and_spaces_have_no_visible_bounds()
+    {
+        var style = CreateStyle(kerning: new Dictionary<(int, int), double> { [('A', 'B')] = -0.5 });
+        var component = new TextComponent(style)
+        {
+            Destination = new Rectangle<float>(0f, 0f, 4f, 1f),
+            Text = "A?B",
+        };
+        var span = Assert.IsType<TextSpan>(Assert.Single(component.Drawables));
+
+        Assert.Equal(1f, ReadTransform(span, 1).M41);
+        component.Text = " ";
+
+        Assert.Equal(new Rectangle<float>(0f, 0f, 0f, 0f), component.LayoutBounds);
+    }
+
     /// <summary>Verifies destination origin and alignment appear in final glyph bounds.</summary>
     [Fact]
     public void TextComponent_layout_bounds_use_destination_coordinates()
@@ -614,8 +780,16 @@ public sealed class TextSpanTests
     /// <param name="style">The font style used for preparation.</param>
     /// <param name="text">The source text.</param>
     /// <returns>The prepared span.</returns>
-    private static TextSpan CreateSpan(ITextStyle style, string text) =>
-        DrawableTestData.TextDrawable(new TextElement(text, style));
+    private static TextSpan CreateSpan(ITextStyle style, string text)
+    {
+        var element = new TextElement(text, style)
+        {
+            HorizontalAlignment = AlignHorizontal.Left,
+            VerticalAlignment = AlignVertical.Top,
+        };
+        element.Arrange(new Rectangle<float>(0f, 0f, 100f, 100f));
+        return DrawableTestData.TextDrawable(element);
+    }
 
     /// <summary>Serializes every MSDF glyph instance into caller-owned storage.</summary>
     /// <param name="span">The span to serialize.</param>
@@ -653,14 +827,17 @@ public sealed class TextSpanTests
     private static ITextStyle CreateStyle(
         MsdfMetadata? msdf = null,
         double size = 1,
-        FontMetrics? fontMetrics = null
+        FontMetrics? fontMetrics = null,
+        IReadOnlyDictionary<(int LeftCodepoint, int RightCodepoint), double>? kerning = null
     ) =>
         new TestTextStyle(
             new Dictionary<int, FontGlyph>
             {
                 ['A'] = new('A', 1, new(0, 0, 1, 1), new(0, 0, 1, 1)),
                 ['B'] = new('B', 1, new(0, 0, 1, 1), new(1, 0, 1, 1)),
+                [' '] = new(' ', 1, new(0, 0, 0, 0), new(0, 0, 0, 0)),
             },
+            kerning: kerning,
             fontMetrics: fontMetrics,
             size: size,
             msdf: msdf

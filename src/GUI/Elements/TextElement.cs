@@ -367,7 +367,10 @@ public partial class TextElement : Element
     private static Rectangle<float> MeasureTextBounds(ITextStyle style, string text)
     {
         var component = new TextComponent(style) { Text = text };
-        return component.LayoutBounds;
+        var size = component.Measure(
+            new Vector2D<float>(float.PositiveInfinity, float.PositiveInfinity)
+        );
+        return new Rectangle<float>(0f, 0f, size.X, size.Y);
     }
 
     /// <summary>Returns the longest leading rune sequence that fits within the available width.</summary>
@@ -394,30 +397,12 @@ public partial class TextElement : Element
     /// <param name="style">The font metrics used to determine line positions.</param>
     /// <param name="text">The wrapped text.</param>
     /// <returns>The combined glyph bounds size.</returns>
-    private static Vector2D<float> MeasureWrappedText(ITextStyle style, string text)
-    {
-        if (string.IsNullOrEmpty(text))
-            return Vector2D<float>.Zero;
-
-        var scale = style.FontMetrics.EmSize == 0 ? 1.0 : style.Size / style.FontMetrics.EmSize;
-        var lineHeight = (float)(style.FontMetrics.LineHeight * scale);
-        var lines = text.Split('\n');
-        var top = float.PositiveInfinity;
-        var bottom = float.NegativeInfinity;
-        var width = 0f;
-
-        for (var lineIndex = 0; lineIndex < lines.Length; lineIndex++)
-        {
-            var bounds = MeasureTextBounds(style, lines[lineIndex]);
-            width = MathF.Max(width, bounds.Size.X);
-            top = MathF.Min(top, bounds.Origin.Y + lineIndex * lineHeight);
-            bottom = MathF.Max(bottom, bounds.Max.Y + lineIndex * lineHeight);
-        }
-
-        return float.IsFinite(top) && float.IsFinite(bottom)
-            ? new Vector2D<float>(width, bottom - top)
-            : Vector2D<float>.Zero;
-    }
+    /// <summary>Measures already wrapped lines using the shared text layout algorithm.</summary>
+    /// <param name="style">The style used to measure line extents.</param>
+    /// <param name="text">The text containing explicit line breaks.</param>
+    /// <returns>The fitted logical size.</returns>
+    private static Vector2D<float> MeasureWrappedText(ITextStyle style, string text) =>
+        MeasureTextBounds(style, text).Size;
 
     /// <summary>Gets the number of font lines that fit in an available height.</summary>
     /// <param name="style">The font metrics used to determine line height.</param>
@@ -425,11 +410,22 @@ public partial class TextElement : Element
     /// <returns>The maximum number of lines fitting the height.</returns>
     private static int GetMaximumLineCount(ITextStyle style, float availableHeight)
     {
-        var scale = style.FontMetrics.EmSize == 0 ? 1.0 : style.Size / style.FontMetrics.EmSize;
-        var lineHeight = (float)(style.FontMetrics.LineHeight * scale);
-        if (!float.IsFinite(lineHeight) || lineHeight <= 0f)
-            lineHeight = (float)style.Size;
+        var metrics = style.FontMetrics;
+        if (
+            !double.IsFinite(style.Size)
+            || style.Size <= 0d
+            || !double.IsFinite(metrics.EmSize)
+            || metrics.EmSize <= 0d
+            || !double.IsFinite(metrics.LineHeight)
+            || metrics.LineHeight <= 0d
+        )
+            throw new InvalidOperationException("Text style font metrics must be finite and positive.");
 
-        return lineHeight > 0f ? Math.Max(0, (int)MathF.Floor(availableHeight / lineHeight)) : 0;
+        var lineHeight = (float)(metrics.LineHeight * (style.Size / metrics.EmSize));
+        if (!float.IsFinite(lineHeight) || lineHeight <= 0f)
+            throw new InvalidOperationException("Text style line height must be finite and positive.");
+
+        var lineCount = MathF.Floor(availableHeight / lineHeight);
+        return lineCount >= int.MaxValue ? int.MaxValue : Math.Max(0, (int)lineCount);
     }
 }

@@ -27,6 +27,7 @@ public sealed class TextElementTests
     public void Parameterless_construction_defers_drawables_until_style_is_assigned()
     {
         var element = new TextElement { Text = "A" };
+        element.Arrange(new Rectangle<float>(0f, 0f, 2f, 2f));
         var graphics = Assert.Single(element.Components.OfType<IGraphicsComponent>());
 
         Assert.Equal("A", element.Text);
@@ -55,18 +56,18 @@ public sealed class TextElementTests
         Assert.Equal(new Vector2D<float>(17f, 25f), element.Position);
     }
 
-    /// <summary>Verifies a measured line remains visible when glyphs are shorter than line height.</summary>
+    /// <summary>Verifies a line is omitted when its complete line box exceeds available height.</summary>
     [Fact]
-    public void Arrange_keepsTextWhenGlyphHeightIsLessThanLineHeight()
+    public void Arrange_omitsTextWhenLineBoxExceedsAvailableHeight()
     {
         var element = new TextElement("A", new TestTextStyle(lineHeight: 2));
         var measuredSize = element.Measure(new(10f, 1f));
 
         element.Arrange(new Rectangle<float>(0f, 0f, measuredSize.X, measuredSize.Y));
 
-        Assert.Equal(new Vector2D<float>(1f, 1f), measuredSize);
-        Assert.Equal(1UL, DrawableTestData.TextInstanceCount(element));
-        Assert.Equal(1f, element.Bounds.Size.Y);
+        Assert.Equal(Vector2D<float>.Zero, measuredSize);
+        Assert.Empty(element.Components.OfType<IGraphicsComponent>().Single().Drawables);
+        Assert.Equal(Vector2D<float>.Zero, element.Bounds.Size);
     }
 
     /// <summary>Verifies hiding removes visuals while text and layout survive recreation.</summary>

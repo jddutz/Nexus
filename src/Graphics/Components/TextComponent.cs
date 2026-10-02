@@ -21,7 +21,7 @@ public partial class TextComponent : Component, IGraphicsComponent
         TextStyle = style ?? throw new ArgumentNullException(nameof(style));
     }
 
-    /// <summary>Gets the constructor-supplied style, or throws when no style is assigned.</summary>
+    /// <summary>Gets the current style, or throws when no style is assigned.</summary>
     public ITextStyle Style =>
         TextStyle ?? throw new InvalidOperationException("A text style has not been assigned.");
 
@@ -32,16 +32,16 @@ public partial class TextComponent : Component, IGraphicsComponent
     /// <summary>Rebuilds glyph output after the text style changes.</summary>
     /// <param name="previousValue">The previous text style.</param>
     protected virtual partial void AfterTextStyleChanges(ITextStyle? previousValue) =>
-        RebuildDrawable(replace: true);
+        RebuildDrawable();
 
     /// <summary>Gets or sets the source text represented by this component.</summary>
     [Observable(PublicSetter = true)]
     private string _text = string.Empty;
 
-    /// <summary>Replaces the prepared drawable after source text changes.</summary>
+    /// <summary>Rebuilds glyph output after source text changes.</summary>
     /// <param name="previousValue">The previous source text.</param>
     protected virtual partial void AfterTextChanges(string previousValue)
-        => RebuildDrawable(replace: true);
+        => RebuildDrawable();
 
     /// <summary>Gets or sets the destination rectangle used for layout and placement.</summary>
     [Observable(PublicSetter = true)]
@@ -50,7 +50,7 @@ public partial class TextComponent : Component, IGraphicsComponent
     /// <summary>Updates glyph placement after destination changes.</summary>
     /// <param name="previousValue">The previous destination rectangle.</param>
     protected virtual partial void AfterDestinationChanges(Rectangle<float> previousValue)
-        => RebuildDrawable(replace: false);
+        => RebuildDrawable();
 
     /// <summary>Gets or sets normalized horizontal and vertical alignment within the destination.</summary>
     [Observable(PublicSetter = true)]
@@ -59,7 +59,7 @@ public partial class TextComponent : Component, IGraphicsComponent
     /// <summary>Updates glyph placement after alignment changes.</summary>
     /// <param name="previousValue">The previous normalized alignment.</param>
     protected virtual partial void AfterAlignmentChanges(Vector2D<float> previousValue)
-        => RebuildDrawable(replace: false);
+        => RebuildDrawable();
 
     /// <summary>Gets or sets the maximum number of laid-out lines, or null for no explicit limit.</summary>
     [Observable(PublicSetter = true)]
@@ -68,7 +68,7 @@ public partial class TextComponent : Component, IGraphicsComponent
     /// <summary>Rebuilds glyph layout after the maximum line count changes.</summary>
     /// <param name="previousValue">The previous maximum line count.</param>
     protected virtual partial void AfterMaximumLinesChanges(int? previousValue)
-        => RebuildDrawable(replace: false);
+        => RebuildDrawable();
 
     /// <summary>Gets or sets whether lines wrap to the destination width.</summary>
     [Observable(PublicSetter = true)]
@@ -77,7 +77,7 @@ public partial class TextComponent : Component, IGraphicsComponent
     /// <summary>Rebuilds glyph layout after wrapping changes.</summary>
     /// <param name="previousValue">The previous wrapping setting.</param>
     protected virtual partial void AfterWrapChanges(bool previousValue) =>
-        RebuildDrawable(replace: false);
+        RebuildDrawable();
 
     /// <summary>Gets or sets the render-layer mask applied to the glyph drawable.</summary>
     [Observable(PublicSetter = true)]
@@ -98,9 +98,9 @@ public partial class TextComponent : Component, IGraphicsComponent
     /// <summary>Gets the drawables currently exposed by this component.</summary>
     public IReadOnlyList<IDrawable> Drawables => _drawables;
 
-    /// <summary>Measures text without changing the component's drawable or raising drawable events.</summary>
+    /// <summary>Measures fitted text without changing drawable membership or placement.</summary>
     /// <param name="constraint">The available width and height; positive infinity is unconstrained.</param>
-    /// <returns>The measured glyph bounds size, limited by the supplied constraint.</returns>
+    /// <returns>The measured extent of the fitted lines.</returns>
     /// <exception cref="ArgumentOutOfRangeException">A constraint is NaN or negative.</exception>
     public Vector2D<float> Measure(Vector2D<float> constraint)
     {
@@ -108,35 +108,19 @@ public partial class TextComponent : Component, IGraphicsComponent
         ValidateConstraint(constraint.Y, nameof(constraint));
         if (TextStyle is not { } style)
             throw new InvalidOperationException("A text style has not been assigned.");
-        if (!IsValidState())
+        if (Text is null || MaximumLines is <= 0)
             throw new InvalidOperationException("Text component state is invalid.");
 
-        var bounds = MeasureTextBounds(style, Text, constraint.X, MaximumLines, Wrap);
-        return new(
-            MathF.Min(bounds.Size.X, constraint.X),
-            MathF.Min(bounds.Size.Y, constraint.Y)
-        );
-    }
-
-    /// <summary>Measures glyph geometry with the requested width, line limit, and wrapping.</summary>
-    /// <param name="style">The font and visual style used for measurement.</param>
-    /// <param name="text">The source text to measure.</param>
-    /// <param name="availableWidth">The available width or positive infinity.</param>
-    /// <param name="maximumLines">The optional maximum line count.</param>
-    /// <param name="wrap">Whether to wrap lines to the available width.</param>
-    /// <returns>The combined glyph bounds in text-local coordinates.</returns>
-    private static Rectangle<float> MeasureTextBounds(
-        ITextStyle style,
-        string text,
-        float availableWidth,
-        int? maximumLines,
-        bool wrap
-    )
-    {
-        ArgumentNullException.ThrowIfNull(style);
-        ArgumentNullException.ThrowIfNull(text);
-        var instances = CreateInstances(style, text, availableWidth, maximumLines, wrap);
-        return CalculateBounds(style, instances);
+        return CreateLayout(
+            style,
+            Text,
+            constraint.X,
+            constraint.Y,
+            MaximumLines,
+            Wrap,
+            Vector2D<float>.Zero,
+            Vector2D<float>.Zero
+        ).MeasuredSize;
     }
 
     /// <summary>Validates one non-negative finite or positive-infinite constraint dimension.</summary>
@@ -168,222 +152,436 @@ public partial class TextComponent : Component, IGraphicsComponent
         && alignment.X is >= 0f and <= 1f
         && alignment.Y is >= 0f and <= 1f;
 
-    /// <summary>Rebuilds glyph instances and synchronizes drawable membership.</summary>
-    /// <param name="replace">Whether to replace an existing span drawable.</param>
-    private void RebuildDrawable(bool replace)
+    /// <summary>Rebuilds layout, synchronizes the retained span, and updates drawable membership.</summary>
+    private void RebuildDrawable()
     {
-        var hadDrawables = _spans.Count > 0;
-        if (!IsValidState())
+        if (
+            TextStyle is not { } style
+            || Text is null
+            || MaximumLines is <= 0
+            || !IsValidAlignment(Alignment)
+            || !IsValidDestination(Destination)
+        )
         {
             UnregisterDrawables();
             _layoutBounds = new Rectangle<float>(0f, 0f, 0f, 0f);
             return;
         }
 
-        var style = TextStyle!;
-        var availableWidth =
-            Destination.Size.X == 0f ? float.PositiveInfinity : Destination.Size.X;
-        var instances = CreateInstances(style, Text, availableWidth, MaximumLines, Wrap);
-        var localBounds = CalculateBounds(style, instances);
-        var offset = new Vector2D<float>(
-            Destination.Origin.X
-                + (Destination.Size.X - localBounds.Size.X) * Alignment.X
-                - localBounds.Origin.X,
-            Destination.Origin.Y
-                + (Destination.Size.Y - localBounds.Size.Y) * Alignment.Y
-                - localBounds.Origin.Y
+        var layout = CreateLayout(
+            style,
+            Text,
+            Destination.Size.X,
+            Destination.Size.Y,
+            MaximumLines,
+            Wrap,
+            Destination.Origin,
+            Alignment
         );
-
-        for (var index = 0; index < instances.Length; index++)
-        {
-            var instance = instances[index];
-            instances[index] = new GlyphInstance(
-                instance.Glyph,
-                new Vector2D<float>(
-                    instance.Position.X + offset.X,
-                    instance.Position.Y + offset.Y
-                ),
-                instance.Color
-            );
-        }
-
         _layoutBounds =
-            instances.Length == 0
+            layout.Instances.Length == 0
                 ? new Rectangle<float>(Destination.Origin, Vector2D<float>.Zero)
-                : CalculateBounds(style, instances);
+                : layout.Bounds;
 
-        if (replace && hadDrawables)
+        if (layout.Instances.Length == 0)
+        {
             UnregisterDrawables();
-
-        if (instances.Length == 0 && _spans.Count == 0 && !hadDrawables && Text.Length == 0)
             return;
+        }
 
         if (_spans.Count == 0)
         {
-            var span = new TextSpan
-            {
-                Texture = style.Texture,
-                GlyphScale = GetScale(style),
-                DistanceRange = checked((float)style.Msdf.DistanceRange),
-                RenderLayerMask = RenderLayerMask,
-            };
-            span.SetInstances(instances);
+            var span = new TextSpan();
+            SynchronizeSpan(span, style);
+            span.SetInstances(layout.Instances);
             RegisterDrawable(span);
             return;
         }
 
-        _spans[0].SetInstances(instances);
+        var existing = _spans[0];
+        SynchronizeSpan(existing, style);
+        existing.SetInstances(layout.Instances);
     }
 
-    /// <summary>Determines whether the component's current layout inputs are valid.</summary>
-    /// <returns>True when all layout values satisfy the text component contract.</returns>
-    private bool IsValidState() =>
-        TextStyle is not null
-        && Text is not null
-        && MaximumLines is not <= 0
-        && IsValidAlignment(Alignment)
-        && IsValidDestination(Destination);
+    /// <summary>Synchronizes all component-owned render configuration onto an existing span.</summary>
+    /// <param name="span">The drawable to update.</param>
+    /// <param name="style">The style providing texture and glyph metrics.</param>
+    private void SynchronizeSpan(TextSpan span, ITextStyle style)
+    {
+        span.Texture = style.Texture;
+        span.GlyphScale = GetScale(style);
+        span.DistanceRange = checked((float)style.Msdf.DistanceRange);
+        span.RenderLayerMask = RenderLayerMask;
+    }
 
-    /// <summary>Creates baseline-positioned glyph instances for wrapped text lines.</summary>
-    /// <param name="style">The font and visual style used by the glyphs.</param>
-    /// <param name="text">The source text.</param>
-    /// <param name="availableWidth">The available width or positive infinity.</param>
-    /// <param name="maximumLines">The optional maximum line count.</param>
-    /// <param name="wrap">Whether lines wrap to the available width.</param>
-    /// <returns>The prepared glyph instances in text-local coordinates.</returns>
-    private static GlyphInstance[] CreateInstances(
+    /// <summary>Creates the fitted line and glyph result shared by measuring and arrangement.</summary>
+    /// <param name="style">The style supplying glyph and font metrics.</param>
+    /// <param name="text">The source text with CRLF, CR, and LF line endings.</param>
+    /// <param name="availableWidth">The available width; positive infinity is unconstrained.</param>
+    /// <param name="availableHeight">The available height; positive infinity is unconstrained.</param>
+    /// <param name="maximumLines">The optional maximum number of lines.</param>
+    /// <param name="wrap">Whether to prefer word boundaries for automatic wrapping.</param>
+    /// <param name="origin">The destination origin.</param>
+    /// <param name="alignment">The normalized horizontal and vertical alignment.</param>
+    /// <returns>The fitted lines, glyph instances, visible bounds, and logical size.</returns>
+    private static TextLayoutResult CreateLayout(
         ITextStyle style,
         string text,
         float availableWidth,
+        float availableHeight,
         int? maximumLines,
-        bool wrap
+        bool wrap,
+        Vector2D<float> origin,
+        Vector2D<float> alignment
     )
     {
-        if (maximumLines == 0 || (wrap && availableWidth == 0f))
-            return [];
-
-        var lines = new List<List<Rune>> { new() };
-        var currentLine = lines[0];
-        var characterOffset = 0;
-        foreach (var rune in text.EnumerateRunes())
-        {
-            if (rune.Value is '\r' or '\n')
-            {
-                if (maximumLines is { } limit && lines.Count >= limit)
-                    break;
-                if (
-                    rune.Value == '\r'
-                    && characterOffset + 1 < text.Length
-                    && text[characterOffset + 1] == '\n'
-                )
-                {
-                    characterOffset++;
-                }
-
-                currentLine = [];
-                lines.Add(currentLine);
-                characterOffset += rune.Utf16SequenceLength;
-                continue;
-            }
-
-            if (maximumLines is { } lineLimit && lines.Count >= lineLimit)
-                break;
-
-            if (
-                wrap
-                && float.IsFinite(availableWidth)
-                && currentLine.Count > 0
-                && MeasureLineWidth(style, currentLine.Append(rune)) > availableWidth
-            )
-            {
-                currentLine = [];
-                lines.Add(currentLine);
-                if (maximumLines is { } maximumLineLimit && lines.Count > maximumLineLimit)
-                    break;
-            }
-
-            currentLine.Add(rune);
-            characterOffset += rune.Utf16SequenceLength;
-        }
-
+        ArgumentNullException.ThrowIfNull(style);
+        ArgumentNullException.ThrowIfNull(text);
         var scale = GetScale(style);
         var lineHeight = GetLineHeight(style, scale);
-        var instances = new List<GlyphInstance>();
+        if (text.Length == 0 || maximumLines == 0 || availableWidth == 0f || availableHeight == 0f)
+            return TextLayoutResult.Empty;
+
+        var sourceLines = text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n')
+            .Split('\n', StringSplitOptions.None);
+        var lines = new List<LayoutLine>();
+        foreach (var sourceLine in sourceLines)
+        {
+            var runes = sourceLine.EnumerateRunes().ToArray();
+            if (!AppendFittedLines(lines, runes, style, availableWidth, wrap, maximumLines))
+                break;
+            if (maximumLines is { } lineLimit && lines.Count >= lineLimit)
+                break;
+        }
+
+        var heightLineCount =
+            float.IsPositiveInfinity(availableHeight)
+            || availableHeight >= lines.Count * lineHeight
+                ? lines.Count
+                : Math.Max(0, (int)MathF.Floor(availableHeight / lineHeight));
+        if (maximumLines is { } maximumLineCount)
+            heightLineCount = Math.Min(heightLineCount, maximumLineCount);
+        if (heightLineCount == 0)
+            return TextLayoutResult.Empty;
+
+        lines.RemoveRange(heightLineCount, lines.Count - heightLineCount);
+        var blockHeight = lines.Count * lineHeight;
+        var verticalSlack = float.IsFinite(availableHeight)
+            ? (availableHeight - blockHeight) * alignment.Y
+            : 0f;
+        var prepared = new List<GlyphInstance>();
+        var measuredWidth = 0f;
+
         for (var lineIndex = 0; lineIndex < lines.Count; lineIndex++)
         {
-            var penX = 0f;
-            var previousCodepoint = (int?)null;
-            foreach (var rune in lines[lineIndex])
+            var line = lines[lineIndex];
+            measuredWidth = MathF.Max(measuredWidth, line.Width);
+            var horizontalSlack = float.IsFinite(availableWidth)
+                ? (availableWidth - line.Width) * alignment.X
+                : 0f;
+            var lineOffset = origin.X + horizontalSlack - line.Left;
+            foreach (var instance in CreateLineInstances(style, line.Runes, lineIndex * lineHeight))
             {
-                if (!style.Glyphs.TryGetValue(rune.Value, out var glyph))
-                    continue;
-
-                if (
-                    previousCodepoint is { } previous
-                    && style.Kerning.TryGetValue((previous, glyph.Codepoint), out var kerning)
-                )
-                    penX += (float)kerning * scale;
-
-                instances.Add(
+                prepared.Add(
                     new GlyphInstance(
-                        glyph,
-                        new Vector2D<float>(penX, lineIndex * lineHeight),
-                        style.Color
+                        instance.Glyph,
+                        new Vector2D<float>(
+                            instance.Position.X + lineOffset,
+                            instance.Position.Y
+                        ),
+                        instance.Color
                     )
                 );
-
-                penX += (float)glyph.Advance * scale;
-                previousCodepoint = glyph.Codepoint;
             }
         }
 
-        return instances.ToArray();
+        var unshiftedBounds = CalculateGlyphBounds(style, prepared);
+        var verticalShift = origin.Y + verticalSlack - unshiftedBounds.Origin.Y;
+        for (var index = 0; index < prepared.Count; index++)
+        {
+            var instance = prepared[index];
+            prepared[index] = new GlyphInstance(
+                instance.Glyph,
+                new Vector2D<float>(instance.Position.X, instance.Position.Y + verticalShift),
+                instance.Color
+            );
+        }
+
+        var instances = prepared.ToArray();
+        return new TextLayoutResult(
+            lines,
+            instances,
+            CalculateGlyphBounds(style, instances),
+            new Vector2D<float>(measuredWidth, blockHeight)
+        );
     }
 
-    /// <summary>Measures the visible width of a line, including bearings and advances.</summary>
-    /// <param name="style">The font and visual style used by the glyphs.</param>
-    /// <param name="runes">The line's Unicode scalar values.</param>
-    /// <returns>The visible horizontal extent.</returns>
-    private static float MeasureLineWidth(ITextStyle style, IEnumerable<Rune> runes)
+    /// <summary>Adds the width-fitted segments of one explicit line.</summary>
+    /// <param name="lines">The collection of prepared output lines.</param>
+    /// <param name="runes">The source runes in the explicit line.</param>
+    /// <param name="style">The style used for measuring extents.</param>
+    /// <param name="availableWidth">The maximum line extent.</param>
+    /// <param name="wrap">Whether word boundaries are preferred.</param>
+    /// <param name="maximumLines">The optional output line limit.</param>
+    /// <returns>True when the explicit line was entirely consumed or fitted.</returns>
+    private static bool AppendFittedLines(
+        List<LayoutLine> lines,
+        Rune[] runes,
+        ITextStyle style,
+        float availableWidth,
+        bool wrap,
+        int? maximumLines
+    )
+    {
+        if (lines.Count == maximumLines)
+            return false;
+        if (runes.Length == 0)
+        {
+            lines.Add(CreateLayoutLine(style, []));
+            return true;
+        }
+
+        var start = 0;
+        while (start < runes.Length)
+        {
+            if (lines.Count == maximumLines)
+                return false;
+
+            var fittingCount = FindFittingPrefixLength(style, runes, start, availableWidth);
+            if (fittingCount == runes.Length - start)
+            {
+                lines.Add(CreateLayoutLine(style, runes[start..]));
+                return true;
+            }
+
+            if (fittingCount == 0)
+            {
+                if (wrap)
+                    return false;
+
+                lines.Add(CreateLayoutLine(style, []));
+                return true;
+            }
+
+            if (!wrap)
+            {
+                lines.Add(CreateLayoutLine(style, runes[start..(start + fittingCount)]));
+                return true;
+            }
+
+            var breakIndex = FindWordBreak(runes, start, fittingCount);
+            var lineEnd = breakIndex >= 0 ? breakIndex : start + fittingCount;
+            lines.Add(CreateLayoutLine(style, runes[start..lineEnd]));
+            start = breakIndex >= 0 ? breakIndex + 1 : lineEnd;
+            while (start < runes.Length && IsWrapWhitespace(runes[start]))
+                start++;
+        }
+
+        return true;
+    }
+
+    /// <summary>Finds the longest rune prefix whose combined advances and glyphs fit.</summary>
+    /// <param name="style">The style used to calculate each candidate line extent.</param>
+    /// <param name="runes">The complete source rune array.</param>
+    /// <param name="start">The first rune to consider.</param>
+    /// <param name="availableWidth">The available width.</param>
+    /// <returns>The number of consecutive runes that fit.</returns>
+    private static int FindFittingPrefixLength(
+        ITextStyle style,
+        Rune[] runes,
+        int start,
+        float availableWidth
+    )
+    {
+        if (float.IsPositiveInfinity(availableWidth))
+            return runes.Length - start;
+
+        var fittingCount = 0;
+        for (var end = start + 1; end <= runes.Length; end++)
+        {
+            if (CreateLayoutLine(style, runes[start..end]).Width > availableWidth)
+                break;
+            fittingCount++;
+        }
+
+        return fittingCount;
+    }
+
+    /// <summary>Finds the latest ordinary whitespace break inside a fitting prefix.</summary>
+    /// <param name="runes">The source rune array.</param>
+    /// <param name="start">The start of the line segment.</param>
+    /// <param name="fittingCount">The number of runes that fit.</param>
+    /// <returns>The boundary index, or -1 if the line must split within a word.</returns>
+    private static int FindWordBreak(Rune[] runes, int start, int fittingCount)
+    {
+        var lastCandidate = Math.Min(start + fittingCount, runes.Length - 1);
+        for (var index = lastCandidate; index > start; index--)
+        {
+            if (IsWrapWhitespace(runes[index]))
+                return index;
+        }
+
+        return -1;
+    }
+
+    /// <summary>Determines whether a rune may be consumed as a wrapping separator.</summary>
+    /// <param name="rune">The rune to inspect.</param>
+    /// <returns>True for breakable whitespace, excluding nonbreaking space.</returns>
+    private static bool IsWrapWhitespace(Rune rune) =>
+        Rune.IsWhiteSpace(rune) && rune.Value != 0xA0;
+
+    /// <summary>Calculates a line's advance and visible geometry extent.</summary>
+    /// <param name="style">The style supplying glyphs, advances, and kerning.</param>
+    /// <param name="runes">The line's source runes.</param>
+    /// <returns>The source runes and the complete horizontal extent.</returns>
+    private static LayoutLine CreateLayoutLine(ITextStyle style, Rune[] runes)
     {
         var scale = GetScale(style);
         var penX = 0f;
-        var left = float.PositiveInfinity;
-        var right = float.NegativeInfinity;
+        var left = 0f;
+        var right = 0f;
         var previousCodepoint = (int?)null;
         foreach (var rune in runes)
         {
             if (!style.Glyphs.TryGetValue(rune.Value, out var glyph))
+            {
+                previousCodepoint = null;
                 continue;
+            }
 
             if (
                 previousCodepoint is { } previous
                 && style.Kerning.TryGetValue((previous, glyph.Codepoint), out var kerning)
             )
-                penX += (float)kerning * scale;
+                penX += checked((float)kerning) * scale;
 
-            left = MathF.Min(left, penX + (float)glyph.PlaneBounds.Left * scale);
-            right = MathF.Max(right, penX + (float)glyph.PlaneBounds.Right * scale);
-            penX += (float)glyph.Advance * scale;
+            var planeBounds = glyph.PlaneBounds;
+            if (planeBounds.Right > planeBounds.Left && planeBounds.Top > planeBounds.Bottom)
+            {
+                left = MathF.Min(left, penX + checked((float)planeBounds.Left) * scale);
+                right = MathF.Max(right, penX + checked((float)planeBounds.Right) * scale);
+            }
+
+            penX += checked((float)glyph.Advance) * scale;
             right = MathF.Max(right, penX);
             previousCodepoint = glyph.Codepoint;
         }
 
-        return float.IsFinite(left) ? MathF.Max(right, penX) - MathF.Min(left, 0f) : penX;
+        return new LayoutLine(runes, left, right);
     }
 
-    /// <summary>Calculates the union of prepared glyph geometry.</summary>
+    /// <summary>Creates baseline-positioned glyph instances for one retained line.</summary>
+    /// <param name="style">The style supplying glyphs and kerning.</param>
+    /// <param name="runes">The source runes to prepare.</param>
+    /// <param name="baselineY">The line's baseline position.</param>
+    /// <returns>The glyph instances in unaligned local coordinates.</returns>
+    private static IEnumerable<GlyphInstance> CreateLineInstances(
+        ITextStyle style,
+        Rune[] runes,
+        float baselineY
+    )
+    {
+        var scale = GetScale(style);
+        var penX = 0f;
+        var previousCodepoint = (int?)null;
+        foreach (var rune in runes)
+        {
+            if (!style.Glyphs.TryGetValue(rune.Value, out var glyph))
+            {
+                previousCodepoint = null;
+                continue;
+            }
+
+            if (
+                previousCodepoint is { } previous
+                && style.Kerning.TryGetValue((previous, glyph.Codepoint), out var kerning)
+            )
+                penX += checked((float)kerning) * scale;
+
+            yield return new GlyphInstance(glyph, new Vector2D<float>(penX, baselineY), style.Color);
+            penX += checked((float)glyph.Advance) * scale;
+            previousCodepoint = glyph.Codepoint;
+        }
+    }
+
+    /// <summary>Stores one line's source runes and horizontal extent.</summary>
+    private sealed class LayoutLine
+    {
+        /// <summary>Initializes one line descriptor.</summary>
+        /// <param name="runes">The retained source runes.</param>
+        /// <param name="left">The left edge, including negative bearings.</param>
+        /// <param name="right">The right edge, including advances.</param>
+        public LayoutLine(Rune[] runes, float left, float right)
+        {
+            Runes = runes;
+            Left = left;
+            Right = right;
+        }
+
+        /// <summary>Gets the retained runes.</summary>
+        public Rune[] Runes { get; }
+
+        /// <summary>Gets the left edge of this line's full extent.</summary>
+        public float Left { get; }
+
+        /// <summary>Gets the right edge of this line's full extent.</summary>
+        public float Right { get; }
+
+        /// <summary>Gets the width of this line's full extent.</summary>
+        public float Width => Right - Left;
+    }
+
+    /// <summary>Stores the fitted lines, prepared instances, bounds, and measured extent.</summary>
+    private sealed class TextLayoutResult
+    {
+        /// <summary>Initializes a completed text layout.</summary>
+        /// <param name="lines">The lines retained by layout fitting.</param>
+        /// <param name="instances">The prepared glyph instances.</param>
+        /// <param name="bounds">The visible glyph geometry bounds.</param>
+        /// <param name="measuredSize">The fitted logical extent.</param>
+        public TextLayoutResult(
+            IReadOnlyList<LayoutLine> lines,
+            GlyphInstance[] instances,
+            Rectangle<float> bounds,
+            Vector2D<float> measuredSize
+        )
+        {
+            Lines = lines;
+            Instances = instances;
+            Bounds = bounds;
+            MeasuredSize = measuredSize;
+        }
+
+        /// <summary>Gets the lines retained by fitting.</summary>
+        public IReadOnlyList<LayoutLine> Lines { get; }
+
+        /// <summary>Gets the prepared glyph instances.</summary>
+        public GlyphInstance[] Instances { get; }
+
+        /// <summary>Gets the visible glyph geometry bounds.</summary>
+        public Rectangle<float> Bounds { get; }
+
+        /// <summary>Gets the logical width and height of the fitted output.</summary>
+        public Vector2D<float> MeasuredSize { get; }
+
+        /// <summary>Gets the empty layout result.</summary>
+        public static TextLayoutResult Empty { get; } = new(
+            Array.Empty<LayoutLine>(),
+            [],
+            new Rectangle<float>(0f, 0f, 0f, 0f),
+            Vector2D<float>.Zero
+        );
+    }
+
+    /// <summary>Calculates the union of nonzero-area glyph geometry.</summary>
     /// <param name="style">The style used to scale font-unit bounds.</param>
     /// <param name="instances">The prepared baseline positions and glyphs.</param>
     /// <returns>The combined glyph bounds in the instance coordinate space.</returns>
-    private static Rectangle<float> CalculateBounds(
+    private static Rectangle<float> CalculateGlyphBounds(
         ITextStyle style,
         IReadOnlyList<GlyphInstance> instances
     )
     {
-        if (instances.Count == 0)
-            return new Rectangle<float>(0f, 0f, 0f, 0f);
-
         var scale = GetScale(style);
         var left = float.PositiveInfinity;
         var top = float.PositiveInfinity;
@@ -392,31 +590,53 @@ public partial class TextComponent : Component, IGraphicsComponent
         foreach (var instance in instances)
         {
             var planeBounds = instance.Glyph.PlaneBounds;
-            left = MathF.Min(left, instance.Position.X + (float)planeBounds.Left * scale);
-            top = MathF.Min(top, instance.Position.Y - (float)planeBounds.Top * scale);
-            right = MathF.Max(right, instance.Position.X + (float)planeBounds.Right * scale);
-            bottom = MathF.Max(bottom, instance.Position.Y - (float)planeBounds.Bottom * scale);
+            if (planeBounds.Right <= planeBounds.Left || planeBounds.Top <= planeBounds.Bottom)
+                continue;
+
+            left = MathF.Min(left, instance.Position.X + checked((float)planeBounds.Left) * scale);
+            top = MathF.Min(top, instance.Position.Y - checked((float)planeBounds.Top) * scale);
+            right = MathF.Max(right, instance.Position.X + checked((float)planeBounds.Right) * scale);
+            bottom = MathF.Max(bottom, instance.Position.Y - checked((float)planeBounds.Bottom) * scale);
         }
 
-        return new Rectangle<float>(left, top, right - left, bottom - top);
+        return float.IsFinite(left)
+            ? new Rectangle<float>(left, top, right - left, bottom - top)
+            : new Rectangle<float>(0f, 0f, 0f, 0f);
     }
 
-    /// <summary>Gets the scale from font units to requested text units.</summary>
+    /// <summary>Gets the validated scale from font units to requested text units.</summary>
     /// <param name="style">The style supplying the size and font metrics.</param>
-    /// <returns>The finite font-unit scale.</returns>
-    private static float GetScale(ITextStyle style) =>
-        style.FontMetrics.EmSize == 0 ? 1f : (float)(style.Size / style.FontMetrics.EmSize);
+    /// <returns>The finite positive font-unit scale.</returns>
+    /// <exception cref="InvalidOperationException">Font size or em size is invalid.</exception>
+    private static float GetScale(ITextStyle style)
+    {
+        if (
+            !double.IsFinite(style.Size)
+            || style.Size <= 0d
+            || !double.IsFinite(style.FontMetrics.EmSize)
+            || style.FontMetrics.EmSize <= 0d
+        )
+            throw new InvalidOperationException("Text style size and em size must be finite and positive.");
 
-    /// <summary>Gets a positive line height, falling back to the requested text size.</summary>
+        var scale = (float)(style.Size / style.FontMetrics.EmSize);
+        if (!float.IsFinite(scale) || scale <= 0f)
+            throw new InvalidOperationException("Text style metrics produce an invalid glyph scale.");
+
+        return scale;
+    }
+
+    /// <summary>Gets the validated distance between text baselines.</summary>
     /// <param name="style">The style supplying line metrics and size.</param>
     /// <param name="scale">The font-unit scale.</param>
-    /// <returns>The distance between line baselines.</returns>
+    /// <returns>The finite positive distance between baselines.</returns>
+    /// <exception cref="InvalidOperationException">The font line height is invalid.</exception>
     private static float GetLineHeight(ITextStyle style, float scale)
     {
         var lineHeight = (float)style.FontMetrics.LineHeight * scale;
         if (!float.IsFinite(lineHeight) || lineHeight <= 0f)
-            lineHeight = (float)style.Size;
-        return float.IsFinite(lineHeight) && lineHeight > 0f ? lineHeight : 1f;
+            throw new InvalidOperationException("Text style line height must be finite and positive.");
+
+        return lineHeight;
     }
 
     /// <summary>Registers a new glyph span with this component.</summary>
