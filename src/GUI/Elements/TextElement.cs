@@ -17,7 +17,6 @@ public partial class TextElement : Element
     [Observable]
     private ulong _renderLayerMask = ulong.MaxValue;
     private TextComponent? _textComponent;
-    private Rectangle<float>? _layoutBounds;
 
     /// <summary>Gets or sets the font and visual style used by the text element.</summary>
     [Observable(PublicSetter = true)]
@@ -45,23 +44,12 @@ public partial class TextElement : Element
             throw new ArgumentOutOfRangeException(nameof(value));
     }
 
-    /// <summary>Reapplies text placement after horizontal alignment changes.</summary>
-    /// <param name="previousValue">The previous horizontal alignment.</param>
-    protected virtual partial void AfterHorizontalAlignmentChanges(AlignHorizontal previousValue) =>
-        ReapplyLayout();
-
-    /// <summary>Reapplies text placement after vertical alignment changes.</summary>
-    /// <param name="previousValue">The previous vertical alignment.</param>
-    protected virtual partial void AfterVerticalAlignmentChanges(AlignVertical previousValue) =>
-        ReapplyLayout();
-
     /// <summary>Updates the component's line limit after it changes.</summary>
     /// <param name="previousValue">The previous line limit.</param>
     protected virtual partial void AfterMaximumLinesChanges(int? previousValue)
     {
         if (_textComponent is not null)
             _textComponent.MaximumLines = MaximumLines;
-        ReapplyLayout();
     }
 
     /// <summary>Updates the component source after the authored text changes.</summary>
@@ -70,7 +58,6 @@ public partial class TextElement : Element
     {
         if (_textComponent is not null)
             _textComponent.Text = Text;
-        ReapplyLayout();
     }
 
     /// <summary>Updates the text drawable after the render-layer mask changes.</summary>
@@ -87,13 +74,13 @@ public partial class TextElement : Element
     {
         if (_textComponent is not null)
             _textComponent.TextStyle = Style;
-        ReapplyLayout();
     }
 
     /// <summary>Initializes an empty text element.</summary>
     public TextElement()
     {
-        UpdateVisualComponent();
+        if (IsEffectivelyVisible)
+            EnsureVisualComponent();
     }
 
     /// <summary>Initializes a text element with source text, style, and optional line limit.</summary>
@@ -125,19 +112,23 @@ public partial class TextElement : Element
         if (!IsEffectivelyVisible || Style is null)
             return Vector2D<float>.Zero;
 
+        EnsureVisualComponent();
         return _textComponent?.Measure(constraint) ?? Vector2D<float>.Zero;
     }
 
     /// <inheritdoc />
     public override void Arrange(Rectangle<float> bounds)
     {
-        _layoutBounds = bounds;
-        RetainAllocation(bounds);
-        if (!IsEffectivelyVisible || _textComponent is null)
+        if (!IsEffectivelyVisible)
         {
-            SetHitTestBounds(new Rectangle<float>(bounds.Origin, Vector2D<float>.Zero));
+            RemoveVisualComponent();
+            SetBounds(new Rectangle<float>(bounds.Origin, Vector2D<float>.Zero));
             return;
         }
+
+        EnsureVisualComponent();
+        if (_textComponent is null)
+            return;
 
         _textComponent.Text = Text;
         _textComponent.MaximumLines = MaximumLines;
@@ -147,19 +138,15 @@ public partial class TextElement : Element
             GetHorizontalAlignment(),
             GetVerticalAlignment()
         );
-        SetHitTestBounds(_textComponent.LayoutBounds);
+        SetBounds(_textComponent.LayoutBounds);
     }
 
-    /// <summary>Reapplies the last parent-assigned rectangle after layout-affecting state changes.</summary>
-    private void ReapplyLayout()
+    /// <summary>Creates a text component when measurement or arrangement requires one.</summary>
+    private void EnsureVisualComponent()
     {
-        if (_layoutBounds is { } bounds)
-            Arrange(bounds);
-    }
+        if (_textComponent is not null)
+            return;
 
-    /// <summary>Creates a fresh text component from the retained text configuration.</summary>
-    private void CreateVisualComponent()
-    {
         var textComponent = new TextComponent
         {
             TextStyle = Style,
@@ -170,8 +157,6 @@ public partial class TextElement : Element
         };
         _textComponent = textComponent;
         AddComponent(textComponent);
-        if (_layoutBounds is { } bounds)
-            Arrange(bounds);
     }
 
     /// <summary>Gets the normalized horizontal alignment value for the text component.</summary>
@@ -208,20 +193,10 @@ public partial class TextElement : Element
     /// <summary>Synchronizes text component ownership with effective visibility.</summary>
     private void UpdateVisualComponent()
     {
-        if (IsEffectivelyVisible)
-        {
-            if (_textComponent is null)
-                CreateVisualComponent();
-        }
-        else if (_textComponent is not null)
-        {
-            RemoveVisualComponent();
-        }
-
         if (!IsEffectivelyVisible)
         {
-            var origin = _layoutBounds?.Origin ?? Vector2D<float>.Zero;
-            SetHitTestBounds(new Rectangle<float>(origin, Vector2D<float>.Zero));
+            RemoveVisualComponent();
+            SetBounds(new Rectangle<float>(Bounds.Origin, Vector2D<float>.Zero));
         }
     }
 

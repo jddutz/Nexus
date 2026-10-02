@@ -33,7 +33,6 @@ public partial class TextButton : Element
     private readonly ISamplingBehavior _samplingBehavior;
     private NinePatchComponent? _background;
     private TextComponent? _text;
-    private Rectangle<float>? _layoutBounds;
     private float _horizontalPadding;
     private float _verticalPadding;
 
@@ -66,12 +65,6 @@ public partial class TextButton : Element
             _text.Text = Label;
     }
 
-    /// <summary>Reapplies layout when label alignment changes.</summary>
-    /// <param name="previousValue">The previous label alignment.</param>
-    protected virtual partial void AfterLabelAlignmentChanges(
-        TextButtonLabelAlignment previousValue
-    ) => ReapplyLayout();
-
     /// <summary>
     /// Gets or sets the horizontal and vertical padding around the label.
     /// </summary>
@@ -97,7 +90,6 @@ public partial class TextButton : Element
             _horizontalPadding = value.X;
             _verticalPadding = value.Y;
             NotifyPropertyChanged(nameof(Padding));
-            ReapplyLayout();
         }
     }
 
@@ -166,8 +158,6 @@ public partial class TextButton : Element
         _text = text;
         AddComponent(background);
         AddComponent(text);
-        if (_layoutBounds is { } bounds)
-            Arrange(bounds);
     }
 
     /// <summary>Removes the current visual components and releases their references.</summary>
@@ -188,17 +178,13 @@ public partial class TextButton : Element
     private void UpdateVisualComponents()
     {
         if (IsEffectivelyVisible)
-        {
-            if (_background is null && _text is null)
-                CreateVisualComponents();
-        }
+            return;
         else
         {
             if (_background is not null || _text is not null)
                 RemoveVisualComponents();
 
-            var origin = _layoutBounds?.Origin ?? Vector2D<float>.Zero;
-            SetHitTestBounds(new Rectangle<float>(origin, Vector2D<float>.Zero));
+            SetBounds(new Rectangle<float>(Bounds.Origin, Vector2D<float>.Zero));
         }
     }
 
@@ -248,6 +234,9 @@ public partial class TextButton : Element
         if (!IsEffectivelyVisible)
             return Vector2D<float>.Zero;
 
+        if (_text is null || _background is null)
+            CreateVisualComponents();
+
         if (
             float.IsNaN(constraint.X)
             || constraint.X < 0f
@@ -270,13 +259,19 @@ public partial class TextButton : Element
     /// <inheritdoc />
     public override void Arrange(Rectangle<float> bounds)
     {
-        _layoutBounds = bounds;
-        base.Arrange(bounds);
-        if (!IsEffectivelyVisible || _text is null || _background is null)
+        if (!IsEffectivelyVisible)
         {
-            SetHitTestBounds(new Rectangle<float>(bounds.Origin, Vector2D<float>.Zero));
+            RemoveVisualComponents();
+            SetBounds(new Rectangle<float>(bounds.Origin, Vector2D<float>.Zero));
             return;
         }
+
+        if (_text is null || _background is null)
+            CreateVisualComponents();
+        base.Arrange(bounds);
+
+        if (_text is null || _background is null)
+            return;
 
         var horizontalAlignment = LabelAlignment switch
         {
@@ -298,10 +293,4 @@ public partial class TextButton : Element
         _background.Destination = bounds;
     }
 
-    /// <summary>Reapplies the most recently assigned bounds to the active visuals.</summary>
-    private void ReapplyLayout()
-    {
-        if (_layoutBounds is { } bounds)
-            Arrange(bounds);
-    }
 }

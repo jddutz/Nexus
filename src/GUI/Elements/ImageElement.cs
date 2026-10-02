@@ -20,8 +20,10 @@ public partial class ImageElement : Element
 
             var previousValue = _texture;
             _texture = value;
-            InvalidateGeometry();
+            UpdateTextureSource();
             NotifyPropertyChanged(nameof(Texture));
+            if ((previousValue is null) != (value is null) && IsEffectivelyVisible)
+                InvalidateLayout();
             TextureChanged?.Invoke(previousValue, value);
         }
     }
@@ -42,8 +44,10 @@ public partial class ImageElement : Element
 
             var previousValue = _sourceRegion;
             _sourceRegion = value;
-            InvalidateGeometry();
+            UpdateTextureSource();
             NotifyPropertyChanged(nameof(SourceRegion));
+            if (IsEffectivelyVisible)
+                InvalidateLayout();
             SourceRegionChanged?.Invoke(previousValue, value);
         }
     }
@@ -71,7 +75,6 @@ public partial class ImageElement : Element
     [Observable]
     private ulong _renderLayerMask = ulong.MaxValue;
     private TextureComponent? _imageComponent;
-    private Rectangle<float>? _layoutBounds;
 
     /// <summary>Validates the proposed sizing mode and custom-size configuration.</summary>
     /// <param name="value">The proposed sizing mode.</param>
@@ -105,21 +108,6 @@ public partial class ImageElement : Element
     /// <param name="value">The proposed sampling behavior.</param>
     private void BeforeSamplingBehaviorChanges(ISamplingBehavior value) =>
         ArgumentNullException.ThrowIfNull(value);
-
-    /// <summary>Rebuilds image geometry after the sizing mode changes.</summary>
-    /// <param name="previousValue">The previous sizing mode.</param>
-    protected virtual partial void AfterSizingModeChanges(SizingMode previousValue) =>
-        InvalidateGeometry();
-
-    /// <summary>Rebuilds image geometry after horizontal alignment changes.</summary>
-    /// <param name="previousValue">The previous horizontal alignment.</param>
-    protected virtual partial void AfterHorizontalAlignmentChanges(AlignHorizontal previousValue) =>
-        InvalidateGeometry();
-
-    /// <summary>Rebuilds image geometry after vertical alignment changes.</summary>
-    /// <param name="previousValue">The previous vertical alignment.</param>
-    protected virtual partial void AfterVerticalAlignmentChanges(AlignVertical previousValue) =>
-        InvalidateGeometry();
 
     /// <summary>Updates texture sampling after its behavior changes.</summary>
     /// <param name="previousValue">The previous sampling behavior.</param>
@@ -175,8 +163,8 @@ public partial class ImageElement : Element
 
         if (SizingMode != SizingMode.Custom)
             SetSizingMode(SizingMode.Custom);
-        else if (configurationChanged)
-            InvalidateGeometry();
+        if (configurationChanged)
+            UpdateTextureSource();
     }
 
     /// <inheritdoc />
@@ -200,33 +188,26 @@ public partial class ImageElement : Element
     public override void Arrange(Rectangle<float> bounds)
     {
         ValidateBounds(bounds);
-        _layoutBounds = bounds;
         base.Arrange(bounds);
-        UpdateVisualComponent();
+        UpdateVisualComponent(bounds);
     }
 
-    /// <summary>Invalidates cached quads and reapplies the last parent-assigned rectangle.</summary>
-    private void InvalidateGeometry()
-    {
-        if (_layoutBounds is { } bounds)
-            Arrange(bounds);
-    }
-
-    /// <summary>Synchronizes visual-component ownership, source data, and actual hit bounds.</summary>
-    private void UpdateVisualComponent()
+    /// <summary>Synchronizes the image drawable and hit bounds with the current allocation.</summary>
+    /// <param name="bounds">The allocation supplied by the layout pass.</param>
+    private void UpdateVisualComponent(Rectangle<float> bounds)
     {
         var texture = Texture;
-        if (!IsEffectivelyVisible || _layoutBounds is not { } bounds || texture is null)
+        if (!IsEffectivelyVisible || texture is null)
         {
             RemoveVisualComponent();
-            SetHitTestBounds(EmptyBounds);
+            SetBounds(new Rectangle<float>(bounds.Origin, Vector2D<float>.Zero));
             return;
         }
 
         if (bounds.Size.X <= 0f || bounds.Size.Y <= 0f)
         {
             RemoveVisualComponent();
-            SetHitTestBounds(EmptyBounds);
+            SetBounds(EmptyBounds);
             return;
         }
 
@@ -241,7 +222,7 @@ public partial class ImageElement : Element
         if (right <= left || bottom <= top)
         {
             RemoveVisualComponent();
-            SetHitTestBounds(EmptyBounds);
+            SetBounds(EmptyBounds);
             return;
         }
 
@@ -257,7 +238,7 @@ public partial class ImageElement : Element
             (bottomFraction - topFraction) * sourceTexCoord.W
         );
 
-        SetHitTestBounds(
+        SetBounds(
             new Rectangle<float>(
                 bounds.Origin.X + left,
                 bounds.Origin.Y + top,
@@ -282,6 +263,23 @@ public partial class ImageElement : Element
             ),
             texCoord
         );
+    }
+
+    /// <summary>Updates the active drawable's texture and source coordinates without relayout.</summary>
+    private void UpdateTextureSource()
+    {
+        if (_imageComponent is null)
+            return;
+
+        if (Texture is not { } texture)
+        {
+            RemoveVisualComponent();
+            SetBounds(new Rectangle<float>(Bounds.Origin, Vector2D<float>.Zero));
+            return;
+        }
+
+        _imageComponent.Texture = texture;
+        _imageComponent.TexCoord = GetActiveTexCoord(texture, GetEffectiveSourceRegion(texture));
     }
 
     /// <summary>Applies retained source and visual settings to the current texture component.</summary>
@@ -467,7 +465,7 @@ public partial class ImageElement : Element
     private void OnAncestorPropertyChanged(string propertyName)
     {
         if (propertyName is "" or nameof(IsVisible))
-            UpdateVisualComponent();
+            ClearVisualWhenHidden();
     }
 
     /// <inheritdoc />
@@ -475,14 +473,24 @@ public partial class ImageElement : Element
     {
         base.OnSceneHierarchyChanged();
         UpdateVisibilityAncestorSubscriptions();
-        UpdateVisualComponent();
+        ClearVisualWhenHidden();
     }
 
     /// <inheritdoc />
     protected override void AfterIsVisibleChanges()
     {
         base.AfterIsVisibleChanges();
-        UpdateVisualComponent();
+        ClearVisualWhenHidden();
+    }
+
+    /// <summary>Removes image visuals and clears hit bounds when this element is hidden.</summary>
+    private void ClearVisualWhenHidden()
+    {
+        if (IsEffectivelyVisible)
+            return;
+
+        RemoveVisualComponent();
+        SetBounds(new Rectangle<float>(Bounds.Origin, Vector2D<float>.Zero));
     }
 
     /// <summary>Validates a positive finite logical size.</summary>

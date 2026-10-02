@@ -55,6 +55,7 @@ public sealed class TextElementTests
 
         element.HorizontalAlignment = AlignHorizontal.Right;
         element.VerticalAlignment = AlignVertical.Bottom;
+        element.Arrange(bounds);
 
         Assert.Equal(text.LayoutBounds, element.Bounds);
         Assert.Equal(
@@ -95,6 +96,7 @@ public sealed class TextElementTests
         element.Text = "BA";
 
         parent.IsVisible = true;
+        element.Arrange(bounds);
 
         var recreated = DrawableTestData.TextGraphics(element);
         Assert.NotNull(recreated);
@@ -116,12 +118,14 @@ public sealed class TextElementTests
 
         element.Text = "AB";
         Assert.Equal(2UL, DrawableTestData.TextInstanceCount(element));
+        element.Arrange(bounds);
         var text = Assert.IsType<TextComponent>(Assert.Single(element.Components));
         Assert.Equal(bounds, text.Destination);
         Assert.Equal(text.LayoutBounds, element.Bounds);
 
         element.MaximumLines = 1;
         Assert.Equal(1UL, DrawableTestData.TextInstanceCount(element));
+        element.Arrange(bounds);
         Assert.Equal(bounds, text.Destination);
         Assert.Equal(text.LayoutBounds, element.Bounds);
         Assert.Equal(1, text.MaximumLines);
@@ -130,12 +134,13 @@ public sealed class TextElementTests
 
         element.HorizontalAlignment = AlignHorizontal.Right;
         element.VerticalAlignment = AlignVertical.Bottom;
+        element.Arrange(bounds);
         Assert.Equal(text.LayoutBounds, element.Bounds);
     }
 
-    /// <summary>Verifies a hidden element retains newly assigned bounds for restoration.</summary>
+    /// <summary>Verifies a layout pass after visibility restoration supplies a fresh allocation.</summary>
     [Fact]
-    public void Arrange_stores_bounds_while_hidden()
+    public void Arrange_afterVisibilityRestorationUsesCurrentAllocation()
     {
         var parent = new Element();
         var element = CreateTextElement("A");
@@ -149,6 +154,8 @@ public sealed class TextElementTests
         Assert.Equal(Vector2D<float>.Zero, element.Bounds.Size);
         parent.IsVisible = true;
 
+        Assert.Empty(element.Components);
+        element.Arrange(hiddenBounds);
         Assert.Equal(1UL, DrawableTestData.TextInstanceCount(element));
         var text = Assert.IsType<TextComponent>(Assert.Single(element.Components));
         Assert.Equal(hiddenBounds, text.Destination);

@@ -119,6 +119,7 @@ public sealed class ImageElementTests
         Assert.Equal(Vector2D<float>.Zero, element.Bounds.Size);
         element.Texture = CreateTexture(6, 3);
         parent.IsVisible = true;
+        element.Arrange(new Rectangle<float>(2f, 3f, 8f, 4f));
 
         var recreated = element.GetComponent<TextureComponent>();
         Assert.NotNull(recreated);

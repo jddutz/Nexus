@@ -103,6 +103,7 @@ public sealed class TextButtonTests
         button.Padding = new(6f, 5f);
 
         button.IsVisible = true;
+        button.Arrange(hiddenBounds);
 
         var recreatedBackground = button.GetComponent<NinePatchComponent>();
         var recreatedText = DrawableTestData.TextGraphics(button);
@@ -136,6 +137,7 @@ public sealed class TextButtonTests
         Assert.Empty(button.Components);
         Assert.Equal(Vector2D<float>.Zero, button.Bounds.Size);
         parent.IsVisible = true;
+        button.Arrange(new Rectangle<float>(0f, 0f, 20f, 20f));
         Assert.Equal(2, button.Components.Count());
     }
 
@@ -173,10 +175,13 @@ public sealed class TextButtonTests
         var text = Assert.IsType<TextComponent>(Assert.Single(button.Components.OfType<TextComponent>()));
         var centeredTextOrigin = text.LayoutBounds.Origin.X;
         button.LabelAlignment = TextButtonLabelAlignment.Start;
+        button.Arrange(bounds);
         var startTextOrigin = text.LayoutBounds.Origin.X;
         button.LabelAlignment = TextButtonLabelAlignment.End;
+        button.Arrange(bounds);
         var endTextOrigin = text.LayoutBounds.Origin.X;
         button.Padding = new(8f, 6f);
+        button.Arrange(bounds);
 
         Assert.True(startTextOrigin < centeredTextOrigin);
         Assert.True(centeredTextOrigin < endTextOrigin);

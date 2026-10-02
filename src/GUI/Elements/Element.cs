@@ -5,10 +5,6 @@ namespace Nexus.GUI.Elements;
 /// </summary>
 public partial class Element : GameObject, IElement
 {
-    private readonly List<IObservable> _visibilityAncestors = [];
-    private Rectangle<float>? _arrangedBounds;
-    private bool _settingHitTestBounds;
-
     [Observable]
     private float? _height = null;
 
@@ -105,84 +101,23 @@ public partial class Element : GameObject, IElement
             FocusLost?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>Refreshes hit-test bounds after local visibility changes.</summary>
-    protected virtual partial void AfterIsVisibleChanges() => UpdateBoundsForVisibility();
+    /// <summary>Clears hit-test bounds when this element becomes hidden.</summary>
+    protected virtual partial void AfterIsVisibleChanges()
+    {
+        if (!IsEffectivelyVisible)
+            SetBounds(new Rectangle<float>(Bounds.Origin, Vector2D<float>.Zero));
+    }
 
-    /// <summary>Tracks direct bounds assignments and collapses them while hidden.</summary>
+    /// <summary>Clears directly assigned hit bounds when the element is hidden.</summary>
     /// <param name="previousValue">The bounds before the change.</param>
     protected virtual partial void AfterBoundsChanges(Rectangle<float> previousValue)
     {
-        if (_settingHitTestBounds)
-            return;
-
-        _arrangedBounds = Bounds;
-        UpdateBoundsForVisibility();
+        if (!IsEffectivelyVisible && Bounds.Size != Vector2D<float>.Zero)
+            SetBounds(new Rectangle<float>(Bounds.Origin, Vector2D<float>.Zero));
     }
 
-    /// <summary>Retains an allocation without using it as the final hit-test rectangle.</summary>
-    /// <param name="bounds">The parent-assigned allocation.</param>
-    protected void RetainAllocation(Rectangle<float> bounds) => _arrangedBounds = bounds;
-
-    /// <summary>Updates hit-test bounds without replacing the retained allocation.</summary>
-    /// <param name="bounds">The rendered geometry bounds.</param>
-    protected void SetHitTestBounds(Rectangle<float> bounds)
-    {
-        _settingHitTestBounds = true;
-        try
-        {
-            SetBounds(bounds);
-        }
-        finally
-        {
-            _settingHitTestBounds = false;
-        }
-    }
-
-    /// <summary>Applies the retained allocation when visible and a zero-size rectangle otherwise.</summary>
-    private void UpdateBoundsForVisibility()
-    {
-        if (_arrangedBounds is not { } bounds)
-            return;
-
-        SetHitTestBounds(
-            IsEffectivelyVisible
-                ? bounds
-                : new Rectangle<float>(bounds.Origin, Vector2D<float>.Zero)
-        );
-    }
-
-    /// <summary>Subscribes to visibility changes on the current ancestor chain.</summary>
-    private void UpdateVisibilityAncestorSubscriptions()
-    {
-        foreach (var ancestor in _visibilityAncestors)
-            ancestor.PropertyChanged -= OnAncestorPropertyChanged;
-        _visibilityAncestors.Clear();
-
-        for (ISceneNode? ancestor = Parent; ancestor is not null; ancestor = ancestor.Parent)
-        {
-            if (ancestor is not IObservable observable)
-                continue;
-
-            observable.PropertyChanged += OnAncestorPropertyChanged;
-            _visibilityAncestors.Add(observable);
-        }
-    }
-
-    /// <summary>Updates hit-test bounds when an ancestor's visibility changes.</summary>
-    /// <param name="propertyName">The name of the changed property.</param>
-    private void OnAncestorPropertyChanged(string propertyName)
-    {
-        if (propertyName is "" or nameof(IsVisible))
-            UpdateBoundsForVisibility();
-    }
-
-    /// <inheritdoc />
-    public override void OnSceneHierarchyChanged()
-    {
-        base.OnSceneHierarchyChanged();
-        UpdateVisibilityAncestorSubscriptions();
-        UpdateBoundsForVisibility();
-    }
+    /// <summary>Requests a fresh measure-and-arrange pass from the GUI.</summary>
+    protected void InvalidateLayout() => NotifyPropertyChanged(string.Empty);
 
     /// <summary>
     /// Measures the element within the specified constraint.
@@ -198,7 +133,10 @@ public partial class Element : GameObject, IElement
     /// <param name="bounds">The allocation assigned to the element.</param>
     public virtual void Arrange(Rectangle<float> bounds)
     {
-        RetainAllocation(bounds);
-        UpdateBoundsForVisibility();
+        SetBounds(
+            IsEffectivelyVisible
+                ? bounds
+                : new Rectangle<float>(bounds.Origin, Vector2D<float>.Zero)
+        );
     }
 }

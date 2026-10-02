@@ -160,7 +160,6 @@ internal sealed class HelloNexusSceneFactory(
                     ? new Vector2D<float>(bounds.Size.X, bounds.Size.X / textureAspectRatio)
                     : new Vector2D<float>(bounds.Size.Y * textureAspectRatio, bounds.Size.Y);
 
-            Position = bounds.Origin;
             _texture.Destination = new Rectangle<float>(
                 bounds.Origin.X + (bounds.Size.X - imageSize.X) / 2f,
                 bounds.Origin.Y + (bounds.Size.Y - imageSize.Y) / 2f,
@@ -401,7 +400,6 @@ internal sealed class HelloNexusSceneFactory(
                 ),
                 visibleSize
             );
-            Position = Bounds.Origin;
             _texture.Destination = new Rectangle<float>(Bounds.Origin, visibleSize);
             _texture.TexCoord = new(cropOrigin.X, cropOrigin.Y, cropRatio.X, cropRatio.Y);
         }

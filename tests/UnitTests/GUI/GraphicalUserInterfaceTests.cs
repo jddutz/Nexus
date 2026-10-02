@@ -4,6 +4,7 @@ using Nexus.Core.Events;
 using Nexus.Game;
 using Nexus.Graphics;
 using Nexus.Graphics.Events;
+using Nexus.Graphics.Textures;
 using Nexus.GUI;
 using Nexus.GUI.Elements;
 using Nexus.Input;
@@ -45,6 +46,48 @@ public class GraphicalUserInterfaceTests
         element.Height = 50;
         gui.Update(0);
         Assert.Equal(3, layoutCount);
+    }
+
+    /// <summary>Verifies text changes invalidate layout but texture replacement does not.</summary>
+    [Fact]
+    public void ContentChanges_invalidateLayoutOnlyWhenTheyCanAffectLayout()
+    {
+        var eventHub = new EventHub();
+        var gui = new GraphicalUserInterface(eventHub, new TestWindowService(new(800, 600)));
+        var textElement = new LayoutCountingTextElement();
+        var imageElement = new LayoutCountingImageElement { Texture = CreateTexture() };
+        var scene = new Scene();
+        scene.Children.Add(textElement);
+        scene.Children.Add(imageElement);
+        ActivateScene(scene);
+        gui.Initialize();
+        eventHub.Publish(new SceneLoadedEvent(scene));
+        eventHub.Drain();
+        gui.Update(0);
+
+        Assert.Equal(1, textElement.ArrangeCount);
+        Assert.Equal(1, imageElement.ArrangeCount);
+
+        textElement.Text = "Updated";
+        gui.Update(0);
+        Assert.Equal(2, textElement.ArrangeCount);
+        Assert.Equal(2, imageElement.ArrangeCount);
+
+        imageElement.Texture = CreateTexture();
+        gui.Update(0);
+        Assert.Equal(2, textElement.ArrangeCount);
+        Assert.Equal(2, imageElement.ArrangeCount);
+
+        imageElement.IsVisible = false;
+        gui.Update(0);
+        Assert.Equal(3, imageElement.ArrangeCount);
+        imageElement.Texture = CreateTexture();
+        gui.Update(0);
+        Assert.Equal(3, imageElement.ArrangeCount);
+
+        imageElement.IsVisible = true;
+        gui.Update(0);
+        Assert.Equal(4, imageElement.ArrangeCount);
     }
 
     /// <summary>
@@ -588,6 +631,39 @@ public class GraphicalUserInterfaceTests
             base.Arrange(bounds);
         }
     }
+
+    /// <summary>Counts arranged text layout passes.</summary>
+    private sealed class LayoutCountingTextElement : TextElement
+    {
+        /// <summary>Gets the number of completed arrangement calls.</summary>
+        public int ArrangeCount { get; private set; }
+
+        /// <inheritdoc />
+        public override void Arrange(Rectangle<float> bounds)
+        {
+            ArrangeCount++;
+            base.Arrange(bounds);
+        }
+    }
+
+    /// <summary>Counts arranged image layout passes.</summary>
+    private sealed class LayoutCountingImageElement : ImageElement
+    {
+        /// <summary>Gets the number of completed arrangement calls.</summary>
+        public int ArrangeCount { get; private set; }
+
+        /// <inheritdoc />
+        public override void Arrange(Rectangle<float> bounds)
+        {
+            ArrangeCount++;
+            base.Arrange(bounds);
+        }
+    }
+
+    /// <summary>Creates a small texture for image layout tests.</summary>
+    /// <returns>The in-memory texture.</returns>
+    private static Texture CreateTexture() =>
+        new("gui-layout-tests", 2, 2, [Colors.White, Colors.White, Colors.White, Colors.White]);
 
     /// <summary>
     /// Arranges its child into the leading half of its own bounds.

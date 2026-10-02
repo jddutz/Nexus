@@ -222,13 +222,27 @@ public sealed class GraphicalUserInterface(IEventHub eventHub, IWindowService? w
         }
 
         if (
-            propertyName
-            is ""
-                or nameof(Element.Width)
-                or nameof(Element.Height)
-                or nameof(TextButton.Label)
-                or nameof(TextButton.Padding)
-                or nameof(TextButton.LabelAlignment)
+            propertyName == nameof(Element.IsVisible)
+            || (
+                changedElement.IsEffectivelyVisible
+                && propertyName
+                    is ""
+                        or nameof(Element.Width)
+                        or nameof(Element.Height)
+                        or nameof(TextElement.Text)
+                        or nameof(TextElement.Style)
+                        or nameof(TextElement.MaximumLines)
+                        or nameof(TextElement.HorizontalAlignment)
+                        or nameof(TextElement.VerticalAlignment)
+                        or nameof(ImageElement.SizingMode)
+                        or nameof(ImageElement.SourceRegion)
+                        or nameof(ImageElement.CustomSize)
+                        or nameof(ImageElement.HorizontalAlignment)
+                        or nameof(ImageElement.VerticalAlignment)
+                        or nameof(TextButton.Label)
+                        or nameof(TextButton.Padding)
+                        or nameof(TextButton.LabelAlignment)
+            )
         )
             _layoutInvalidated = true;
     }
