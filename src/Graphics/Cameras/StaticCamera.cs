@@ -49,9 +49,11 @@ public partial class StaticCamera : Component, ICameraComponent
     /// <summary>Gets the fixed right direction, always +X.</summary>
     public Vector3D<float> Right { get; } = Vector3D<float>.UnitX;
 
-    private void AfterNearPlaneChanges(float previousValue) => InvalidateProjection();
+    protected virtual partial void AfterNearPlaneChanges(float previousValue) =>
+        InvalidateProjection();
 
-    private void AfterFarPlaneChanges(float previousValue) => InvalidateProjection();
+    protected virtual partial void AfterFarPlaneChanges(float previousValue) =>
+        InvalidateProjection();
 
     /// <summary>Gets the identity view matrix used for screen-space rendering.</summary>
     public Matrix4X4<float> ViewMatrix { get; } = Matrix4X4<float>.Identity;

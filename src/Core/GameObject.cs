@@ -115,7 +115,7 @@ public partial class GameObject : IGameObject
     /// Removes this object from its previous parent's child collection after its parent changes.
     /// </summary>
     /// <param name="previousValue">The parent before the change.</param>
-    private void AfterParentChanges(ISceneNode? previousValue)
+    protected virtual partial void AfterParentChanges(ISceneNode? previousValue)
     {
         previousValue?.Children.Remove(this);
         OnSceneHierarchyChanged();
@@ -268,7 +268,7 @@ public partial class GameObject : IGameObject
     /// Invokes the lifecycle callback corresponding to an activation-state transition.
     /// </summary>
     /// <param name="previousValue">The activation state before the change.</param>
-    private void AfterIsActivatedChanges(bool previousValue)
+    protected virtual partial void AfterIsActivatedChanges(bool previousValue)
     {
         if (previousValue)
             OnDeactivated();

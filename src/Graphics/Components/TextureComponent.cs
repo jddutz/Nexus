@@ -13,7 +13,10 @@ public partial class TextureComponent : Component, IGraphicsComponent
     public override string DisplayName => "Texture";
 
     [Observable(PublicSetter = true)]
-    private ulong _renderLayerMask = 1;
+    private ulong _renderLayerMask = ulong.MaxValue;
+
+    [Observable(PublicSetter = true)]
+    private Rectangle<float> _bounds = new(0f, 0f, 0f, 0f);
 
     [Observable(PublicSetter = true, GenerateChangedEvent = false)]
     private Texture? _texture;
@@ -101,25 +104,25 @@ public partial class TextureComponent : Component, IGraphicsComponent
     private void BeforeTexCoordChanges(Vector4D<float> value) =>
         ValidateTextureInput(Texture, value);
 
-    private void AfterRenderLayerMaskChanges(ulong previousValue) =>
+    protected virtual partial void AfterRenderLayerMaskChanges(ulong previousValue) =>
         RenderLayerChanged?.Invoke(this, EventArgs.Empty);
 
-    private void AfterTextureChanges(Texture? previousValue) =>
+    protected virtual partial void AfterTextureChanges(Texture? previousValue) =>
         TextureChanged?.Invoke(this, EventArgs.Empty);
 
-    private void AfterSamplingBehaviorChanges(ISamplingBehavior previousValue) =>
+    protected virtual partial void AfterSamplingBehaviorChanges(ISamplingBehavior previousValue) =>
         TextureChanged?.Invoke(this, EventArgs.Empty);
 
     private void AfterDestinationChanges(Rectangle<float> previousValue) =>
         InstanceDataChanged?.Invoke(this, EventArgs.Empty);
 
-    private void AfterTexCoordChanges(Vector4D<float> previousValue) =>
+    protected virtual partial void AfterTexCoordChanges(Vector4D<float> previousValue) =>
         InstanceDataChanged?.Invoke(this, EventArgs.Empty);
 
-    private void AfterColorChanges(Color previousValue) =>
+    protected virtual partial void AfterColorChanges(Color previousValue) =>
         InstanceDataChanged?.Invoke(this, EventArgs.Empty);
 
-    private void AfterViewChanges(Matrix4X4<float> previousValue) =>
+    protected virtual partial void AfterViewChanges(Matrix4X4<float> previousValue) =>
         UniformDataChanged?.Invoke(this, EventArgs.Empty);
 
     /// <summary>Gets the instance count for the concrete component.</summary>

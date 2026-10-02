@@ -88,7 +88,7 @@ public abstract partial class Component : IComponent
     /// Updates owner property subscriptions after the owner changes.
     /// </summary>
     /// <param name="previousValue">The previous owner.</param>
-    private void AfterOwnerChanges(IGameObject? previousValue)
+    protected virtual partial void AfterOwnerChanges(IGameObject? previousValue)
     {
         if (previousValue is not null)
             previousValue.PropertyChanged -= OnOwnerPropertyChanged;
@@ -112,7 +112,7 @@ public abstract partial class Component : IComponent
     /// Raises <see cref="Modified"/> after the initialization state changes.
     /// </summary>
     /// <param name="previousValue">The initialization state before the change.</param>
-    private void AfterIsInitializedChanges(bool previousValue)
+    protected virtual partial void AfterIsInitializedChanges(bool previousValue)
     {
         Modified?.Invoke(this, EventArgs.Empty);
     }
@@ -121,7 +121,7 @@ public abstract partial class Component : IComponent
     /// Raises <see cref="Modified"/> after the activation state changes.
     /// </summary>
     /// <param name="previousValue">The activation state before the change.</param>
-    private void AfterIsActivatedChanges(bool previousValue)
+    protected virtual partial void AfterIsActivatedChanges(bool previousValue)
     {
         Modified?.Invoke(this, EventArgs.Empty);
     }

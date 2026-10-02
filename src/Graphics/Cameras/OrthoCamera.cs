@@ -51,19 +51,22 @@ public partial class OrthoCamera : Component, ICameraComponent
     public Vector3D<float> Right { get; } = Vector3D<float>.UnitX;
 
     /// <summary>Invalidates cached matrices after a camera property changes.</summary>
-    private void AfterPositionChanges(Vector3D<float> previousValue) => InvalidateMatrices();
+    protected virtual partial void AfterPositionChanges(Vector3D<float> previousValue) =>
+        InvalidateMatrices();
 
     /// <inheritdoc cref="AfterPositionChanges(Vector3D{float})" />
-    private void AfterWidthChanges(float previousValue) => InvalidateMatrices();
+    protected virtual partial void AfterWidthChanges(float previousValue) => InvalidateMatrices();
 
     /// <inheritdoc cref="AfterPositionChanges(Vector3D{float})" />
-    private void AfterHeightChanges(float previousValue) => InvalidateMatrices();
+    protected virtual partial void AfterHeightChanges(float previousValue) => InvalidateMatrices();
 
     /// <inheritdoc cref="AfterPositionChanges(Vector3D{float})" />
-    private void AfterNearPlaneChanges(float previousValue) => InvalidateMatrices();
+    protected virtual partial void AfterNearPlaneChanges(float previousValue) =>
+        InvalidateMatrices();
 
     /// <inheritdoc cref="AfterPositionChanges(Vector3D{float})" />
-    private void AfterFarPlaneChanges(float previousValue) => InvalidateMatrices();
+    protected virtual partial void AfterFarPlaneChanges(float previousValue) =>
+        InvalidateMatrices();
 
     /// <summary>Gets the view matrix, recalculating it only when camera state has changed.</summary>
     public Matrix4X4<float> ViewMatrix

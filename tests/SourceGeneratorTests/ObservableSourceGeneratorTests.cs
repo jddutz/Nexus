@@ -108,7 +108,7 @@ public sealed class ObservableSourceGeneratorTests
                         public List<string> Calls { get; } = new();
                         public event Action<string>? PropertyChanged;
 
-                        private void AfterCountChanges(int previousValue)
+                        protected virtual partial void AfterCountChanges(int previousValue)
                         {
                             Calls.Add($"after:{previousValue}");
                             if (_reentrantValue is not int value)
@@ -207,6 +207,124 @@ public sealed class ObservableSourceGeneratorTests
             "after:3,after:-1" + "|Count,Count|3:-1,-1:5|9|updated|initial:updated|True|Amount|4",
             output
         );
+    }
+
+    /// <summary>
+    /// Verifies an observable hook can omit the previous value parameter.
+    /// </summary>
+    [Fact]
+    public void ParameterlessObservableHookIsInvoked()
+    {
+        var source =
+            ObservableContract
+            + """
+                namespace Probe
+                {
+                    public partial class Target
+                    {
+                        [Nexus.Core.Observable]
+                        private int _value;
+                        public int HookCalls { get; private set; }
+
+                        protected virtual partial void AfterValueChanges() => HookCalls++;
+                    }
+
+                    public static class RuntimeProbe
+                    {
+                        public static int Run()
+                        {
+                            var target = new Target();
+                            target.Value = 1;
+                            return target.HookCalls;
+                        }
+                    }
+                }
+                """;
+
+        var result = RunGenerator(source);
+        Assert.DoesNotContain(
+            result.Diagnostics,
+            diagnostic => diagnostic.Severity == DiagnosticSeverity.Error
+        );
+        Assert.DoesNotContain(
+            result.Compilation.GetDiagnostics(),
+            diagnostic => diagnostic.Severity == DiagnosticSeverity.Error
+        );
+        Assert.Contains(
+            result.GeneratedSources,
+            generated =>
+                generated
+                    .SourceText.ToString()
+                    .Contains("AfterValueChanges();", StringComparison.Ordinal)
+        );
+
+        using var assemblyStream = new MemoryStream();
+        var emitResult = result.Compilation.Emit(assemblyStream);
+        Assert.True(emitResult.Success, string.Join(Environment.NewLine, emitResult.Diagnostics));
+        assemblyStream.Position = 0;
+        var assembly = AssemblyLoadContext.Default.LoadFromStream(assemblyStream);
+        var runMethod = assembly.GetType("Probe.RuntimeProbe")!.GetMethod("Run")!;
+
+        Assert.Equal(1, (int)runMethod.Invoke(null, null)!);
+    }
+
+    /// <summary>
+    /// Verifies generated no-op hooks can be overridden by a derived class.
+    /// </summary>
+    [Fact]
+    public void GeneratedHooksCanBeOverridden()
+    {
+        var source =
+            ObservableContract
+            + """
+                namespace Probe
+                {
+                    public partial class BaseTarget : IObservable
+                    {
+                        [Nexus.Core.Observable]
+                        private int _value;
+                        public event Action<string>? PropertyChanged;
+                    }
+
+                    public sealed class DerivedTarget : BaseTarget
+                    {
+                        public int ParameterlessCalls { get; private set; }
+                        public int PreviousValue { get; private set; }
+
+                        protected override void AfterValueChanges() => ParameterlessCalls++;
+                        protected override void AfterValueChanges(int previousValue) => PreviousValue = previousValue;
+                    }
+
+                    public static class RuntimeProbe
+                    {
+                        public static string Run()
+                        {
+                            var target = new DerivedTarget();
+                            target.Value = 7;
+                            return $"{target.ParameterlessCalls}:{target.PreviousValue}";
+                        }
+                    }
+                }
+                """;
+
+        var result = RunGenerator(source);
+        Assert.DoesNotContain(
+            result.Diagnostics,
+            diagnostic => diagnostic.Severity == DiagnosticSeverity.Error
+        );
+        Assert.DoesNotContain(
+            result.Compilation.GetDiagnostics(),
+            diagnostic => diagnostic.Severity == DiagnosticSeverity.Error
+        );
+
+        using var assemblyStream = new MemoryStream();
+        var emitResult = result.Compilation.Emit(assemblyStream);
+        Assert.True(emitResult.Success, string.Join(Environment.NewLine, emitResult.Diagnostics));
+        assemblyStream.Position = 0;
+        var assembly = AssemblyLoadContext.Default.LoadFromStream(assemblyStream);
+        var runMethod = assembly.GetType("Probe.RuntimeProbe")!.GetMethod("Run")!;
+
+        Assert.Equal("1:0", (string)runMethod.Invoke(null, null)!);
     }
 
     /// <summary>

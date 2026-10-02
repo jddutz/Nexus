@@ -49,27 +49,31 @@ public partial class PerspectiveCamera : Component, ICameraComponent
     /// <summary>Gets the camera's derived right direction, orthogonal to <see cref="Forward"/> and <see cref="Up"/>.</summary>
     public Vector3D<float> Right => _right;
 
-    private void AfterPositionChanges(Vector3D<float> previousValue) => InvalidateMatrices();
+    protected virtual partial void AfterPositionChanges(Vector3D<float> previousValue) =>
+        InvalidateMatrices();
 
-    private void AfterForwardChanges(Vector3D<float> previousValue)
+    protected virtual partial void AfterForwardChanges(Vector3D<float> previousValue)
     {
         _forward = Vector3D.Normalize(_forward);
         UpdateDirectionVectors();
         InvalidateMatrices();
     }
 
-    private void AfterUpChanges(Vector3D<float> previousValue)
+    protected virtual partial void AfterUpChanges(Vector3D<float> previousValue)
     {
         _up = Vector3D.Normalize(_up);
         UpdateDirectionVectors();
         InvalidateMatrices();
     }
 
-    private void AfterFieldOfViewChanges(float previousValue) => InvalidateMatrices();
+    protected virtual partial void AfterFieldOfViewChanges(float previousValue) =>
+        InvalidateMatrices();
 
-    private void AfterNearPlaneChanges(float previousValue) => InvalidateMatrices();
+    protected virtual partial void AfterNearPlaneChanges(float previousValue) =>
+        InvalidateMatrices();
 
-    private void AfterFarPlaneChanges(float previousValue) => InvalidateMatrices();
+    protected virtual partial void AfterFarPlaneChanges(float previousValue) =>
+        InvalidateMatrices();
 
     /// <summary>
     /// Gets the viewport aspect ratio (width divided by height). Established by

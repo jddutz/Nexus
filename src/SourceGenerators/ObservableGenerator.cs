@@ -228,7 +228,9 @@ public sealed class ObservableGenerator : IIncrementalGenerator
                 string PropertyName,
                 bool HasPartialSetter,
                 string? AfterHook,
+                string? AfterHookWithPreviousValue,
                 bool HasPartialAfterHook,
+                bool HasPartialAfterHookWithPreviousValue,
                 Location Location
             )>();
         foreach (var item in fields)
@@ -264,10 +266,79 @@ public sealed class ObservableGenerator : IIncrementalGenerator
                 "void",
                 compilation,
                 out var hasAfterHook,
-                out var hasPartialAfterHook
+                out var hasPartialAfterHook,
+                withPreviousValue: false,
+                reportInvalid: false
             );
-            if (hasAfterHook && afterHook is null)
+            var afterHookWithPreviousValue = FindHook(
+                context,
+                type,
+                item.Field,
+                "After" + propertyName + "Changes",
+                "void",
+                compilation,
+                out var hasAfterHookWithPreviousValue,
+                out var hasPartialAfterHookWithPreviousValue,
+                withPreviousValue: true,
+                reportInvalid: false
+            );
+            if (
+                (hasAfterHook || hasAfterHookWithPreviousValue)
+                && afterHook is null
+                && afterHookWithPreviousValue is null
+            )
+            {
+                context.ReportDiagnostic(
+                    Diagnostic.Create(
+                        InvalidHook,
+                        item.Field.Locations[0],
+                        "After" + propertyName + "Changes",
+                        "void After"
+                            + propertyName
+                            + "Changes() or void After"
+                            + propertyName
+                            + "Changes("
+                            + item.Field.Type.ToDisplayString(
+                                SymbolDisplayFormat.MinimallyQualifiedFormat
+                            )
+                            + " previousValue)"
+                    )
+                );
                 continue;
+            }
+            if (
+                afterHook is not null
+                    && !hasPartialAfterHook
+                    && GetBaseTypeHierarchy(type).First().GetMembers(afterHook).Length > 0
+                || afterHookWithPreviousValue is not null
+                    && !hasPartialAfterHookWithPreviousValue
+                    && GetBaseTypeHierarchy(type)
+                        .First()
+                        .GetMembers(afterHookWithPreviousValue)
+                        .Length > 0
+            )
+            {
+                var hookName = afterHook ?? afterHookWithPreviousValue!;
+                context.ReportDiagnostic(
+                    Diagnostic.Create(
+                        InvalidHook,
+                        item.Field.Locations[0],
+                        hookName,
+                        "protected virtual partial void "
+                            + hookName
+                            + "("
+                            + (
+                                afterHookWithPreviousValue is not null
+                                    ? item.Field.Type.ToDisplayString(
+                                        SymbolDisplayFormat.MinimallyQualifiedFormat
+                                    ) + " previousValue"
+                                    : ""
+                            )
+                            + ");"
+                    )
+                );
+                continue;
+            }
             var hasPartialSetter = HasPartialSetter(type, "Set" + propertyName, item.Field.Type);
 
             plans.Add(
@@ -276,7 +347,9 @@ public sealed class ObservableGenerator : IIncrementalGenerator
                     propertyName,
                     hasPartialSetter,
                     hasAfterHook ? afterHook : null,
+                    hasAfterHookWithPreviousValue ? afterHookWithPreviousValue : null,
                     hasPartialAfterHook,
+                    hasPartialAfterHookWithPreviousValue,
                     item.Location
                 )
             );
@@ -407,7 +480,9 @@ public sealed class ObservableGenerator : IIncrementalGenerator
         string returnType,
         Compilation compilation,
         out bool hasHook,
-        out bool hasPartialImplementation
+        out bool hasPartialImplementation,
+        bool withPreviousValue,
+        bool reportInvalid
     )
     {
         var namedMembers = GetBaseTypeHierarchy(type)
@@ -427,32 +502,49 @@ public sealed class ObservableGenerator : IIncrementalGenerator
                 IsAccessibleFromGeneratedType(method, type, compilation)
                 && !method.IsStatic
                 && !method.IsGenericMethod
-                && method.Parameters.Length == 1
-                && method.Parameters[0].RefKind == RefKind.None
-                && SymbolEqualityComparer.Default.Equals(method.Parameters[0].Type, field.Type)
+                && (
+                    withPreviousValue
+                        && method.Parameters.Length == 1
+                        && method.Parameters[0].RefKind == RefKind.None
+                        && SymbolEqualityComparer.Default.Equals(
+                            method.Parameters[0].Type,
+                            field.Type
+                        )
+                    || !withPreviousValue && method.Parameters.Length == 0
+                )
                 && expectedReturn
             )
             {
-                hasPartialImplementation = method.DeclaringSyntaxReferences.Any(reference =>
-                {
-                    var declaration = reference.GetSyntax() as MethodDeclarationSyntax;
-                    return declaration is not null
-                        && declaration.Modifiers.Any(SyntaxKind.PartialKeyword)
-                        && (declaration.Body is not null || declaration.ExpressionBody is not null);
-                });
+                hasPartialImplementation =
+                    SymbolEqualityComparer.Default.Equals(method.ContainingType, type)
+                    && method.DeclaringSyntaxReferences.Any(reference =>
+                    {
+                        var declaration = reference.GetSyntax() as MethodDeclarationSyntax;
+                        return declaration is not null
+                            && declaration.Modifiers.Any(SyntaxKind.PartialKeyword)
+                            && (
+                                declaration.Body is not null
+                                || declaration.ExpressionBody is not null
+                            );
+                    });
                 return hookName;
             }
         }
 
-        if (hasHook)
+        if (hasHook && reportInvalid)
         {
             var signature =
                 returnType
                 + " "
                 + hookName
                 + "("
-                + field.Type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)
-                + " value)";
+                + (
+                    withPreviousValue
+                        ? field.Type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat)
+                            + " previousValue"
+                        : ""
+                )
+                + ")";
             context.ReportDiagnostic(
                 Diagnostic.Create(InvalidHook, field.Locations[0], hookName, signature)
             );
@@ -482,7 +574,9 @@ public sealed class ObservableGenerator : IIncrementalGenerator
             string PropertyName,
             bool HasPartialSetter,
             string? AfterHook,
+            string? AfterHookWithPreviousValue,
             bool HasPartialAfterHook,
+            bool HasPartialAfterHookWithPreviousValue,
             Location Location
         )> plans,
         Compilation compilation,
@@ -629,7 +723,9 @@ public sealed class ObservableGenerator : IIncrementalGenerator
             string PropertyName,
             bool HasPartialSetter,
             string? AfterHook,
+            string? AfterHookWithPreviousValue,
             bool HasPartialAfterHook,
+            bool HasPartialAfterHookWithPreviousValue,
             Location Location
         )> plans,
         (
@@ -705,17 +801,48 @@ public sealed class ObservableGenerator : IIncrementalGenerator
             builder.AppendLine(";");
         }
 
-        foreach (var plan in plans.Where(plan => plan.HasPartialAfterHook))
+        foreach (var plan in plans)
         {
-            var hookTypeName = plan
-                .Field.Type.WithNullableAnnotation(plan.Field.NullableAnnotation)
-                .ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-            builder
-                .Append("    protected virtual partial void ")
-                .Append(EscapeIdentifier(plan.AfterHook!))
-                .Append('(')
-                .Append(hookTypeName)
-                .AppendLine(" previousValue);");
+            if (plan.AfterHook is not null && plan.HasPartialAfterHook)
+                builder
+                    .Append("    protected virtual partial void ")
+                    .Append(EscapeIdentifier(plan.AfterHook))
+                    .AppendLine("();");
+            else if (
+                plan.AfterHook is null
+                && !HasInheritedHook(type, plan.PropertyName, false, plan.Field.Type)
+            )
+                builder
+                    .Append("    protected virtual void After")
+                    .Append(EscapeIdentifier(plan.PropertyName))
+                    .AppendLine("Changes() { }");
+
+            if (
+                plan.AfterHookWithPreviousValue is not null
+                && plan.HasPartialAfterHookWithPreviousValue
+            )
+            {
+                var hookTypeName = GetHookTypeName(plan.Field);
+                builder
+                    .Append("    protected virtual partial void ")
+                    .Append(EscapeIdentifier(plan.AfterHookWithPreviousValue))
+                    .Append('(')
+                    .Append(hookTypeName)
+                    .AppendLine(" previousValue);");
+            }
+            else if (
+                plan.AfterHookWithPreviousValue is null
+                && !HasInheritedHook(type, plan.PropertyName, true, plan.Field.Type)
+            )
+            {
+                var hookTypeName = GetHookTypeName(plan.Field);
+                builder
+                    .Append("    protected virtual void After")
+                    .Append(EscapeIdentifier(plan.PropertyName))
+                    .Append("Changes(")
+                    .Append(hookTypeName)
+                    .AppendLine(" previousValue) { }");
+            }
         }
 
         if (notification.GenerateNotificationMethod)
@@ -791,6 +918,57 @@ public sealed class ObservableGenerator : IIncrementalGenerator
                 && SymbolEqualityComparer.Default.Equals(method.Parameters[0].Type, fieldType)
             );
 
+    /// <summary>
+    /// Gets the fully qualified hook parameter type, preserving a nullable field annotation.
+    /// </summary>
+    /// <param name="field">The observable backing field.</param>
+    /// <returns>The hook parameter type name.</returns>
+    private static string GetHookTypeName(IFieldSymbol field)
+    {
+        var typeName = field.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        if (
+            (
+                field.NullableAnnotation == NullableAnnotation.Annotated
+                || HasTopLevelNullableSyntax(field)
+            ) && !typeName.EndsWith("?", StringComparison.Ordinal)
+        )
+            typeName += "?";
+
+        return typeName;
+    }
+
+    /// <summary>
+    /// Determines whether a base type already provides a matching generated hook.
+    /// </summary>
+    /// <param name="type">The type receiving generated members.</param>
+    /// <param name="propertyName">The observable property name.</param>
+    /// <param name="withPreviousValue">Whether the hook receives the previous value.</param>
+    /// <param name="fieldType">The observable field type.</param>
+    /// <returns><see langword="true"/> when an inherited hook is available.</returns>
+    private static bool HasInheritedHook(
+        INamedTypeSymbol type,
+        string propertyName,
+        bool withPreviousValue,
+        ITypeSymbol fieldType
+    ) =>
+        GetBaseTypeHierarchy(type)
+            .Skip(1)
+            .SelectMany(candidate => candidate.GetMembers("After" + propertyName + "Changes"))
+            .OfType<IMethodSymbol>()
+            .Any(method =>
+                !method.IsStatic
+                && method.ReturnsVoid
+                && (
+                    withPreviousValue
+                        ? method.Parameters.Length == 1
+                            && SymbolEqualityComparer.Default.Equals(
+                                method.Parameters[0].Type,
+                                fieldType
+                            )
+                        : method.Parameters.Length == 0
+                )
+            );
+
     /// Emits the property, typed event, and setter for a single backing field.
     /// </summary>
     /// <param name="builder">The source text builder.</param>
@@ -805,7 +983,9 @@ public sealed class ObservableGenerator : IIncrementalGenerator
             string PropertyName,
             bool HasPartialSetter,
             string? AfterHook,
+            string? AfterHookWithPreviousValue,
             bool HasPartialAfterHook,
+            bool HasPartialAfterHookWithPreviousValue,
             Location Location
         ) plan,
         (
@@ -826,9 +1006,7 @@ public sealed class ObservableGenerator : IIncrementalGenerator
         var hasTopLevelNullableAnnotation =
             plan.Field.NullableAnnotation == NullableAnnotation.Annotated
             || HasTopLevelNullableSyntax(plan.Field);
-        var typeName = plan
-            .Field.Type.WithNullableAnnotation(plan.Field.NullableAnnotation)
-            .ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        var typeName = plan.Field.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
         if (hasTopLevelNullableAnnotation && !typeName.EndsWith("?", StringComparison.Ordinal))
             typeName += "?";
 
@@ -900,11 +1078,14 @@ public sealed class ObservableGenerator : IIncrementalGenerator
         builder.AppendLine("            return;");
         builder.AppendLine();
         builder.Append("        var assignedValue = ").Append(fieldName).AppendLine(";");
-        if (plan.AfterHook is not null)
-            builder
-                .Append("        ")
-                .Append(EscapeIdentifier(plan.AfterHook))
-                .AppendLine("(previousValue);");
+        builder
+            .Append("        After")
+            .Append(EscapeIdentifier(plan.PropertyName))
+            .AppendLine("Changes();");
+        builder
+            .Append("        After")
+            .Append(EscapeIdentifier(plan.PropertyName))
+            .AppendLine("Changes(previousValue);");
 
         if (notification.IsObservable)
         {

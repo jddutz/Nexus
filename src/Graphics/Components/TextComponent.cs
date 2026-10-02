@@ -5,7 +5,15 @@ namespace Nexus.Graphics.Components;
 /// </summary>
 public partial class TextComponent : Component, IGraphicsComponent
 {
-    private readonly List<(TextSpan Span, float VerticalOffset)> _spans = [];
+    private readonly Dictionary<DrawableId, TextSpan> _textSpans = [];
+
+    private void ClearTextSpans()
+    {
+        foreach (var span in _textSpans.Values)
+            DrawableRemoved?.Invoke(this, new DrawableEventArgs(span));
+
+        _textSpans.Clear();
+    }
 
     /// <inheritdoc />
     public override string DisplayName => "Text";
@@ -13,20 +21,57 @@ public partial class TextComponent : Component, IGraphicsComponent
     [Observable(PublicSetter = true)]
     private ulong _renderLayerMask = ulong.MaxValue;
 
-    [Observable(PublicSetter = true)]
-    private ITextStyle? _textStyle;
+    /// <summary>Updates spans after the render-layer mask changes.</summary>
+    protected virtual partial void AfterRenderLayerMaskChanges()
+    {
+        foreach (var span in _textSpans.Values)
+            span.RenderLayerMask = RenderLayerMask;
+    }
 
     [Observable(PublicSetter = true)]
     private Rectangle<float> _bounds = new(0f, 0f, 0f, 0f);
 
+    protected virtual partial void AfterBoundsChanges() { }
+
+    [Observable(PublicSetter = true)]
+    private ITextStyle? _textStyle;
+
+    protected virtual partial void AfterTextStyleChanges() { }
+
     [Observable(PublicSetter = true)]
     private string _text = string.Empty;
 
-    /// <summary>Updates spans after the render-layer mask changes.</summary>
-    private void AfterRenderLayerMaskChanges(ulong previousValue)
+    protected virtual partial void AfterTextChanges()
     {
-        foreach (var (span, _) in _spans)
-            span.RenderLayerMask = RenderLayerMask;
+        var scale =
+            _textStyle.FontMetrics.EmSize == 0
+                ? 1.0
+                : _textStyle.Size / _textStyle.FontMetrics.EmSize;
+        var lineHeight = (float)(_textStyle.FontMetrics.LineHeight * scale);
+        var lines = _text
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace('\r', '\n')
+            .Split('\n');
+
+        for (var lineIndex = 0; lineIndex < lines.Length; lineIndex++)
+        {
+            var span = new TextSpan(_textStyle, lines[lineIndex])
+            {
+                RenderLayerMask = RenderLayerMask,
+            };
+            if (((IDrawable)span).InstanceCount == 0)
+                continue;
+
+            var verticalOffset = lineIndex * lineHeight;
+            span.TransformationMatrix = CreateSpanTransformation(verticalOffset);
+            _textSpans.Add((span, verticalOffset));
+        }
+
+        foreach (var removedSpan in removedSpans)
+            DrawableRemoved?.Invoke(this, new DrawableEventArgs(removedSpan));
+
+        foreach (var (span, _) in _textSpans)
+            DrawableAdded?.Invoke(this, new DrawableEventArgs(span));
     }
 
     /// <inheritdoc/>
@@ -39,72 +84,23 @@ public partial class TextComponent : Component, IGraphicsComponent
     private void AfterPositionChanges(Vector2D<float> previousValue) =>
         UpdateTransformationMatrix();
 
-    /// <summary>Gets or sets the text represented by this component.</summary>
-    public string Text
-    {
-        get => _text;
-        set
-        {
-            ArgumentNullException.ThrowIfNull(value);
-            if (_text == value)
-                return;
-
-            _text = value;
-
-            var removedSpans = _spans.Select(item => item.Span).ToArray();
-            _spans.Clear();
-
-            var scale =
-                _textStyle.FontMetrics.EmSize == 0
-                    ? 1.0
-                    : _textStyle.Size / _textStyle.FontMetrics.EmSize;
-            var lineHeight = (float)(_textStyle.FontMetrics.LineHeight * scale);
-            var lines = _text
-                .Replace("\r\n", "\n", StringComparison.Ordinal)
-                .Replace('\r', '\n')
-                .Split('\n');
-
-            for (var lineIndex = 0; lineIndex < lines.Length; lineIndex++)
-            {
-                var span = new TextSpan(_textStyle, lines[lineIndex])
-                {
-                    RenderLayerMask = RenderLayerMask,
-                };
-                if (((IDrawable)span).InstanceCount == 0)
-                    continue;
-
-                var verticalOffset = lineIndex * lineHeight;
-                span.TransformationMatrix = CreateSpanTransformation(verticalOffset);
-                _spans.Add((span, verticalOffset));
-            }
-
-            foreach (var removedSpan in removedSpans)
-                DrawableRemoved?.Invoke(this, new DrawableEventArgs(removedSpan));
-
-            foreach (var (span, _) in _spans)
-                DrawableAdded?.Invoke(this, new DrawableEventArgs(span));
-
-            OnPropertyChanged(nameof(Text));
-        }
-    }
-
     /// <summary>Gets the spans as drawable contributions for the graphics system.</summary>
     public IReadOnlyList<IDrawable> Drawables =>
-        _spans.Select(item => (IDrawable)item.Span).ToArray();
+        _textSpans.Select(item => (IDrawable)item.Span).ToArray();
 
     /// <summary>Gets the combined visible glyph bounds for all text lines.</summary>
     public Rectangle<float> LayoutBounds
     {
         get
         {
-            if (_spans.Count == 0)
+            if (_textSpans.Count == 0)
                 return new Rectangle<float>(0f, 0f, 0f, 0f);
 
             var left = float.PositiveInfinity;
             var top = float.PositiveInfinity;
             var right = float.NegativeInfinity;
             var bottom = float.NegativeInfinity;
-            foreach (var (span, verticalOffset) in _spans)
+            foreach (var (span, verticalOffset) in _textSpans)
             {
                 var bounds = span.LayoutBounds;
                 left = MathF.Min(left, bounds.Origin.X);
@@ -120,7 +116,7 @@ public partial class TextComponent : Component, IGraphicsComponent
     /// <summary>Updates every span from the explicit text origin and its line offset.</summary>
     private void UpdateTransformationMatrix()
     {
-        foreach (var (span, verticalOffset) in _spans)
+        foreach (var (span, verticalOffset) in _textSpans)
             span.TransformationMatrix = CreateSpanTransformation(verticalOffset);
     }
 

@@ -6,10 +6,11 @@ public partial class NinePatchComponent : TextureComponent
     /// <inheritdoc />
     public override string DisplayName => "Nine Patch";
 
-    /// <summary>Initializes a nine-patch component with a corner-pivoted quad by default.</summary>
-    /// <param name="centered">Whether each patch quad is centered on its origin.</param>
-    public NinePatchComponent(bool centered = false)
-        : base(centered) { }
+    [Observable(PublicSetter = true)]
+    private ulong _renderLayerMask = ulong.MaxValue;
+
+    [Observable(PublicSetter = true)]
+    private Rectangle<float> _bounds = new(0f, 0f, 0f, 0f);
 
     private void ValidateSourceBorders(Vector4D<float> value)
     {
