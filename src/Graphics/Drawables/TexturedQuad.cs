@@ -15,7 +15,7 @@ public partial class TexturedQuad : IDrawable
     public Mesh Mesh { get; } = BuiltInMesh.TexturedQuadOffset;
 
     [Observable(PublicSetter = true)]
-    private ITexture _texture;
+    private ITexture _texture = BuiltInTextures.Invalid;
 
     [Observable(PublicSetter = true)]
     private ISamplingBehavior _samplingBehavior = SamplingBehaviors.Smooth;
@@ -34,11 +34,6 @@ public partial class TexturedQuad : IDrawable
 
     [Observable(PublicSetter = true)]
     private Color _color = Colors.White;
-
-    /// <summary>Initializes a drawable for the complete texture region.</summary>
-    /// <param name="texture">The texture to render.</param>
-    public TexturedQuad(ITexture texture) =>
-        _texture = texture ?? throw new ArgumentNullException(nameof(texture));
 
     /// <inheritdoc />
     public ulong InstanceCount => 1;
@@ -79,8 +74,13 @@ public partial class TexturedQuad : IDrawable
         Span<byte> target
     )
     {
-        if (start != 0 || count != 1)
+        // TODO: use layout to determine how the data is written to the buffer
+
+        if (start > InstanceCount || count > InstanceCount - start)
             throw new ArgumentOutOfRangeException(nameof(count));
+
+        if (count == 0)
+            return;
 
         ValidateInstanceLayout(layout);
         if (target.Length < InstanceDataSize)
@@ -106,6 +106,8 @@ public partial class TexturedQuad : IDrawable
         Span<byte> target
     )
     {
+        // TODO: use layout to determine how the data is written to the buffer
+
         if (start != 0 || count != 1)
             throw new ArgumentOutOfRangeException(nameof(count));
 

@@ -1,4 +1,6 @@
-namespace Nexus.Graphics.Text;
+namespace Nexus.Graphics.Drawables;
+
+using System.Collections.ObjectModel;
 
 using Nexus.Assets.Fonts;
 
@@ -6,51 +8,108 @@ using Nexus.Assets.Fonts;
 /// Renders prepared glyph instances that share one text rendering style. Instance positions are
 /// baseline origins in GUI coordinates, where +X points right and +Y points down.
 /// </summary>
-public sealed class TextSpan : IDrawable
+public partial class TextSpan : IDrawable
 {
     private const int InstanceDataSize = 100;
-    private (FontGlyph Glyph, Vector2D<float> Position, Color Color)[] _instances;
-    private ulong _renderLayerMask = ulong.MaxValue;
-    private Matrix4X4<float> _transformationMatrix = Matrix4X4<float>.Identity;
-    private Matrix4X4<float> _view = Matrix4X4<float>.Identity;
+    private GlyphInstance[] _instances;
+    private ReadOnlyCollection<GlyphInstance> _instancesView;
 
-    /// <summary>
-    /// Initializes a span with the shared style and prepared glyph instances.
-    /// </summary>
+    [Observable(PublicSetter = true)]
+    private ulong _renderLayerMask = ulong.MaxValue;
+
+    /// <summary>Initializes a span with the shared style and prepared glyph instances.</summary>
     /// <param name="textStyle">The shared font, size, atlas, and shader settings.</param>
-    /// <param name="instances">The glyph metrics, GUI baseline positions, and per-instance colors.</param>
-    /// <exception cref="ArgumentNullException">An argument is null.</exception>
-    public TextSpan(
-        ITextStyle textStyle,
-        IReadOnlyList<(FontGlyph Glyph, Vector2D<float> Position, Color Color)> instances
-    )
+    /// <param name="instances">The immutable glyph metrics, positions, and colors to render.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="instances"/> is null.</exception>
+    public TextSpan(ITextStyle? textStyle, IReadOnlyList<GlyphInstance> instances)
     {
-        ArgumentNullException.ThrowIfNull(textStyle);
         ArgumentNullException.ThrowIfNull(instances);
 
         TextStyle = textStyle;
         _instances = instances.ToArray();
+        _instancesView = Array.AsReadOnly(_instances);
     }
 
     /// <summary>Gets the shared style used to render the glyph instances.</summary>
-    public ITextStyle TextStyle { get; }
+    public ITextStyle? TextStyle { get; }
 
     /// <summary>Gets the prepared glyph instances rendered by this span.</summary>
-    public IReadOnlyList<(FontGlyph Glyph, Vector2D<float> Position, Color Color)> Instances =>
-        _instances;
+    public IReadOnlyList<GlyphInstance> Instances => _instancesView;
 
-    /// <summary>Replaces prepared glyph instances and notifies instance-data observers.</summary>
-    /// <param name="instances">The glyph metrics, positions, and colors to render.</param>
-    internal void UpdateInstances(
-        IReadOnlyList<(FontGlyph Glyph, Vector2D<float> Position, Color Color)> instances
-    )
+    /// <summary>Replaces one prepared glyph instance and notifies instance-data observers.</summary>
+    /// <param name="index">The zero-based index of the instance to replace.</param>
+    /// <param name="instance">The immutable glyph metrics, position, and color to render.</param>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="index"/> is outside the collection.</exception>
+    public void SetInstance(int index, GlyphInstance instance)
+    {
+        if ((uint)index >= (uint)_instances.Length)
+            throw new ArgumentOutOfRangeException(nameof(index));
+
+        if (_instances[index] == instance)
+            return;
+
+        _instances[index] = instance;
+        InstanceDataChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Replaces all prepared glyph instances and notifies instance-data observers.</summary>
+    /// <param name="instances">The immutable glyph metrics, positions, and colors to render.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="instances"/> is null.</exception>
+    public void SetInstances(IReadOnlyList<GlyphInstance> instances)
     {
         ArgumentNullException.ThrowIfNull(instances);
         var replacement = instances.ToArray();
+        ReplaceInstances(replacement);
+    }
+
+    /// <summary>Appends one prepared glyph instance and notifies instance-data observers.</summary>
+    /// <param name="instance">The immutable glyph metrics, position, and color to render.</param>
+    public void AddInstance(GlyphInstance instance)
+    {
+        var replacement = new GlyphInstance[checked(_instances.Length + 1)];
+        Array.Copy(_instances, replacement, _instances.Length);
+        replacement[^1] = instance;
+        ReplaceInstances(replacement);
+    }
+
+    /// <summary>Removes the instance at the specified index and notifies observers.</summary>
+    /// <param name="index">The zero-based index of the instance to remove.</param>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="index"/> is outside the collection.</exception>
+    public void RemoveInstanceAt(int index)
+    {
+        if ((uint)index >= (uint)_instances.Length)
+            throw new ArgumentOutOfRangeException(nameof(index));
+
+        var replacement = new GlyphInstance[_instances.Length - 1];
+        Array.Copy(_instances, 0, replacement, 0, index);
+        Array.Copy(
+            _instances,
+            index + 1,
+            replacement,
+            index,
+            _instances.Length - index - 1
+        );
+        ReplaceInstances(replacement);
+    }
+
+    /// <summary>Removes all instances and notifies observers when the span is non-empty.</summary>
+    public void ClearInstances()
+    {
+        if (_instances.Length == 0)
+            return;
+
+        ReplaceInstances([]);
+    }
+
+    /// <summary>Replaces the owned collection when its contents differ.</summary>
+    /// <param name="replacement">The new collection owned by the span.</param>
+    private void ReplaceInstances(GlyphInstance[] replacement)
+    {
         if (_instances.SequenceEqual(replacement))
             return;
 
         _instances = replacement;
+        _instancesView = Array.AsReadOnly(_instances);
         InstanceDataChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -58,17 +117,10 @@ public sealed class TextSpan : IDrawable
     public DrawableId Id { get; } = DrawableId.New();
 
     /// <inheritdoc />
-    public ulong RenderLayerMask
-    {
-        get => _renderLayerMask;
-        set => _renderLayerMask = value;
-    }
-
-    /// <inheritdoc />
     public Mesh Mesh { get; } = BuiltInMesh.TexturedQuadOffset;
 
     /// <inheritdoc />
-    public ITexture Texture => TextStyle.Texture;
+    public ITexture Texture => TextStyle?.Texture ?? BuiltInTextures.Invalid;
 
     /// <inheritdoc />
     public ulong InstanceCount => checked((ulong)_instances.Length);
@@ -78,14 +130,15 @@ public sealed class TextSpan : IDrawable
     {
         get
         {
-            if (_instances.Length == 0)
+            var textStyle = TextStyle;
+            if (_instances.Length == 0 || textStyle is null)
                 return new Rectangle<float>(0f, 0f, 0f, 0f);
 
             var left = float.PositiveInfinity;
             var top = float.PositiveInfinity;
             var right = float.NegativeInfinity;
             var bottom = float.NegativeInfinity;
-            var scale = (float)(TextStyle.Size / TextStyle.FontMetrics.EmSize);
+            var scale = (float)(textStyle.Size / textStyle.FontMetrics.EmSize);
             foreach (var instance in _instances)
             {
                 var bounds = instance.Glyph.PlaneBounds;
@@ -96,32 +149,6 @@ public sealed class TextSpan : IDrawable
             }
 
             return new Rectangle<float>(left, top, right - left, bottom - top);
-        }
-    }
-
-    /// <summary>Gets or sets the local transform applied to glyph instances.</summary>
-    public Matrix4X4<float> TransformationMatrix
-    {
-        get => _transformationMatrix;
-        set
-        {
-            if (_transformationMatrix == value)
-                return;
-            _transformationMatrix = value;
-            InstanceDataChanged?.Invoke(this, EventArgs.Empty);
-        }
-    }
-
-    /// <summary>Gets or sets the view matrix packed into uniform data.</summary>
-    public Matrix4X4<float> View
-    {
-        get => _view;
-        set
-        {
-            if (_view == value)
-                return;
-            _view = value;
-            UniformDataChanged?.Invoke(this, EventArgs.Empty);
         }
     }
 
@@ -143,7 +170,7 @@ public sealed class TextSpan : IDrawable
     /// <inheritdoc />
     public FragmentShader? FragmentShader { get; } = BuiltInShaders.MsdfTextFragmentShader;
 
-    // Required by IDrawable and IObservable; this span is immutable after construction.
+    // Required by IDrawable and IObservable.
 #pragma warning disable CS0067
     /// <inheritdoc />
     public event EventHandler? InstanceDataChanged;
@@ -163,18 +190,29 @@ public sealed class TextSpan : IDrawable
         Span<byte> target
     )
     {
+        // TODO: use layout to determine how the data is written to the buffer
+
         if (start > InstanceCount || count > InstanceCount - start)
             throw new ArgumentOutOfRangeException(nameof(count));
+
+        if (count == 0)
+            return;
+
+        var textStyle =
+            TextStyle
+            ?? throw new InvalidOperationException(
+                "Cannot write text instance data without a text style."
+            );
 
         ValidateInstanceLayout(layout);
         var requiredBytes = checked((ulong)InstanceDataSize * count);
         if ((ulong)target.Length < requiredBytes)
             throw new ArgumentException("The target span is too small.", nameof(target));
 
-        var scale = checked((float)(TextStyle.Size / TextStyle.FontMetrics.EmSize));
-        var textureWidth = TextStyle.Texture.Width;
-        var textureHeight = TextStyle.Texture.Height;
-        var distanceRange = checked((float)TextStyle.Msdf.DistanceRange);
+        var scale = checked((float)(textStyle.Size / textStyle.FontMetrics.EmSize));
+        var textureWidth = textStyle.Texture.Width;
+        var textureHeight = textStyle.Texture.Height;
+        var distanceRange = checked((float)textStyle.Msdf.DistanceRange);
 
         for (var offset = 0UL; offset < count; offset++)
         {
@@ -199,7 +237,8 @@ public sealed class TextSpan : IDrawable
             );
             MemoryMarshal.Write(targetRecord, in transform);
             MemoryMarshal.Write(targetRecord[64..], in texCoord);
-            MemoryMarshal.Write(targetRecord[80..], in instance.Color);
+            var color = instance.Color;
+            MemoryMarshal.Write(targetRecord[80..], in color);
             MemoryMarshal.Write(targetRecord[96..], in distanceRange);
         }
     }
@@ -212,6 +251,8 @@ public sealed class TextSpan : IDrawable
         Span<byte> target
     )
     {
+        // TODO: use layout to determine how the data is written to the buffer
+
         if (start != 0 || count != 1)
             throw new ArgumentOutOfRangeException(nameof(count));
 
@@ -224,7 +265,7 @@ public sealed class TextSpan : IDrawable
         if (target.Length < 64)
             throw new ArgumentException("The target span is too small.", nameof(target));
 
-        var view = View;
+        var view = Matrix4X4<float>.Identity;
         MemoryMarshal.Write(target, in view);
     }
 

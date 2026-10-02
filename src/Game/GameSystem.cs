@@ -79,7 +79,7 @@ public partial class GameSystem(
     public IScene? InitialScene { get; private set; }
 
     [Observable(PublicSetter = false)]
-    private IScene? _currentScene;
+    private IScene? _currentScene = null;
 
     /// <summary>
     /// Initializes the game system before the update loop begins.
@@ -581,7 +581,7 @@ public partial class GameSystem(
     /// <param name="propertyName">The name of the changed scene property.</param>
     private void OnCurrentScenePropertyChanged(string propertyName)
     {
-        if (propertyName != nameof(IManagedEntity.IsActivated) || _currentScene is not Scene scene)
+        if (propertyName != nameof(IManagedEntity.IsActivated) || CurrentScene is not Scene scene)
             return;
 
         if (scene.IsActivated)
@@ -597,7 +597,7 @@ public partial class GameSystem(
     /// <param name="currentMap">The newly assigned map.</param>
     private void OnCurrentSceneInputMapChanged(InputMap? previousMap, InputMap? currentMap)
     {
-        if (_currentScene is not Scene { IsActivated: true })
+        if (CurrentScene is not Scene { IsActivated: true })
             return;
 
         previousMap?.Unregister(_eventHub);

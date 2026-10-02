@@ -11,10 +11,10 @@ public partial class ViewComponent : Component
     private string _name = nameof(ViewComponent);
 
     [Observable(PublicSetter = true)]
-    private ICameraComponent? _camera;
+    private ICameraComponent? _camera = null;
 
     [Observable(PublicSetter = true)]
-    private ulong _layerMask;
+    private ulong _layerMask = 0;
 
     [Observable]
     private Rectangle<int> _clippingRegion;
@@ -24,15 +24,6 @@ public partial class ViewComponent : Component
 
     [Observable]
     private int _renderOrder;
-
-    /// <summary>Initializes a view with an optional camera and layer mask.</summary>
-    /// <param name="camera">The camera used to render the view.</param>
-    /// <param name="layerMask">The drawable layer mask.</param>
-    public ViewComponent(ICameraComponent? camera = null, ulong layerMask = 0)
-    {
-        _camera = camera;
-        _layerMask = layerMask;
-    }
 
     /// <inheritdoc />
     public override string DisplayName => "View";

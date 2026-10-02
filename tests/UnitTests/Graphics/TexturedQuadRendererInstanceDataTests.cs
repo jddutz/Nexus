@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using Nexus.Core;
 using Nexus.Graphics;
+using Nexus.Graphics.Drawables;
 using Nexus.Graphics.Shaders;
 using Silk.NET.Maths;
 
@@ -13,6 +14,46 @@ using Nexus.Graphics.Textures;
 /// </summary>
 public sealed class TextureComponentInstanceDataTests
 {
+    /// <summary>Verifies drawables use the invalid built-in texture until a resource is assigned.</summary>
+    [Fact]
+    public void DrawablesWithoutTexture_useInvalidBuiltInTexture()
+    {
+        Assert.Same(BuiltInTextures.Invalid, new TexturedQuad().Texture);
+        Assert.Same(BuiltInTextures.Invalid, new NinePatch().Texture);
+    }
+
+    /// <summary>Verifies texture components expose no drawable while their texture is missing.</summary>
+    [Fact]
+    public void MissingTexture_keepsComponentWithoutDrawableUntilAssigned()
+    {
+        var component = new TextureComponent();
+
+        Assert.Empty(component.Drawables);
+        component.Texture = CreateTexture();
+        Assert.Single(component.Drawables);
+        component.Texture = null;
+        Assert.Empty(component.Drawables);
+    }
+
+    /// <summary>Verifies textured drawable serializers accept end-position zero-count ranges.</summary>
+    [Fact]
+    public void Drawables_zeroCountInstanceWrites_leaveTargetUnchanged()
+    {
+        var texturedQuad = new TexturedQuad();
+        var quadTarget = Enumerable.Repeat((byte)0xCC, 8).ToArray();
+        texturedQuad.WriteInstanceDataTo(texturedQuad.InstanceCount, 0, [], quadTarget);
+
+        var ninePatch = new NinePatch();
+        var patchTarget = Enumerable.Repeat((byte)0xCC, 8).ToArray();
+        ninePatch.WriteInstanceDataTo(ninePatch.InstanceCount, 0, [], patchTarget);
+
+        Assert.All(quadTarget, value => Assert.Equal((byte)0xCC, value));
+        Assert.All(patchTarget, value => Assert.Equal((byte)0xCC, value));
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            texturedQuad.WriteInstanceDataTo(1, 1, [], quadTarget)
+        );
+    }
+
     /// <summary>
     /// Verifies that the demo grid serializes one complete, distinct, and source-equivalent record per quad.
     /// </summary>
@@ -68,7 +109,7 @@ public sealed class TextureComponentInstanceDataTests
     [Fact]
     public void PropertyChanges_raise_matching_drawable_events()
     {
-        var renderer = new TextureComponent(CreateTexture());
+        var renderer = new TextureComponent { Texture = CreateTexture() };
         var drawable = renderer.Drawables.Single();
         var renderLayerChanges = 0;
         var samplingBehaviorChanges = 0;
@@ -113,8 +154,9 @@ public sealed class TextureComponentInstanceDataTests
                 var atlasIndex = index % (atlasColumns * atlasRows);
                 var centerX = -1.0f + (x + 0.5f) * cellWidth;
                 var centerY = -1.0f + (y + 0.5f) * cellHeight;
-                var renderer = new TextureComponent(CreateTexture())
+                var renderer = new TextureComponent
                 {
+                    Texture = CreateTexture(),
                     TexCoord = new(
                         (atlasIndex % atlasColumns) * regionWidth,
                         (atlasIndex / atlasColumns) * regionHeight,
@@ -212,8 +254,9 @@ public sealed class TextureComponentInstanceDataTests
     [Fact]
     public void Destination_packs_explicit_rectangle()
     {
-        var component = new TextureComponent(CreateTexture())
+        var component = new TextureComponent
         {
+            Texture = CreateTexture(),
             Destination = new Rectangle<float>(10f, 20f, 30f, 40f),
         };
 
@@ -231,8 +274,8 @@ public sealed class TextureComponentInstanceDataTests
     {
         var destination = new Rectangle<float>(10f, 20f, 30f, 40f);
         var texture = CreateTexture();
-        var component = new TextureComponent(texture) { Destination = destination };
-        var drawable = new TexturedQuad(texture) { Destination = destination };
+        var component = new TextureComponent { Texture = texture, Destination = destination };
+        var drawable = new TexturedQuad { Texture = texture, Destination = destination };
         var layout = BuiltInShaders.TexturedQuadVertexShader.InstanceLayout;
         var data = Tests.DrawableTestData.ReadInstances(drawable, layout);
         var transform = MemoryMarshal.Read<Matrix4X4<float>>(data.Span);
@@ -248,7 +291,7 @@ public sealed class TextureComponentInstanceDataTests
     [Fact]
     public void Destination_changes_raise_instance_data_event_only_when_changed()
     {
-        var component = new TextureComponent(CreateTexture());
+        var component = new TextureComponent { Texture = CreateTexture() };
         var drawable = component.Drawables.Single();
         var changes = 0;
         drawable.InstanceDataChanged += (_, _) => changes++;
@@ -264,7 +307,7 @@ public sealed class TextureComponentInstanceDataTests
     [Fact]
     public void Destination_invalid_values_remove_drawable_until_state_is_valid()
     {
-        var component = new TextureComponent(CreateTexture());
+        var component = new TextureComponent { Texture = CreateTexture() };
         var previous = Assert.Single(component.Drawables);
 
         component.Destination = new Rectangle<float>(float.NaN, 0f, 1f, 1f);
@@ -281,8 +324,9 @@ public sealed class TextureComponentInstanceDataTests
     [Fact]
     public void Owner_changes_do_not_move_destination_geometry()
     {
-        var component = new TextureComponent(CreateTexture())
+        var component = new TextureComponent
         {
+            Texture = CreateTexture(),
             Destination = new Rectangle<float>(10f, 20f, 30f, 40f),
         };
         var first = ReadTransform(component);

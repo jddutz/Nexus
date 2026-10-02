@@ -6,14 +6,6 @@ public partial class NinePatchComponent : Component, IGraphicsComponent
     private NinePatch? _drawable;
     private IReadOnlyList<IDrawable> _drawables = Array.Empty<IDrawable>();
 
-    /// <summary>Initializes a nine-patch component.</summary>
-    /// <param name="texture">The texture to draw, or <see langword="null"/> for no drawable.</param>
-    public NinePatchComponent(ITexture? texture = null)
-    {
-        _texture = texture;
-        SynchronizeDrawable();
-    }
-
     /// <inheritdoc />
     public IReadOnlyList<IDrawable> Drawables => _drawables;
 
@@ -31,7 +23,7 @@ public partial class NinePatchComponent : Component, IGraphicsComponent
         UpdateDrawable(drawable => drawable.RenderLayerMask = RenderLayerMask);
 
     [Observable(PublicSetter = true)]
-    private ITexture? _texture;
+    private ITexture? _texture = null;
 
     /// <inheritdoc />
     protected virtual partial void AfterTextureChanges() =>
@@ -98,16 +90,17 @@ public partial class NinePatchComponent : Component, IGraphicsComponent
         if (_drawable is null)
         {
             RegisterDrawable(
-                new NinePatch(_texture!)
+                new NinePatch
                 {
-                    RenderLayerMask = _renderLayerMask,
-                    SamplingBehavior = _samplingBehavior!,
-                    VertexShader = _vertexShader,
-                    FragmentShader = _fragmentShader,
-                    Destination = _destination,
-                    TexCoord = _texCoord,
-                    SourceBorders = _sourceBorders,
-                    Color = _color,
+                    Texture = Texture!,
+                    RenderLayerMask = RenderLayerMask,
+                    SamplingBehavior = SamplingBehavior!,
+                    VertexShader = VertexShader,
+                    FragmentShader = FragmentShader,
+                    Destination = Destination,
+                    TexCoord = TexCoord,
+                    SourceBorders = SourceBorders,
+                    Color = Color,
                 }
             );
         }
@@ -134,15 +127,15 @@ public partial class NinePatchComponent : Component, IGraphicsComponent
 
     /// <summary>Determines whether all component values can produce a drawable.</summary>
     private bool IsValidState() =>
-        _texture is not null
-        && _samplingBehavior is not null
-        && _vertexShader is not null
-        && _fragmentShader is not null
-        && IsValidDestination(_destination)
-        && IsValidTexCoord(_texCoord)
-        && IsValidSourceBorders(_sourceBorders)
-        && IsValidBordersFit(_sourceBorders, _texture, _texCoord)
-        && IsValidColor(_color);
+        Texture is not null
+        && SamplingBehavior is not null
+        && VertexShader is not null
+        && FragmentShader is not null
+        && IsValidDestination(Destination)
+        && IsValidTexCoord(TexCoord)
+        && IsValidSourceBorders(SourceBorders)
+        && IsValidBordersFit(SourceBorders, Texture, TexCoord)
+        && IsValidColor(Color);
 
     /// <summary>Validates destination coordinates and positive extents.</summary>
     private static bool IsValidDestination(Rectangle<float> destination) =>

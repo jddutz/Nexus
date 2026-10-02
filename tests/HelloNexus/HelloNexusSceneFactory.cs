@@ -78,7 +78,6 @@ internal sealed class HelloNexusSceneFactory(
 
         const string buttonLabel = "Start Physics Test";
         var buttonElement = new TextButton(
-            buttonLabel,
             textStyle,
             textureProvider.Get((ContentId)"button_texture"),
             horizontalPadding: 16f,
@@ -86,7 +85,7 @@ internal sealed class HelloNexusSceneFactory(
             backgroundRenderLayerMask: backgroundLayer,
             textRenderLayerMask: foregroundLayer,
             sourceBorders: new(64f, 64f, 64f, 64f)
-        );
+        ) { Label = buttonLabel };
         var buttonFocused = false;
         buttonElement.Action = () => buttonElement.Label = "Physics Test Started";
         buttonElement

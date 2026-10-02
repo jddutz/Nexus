@@ -5,11 +5,11 @@ public partial class ImageElement : Element
 {
     private readonly List<IObservable> _visibilityAncestors = [];
 
-    [Observable]
-    private ImageSource _imageSource;
+    [Observable(PublicSetter = true)]
+    private ImageSource? _imageSource = null;
 
     [Observable(PublicSetter = true)]
-    private SizingMode _sizingMode;
+    private SizingMode _sizingMode = SizingMode.Original;
 
     [Observable]
     private AlignHorizontal _horizontalAlignment = AlignHorizontal.Center;
@@ -29,9 +29,6 @@ public partial class ImageElement : Element
     private ulong _renderLayerMask = ulong.MaxValue;
     private TextureComponent? _imageComponent;
     private Rectangle<float>? _layoutBounds;
-
-    private void BeforeImageSourceChanges(ImageSource value) =>
-        ArgumentNullException.ThrowIfNull(value);
 
     private void BeforeSizingModeChanges(SizingMode value)
     {
@@ -58,7 +55,7 @@ public partial class ImageElement : Element
     private void BeforeSamplingBehaviorChanges(ISamplingBehavior value) =>
         ArgumentNullException.ThrowIfNull(value);
 
-    protected virtual partial void AfterImageSourceChanges(ImageSource previousValue) =>
+    protected virtual partial void AfterImageSourceChanges(ImageSource? previousValue) =>
         InvalidateGeometry();
 
     protected virtual partial void AfterSizingModeChanges(SizingMode previousValue) =>
@@ -73,19 +70,19 @@ public partial class ImageElement : Element
     protected virtual partial void AfterSamplingBehaviorChanges(ISamplingBehavior previousValue)
     {
         if (_imageComponent is not null)
-            _imageComponent.SamplingBehavior = _samplingBehavior;
+            _imageComponent.SamplingBehavior = SamplingBehavior;
     }
 
     protected virtual partial void AfterColorChanges(Color previousValue)
     {
         if (_imageComponent is not null)
-            _imageComponent.Color = _color;
+            _imageComponent.Color = Color;
     }
 
     protected virtual partial void AfterRenderLayerMaskChanges(ulong previousValue)
     {
         if (_imageComponent is not null)
-            _imageComponent.RenderLayerMask = _renderLayerMask;
+            _imageComponent.RenderLayerMask = RenderLayerMask;
     }
 
     /// <summary>Gets the custom image size, when configured through <see cref="SetCustomSizingMode" />.</summary>
@@ -93,16 +90,6 @@ public partial class ImageElement : Element
 
     /// <summary>Gets the custom normalized source rectangle used by custom sizing.</summary>
     public Vector4D<float>? CustomTexCoord => _customTexCoord;
-
-    /// <summary>Initializes an image element with a required texture source.</summary>
-    /// <param name="imageSource">The texture and optional pixel-space source rectangle.</param>
-    public ImageElement(ImageSource imageSource)
-        : base()
-    {
-        ArgumentNullException.ThrowIfNull(imageSource);
-        _imageSource = imageSource;
-        UpdateVisualComponent();
-    }
 
     /// <summary>Sets custom sizing and its independent normalized source UV rectangle atomically.</summary>
     /// <param name="customSize">The positive destination tile size in logical units.</param>
@@ -126,7 +113,7 @@ public partial class ImageElement : Element
             configurationChanged = true;
         }
 
-        if (_sizingMode != SizingMode.Custom)
+        if (SizingMode != SizingMode.Custom)
             SetSizingMode(SizingMode.Custom);
         else if (configurationChanged)
             InvalidateGeometry();
@@ -136,10 +123,16 @@ public partial class ImageElement : Element
     public override Vector2D<float> Measure(Vector2D<float> constraint)
     {
         ValidateAvailableSize(constraint, nameof(constraint));
-        if (!IsEffectivelyVisible || constraint.X == 0f || constraint.Y == 0f)
+        var imageSource = ImageSource;
+        if (
+            !IsEffectivelyVisible
+            || imageSource is null
+            || constraint.X == 0f
+            || constraint.Y == 0f
+        )
             return Vector2D<float>.Zero;
 
-        var imageSize = GetImageSize(constraint);
+        var imageSize = GetImageSize(imageSource, constraint);
         return new(MathF.Min(imageSize.X, constraint.X), MathF.Min(imageSize.Y, constraint.Y));
     }
 
@@ -162,7 +155,8 @@ public partial class ImageElement : Element
     /// <summary>Synchronizes visual-component ownership, source data, and actual hit bounds.</summary>
     private void UpdateVisualComponent()
     {
-        if (!IsEffectivelyVisible || _layoutBounds is not { } bounds)
+        var imageSource = ImageSource;
+        if (!IsEffectivelyVisible || _layoutBounds is not { } bounds || imageSource is null)
         {
             RemoveVisualComponent();
             SetBounds(EmptyBounds);
@@ -176,7 +170,7 @@ public partial class ImageElement : Element
             return;
         }
 
-        var imageSize = GetImageSize(bounds.Size);
+        var imageSize = GetImageSize(imageSource, bounds.Size);
         var imageX = GetHorizontalOffset(bounds.Size.X, imageSize.X);
         var imageY = GetVerticalOffset(bounds.Size.Y, imageSize.Y);
         var left = MathF.Max(0f, imageX);
@@ -190,7 +184,7 @@ public partial class ImageElement : Element
             return;
         }
 
-        var sourceTexCoord = GetActiveTexCoord();
+        var sourceTexCoord = GetActiveTexCoord(imageSource);
         var leftFraction = (left - imageX) / imageSize.X;
         var topFraction = (top - imageY) / imageSize.Y;
         var rightFraction = (right - imageX) / imageSize.X;
@@ -219,6 +213,7 @@ public partial class ImageElement : Element
 
         SynchronizeVisualComponent(
             _imageComponent,
+            imageSource,
             new Rectangle<float>(
                 bounds.Origin.X + left,
                 bounds.Origin.Y + top,
@@ -235,16 +230,17 @@ public partial class ImageElement : Element
     /// <param name="texCoord">The clipped normalized source rectangle.</param>
     private void SynchronizeVisualComponent(
         TextureComponent component,
+        ImageSource imageSource,
         Rectangle<float> destination,
         Vector4D<float> texCoord
     )
     {
-        component.Texture = _imageSource.Texture;
+        component.Texture = imageSource.Texture;
         component.Destination = destination;
         component.TexCoord = texCoord;
-        component.Color = _color;
-        component.SamplingBehavior = _samplingBehavior;
-        component.RenderLayerMask = _renderLayerMask;
+        component.Color = Color;
+        component.SamplingBehavior = SamplingBehavior;
+        component.RenderLayerMask = RenderLayerMask;
     }
 
     /// <summary>Removes the current visual component while retaining image configuration.</summary>
@@ -259,12 +255,12 @@ public partial class ImageElement : Element
     /// <summary>Calculates the uncapped image size for the selected sizing mode.</summary>
     /// <param name="availableSize">The assigned rectangle or measure constraint.</param>
     /// <returns>The image size before clipping.</returns>
-    private Vector2D<float> GetImageSize(Vector2D<float> availableSize)
+    private Vector2D<float> GetImageSize(ImageSource imageSource, Vector2D<float> availableSize)
     {
-        var sourceWidth = _imageSource.SourceRegion.Size.X;
-        var sourceHeight = _imageSource.SourceRegion.Size.Y;
+        var sourceWidth = imageSource.SourceRegion.Size.X;
+        var sourceHeight = imageSource.SourceRegion.Size.Y;
         var sourceSize = new Vector2D<float>(sourceWidth, sourceHeight);
-        var imageSize = _sizingMode switch
+        var imageSize = SizingMode switch
         {
             SizingMode.Original => sourceSize,
             SizingMode.Fit => sourceSize
@@ -301,7 +297,7 @@ public partial class ImageElement : Element
     /// <param name="imageSize">The rendered image width before clipping.</param>
     /// <returns>The image's left edge in element-local coordinates.</returns>
     private float GetHorizontalOffset(float availableSize, float imageSize) =>
-        _horizontalAlignment switch
+        HorizontalAlignment switch
         {
             AlignHorizontal.Left => 0f,
             AlignHorizontal.Center => (availableSize - imageSize) / 2f,
@@ -314,7 +310,7 @@ public partial class ImageElement : Element
     /// <param name="imageSize">The rendered image height before clipping.</param>
     /// <returns>The image's top edge in element-local coordinates.</returns>
     private float GetVerticalOffset(float availableSize, float imageSize) =>
-        _verticalAlignment switch
+        VerticalAlignment switch
         {
             AlignVertical.Top => 0f,
             AlignVertical.Center => (availableSize - imageSize) / 2f,
@@ -324,17 +320,17 @@ public partial class ImageElement : Element
 
     /// <summary>Gets the currently selected normalized source rectangle.</summary>
     /// <returns>The custom UV rectangle in custom mode, or the source pixel rectangle normalized.</returns>
-    private Vector4D<float> GetActiveTexCoord()
+    private Vector4D<float> GetActiveTexCoord(ImageSource imageSource)
     {
-        if (_sizingMode == SizingMode.Custom)
+        if (SizingMode == SizingMode.Custom)
             return _customTexCoord!.Value;
 
-        var region = _imageSource.SourceRegion;
+        var region = imageSource.SourceRegion;
         return new(
-            (float)region.Origin.X / _imageSource.Texture.Width,
-            (float)region.Origin.Y / _imageSource.Texture.Height,
-            (float)region.Size.X / _imageSource.Texture.Width,
-            (float)region.Size.Y / _imageSource.Texture.Height
+            (float)region.Origin.X / imageSource.Texture.Width,
+            (float)region.Origin.Y / imageSource.Texture.Height,
+            (float)region.Size.X / imageSource.Texture.Width,
+            (float)region.Size.Y / imageSource.Texture.Height
         );
     }
 

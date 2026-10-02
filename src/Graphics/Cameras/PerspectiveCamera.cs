@@ -54,14 +54,20 @@ public partial class PerspectiveCamera : Component, ICameraComponent
 
     protected virtual partial void AfterForwardChanges(Vector3D<float> previousValue)
     {
-        _forward = Vector3D.Normalize(_forward);
+        var forward = Vector3D.Normalize(Forward);
+        if (forward != Forward)
+            SetForward(forward);
+
         UpdateDirectionVectors();
         InvalidateMatrices();
     }
 
     protected virtual partial void AfterUpChanges(Vector3D<float> previousValue)
     {
-        _up = Vector3D.Normalize(_up);
+        var up = Vector3D.Normalize(Up);
+        if (up != Up)
+            SetUp(up);
+
         UpdateDirectionVectors();
         InvalidateMatrices();
     }
@@ -138,8 +144,10 @@ public partial class PerspectiveCamera : Component, ICameraComponent
     /// <summary>Re-derives <see cref="Right"/> (and re-orthogonalizes <see cref="Up"/>) from the current forward/up vectors.</summary>
     private void UpdateDirectionVectors()
     {
-        _right = Vector3D.Normalize(Vector3D.Cross(_forward, _up));
-        _up = Vector3D.Normalize(Vector3D.Cross(_right, _forward));
+        _right = Vector3D.Normalize(Vector3D.Cross(Forward, Up));
+        var up = Vector3D.Normalize(Vector3D.Cross(_right, Forward));
+        if (up != Up)
+            SetUp(up);
     }
 
     /// <summary>Marks the view and projection matrices dirty so they are recalculated on next access.</summary>
@@ -148,13 +156,13 @@ public partial class PerspectiveCamera : Component, ICameraComponent
     /// <summary>Recalculates the view and projection matrices from the current camera state.</summary>
     private void UpdateMatrices()
     {
-        var target = _position + _forward;
-        _viewMatrix = Matrix4X4.CreateLookAt(_position, target, _up);
+        var target = Position + Forward;
+        _viewMatrix = Matrix4X4.CreateLookAt(Position, target, Up);
         _projectionMatrix = Matrix4X4.CreatePerspectiveFieldOfView(
-            _fieldOfView,
+            FieldOfView,
             _aspectRatio,
-            _nearPlane,
-            _farPlane
+            NearPlane,
+            FarPlane
         );
 
         _matricesDirty = false;
@@ -165,13 +173,13 @@ public partial class PerspectiveCamera : Component, ICameraComponent
     public bool IsVisible(Box3D<float> bounds)
     {
         var center = (bounds.Min + bounds.Max) * 0.5f;
-        var distance = Vector3D.Distance(_position, center);
+        var distance = Vector3D.Distance(Position, center);
 
-        if (distance < _nearPlane || distance > _farPlane)
+        if (distance < NearPlane || distance > FarPlane)
             return false;
 
-        var directionToCenter = Vector3D.Normalize(center - _position);
-        var dot = Vector3D.Dot(directionToCenter, _forward);
+        var directionToCenter = Vector3D.Normalize(center - Position);
+        var dot = Vector3D.Dot(directionToCenter, Forward);
 
         return dot > 0;
     }
@@ -198,7 +206,7 @@ public partial class PerspectiveCamera : Component, ICameraComponent
             new Vector3D<float>(rayWorld.X, rayWorld.Y, rayWorld.Z)
         );
 
-        return new Ray3D<float>(_position, rayDirection);
+        return new Ray3D<float>(Position, rayDirection);
     }
 
     /// <inheritdoc/>

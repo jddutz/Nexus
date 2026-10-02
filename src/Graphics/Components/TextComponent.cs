@@ -197,7 +197,7 @@ public partial class TextComponent : Component, IGraphicsComponent
         for (var index = 0; index < instances.Length; index++)
         {
             var instance = instances[index];
-            instances[index] = (
+            instances[index] = new GlyphInstance(
                 instance.Glyph,
                 new Vector2D<float>(
                     instance.Position.X + offset.X,
@@ -226,7 +226,7 @@ public partial class TextComponent : Component, IGraphicsComponent
             return;
         }
 
-        _spans[0].UpdateInstances(instances);
+        _spans[0].SetInstances(instances);
     }
 
     /// <summary>Determines whether the component's current layout inputs are valid.</summary>
@@ -245,7 +245,7 @@ public partial class TextComponent : Component, IGraphicsComponent
     /// <param name="maximumLines">The optional maximum line count.</param>
     /// <param name="wrap">Whether lines wrap to the available width.</param>
     /// <returns>The prepared glyph instances in text-local coordinates.</returns>
-    private static (FontGlyph Glyph, Vector2D<float> Position, Color Color)[] CreateInstances(
+    private static GlyphInstance[] CreateInstances(
         ITextStyle style,
         string text,
         float availableWidth,
@@ -302,7 +302,7 @@ public partial class TextComponent : Component, IGraphicsComponent
 
         var scale = GetScale(style);
         var lineHeight = GetLineHeight(style, scale);
-        var instances = new List<(FontGlyph Glyph, Vector2D<float> Position, Color Color)>();
+        var instances = new List<GlyphInstance>();
         for (var lineIndex = 0; lineIndex < lines.Count; lineIndex++)
         {
             var penX = 0f;
@@ -319,7 +319,7 @@ public partial class TextComponent : Component, IGraphicsComponent
                     penX += (float)kerning * scale;
 
                 instances.Add(
-                    (
+                    new GlyphInstance(
                         glyph,
                         new Vector2D<float>(penX, lineIndex * lineHeight),
                         style.Color
@@ -372,7 +372,7 @@ public partial class TextComponent : Component, IGraphicsComponent
     /// <returns>The combined glyph bounds in the instance coordinate space.</returns>
     private static Rectangle<float> CalculateBounds(
         ITextStyle style,
-        IReadOnlyList<(FontGlyph Glyph, Vector2D<float> Position, Color Color)> instances
+        IReadOnlyList<GlyphInstance> instances
     )
     {
         if (instances.Count == 0)

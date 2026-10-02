@@ -82,12 +82,13 @@ public unsafe class CommandFactory(
             allocation.InstanceLayout = vertexShader.InstanceLayout;
         }
 
-        foreach (var command in imageRegistry.Create(drawable.Texture))
+        var texture = drawable.Texture;
+        foreach (var command in imageRegistry.Create(texture))
         {
             yield return command;
         }
 
-        allocation.Texture = drawable.Texture;
+        allocation.Texture = texture;
 
         var pipelineDefinition = CreatePipelineDefinition(drawable, renderPassMask, vertexShader);
 
@@ -186,7 +187,7 @@ public unsafe class CommandFactory(
                         descriptorSetPool.WriteCombinedImageSampler(
                             descriptorSet,
                             binding.Binding,
-                            imageRegistry.Get(drawable.Texture),
+                            imageRegistry.Get(texture),
                             samplerRegistry.Get(drawable.SamplingBehavior.Id)
                         );
                         break;

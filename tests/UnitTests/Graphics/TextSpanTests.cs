@@ -33,8 +33,8 @@ public sealed class TextSpanTests
         var texture = new Texture("test", 1, 1, [Colors.White]);
         IDrawable[] drawables =
         [
-            Assert.Single(new TextureComponent(texture).Drawables),
-            Assert.Single(new TextureComponent(texture).Drawables),
+            Assert.Single(new TextureComponent { Texture = texture }.Drawables),
+            Assert.Single(new TextureComponent { Texture = texture }.Drawables),
             CreateSpan(CreateStyle(), "A"),
         ];
 
@@ -101,6 +101,84 @@ public sealed class TextSpanTests
         Assert.Same(span, DrawableTestData.TextDrawable(element));
         Assert.Equal(new Rectangle<float>(2f, 3f, 1f, 1f), span.LayoutBounds);
         Assert.Equal(1, changes);
+    }
+
+    /// <summary>Verifies replacing one immutable glyph updates bounds and notifies once.</summary>
+    [Fact]
+    public void SetInstance_updates_bounds_and_notifies_once()
+    {
+        var style = CreateStyle();
+        var span = CreateSpan(style, "A");
+        var changes = 0;
+        span.InstanceDataChanged += (_, _) => changes++;
+        var replacement = new GlyphInstance(
+            style.Glyphs['B'],
+            new Vector2D<float>(3f, 2f),
+            Colors.WhiteSmoke
+        );
+
+        span.SetInstance(0, replacement);
+
+        Assert.Equal(replacement, span.Instances[0]);
+        Assert.Equal(new Rectangle<float>(3f, 1f, 1f, 1f), span.LayoutBounds);
+        Assert.Equal(1, changes);
+    }
+
+    /// <summary>Verifies replacing all instances copies caller data and notifies once.</summary>
+    [Fact]
+    public void SetInstances_copies_collection_and_notifies_once()
+    {
+        var style = CreateStyle();
+        var span = CreateSpan(style, "A");
+        var changes = 0;
+        span.InstanceDataChanged += (_, _) => changes++;
+        var expected = new GlyphInstance(
+            style.Glyphs['B'],
+            new Vector2D<float>(2f, 1f),
+            Colors.WhiteSmoke
+        );
+        var source = new List<GlyphInstance> { expected };
+
+        span.SetInstances(source);
+        source[0] = new GlyphInstance(style.Glyphs['A'], Vector2D<float>.Zero, Colors.White);
+
+        Assert.Equal(expected, Assert.Single(span.Instances));
+        Assert.Equal(new Rectangle<float>(2f, 0f, 1f, 1f), span.LayoutBounds);
+        Assert.Equal(1, changes);
+    }
+
+    /// <summary>Verifies appending, indexed removal, and clearing update the collection once.</summary>
+    [Fact]
+    public void Collection_changes_update_count_and_notify_once_per_change()
+    {
+        var style = CreateStyle();
+        var duplicate = new GlyphInstance(
+            style.Glyphs['A'],
+            Vector2D<float>.Zero,
+            Colors.White
+        );
+        var span = new TextSpan(style, [duplicate, duplicate]);
+        var changes = 0;
+        span.InstanceDataChanged += (_, _) => changes++;
+
+        span.AddInstance(new GlyphInstance(style.Glyphs['B'], new(1f, 0f), Colors.White));
+
+        Assert.Equal(3UL, span.InstanceCount);
+        Assert.Equal(1, changes);
+
+        span.RemoveInstanceAt(0);
+
+        Assert.Equal(2UL, span.InstanceCount);
+        Assert.Equal(duplicate, span.Instances[0]);
+        Assert.Equal(2, changes);
+
+        span.ClearInstances();
+        span.ClearInstances();
+
+        Assert.Empty(span.Instances);
+        Assert.Equal(0UL, span.InstanceCount);
+        Assert.Equal(new Rectangle<float>(0f, 0f, 0f, 0f), span.LayoutBounds);
+        Assert.Equal(3, changes);
     }
 
     /// <summary>Verifies GUI preparation retains blank-line baseline spacing in one span.</summary>
@@ -276,6 +354,36 @@ public sealed class TextSpanTests
         Assert.Throws<ArgumentException>(() => span.WriteInstanceDataTo(0, 1, [], new byte[100]));
     }
 
+    /// <summary>Verifies instance serialization requires a text style.</summary>
+    [Fact]
+    public void WriteInstanceDataTo_withoutTextStyle_throws()
+    {
+        var glyph = new FontGlyph('A', 1, new(0, 0, 1, 1), new(0, 0, 1, 1));
+        var span = new TextSpan(null, [new GlyphInstance(glyph, Vector2D<float>.Zero, Colors.White)]);
+
+        Assert.Throws<InvalidOperationException>(() =>
+            span.WriteInstanceDataTo(
+                0,
+                1,
+                BuiltInShaders.MsdfTextVertexShader.InstanceLayout,
+                new byte[100]
+            )
+        );
+    }
+
+    /// <summary>Verifies a valid zero-count write is a no-op even without a text style.</summary>
+    [Fact]
+    public void WriteInstanceDataTo_zeroCount_doesNothing()
+    {
+        var glyph = new FontGlyph('A', 1, new(0, 0, 1, 1), new(0, 0, 1, 1));
+        var span = new TextSpan(null, [new GlyphInstance(glyph, Vector2D<float>.Zero, Colors.White)]);
+        var target = Enumerable.Repeat((byte)0xCC, 8).ToArray();
+
+        span.WriteInstanceDataTo(1, 0, [], target);
+
+        Assert.All(target, value => Assert.Equal((byte)0xCC, value));
+    }
+
     /// <summary>Verifies glyph bounds convert to GUI coordinates independently of atlas sampling.</summary>
     [Fact]
     public void WriteInstanceDataTo_converts_glyph_bounds_and_packs_atlas_region()
@@ -286,7 +394,7 @@ public sealed class TextSpanTests
             fontMetrics: new(48, 36, -12, 48),
             size: 18
         );
-        var span = new TextSpan(style, [(glyph, new(0f, 13.5f), Colors.WhiteSmoke)]);
+        var span = new TextSpan(style, [new GlyphInstance(glyph, new(0f, 13.5f), Colors.WhiteSmoke)]);
         var data = ReadInstances(span);
         var transform = MemoryMarshal.Read<Matrix4X4<float>>(data.Span);
         var region = MemoryMarshal.Read<Vector4D<float>>(data.Span[64..]);
@@ -305,7 +413,10 @@ public sealed class TextSpanTests
     public void WriteInstanceDataTo_preserves_fractional_prepared_positions()
     {
         var style = CreateStyle();
-        var span = new TextSpan(style, [(style.Glyphs['A'], new(0.4f, 3.4f), style.Color)]);
+        var span = new TextSpan(
+            style,
+            [new GlyphInstance(style.Glyphs['A'], new(0.4f, 3.4f), style.Color)]
+        );
         var transform = MemoryMarshal.Read<Matrix4X4<float>>(ReadInstances(span).Span);
 
         Assert.Equal(1f, transform.M11);
@@ -314,33 +425,16 @@ public sealed class TextSpanTests
         Assert.Equal(2.4f, transform.M42);
     }
 
-    /// <summary>Verifies transform changes notify instance observers only for changed values.</summary>
+    /// <summary>Verifies instance records use prepared coordinates and uniforms pack an identity view.</summary>
     [Fact]
-    public void TransformationMatrix_changes_notify_instance_data_observers()
-    {
-        var span = CreateSpan(CreateStyle(), "A");
-        var changes = 0;
-        span.InstanceDataChanged += (_, _) => changes++;
-
-        span.TransformationMatrix = Matrix4X4.CreateTranslation(2f, 3f, 0f);
-        span.TransformationMatrix = Matrix4X4.CreateTranslation(2f, 3f, 0f);
-
-        Assert.Equal(1, changes);
-    }
-
-    /// <summary>Verifies instance records use prepared coordinates and uniforms pack only the view.</summary>
-    [Fact]
-    public void Write_data_packs_prepared_instances_and_view_uniform()
+    public void Write_data_packs_prepared_instances_and_identity_view_uniform()
     {
         var span = CreateSpan(CreateStyle(), "AB");
         var expectedInstances = ReadInstances(span).ToArray();
-        var view = Matrix4X4.CreateTranslation(-3f, -4f, 0f);
-        span.TransformationMatrix = Matrix4X4.CreateTranslation(100f, 100f, 0f);
-        span.View = view;
 
         var uniform = DrawableTestData.ReadUniform(span, BuiltInShaders.MsdfTextVertexShader.UniformLayout);
 
-        Assert.Equal(view, MemoryMarshal.Read<Matrix4X4<float>>(uniform.Span));
+        Assert.Equal(Matrix4X4<float>.Identity, MemoryMarshal.Read<Matrix4X4<float>>(uniform.Span));
         Assert.Equal(expectedInstances, ReadInstances(span).ToArray());
     }
 

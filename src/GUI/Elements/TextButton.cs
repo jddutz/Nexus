@@ -38,7 +38,7 @@ public partial class TextButton : Element
     private float _verticalPadding;
 
     [Observable(PublicSetter = true)]
-    private string _label;
+    private string _label = string.Empty;
 
     [Observable]
     private TextButtonLabelAlignment _labelAlignment = TextButtonLabelAlignment.Center;
@@ -91,7 +91,6 @@ public partial class TextButton : Element
     /// <summary>
     /// Initializes a text button and creates its owned visual components.
     /// </summary>
-    /// <param name="label">The complete label shown by the button.</param>
     /// <param name="textStyle">The shared font and text style.</param>
     /// <param name="texture">The shared nine-patch texture.</param>
     /// <param name="horizontalPadding">The horizontal label padding.</param>
@@ -101,7 +100,6 @@ public partial class TextButton : Element
     /// <param name="sourceBorders">The source texture border widths.</param>
     /// <param name="samplingBehavior">The texture sampling behavior.</param>
     public TextButton(
-        string label,
         ITextStyle textStyle,
         Texture texture,
         float horizontalPadding = 16f,
@@ -113,7 +111,6 @@ public partial class TextButton : Element
     )
         : base()
     {
-        ArgumentNullException.ThrowIfNull(label);
         ArgumentNullException.ThrowIfNull(textStyle);
         ArgumentNullException.ThrowIfNull(texture);
         if (!float.IsFinite(horizontalPadding) || horizontalPadding < 0f)
@@ -123,7 +120,6 @@ public partial class TextButton : Element
 
         _texture = texture;
         _textStyle = textStyle;
-        _label = label;
         _horizontalPadding = horizontalPadding;
         _verticalPadding = verticalPadding;
         _backgroundRenderLayerMask = backgroundRenderLayerMask;
@@ -151,8 +147,8 @@ public partial class TextButton : Element
         _background = background;
         _text = text;
         text.RenderLayerMask = _textRenderLayerMask;
-        text.Text = _label;
-        var labelSize = MeasureLabel(_textStyle, _label);
+        text.Text = Label;
+        var labelSize = MeasureLabel(_textStyle, Label);
         AddComponent(background);
         AddComponent(text);
         if (Bounds.Size.X > 0f && Bounds.Size.Y > 0f)
@@ -229,7 +225,7 @@ public partial class TextButton : Element
         if (!IsEffectivelyVisible)
             return Vector2D<float>.Zero;
 
-        var labelSize = MeasureLabel(_textStyle, _label);
+        var labelSize = MeasureLabel(_textStyle, Label);
         var desiredSize = new Vector2D<float>(
             MathF.Ceiling(labelSize.X) + _horizontalPadding * 2f,
             MathF.Ceiling(labelSize.Y) + _verticalPadding * 2f
@@ -247,18 +243,18 @@ public partial class TextButton : Element
         base.Arrange(bounds);
 
         var labelWidth = MathF.Max(0f, bounds.Size.X - _horizontalPadding * 2f);
-        var visibleLabel = FitTextToWidth(_textStyle, _label, labelWidth);
+        var visibleLabel = FitTextToWidth(_textStyle, Label, labelWidth);
         if (_text.Text != visibleLabel)
             _text.Text = visibleLabel;
 
-        var horizontalAlignment = _labelAlignment switch
+        var horizontalAlignment = LabelAlignment switch
         {
             TextButtonLabelAlignment.Start => 0f,
             TextButtonLabelAlignment.Center => 0.5f,
             TextButtonLabelAlignment.End => 1f,
             _ => throw new InvalidOperationException("Unknown label alignment."),
         };
-        var destination = _labelAlignment switch
+        var destination = LabelAlignment switch
         {
             TextButtonLabelAlignment.Start => new Rectangle<float>(
                 bounds.Origin.X + _horizontalPadding,

@@ -96,6 +96,23 @@ public sealed class ImageElementTests
         AssertBounds(new Rectangle<float>(0f, 0f, 0f, 0f), element.Bounds);
     }
 
+    /// <summary>Verifies an image without a source remains empty until one is assigned.</summary>
+    [Fact]
+    public void MissingImageSource_keepsImageElementEmptyUntilAssigned()
+    {
+        var element = new ImageElement();
+
+        Assert.Equal(Vector2D<float>.Zero, element.Measure(new(10f, 10f)));
+        element.Arrange(new Rectangle<float>(0f, 0f, 10f, 10f));
+        Assert.Empty(element.Components);
+        AssertBounds(new Rectangle<float>(0f, 0f, 0f, 0f), element.Bounds);
+
+        element.ImageSource = new ImageSource(CreateTexture(4, 2));
+        element.Arrange(new Rectangle<float>(0f, 0f, 10f, 10f));
+
+        Assert.NotNull(element.GetComponent<TextureComponent>());
+    }
+
     /// <summary>Creates an image element backed by deterministic texture dimensions.</summary>
     /// <param name="width">The texture width.</param>
     /// <param name="height">The texture height.</param>
@@ -105,7 +122,10 @@ public sealed class ImageElementTests
         int width,
         int height,
         Rectangle<int>? sourceRegion = null
-    ) => new(new ImageSource(CreateTexture(width, height), sourceRegion));
+    ) => new()
+    {
+        ImageSource = new ImageSource(CreateTexture(width, height), sourceRegion),
+    };
 
     /// <summary>Creates a deterministic in-memory RGBA texture.</summary>
     /// <param name="width">The texture width.</param>

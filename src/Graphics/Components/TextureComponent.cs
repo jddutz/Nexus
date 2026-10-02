@@ -6,14 +6,6 @@ public partial class TextureComponent : Component, IGraphicsComponent
     private TexturedQuad? _drawable;
     private IReadOnlyList<IDrawable> _drawables = Array.Empty<IDrawable>();
 
-    /// <summary>Initializes a texture component.</summary>
-    /// <param name="texture">The texture to draw, or <see langword="null"/> for no drawable.</param>
-    public TextureComponent(ITexture? texture = null)
-    {
-        _texture = texture;
-        SynchronizeDrawable();
-    }
-
     /// <inheritdoc />
     public event EventHandler<DrawableEventArgs>? DrawableAdded;
 
@@ -31,7 +23,7 @@ public partial class TextureComponent : Component, IGraphicsComponent
         UpdateDrawable(drawable => drawable.RenderLayerMask = RenderLayerMask);
 
     [Observable(PublicSetter = true)]
-    private ITexture? _texture;
+    private ITexture? _texture = null;
 
     /// <inheritdoc />
     protected virtual partial void AfterTextureChanges() =>
@@ -90,18 +82,19 @@ public partial class TextureComponent : Component, IGraphicsComponent
 
         if (_drawable is null)
         {
-            var texture = _texture!;
-            var samplingBehavior = _samplingBehavior!;
+            var texture = Texture!;
+            var samplingBehavior = SamplingBehavior!;
             RegisterDrawable(
-                new TexturedQuad(texture)
+                new TexturedQuad
                 {
-                    RenderLayerMask = _renderLayerMask,
+                    Texture = texture,
+                    RenderLayerMask = RenderLayerMask,
                     SamplingBehavior = samplingBehavior,
-                    VertexShader = _vertexShader,
-                    FragmentShader = _fragmentShader,
-                    Destination = _destination,
-                    TexCoord = _texCoord,
-                    Color = _color,
+                    VertexShader = VertexShader,
+                    FragmentShader = FragmentShader,
+                    Destination = Destination,
+                    TexCoord = TexCoord,
+                    Color = Color,
                 }
             );
             return;
@@ -129,13 +122,13 @@ public partial class TextureComponent : Component, IGraphicsComponent
 
     /// <summary>Determines whether all component values can produce a drawable.</summary>
     private bool IsValidState() =>
-        _texture is not null
-        && _samplingBehavior is not null
-        && _vertexShader is not null
-        && _fragmentShader is not null
-        && IsValidDestination(_destination)
-        && IsValidTexCoord(_texCoord)
-        && IsValidColor(_color);
+        Texture is not null
+        && SamplingBehavior is not null
+        && VertexShader is not null
+        && FragmentShader is not null
+        && IsValidDestination(Destination)
+        && IsValidTexCoord(TexCoord)
+        && IsValidColor(Color);
 
     /// <summary>Validates destination coordinates and positive extents.</summary>
     private static bool IsValidDestination(Rectangle<float> destination) =>

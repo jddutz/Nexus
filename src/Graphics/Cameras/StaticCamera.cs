@@ -104,8 +104,8 @@ public partial class StaticCamera : Component, ICameraComponent
             _viewportWidth,
             0f,
             _viewportHeight,
-            _nearPlane,
-            _farPlane
+            NearPlane,
+            FarPlane
         );
 
         _viewProjectionDirty = true;

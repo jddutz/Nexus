@@ -124,9 +124,9 @@ public partial class OrthoCamera : Component, ICameraComponent
     /// <summary>Recalculates the view and projection matrices from the current camera state.</summary>
     private void UpdateMatrices()
     {
-        var target = _position + Forward;
-        _viewMatrix = Matrix4X4.CreateLookAt(_position, target, Up);
-        _projectionMatrix = Matrix4X4.CreateOrthographic(_width, _height, _nearPlane, _farPlane);
+        var target = Position + Forward;
+        _viewMatrix = Matrix4X4.CreateLookAt(Position, target, Up);
+        _projectionMatrix = Matrix4X4.CreateOrthographic(Width, Height, NearPlane, FarPlane);
 
         _matricesDirty = false;
         _viewProjectionDirty = true;
@@ -138,10 +138,10 @@ public partial class OrthoCamera : Component, ICameraComponent
         var center = (bounds.Min + bounds.Max) * 0.5f;
         var size = bounds.Max - bounds.Min;
 
-        var relativeToCamera = center - _position;
+        var relativeToCamera = center - Position;
 
-        var halfWidth = _width * 0.5f;
-        var halfHeight = _height * 0.5f;
+        var halfWidth = Width * 0.5f;
+        var halfHeight = Height * 0.5f;
 
         var rightProjection = Vector3D.Dot(relativeToCamera, Right);
         var upProjection = Vector3D.Dot(relativeToCamera, Up);
@@ -153,8 +153,8 @@ public partial class OrthoCamera : Component, ICameraComponent
 
         return MathF.Abs(rightProjection) - rightExtent <= halfWidth
             && MathF.Abs(upProjection) - upExtent <= halfHeight
-            && forwardProjection - forwardExtent >= _nearPlane
-            && forwardProjection + forwardExtent <= _farPlane;
+            && forwardProjection - forwardExtent >= NearPlane
+            && forwardProjection + forwardExtent <= FarPlane;
     }
 
     /// <inheritdoc/>
@@ -167,10 +167,10 @@ public partial class OrthoCamera : Component, ICameraComponent
         var normalizedX = (2.0f * screenPoint.X) / screenWidth - 1.0f;
         var normalizedY = 1.0f - (2.0f * screenPoint.Y) / screenHeight;
 
-        var worldX = normalizedX * _width * 0.5f;
-        var worldY = normalizedY * _height * 0.5f;
+        var worldX = normalizedX * Width * 0.5f;
+        var worldY = normalizedY * Height * 0.5f;
 
-        var rayOrigin = _position + (Right * worldX) + (Up * worldY);
+        var rayOrigin = Position + (Right * worldX) + (Up * worldY);
 
         return new Ray3D<float>(rayOrigin, Forward);
     }
@@ -182,13 +182,13 @@ public partial class OrthoCamera : Component, ICameraComponent
         int screenHeight
     )
     {
-        var relativeToCamera = worldPoint - _position;
+        var relativeToCamera = worldPoint - Position;
 
         var rightProjection = Vector3D.Dot(relativeToCamera, Right);
         var upProjection = Vector3D.Dot(relativeToCamera, Up);
 
-        var normalizedX = rightProjection / (_width * 0.5f);
-        var normalizedY = upProjection / (_height * 0.5f);
+        var normalizedX = rightProjection / (Width * 0.5f);
+        var normalizedY = upProjection / (Height * 0.5f);
 
         var screenX = (int)((normalizedX + 1.0f) * 0.5f * screenWidth);
         var screenY = (int)((1.0f - normalizedY) * 0.5f * screenHeight);

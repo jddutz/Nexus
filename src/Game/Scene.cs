@@ -40,7 +40,7 @@ public partial class Scene : IScene
         RenderLayers.Create("GUI", RenderPasses.Main);
 
         var defaultCamera = new StaticCamera();
-        var viewComponent = new ViewComponent(defaultCamera, 1);
+        var viewComponent = new ViewComponent { Camera = defaultCamera, LayerMask = 1 };
         var defaultView = new GameObject2D([defaultCamera, viewComponent]);
         Children.Add(defaultView);
     }
@@ -51,7 +51,7 @@ public partial class Scene : IScene
     public NodeId Id { get; }
 
     /// <summary>Gets whether the scene is currently active.</summary>
-    public bool IsActive => _isActivated;
+    public bool IsActive => IsActivated;
 
     /// <summary>Gets a registered scene node by identifier.</summary>
     /// <param name="id">The node identifier.</param>
@@ -146,19 +146,19 @@ public partial class Scene : IScene
     }
 
     [Observable(PublicSetter = false)]
-    private bool _isInitialized;
+    private bool _isInitialized = false;
 
     /// <inheritdoc />
     public virtual void Initialize()
     {
-        if (_isInitialized)
+        if (IsInitialized)
             return;
 
         IsInitialized = true;
     }
 
     [Observable(PublicSetter = false)]
-    private bool _isActivated;
+    private bool _isActivated = false;
 
     /// <inheritdoc />
     public virtual bool CanActivate() => true;

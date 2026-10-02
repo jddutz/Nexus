@@ -6,13 +6,13 @@ namespace Nexus.GUI.Elements;
 public partial class Element : GameObject2D, IElement
 {
     [Observable]
-    private float? _height;
+    private float? _height = null;
 
     [Observable]
-    private float? _width;
+    private float? _width = null;
 
     [Observable(PublicSetter = true)]
-    private Rectangle<float> _bounds;
+    private Rectangle<float> _bounds = default;
 
     [Observable(PublicSetter = true)]
     private bool _isVisible = true;
@@ -28,21 +28,12 @@ public partial class Element : GameObject2D, IElement
     private InputMap? _inputMap;
 
     /// <summary>
-    /// Initializes an element with optional explicit dimensions and owned components.
+    /// Initializes an element with its owned components.
     /// </summary>
-    /// <param name="width">The initial width of the element.</param>
-    /// <param name="height">The initial height of the element.</param>
     /// <param name="components">The components owned by the element.</param>
-    public Element(
-        float? width = null,
-        float? height = null,
-        IEnumerable<Nexus.Core.IComponent>? components = null
-    )
+    public Element(IEnumerable<Nexus.Core.IComponent>? components = null)
         : base(components ?? [])
-    {
-        _width = width;
-        _height = height;
-    }
+    { }
 
     /// <summary>Occurs when this element receives focus.</summary>
     public event EventHandler? FocusGained;

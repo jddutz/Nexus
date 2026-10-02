@@ -391,13 +391,15 @@ public sealed class TextButtonTests
     /// <returns>The configured button.</returns>
     private static TextButton CreateButton(string label) =>
         new(
-            label,
             new TestTextStyle(),
             new Texture("button", 8, 8, new Color[64]),
             horizontalPadding: 4f,
             verticalPadding: 3f,
             sourceBorders: new Vector4D<float>(1f, 1f, 1f, 1f)
-        );
+        )
+        {
+            Label = label,
+        };
 
     /// <summary>Provides a distinct mouse pointer identity for input-routing tests.</summary>
     private sealed class TestMouse(ulong id) : IMouseInputDevice

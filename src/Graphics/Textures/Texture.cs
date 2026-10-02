@@ -75,7 +75,4 @@ public sealed class Texture : ITexture
                 );
         }
     }
-
-    public static readonly ITexture Invalid = new Texture(string.Empty, 1, 1, [Colors.Magenta]);
-    public static readonly ITexture Uniform = new Texture("uniform", 1, 1, [Colors.White]);
 }

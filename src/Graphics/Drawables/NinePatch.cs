@@ -15,7 +15,7 @@ public partial class NinePatch : IDrawable
     public Mesh Mesh { get; } = BuiltInMesh.TexturedQuadOffset;
 
     [Observable(PublicSetter = true)]
-    private ITexture _texture;
+    private ITexture _texture = BuiltInTextures.Invalid;
 
     [Observable(PublicSetter = true)]
     private ISamplingBehavior _samplingBehavior = SamplingBehaviors.Smooth;
@@ -37,11 +37,6 @@ public partial class NinePatch : IDrawable
 
     [Observable(PublicSetter = true)]
     private Color _color = Colors.White;
-
-    /// <summary>Initializes a drawable for a nine-patch texture region.</summary>
-    /// <param name="texture">The texture to render.</param>
-    public NinePatch(ITexture texture) =>
-        _texture = texture ?? throw new ArgumentNullException(nameof(texture));
 
     /// <inheritdoc />
     public ulong InstanceCount => 9;
@@ -95,16 +90,22 @@ public partial class NinePatch : IDrawable
         Span<byte> target
     )
     {
+        // TODO: use layout to determine how the data is written to the buffer
+
         if (start > InstanceCount || count > InstanceCount - start)
             throw new ArgumentOutOfRangeException(nameof(count));
+
+        if (count == 0)
+            return;
 
         ValidateInstanceLayout(layout);
         var requiredBytes = checked((ulong)InstanceDataSize * count);
         if ((ulong)target.Length < requiredBytes)
             throw new ArgumentException("The target span is too small.", nameof(target));
 
-        var textureWidth = Texture.Width;
-        var textureHeight = Texture.Height;
+        var texture = Texture ?? BuiltInTextures.Invalid;
+        var textureWidth = texture.Width;
+        var textureHeight = texture.Height;
         var sourceLeft = SourceBorders.X / textureWidth;
         var sourceTop = SourceBorders.Y / textureHeight;
         var sourceRight = SourceBorders.Z / textureWidth;
@@ -180,6 +181,8 @@ public partial class NinePatch : IDrawable
         Span<byte> target
     )
     {
+        // TODO: use layout to determine how the data is written to the buffer
+
         if (start != 0 || count != 1)
             throw new ArgumentOutOfRangeException(nameof(count));
 
