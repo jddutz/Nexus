@@ -31,8 +31,6 @@ public partial class TextButton : Element
     private readonly ISamplingBehavior _samplingBehavior;
     private NinePatchComponent? _background;
     private TextComponent? _text;
-    private float _horizontalPadding;
-    private float _verticalPadding;
 
     /// <summary>Gets or sets the render-layer mask shared by the button visuals.</summary>
     [Observable(PublicSetter = true)]
@@ -43,6 +41,9 @@ public partial class TextButton : Element
 
     [Observable]
     private TextButtonLabelAlignment _labelAlignment = TextButtonLabelAlignment.Center;
+
+    [Observable(PublicSetter = true)]
+    private Margins _padding = new();
 
     [Observable(PublicSetter = true)]
     private Action? _action;
@@ -78,34 +79,6 @@ public partial class TextButton : Element
     }
 
     /// <summary>
-    /// Gets or sets the horizontal and vertical padding around the label.
-    /// </summary>
-    public Vector2D<float> Padding
-    {
-        get => new(_horizontalPadding, _verticalPadding);
-        set
-        {
-            if (
-                !float.IsFinite(value.X)
-                || !float.IsFinite(value.Y)
-                || value.X < 0f
-                || value.Y < 0f
-            )
-                throw new ArgumentOutOfRangeException(
-                    nameof(value),
-                    "Padding values must be finite and non-negative."
-                );
-
-            if (_horizontalPadding == value.X && _verticalPadding == value.Y)
-                return;
-
-            _horizontalPadding = value.X;
-            _verticalPadding = value.Y;
-            NotifyPropertyChanged(nameof(Padding));
-        }
-    }
-
-    /// <summary>
     /// Initializes a text button and creates its owned visual components.
     /// </summary>
     /// <param name="textStyle">The shared font and text style.</param>
@@ -128,15 +101,10 @@ public partial class TextButton : Element
     {
         ArgumentNullException.ThrowIfNull(textStyle);
         ArgumentNullException.ThrowIfNull(texture);
-        if (!float.IsFinite(horizontalPadding) || horizontalPadding < 0f)
-            throw new ArgumentOutOfRangeException(nameof(horizontalPadding));
-        if (!float.IsFinite(verticalPadding) || verticalPadding < 0f)
-            throw new ArgumentOutOfRangeException(nameof(verticalPadding));
 
         _texture = texture;
         _textStyle = textStyle;
-        _horizontalPadding = horizontalPadding;
-        _verticalPadding = verticalPadding;
+        Padding = new(horizontalPadding, verticalPadding);
         RenderLayerMask = renderLayerMask;
         _sourceBorders = sourceBorders ?? new Vector4D<float>(12f, 12f, 12f, 12f);
         _samplingBehavior = samplingBehavior ?? SamplingBehaviors.PixelPerfect;
@@ -256,14 +224,14 @@ public partial class TextButton : Element
 
         var contentConstraint = GetContentConstraint(constraint);
         var textConstraint = new Vector2D<float>(
-            MathF.Max(0f, contentConstraint.X - 2f * _horizontalPadding),
-            MathF.Max(0f, contentConstraint.Y - 2f * _verticalPadding)
+            MathF.Max(0f, contentConstraint.X - Padding.Left - Padding.Right),
+            MathF.Max(0f, contentConstraint.Y - Padding.Top - Padding.Bottom)
         );
         var labelSize = _text?.Measure(textConstraint) ?? Vector2D<float>.Zero;
         return IncludeMargins(
             new(
-                MathF.Min(labelSize.X + _horizontalPadding * 2f, contentConstraint.X),
-                MathF.Min(labelSize.Y + _verticalPadding * 2f, contentConstraint.Y)
+                MathF.Min(labelSize.X + Padding.Left + Padding.Right, contentConstraint.X),
+                MathF.Min(labelSize.Y + Padding.Top + Padding.Bottom, contentConstraint.Y)
             )
         );
     }
@@ -297,10 +265,10 @@ public partial class TextButton : Element
         _text.Wrap = false;
         _text.MaximumLines = 1;
         _text.Destination = new Rectangle<float>(
-            contentBounds.Origin.X + _horizontalPadding,
-            contentBounds.Origin.Y + _verticalPadding,
-            MathF.Max(0f, contentBounds.Size.X - 2f * _horizontalPadding),
-            MathF.Max(0f, contentBounds.Size.Y - 2f * _verticalPadding)
+            contentBounds.Origin.X + Padding.Left,
+            contentBounds.Origin.Y + Padding.Top,
+            MathF.Max(0f, contentBounds.Size.X - Padding.Left - Padding.Right),
+            MathF.Max(0f, contentBounds.Size.Y - Padding.Top - Padding.Bottom)
         );
         _text.Alignment = new Vector2D<float>(horizontalAlignment, 0.5f);
         _background.Destination = contentBounds;

@@ -77,16 +77,17 @@ public sealed class TextButtonTests
     {
         var button = CreateButton("A");
         button.Margins = new Margins(1f, 2f, 3f, 4f);
+        button.Padding = new Margins(5f, 6f, 7f, 8f);
         var allocation = new Rectangle<float>(10f, 20f, 60f, 24f);
 
-        Assert.Equal(new Vector2D<float>(12f, 14f), button.Measure(new(100f, 100f)));
+        Assert.Equal(new Vector2D<float>(15f, 23f), button.Measure(new(100f, 100f)));
         button.Arrange(allocation);
 
         var contentBounds = new Rectangle<float>(11f, 23f, 57f, 17f);
         Assert.Equal(contentBounds, button.Bounds);
         Assert.Equal(contentBounds, button.GetComponent<NinePatchComponent>()!.Destination);
         var text = Assert.IsType<TextComponent>(Assert.Single(button.Components.OfType<TextComponent>()));
-        Assert.Equal(new Rectangle<float>(15f, 26f, 49f, 11f), text.Destination);
+        Assert.Equal(new Rectangle<float>(16f, 30f, 46f, 2f), text.Destination);
     }
 
     /// <summary>Verifies hiding removes visuals while retaining layout state for fresh components.</summary>
