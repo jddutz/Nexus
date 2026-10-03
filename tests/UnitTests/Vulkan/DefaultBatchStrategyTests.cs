@@ -49,6 +49,23 @@ public class DefaultBatchStrategyTests
     }
 
     [Fact]
+    public void Compare_orders_drawables_by_draw_order_before_pipeline_and_identifier()
+    {
+        var laterDrawable = new TestDrawable(1) { DrawOrder = 5 };
+        var earlierDrawable = new TestDrawable(2) { DrawOrder = -2 };
+        var pipelineId = new PipelineId(7);
+        var commands = new[]
+        {
+            new TestCommand("later", laterDrawable, pipelineId, long.MaxValue / 2 + 5),
+            new TestCommand("earlier", earlierDrawable, pipelineId, long.MaxValue / 2 - 2),
+        };
+
+        var ordered = commands.OrderBy(command => command, new DefaultBatchStrategy());
+
+        Assert.Equal(["earlier", "later"], ordered.Select(command => command.Name));
+    }
+
+    [Fact]
     public void RenderBatch_retainsCommandsWithMatchingSortKeysAndDistinctIds()
     {
         var drawable = new TestDrawable(1);
@@ -67,7 +84,7 @@ public class DefaultBatchStrategyTests
         string name,
         IDrawable? drawable,
         PipelineId pipelineId,
-        int renderPriority
+        long renderPriority
     ) : IVulkanCommand
     {
         public string Name { get; } = name;
@@ -82,7 +99,7 @@ public class DefaultBatchStrategyTests
 
         public IDrawable? Drawable => drawable;
 
-        public int RenderPriority => renderPriority;
+        public long RenderPriority => renderPriority;
 
         public void Record(Vk vk, CommandBuffer commandBuffer) { }
     }
@@ -115,6 +132,9 @@ public class DefaultBatchStrategyTests
 
         /// <inheritdoc />
         public ulong RenderLayerMask => 0;
+
+        /// <inheritdoc />
+        public int DrawOrder { get; set; }
 
         /// <inheritdoc />
         public Mesh Mesh => null!;

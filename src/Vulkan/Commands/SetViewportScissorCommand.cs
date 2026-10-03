@@ -51,7 +51,7 @@ public sealed unsafe class SetViewportScissorCommand : IVulkanCommand
     public IDrawable? Drawable => null;
 
     /// <inheritdoc />
-    public int RenderPriority => 0;
+    public long RenderPriority => 0;
 
     /// <summary>Gets the scissor rectangle used as the view's dynamic-rendering area.</summary>
     public Rect2D RenderArea => _scissor;

@@ -92,6 +92,18 @@ public partial class TextComponent : Component, IGraphicsComponent
                 span.RenderLayerMask = RenderLayerMask;
     }
 
+    /// <summary>Gets or sets the render order assigned to each glyph drawable.</summary>
+    [Observable(PublicSetter = true)]
+    private int _drawOrder;
+
+    /// <summary>Applies the changed render order to each glyph drawable.</summary>
+    /// <param name="previousValue">The previous render order.</param>
+    protected virtual partial void AfterDrawOrderChanges(int previousValue)
+    {
+        foreach (var span in _spans)
+            span.DrawOrder = DrawOrder;
+    }
+
     /// <summary>Gets the final glyph geometry bounds in destination coordinates.</summary>
     public Rectangle<float> LayoutBounds => _layoutBounds;
 
@@ -216,6 +228,7 @@ public partial class TextComponent : Component, IGraphicsComponent
         span.GlyphScale = GetScale(style);
         span.DistanceRange = checked((float)style.Msdf.DistanceRange);
         span.RenderLayerMask = RenderLayerMask;
+        span.DrawOrder = DrawOrder;
     }
 
     /// <summary>Creates the fitted line and glyph result shared by measuring and arrangement.</summary>

@@ -75,6 +75,39 @@ public sealed class TextElementTests
         Assert.Equal(1UL, DrawableTestData.TextInstanceCount(element));
     }
 
+    /// <summary>Verifies an element propagates sort order to its graphics component and drawable.</summary>
+    [Fact]
+    public void SortOrder_propagates_to_text_component_and_drawable()
+    {
+        var element = CreateTextElement("A");
+        element.Arrange(new Rectangle<float>(0f, 0f, 2f, 2f));
+        element.SortOrder = 7;
+
+        var component = Assert.IsType<TextComponent>(
+            Assert.Single(element.Components.OfType<TextComponent>())
+        );
+        Assert.Equal(7, component.DrawOrder);
+        Assert.Equal(7, Assert.Single(component.Drawables).DrawOrder);
+
+        element.SortOrder = -3;
+
+        Assert.Equal(-3, component.DrawOrder);
+        Assert.Equal(-3, Assert.Single(component.Drawables).DrawOrder);
+    }
+
+    /// <summary>Verifies element sort order is clamped to the supported rendering range.</summary>
+    [Fact]
+    public void SortOrder_is_clamped_to_supported_range()
+    {
+        var element = new Element();
+
+        element.SortOrder = int.MinValue;
+        Assert.Equal(-32768, element.SortOrder);
+
+        element.SortOrder = int.MaxValue;
+        Assert.Equal(32768, element.SortOrder);
+    }
+
     /// <summary>Verifies alignment affects text without replacing the assigned element bounds.</summary>
     [Fact]
     public void Arrange_keepsElementPlacementIndependentFromTextAlignment()

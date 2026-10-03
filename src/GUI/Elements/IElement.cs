@@ -13,6 +13,9 @@ public interface IElement : IGameObject
     /// <remarks>An element is effectively enabled only when it and all ancestor elements are enabled.</remarks>
     bool IsEnabled { get; set; }
 
+    /// <summary>Gets or sets the render order assigned to the element's graphics components.</summary>
+    int SortOrder { get; set; }
+
     /// <summary>Gets or sets whether the element is eligible to receive focus.</summary>
     bool CanFocus { get; set; }
 

@@ -19,31 +19,34 @@ public sealed class DefaultBatchStrategy : IBatchStrategy
 
         int result;
 
-        if (x.PipelineId is null)
-        {
-            if (y.PipelineId is not null)
-                return -1;
-        }
-        else
-        {
-            if (y.PipelineId is null)
-                return 1;
+        if (x.PipelineId is null && y.PipelineId is not null)
+            return -1;
 
+        if (x.PipelineId is not null && y.PipelineId is null)
+            return 1;
+
+        if (x.Drawable is null && y.Drawable is not null)
+            return -1;
+
+        if (x.Drawable is not null && y.Drawable is null)
+            return 1;
+
+        if (x.Drawable is not null && y.Drawable is not null)
+        {
+            result = x.Drawable.DrawOrder.CompareTo(y.Drawable.DrawOrder);
+            if (result != 0)
+                return result;
+        }
+
+        if (x.PipelineId is not null && y.PipelineId is not null)
+        {
             result = x.PipelineId.Value.Value.CompareTo(y.PipelineId.Value.Value);
             if (result != 0)
                 return result;
         }
 
-        if (x.Drawable is null)
+        if (x.Drawable is not null && y.Drawable is not null)
         {
-            if (y.Drawable is not null)
-                return -1;
-        }
-        else
-        {
-            if (y.Drawable is null)
-                return 1;
-
             result = x.Drawable.Id.Value.CompareTo(y.Drawable.Id.Value);
             if (result != 0)
                 return result;

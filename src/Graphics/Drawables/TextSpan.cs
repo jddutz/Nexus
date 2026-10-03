@@ -15,6 +15,10 @@ public partial class TextSpan : IDrawable
     [Observable(PublicSetter = true)]
     private ulong _renderLayerMask = ulong.MaxValue;
 
+    /// <summary>Gets or sets the drawable's position in render order.</summary>
+    [Observable(PublicSetter = true)]
+    private int _drawOrder;
+
     /// <summary>Replaces one prepared glyph instance and notifies instance-data observers.</summary>
     /// <param name="index">The zero-based index of the instance to replace.</param>
     /// <param name="instance">The immutable glyph metrics, position, and color to render.</param>
@@ -139,6 +143,10 @@ public partial class TextSpan : IDrawable
     protected virtual partial void AfterDistanceRangeChanges() =>
         InstanceDataChanged?.Invoke(this, EventArgs.Empty);
 
+    /// <summary>Raises instance-data invalidation after the draw order changes.</summary>
+    protected virtual partial void AfterDrawOrderChanges() =>
+        InstanceDataChanged?.Invoke(this, EventArgs.Empty);
+
     /// <inheritdoc />
     public void WriteInstanceDataTo(
         ulong start,
@@ -175,6 +183,7 @@ public partial class TextSpan : IDrawable
             transform.M22 = checked((float)(planeBounds.Top - planeBounds.Bottom)) * scale;
             transform.M41 = instance.Position.X + checked((float)planeBounds.Left) * scale;
             transform.M42 = instance.Position.Y - checked((float)planeBounds.Top) * scale;
+            transform.M43 = DrawOrder;
 
             var texCoord = new Vector4D<float>(
                 checked((float)(atlasBounds.Left / textureWidth)),

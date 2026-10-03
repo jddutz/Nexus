@@ -282,6 +282,9 @@ public unsafe class VulkanGraphicsSystem(
             case nameof(IDrawable.RenderLayerMask):
                 OnDrawableRenderLayerMaskChanged(drawable, EventArgs.Empty);
                 break;
+            case nameof(IDrawable.DrawOrder):
+                UpdateDrawable(drawable, commandFactory.UpdateDrawOrder);
+                break;
             case nameof(IDrawable.Mesh):
                 UpdateDrawable(drawable, commandFactory.UpdateMesh);
                 break;

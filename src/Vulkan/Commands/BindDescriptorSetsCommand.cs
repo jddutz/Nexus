@@ -53,7 +53,7 @@ public sealed class BindDescriptorSetsCommand : IVulkanCommand
     public IDrawable Drawable { get; }
 
     /// <inheritdoc />
-    public int RenderPriority => 2;
+    public long RenderPriority => 2;
 
     /// <summary>
     /// Gets the pipeline layout used for binding.

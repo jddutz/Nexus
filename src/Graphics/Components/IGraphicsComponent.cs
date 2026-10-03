@@ -14,4 +14,7 @@ public interface IGraphicsComponent : IComponent
 
     /// <summary>Gets the drawables currently exposed by this component.</summary>
     IReadOnlyList<IDrawable> Drawables { get; }
+
+    /// <summary>Gets or sets the render order assigned to every drawable exposed by this component.</summary>
+    int DrawOrder { get; set; }
 }

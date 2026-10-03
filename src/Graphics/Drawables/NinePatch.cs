@@ -11,6 +11,10 @@ public partial class NinePatch : IDrawable
     [Observable(PublicSetter = true)]
     private ulong _renderLayerMask = ulong.MaxValue;
 
+    /// <summary>Gets or sets the drawable's position in render order.</summary>
+    [Observable(PublicSetter = true)]
+    private int _drawOrder;
+
     /// <inheritdoc />
     public Mesh Mesh { get; } = BuiltInMesh.TexturedQuadOffset;
 
@@ -80,6 +84,10 @@ public partial class NinePatch : IDrawable
 
     /// <summary>Raises instance-data invalidation after the color changes.</summary>
     protected virtual partial void AfterColorChanges() =>
+        InstanceDataChanged?.Invoke(this, EventArgs.Empty);
+
+    /// <summary>Raises instance-data invalidation after the draw order changes.</summary>
+    protected virtual partial void AfterDrawOrderChanges() =>
         InstanceDataChanged?.Invoke(this, EventArgs.Empty);
 
     /// <inheritdoc />
@@ -161,6 +169,7 @@ public partial class NinePatch : IDrawable
             transform.M22 = destinationHeights[row];
             transform.M41 = Destination.Origin.X + x;
             transform.M42 = Destination.Origin.Y + y;
+            transform.M43 = DrawOrder;
             var texCoord = new Vector4D<float>(u, v, sourceWidths[column], sourceHeights[row]);
             var targetRecord = target.Slice(
                 checked((int)(offset * InstanceDataSize)),

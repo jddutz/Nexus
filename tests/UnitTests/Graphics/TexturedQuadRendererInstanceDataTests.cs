@@ -22,6 +22,56 @@ public sealed class TextureComponentInstanceDataTests
         Assert.Same(BuiltInTextures.Invalid, new NinePatch().Texture);
     }
 
+    /// <summary>Verifies texture components propagate draw order to their drawables.</summary>
+    [Fact]
+    public void TextureComponent_propagates_draw_order_to_drawable()
+    {
+        var component = new TextureComponent { Texture = CreateTexture(), DrawOrder = 3 };
+        var drawable = Assert.Single(component.Drawables);
+
+        Assert.Equal(3, drawable.DrawOrder);
+
+        component.DrawOrder = -2;
+
+        Assert.Equal(-2, drawable.DrawOrder);
+        Assert.Equal(-2f, ReadTransform(component).M43);
+    }
+
+    /// <summary>Verifies nine-patch components propagate draw order to their drawables.</summary>
+    [Fact]
+    public void NinePatchComponent_propagates_draw_order_to_drawable()
+    {
+        var component = new NinePatchComponent { Texture = CreateTexture(), DrawOrder = 4 };
+        var drawable = Assert.Single(component.Drawables);
+
+        Assert.Equal(4, drawable.DrawOrder);
+
+        component.DrawOrder = -3;
+
+        Assert.Equal(-3, drawable.DrawOrder);
+    }
+
+    /// <summary>Verifies every drawable type exposes a settable draw order.</summary>
+    [Fact]
+    public void DrawOrder_is_customizable_for_each_drawable_type()
+    {
+        var texturedQuad = new TexturedQuad();
+        var ninePatch = new NinePatch();
+        var textSpan = new TextSpan();
+
+        Assert.Equal(0, texturedQuad.DrawOrder);
+        Assert.Equal(0, ninePatch.DrawOrder);
+        Assert.Equal(0, textSpan.DrawOrder);
+
+        texturedQuad.DrawOrder = 3;
+        ninePatch.DrawOrder = -1;
+        textSpan.DrawOrder = int.MaxValue;
+
+        Assert.Equal(3, texturedQuad.DrawOrder);
+        Assert.Equal(-1, ninePatch.DrawOrder);
+        Assert.Equal(int.MaxValue, textSpan.DrawOrder);
+    }
+
     /// <summary>Verifies texture components expose no drawable while their texture is missing.</summary>
     [Fact]
     public void MissingTexture_keepsComponentWithoutDrawableUntilAssigned()

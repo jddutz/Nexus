@@ -47,7 +47,7 @@ public sealed class BindVertexBufferCommand : IVulkanCommand
     public IDrawable Drawable { get; }
 
     /// <inheritdoc />
-    public int RenderPriority => 1;
+    public long RenderPriority => 1;
 
     /// <summary>
     /// Gets the vertex-input binding slot.

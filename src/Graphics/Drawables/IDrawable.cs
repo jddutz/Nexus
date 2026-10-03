@@ -26,6 +26,11 @@ public interface IDrawable : IObservable
     ulong RenderLayerMask { get; }
 
     /// <summary>
+    /// Gets or sets the drawable's position in render order. Lower values are rendered first.
+    /// </summary>
+    int DrawOrder { get; set; }
+
+    /// <summary>
     /// Gets the mesh rendered by the drawable.
     /// </summary>
     Mesh Mesh { get; }

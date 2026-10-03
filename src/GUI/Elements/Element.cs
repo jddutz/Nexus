@@ -5,6 +5,9 @@ namespace Nexus.GUI.Elements;
 /// </summary>
 public partial class Element : GameObject, IElement
 {
+    private const int MinimumSortOrder = -32768;
+    private const int MaximumSortOrder = 32768;
+
     [Observable]
     private float? _height = null;
 
@@ -52,6 +55,14 @@ public partial class Element : GameObject, IElement
     private bool _isEnabled = true;
 
     [Observable(PublicSetter = true)]
+    private int _sortOrder;
+
+    /// <summary>Clamps the sort order to the supported rendering range.</summary>
+    /// <param name="value">The requested sort order.</param>
+    protected virtual void SetSortOrder(int value) =>
+        _sortOrder = Math.Clamp(value, MinimumSortOrder, MaximumSortOrder);
+
+    [Observable(PublicSetter = true)]
     private bool _canFocus;
 
     [Observable(PublicSetter = true)]
@@ -63,7 +74,30 @@ public partial class Element : GameObject, IElement
     /// </summary>
     /// <param name="components">The components owned by the element.</param>
     public Element(IEnumerable<Nexus.Core.IComponent>? components = null)
-        : base(components ?? []) { }
+        : base(components ?? [])
+    {
+        ComponentAdded += OnComponentAdded;
+        ApplySortOrder();
+    }
+
+    /// <summary>Applies a changed sort order to all owned graphics components.</summary>
+    /// <param name="previousValue">The previous sort order.</param>
+    protected virtual partial void AfterSortOrderChanges(int previousValue) => ApplySortOrder();
+
+    /// <summary>Applies the element sort order to one newly added component.</summary>
+    /// <param name="component">The component added to this element.</param>
+    private void OnComponentAdded(Nexus.Core.IComponent component)
+    {
+        if (component is IGraphicsComponent graphicsComponent)
+            graphicsComponent.DrawOrder = SortOrder;
+    }
+
+    /// <summary>Applies the current sort order to every owned graphics component.</summary>
+    private void ApplySortOrder()
+    {
+        foreach (var graphicsComponent in Components.OfType<IGraphicsComponent>())
+            graphicsComponent.DrawOrder = SortOrder;
+    }
 
     /// <summary>Occurs when this element receives focus.</summary>
     public event EventHandler? FocusGained;

@@ -5,6 +5,8 @@ namespace Nexus.Graphics.Vulkan.Commands;
 /// </summary>
 public sealed class DrawCommand : IVulkanCommand
 {
+    private const long DrawCommandPriorityBase = long.MaxValue / 2;
+
     /// <summary>
     /// Creates a draw command.
     /// </summary>
@@ -59,7 +61,7 @@ public sealed class DrawCommand : IVulkanCommand
     public IDrawable Drawable { get; }
 
     /// <inheritdoc />
-    public int RenderPriority => int.MaxValue;
+    public long RenderPriority => DrawCommandPriorityBase + Drawable.DrawOrder;
 
     /// <summary>
     /// Gets the number of vertices to draw.

@@ -39,6 +39,8 @@ dotnet test Nexus.slnx
 ```
 
 Rendering tests serialize drawables into caller-owned buffers through `IDrawable.WriteInstanceDataTo` and `WriteUniformDataTo`. GUI text tests inspect prepared glyphs through public graphics-component contracts rather than depending on internal GUI component types or restoring Graphics-side string layout.
+Graphics components expose `DrawOrder` and propagate it to every drawable they own.
+GUI elements expose `SortOrder` and propagate it to each owned graphics component.
 
 Lifecycle state changes use generated property setters so change hooks and notifications run. Scene activation does not activate the hierarchy by itself; lifecycle tests either run `GameSystem.Update` or explicitly activate their fixture nodes. The generator and observable contracts remain unchanged.
 
@@ -160,7 +162,7 @@ An element supplies the arranged visual placement to its graphics component. A d
 - Views pair a camera with a layer mask. GUI rendering uses a static camera and is ordered after scene rendering. Layer 1 is reserved for GUI in the current convention.
 - Vulkan rendering follows `PrepareFrame`, per-view `Begin`, per-pass `Record`, per-view `Finalize`, then `Submit`.
 - Draw commands execute inside their rendering pass. Resource uploads occur before the pass.
-- Sticky draw commands are retained. The default batch ordering is pipeline ID, drawable ID, render priority, then command ID.
+- Sticky draw commands are retained. Drawables expose an ascending `DrawOrder`; the default batch groups drawable commands by that order before pipeline ID, drawable ID, and render priority.
 - Vertex buffers, images, samplers, pipelines, and per-drawable instance buffers have backend registry responsibilities.
 
 ### Text

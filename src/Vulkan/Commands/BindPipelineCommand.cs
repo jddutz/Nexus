@@ -44,7 +44,7 @@ public sealed class BindPipelineCommand : IVulkanCommand
     public IDrawable Drawable { get; }
 
     /// <inheritdoc />
-    public int RenderPriority => 0;
+    public long RenderPriority => 0;
 
     /// <summary>
     /// Gets the Vulkan pipeline to bind.

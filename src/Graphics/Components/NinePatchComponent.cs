@@ -22,6 +22,14 @@ public partial class NinePatchComponent : Component, IGraphicsComponent
     protected virtual partial void AfterRenderLayerMaskChanges(ulong previousValue) =>
         UpdateDrawable(drawable => drawable.RenderLayerMask = RenderLayerMask);
 
+    /// <summary>Gets or sets the render order assigned to the drawable.</summary>
+    [Observable(PublicSetter = true)]
+    private int _drawOrder;
+
+    /// <inheritdoc />
+    protected virtual partial void AfterDrawOrderChanges(int previousValue) =>
+        UpdateDrawable(drawable => drawable.DrawOrder = DrawOrder);
+
     [Observable(PublicSetter = true)]
     private ITexture? _texture = null;
 
@@ -94,6 +102,7 @@ public partial class NinePatchComponent : Component, IGraphicsComponent
                 {
                     Texture = Texture!,
                     RenderLayerMask = RenderLayerMask,
+                    DrawOrder = DrawOrder,
                     SamplingBehavior = SamplingBehavior!,
                     VertexShader = VertexShader,
                     FragmentShader = FragmentShader,

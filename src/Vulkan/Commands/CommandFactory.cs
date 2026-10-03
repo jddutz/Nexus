@@ -279,6 +279,15 @@ public unsafe class CommandFactory(
     }
 
     /// <inheritdoc />
+    public IEnumerable<IVulkanCommand> UpdateDrawOrder(IDrawable drawable)
+    {
+        var allocation = GetAllocation(drawable);
+        var drawCommand = CreateDrawCommand(allocation);
+        StoreCommand(allocation, drawCommand);
+        return [drawCommand];
+    }
+
+    /// <inheritdoc />
     public IEnumerable<IVulkanCommand> UpdateUniformData(IDrawable drawable)
     {
         var allocation = GetAllocation(drawable);

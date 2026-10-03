@@ -28,7 +28,7 @@ public sealed unsafe class UploadImageCommand(
     public IDrawable? Drawable => null;
 
     /// <inheritdoc />
-    public int RenderPriority => 0;
+    public long RenderPriority => 0;
 
     /// <inheritdoc />
     public void Record(Vk vk, CommandBuffer commandBuffer)

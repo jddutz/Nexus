@@ -40,7 +40,7 @@ public sealed class UpdateUniformBufferCommand : IVulkanCommand
     public IDrawable? Drawable => null;
 
     /// <inheritdoc />
-    public int RenderPriority => 0;
+    public long RenderPriority => 0;
 
     internal ulong BufferHandle => _buffer.Handle;
 

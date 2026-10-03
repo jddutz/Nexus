@@ -10,10 +10,10 @@ public partial class StaticCamera : Component, ICameraComponent
     private float _viewportHeight = 1f;
 
     [Observable]
-    private float _nearPlane = -1f;
+    private float _nearPlane = -32768f;
 
     [Observable]
-    private float _farPlane = 1f;
+    private float _farPlane = 32768f;
 
     private Matrix4X4<float> _projectionMatrix;
     private Matrix4X4<float> _viewProjectionMatrix;

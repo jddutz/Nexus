@@ -11,6 +11,10 @@ public interface ICommandFactory
     /// <param name="drawable">The drawable whose instance data changed.</param>
     IEnumerable<IVulkanCommand> UpdateInstanceData(IDrawable drawable);
 
+    /// <summary>Updates the drawable's draw command after its draw order changes.</summary>
+    /// <param name="drawable">The drawable whose draw order changed.</param>
+    IEnumerable<IVulkanCommand> UpdateDrawOrder(IDrawable drawable);
+
     /// <summary>Updates the drawable's uniform-buffer bindings.</summary>
     /// <param name="drawable">The drawable whose uniform data changed.</param>
     IEnumerable<IVulkanCommand> UpdateUniformData(IDrawable drawable);

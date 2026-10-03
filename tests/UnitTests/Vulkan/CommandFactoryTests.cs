@@ -73,6 +73,10 @@ public class CommandFactoryTests
             command => Assert.IsType<BindVertexBufferCommand>(command),
             command => Assert.IsType<DrawCommand>(command)
         );
+        Assert.Equal(
+            long.MaxValue / 2,
+            Assert.IsType<DrawCommand>(commands[^1]).RenderPriority
+        );
         Assert.Equal(1, dependencies.Geometry.CreateCount);
         Assert.Equal(1, dependencies.Texture.CreateCount);
         Assert.Equal(1, dependencies.Pipelines.GetOrCreateCount);
@@ -127,6 +131,25 @@ public class CommandFactoryTests
         Assert.Equal(1, dependencies.Pipelines.GetOrCreateCount);
         Assert.Equal((uint)3, Assert.IsType<DrawCommand>(commands[^1]).InstanceCount);
         Assert.Contains(commands, command => command is BindVertexBufferCommand { Binding: 1 });
+    }
+
+    [Fact]
+    public void UpdateDrawOrder_replaces_only_the_draw_command_with_updated_priority()
+    {
+        var dependencies = new TestDependencies();
+        var factory = CreateFactory(dependencies);
+        var drawable = CreateDrawable();
+        factory.Create(drawable).ToArray();
+
+        foreach (var drawOrder in new[] { int.MinValue, 12, int.MaxValue })
+        {
+            drawable.DrawOrder = drawOrder;
+            var command = Assert.IsType<DrawCommand>(
+                Assert.Single(factory.UpdateDrawOrder(drawable))
+            );
+            Assert.Equal(long.MaxValue / 2 + drawOrder, command.RenderPriority);
+        }
+        Assert.Equal(1, dependencies.Geometry.CreateCount);
     }
 
     [Fact]
@@ -597,6 +620,8 @@ public class CommandFactoryTests
         public DrawableId Id => new(1);
         /// <inheritdoc />
         public ulong RenderLayerMask => ulong.MaxValue;
+        /// <inheritdoc />
+        public int DrawOrder { get; set; }
         /// <inheritdoc />
         public Mesh Mesh => mesh;
         /// <inheritdoc />

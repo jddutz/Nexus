@@ -11,6 +11,10 @@ public partial class TexturedQuad : IDrawable
     [Observable(PublicSetter = true)]
     private ulong _renderLayerMask = ulong.MaxValue;
 
+    /// <summary>Gets or sets the drawable's position in render order.</summary>
+    [Observable(PublicSetter = true)]
+    private int _drawOrder;
+
     /// <inheritdoc />
     public Mesh Mesh { get; } = BuiltInMesh.TexturedQuadOffset;
 
@@ -66,6 +70,10 @@ public partial class TexturedQuad : IDrawable
     protected virtual partial void AfterColorChanges() =>
         InstanceDataChanged?.Invoke(this, EventArgs.Empty);
 
+    /// <summary>Raises instance-data invalidation after the draw order changes.</summary>
+    protected virtual partial void AfterDrawOrderChanges() =>
+        InstanceDataChanged?.Invoke(this, EventArgs.Empty);
+
     /// <inheritdoc />
     public void WriteInstanceDataTo(
         ulong start,
@@ -91,6 +99,7 @@ public partial class TexturedQuad : IDrawable
         transform.M22 = Destination.Size.Y;
         transform.M41 = Destination.Origin.X;
         transform.M42 = Destination.Origin.Y;
+        transform.M43 = DrawOrder;
         var texCoord = TexCoord;
         var color = Color;
         MemoryMarshal.Write(target, in transform);

@@ -12,7 +12,7 @@ public interface IVulkanCommand
 
     IDrawable? Drawable { get; }
 
-    int RenderPriority { get; }
+    long RenderPriority { get; }
 
     void Record(Vk vk, CommandBuffer commandBuffer);
 }

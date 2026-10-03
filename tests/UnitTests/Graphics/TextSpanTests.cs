@@ -731,6 +731,30 @@ public sealed class TextSpanTests
         Assert.Equal(4UL, span.RenderLayerMask);
     }
 
+    /// <summary>Verifies text components propagate draw order to existing and replacement spans.</summary>
+    [Fact]
+    public void TextComponent_propagates_draw_order_to_spans()
+    {
+        var component = new TextComponent(CreateStyle())
+        {
+            Destination = new Rectangle<float>(0f, 0f, 2f, 2f),
+            Text = "A",
+            DrawOrder = 6,
+        };
+        var span = Assert.IsType<TextSpan>(Assert.Single(component.Drawables));
+
+        Assert.Equal(6, span.DrawOrder);
+        Assert.Equal(6f, ReadTransform(span).M43);
+
+        component.DrawOrder = -4;
+
+        Assert.Equal(-4, span.DrawOrder);
+        Assert.Equal(-4f, ReadTransform(span).M43);
+        component.Text = "B";
+
+        Assert.Equal(-4, Assert.Single(component.Drawables).DrawOrder);
+    }
+
     /// <summary>Verifies measurement ignores destination and alignment validity.</summary>
     [Fact]
     public void TextComponent_measure_validates_only_its_own_inputs()
