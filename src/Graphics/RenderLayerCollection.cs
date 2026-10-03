@@ -1,5 +1,8 @@
 namespace Nexus.Graphics;
 
+/// <summary>
+/// Stores render layers in slots addressable by a 64-bit layer mask.
+/// </summary>
 public class RenderLayerCollection : IRenderLayerCollection
 {
     /// <summary>
@@ -7,14 +10,30 @@ public class RenderLayerCollection : IRenderLayerCollection
     /// </summary>
     public const int MaxLayers = 64;
 
-    private readonly IRenderLayer?[] _layers = new IRenderLayer?[MaxLayers];
+    private readonly RenderLayer?[] _layers = new RenderLayer?[MaxLayers];
 
-    public event Action<IRenderLayer>? LayerAdded;
-    public event Action<IRenderLayer>? LayerRemoved;
+    /// <summary>
+    /// Occurs when a render layer is added to the collection.
+    /// </summary>
+    public event Action<RenderLayer>? LayerAdded;
 
+    /// <summary>
+    /// Occurs when a render layer is removed from the collection.
+    /// </summary>
+    public event Action<RenderLayer>? LayerRemoved;
+
+    /// <summary>
+    /// Gets the number of occupied render-layer slots.
+    /// </summary>
     public int Count => _layers.Count(layer => layer is not null);
 
-    public IRenderLayer? this[int index] =>
+    /// <summary>
+    /// Gets the render layer at the specified slot.
+    /// </summary>
+    /// <param name="index">The zero-based slot index.</param>
+    /// <returns>The layer at the slot.</returns>
+    /// <exception cref="KeyNotFoundException">No layer exists at the specified slot.</exception>
+    public RenderLayer? this[int index] =>
         _layers[index]
         ?? throw new KeyNotFoundException($"No render layer exists at slot {index}.");
 
@@ -23,7 +42,7 @@ public class RenderLayerCollection : IRenderLayerCollection
     /// </summary>
     /// <param name="renderLayerMask">The mask of layer slots to include.</param>
     /// <returns>The occupied render layer slots selected by the mask.</returns>
-    public IEnumerable<IRenderLayer> Get(ulong renderLayerMask)
+    public IEnumerable<RenderLayer> Get(ulong renderLayerMask)
     {
         for (var index = 0; index < MaxLayers; index++)
         {
@@ -32,7 +51,14 @@ public class RenderLayerCollection : IRenderLayerCollection
         }
     }
 
-    public IRenderLayer Create(string name, uint renderPassMask)
+    /// <summary>
+    /// Creates a render layer in the first available slot.
+    /// </summary>
+    /// <param name="name">The name of the render layer.</param>
+    /// <param name="renderPassMask">The render-pass mask for the layer.</param>
+    /// <returns>The created render layer.</returns>
+    /// <exception cref="InvalidOperationException">All render-layer slots are occupied.</exception>
+    public RenderLayer Create(string name, uint renderPassMask)
     {
         var index = Array.FindIndex(_layers, layer => layer is null);
         if (index < 0)
@@ -46,6 +72,12 @@ public class RenderLayerCollection : IRenderLayerCollection
         return layer;
     }
 
+    /// <summary>
+    /// Removes the render layer at the specified slot.
+    /// </summary>
+    /// <param name="index">The zero-based slot index.</param>
+    /// <exception cref="ArgumentOutOfRangeException">The index is outside the supported range.</exception>
+    /// <exception cref="KeyNotFoundException">No layer exists at the specified slot.</exception>
     public void Remove(int index)
     {
         if (index < 0 || index >= MaxLayers)
@@ -63,11 +95,11 @@ public class RenderLayerCollection : IRenderLayerCollection
     /// </summary>
     public void Clear()
     {
-        var removedLayers = _layers.Where(layer => layer is not null).ToArray();
+        var removedLayers = _layers.OfType<RenderLayer>().ToArray();
         Array.Clear(_layers);
 
         foreach (var layer in removedLayers)
-            LayerRemoved?.Invoke(layer!);
+            LayerRemoved?.Invoke(layer);
     }
 
     /// <summary>

@@ -28,6 +28,8 @@ public unsafe class VulkanGraphicsSystem(
     PerformanceDiagnostics? diagnostics = null
 ) : IGraphicsSystem, IDisposable
 {
+    private const ulong GuiRenderLayerMask = 1UL;
+
     private readonly PerformanceMetrics? _performanceMetrics = performanceMetrics;
     private readonly PerformanceDiagnostics? _diagnostics = diagnostics;
     private readonly RenderBatchCollection _setupBatches = CreateSetupBatchCollection();
@@ -42,11 +44,14 @@ public unsafe class VulkanGraphicsSystem(
     private static RenderBatchCollection CreateRenderBatchCollection(ViewComponent view)
     {
         var coll = new RenderBatchCollection();
+        IBatchStrategy batchStrategy = (view.LayerMask & GuiRenderLayerMask) != 0
+            ? new DepthSortBatchStrategy()
+            : new DefaultBatchStrategy();
         coll.Set(RenderPasses.Start, new RenderBatch(new DefaultBatchStrategy()));
 
         foreach (var renderPass in RenderPasses.GetActivePasses(view.RenderPassMask))
         {
-            coll.Set(renderPass, new RenderBatch(new DefaultBatchStrategy()));
+            coll.Set(renderPass, new RenderBatch(batchStrategy));
         }
 
         coll.Set(RenderPasses.End, new RenderBatch(new DefaultBatchStrategy()));
