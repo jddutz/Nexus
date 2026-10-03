@@ -11,4 +11,7 @@ public enum AlignVertical
 
     /// <summary>Places content against the bottom edge.</summary>
     Bottom,
+
+    /// <summary>Spaces content out with evenly while filling the available space.</summary>
+    Justify,
 }

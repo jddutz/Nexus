@@ -11,4 +11,7 @@ public enum AlignHorizontal
 
     /// <summary>Places content against the right edge.</summary>
     Right,
+
+    /// <summary>Spaces content out with evenly while filling the available space.</summary>
+    Justify,
 }
