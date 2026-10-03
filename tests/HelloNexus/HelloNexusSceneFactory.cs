@@ -44,7 +44,10 @@ internal sealed class HelloNexusSceneFactory(
         var camera = sceneView.Components.OfType<StaticCamera>().Single();
         camera.SetViewportSize(mainWindow.Size.X, mainWindow.Size.Y);
 
-        var guiLayer = 1UL << scene.RenderLayers[0]!.Index;
+        var guiLayerDefinition =
+            scene.RenderLayers[0]
+            ?? throw new InvalidOperationException("The default GUI render layer is missing.");
+        var guiLayer = 1UL << guiLayerDefinition.Index;
         var backgroundLayer =
             1UL << scene.RenderLayers.Create("Background", RenderPasses.Main).Index;
         var backgroundView = sceneView.Components.OfType<ViewComponent>().Single();
