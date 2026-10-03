@@ -1,7 +1,7 @@
 namespace Nexus.GUI;
 
 /// <summary>Specifies how content is sized within its available bounds.</summary>
-public enum SizingMode
+public enum ImageSizingMode
 {
     /// <summary>Uses the content's original size.</summary>
     Original,

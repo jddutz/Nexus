@@ -307,6 +307,7 @@ public sealed class ObservableGenerator : IIncrementalGenerator
                 string? AfterHookWithPreviousValue,
                 bool HasPartialAfterHook,
                 bool HasPartialAfterHookWithPreviousValue,
+                bool HasCustomSetter,
                 Location Location
             )>();
         foreach (var item in fields)
@@ -423,6 +424,7 @@ public sealed class ObservableGenerator : IIncrementalGenerator
                     hasAfterHookWithPreviousValue ? afterHookWithPreviousValue : null,
                     hasPartialAfterHook,
                     hasPartialAfterHookWithPreviousValue,
+                    HasSetter(type, "Set" + propertyName, item.Field.Type),
                     item.Location
                 )
             );
@@ -480,7 +482,7 @@ public sealed class ObservableGenerator : IIncrementalGenerator
                 var conflict = member.Kind switch
                 {
                     "property" or "event" or "wrapper" => existingMembers.Length > 0,
-                    "setter" => existingMembers.Any(existing =>
+                    "setter" => !plan.HasCustomSetter && existingMembers.Any(existing =>
                         existing is not IMethodSymbol method
                         || method.MethodKind == MethodKind.Ordinary
                             && !method.IsStatic
@@ -658,6 +660,7 @@ public sealed class ObservableGenerator : IIncrementalGenerator
             string? AfterHookWithPreviousValue,
             bool HasPartialAfterHook,
             bool HasPartialAfterHookWithPreviousValue,
+            bool HasCustomSetter,
             Location Location
         )> plans,
         Compilation compilation,
@@ -813,6 +816,7 @@ public sealed class ObservableGenerator : IIncrementalGenerator
             string? AfterHookWithPreviousValue,
             bool HasPartialAfterHook,
             bool HasPartialAfterHookWithPreviousValue,
+            bool HasCustomSetter,
             Location Location
         )> plans,
         (
@@ -1054,6 +1058,7 @@ public sealed class ObservableGenerator : IIncrementalGenerator
             string? AfterHookWithPreviousValue,
             bool HasPartialAfterHook,
             bool HasPartialAfterHookWithPreviousValue,
+            bool HasCustomSetter,
             Location Location
         ) plan,
         (
@@ -1167,19 +1172,39 @@ public sealed class ObservableGenerator : IIncrementalGenerator
                 .AppendLine("?.Invoke(previousValue, assignedValue);");
         builder.AppendLine("    }");
 
-        builder.AppendLine("    /// <summary>Assigns the value of the property.</summary>");
-        builder.AppendLine("    /// <param name=\"value\">The value to assign.</param>");
-        builder
-            .Append("    ")
-            .Append("protected virtual void ")
-            .Append(setterName)
-            .Append('(')
-            .Append(typeName)
-            .AppendLine(" value)");
-        builder.AppendLine("    {");
-        builder.Append("        ").Append(fieldName).AppendLine(" = value;");
-        builder.AppendLine("    }");
+        if (!plan.HasCustomSetter)
+        {
+            builder.AppendLine("    /// <summary>Assigns the value of the property.</summary>");
+            builder.AppendLine("    /// <param name=\"value\">The value to assign.</param>");
+            builder
+                .Append("    ")
+                .Append("protected virtual void ")
+                .Append(setterName)
+                .Append('(')
+                .Append(typeName)
+                .AppendLine(" value)");
+            builder.AppendLine("    {");
+            builder.Append("        ").Append(fieldName).AppendLine(" = value;");
+            builder.AppendLine("    }");
+        }
     }
+
+    /// <summary>Checks whether the type declares a compatible custom observable setter.</summary>
+    /// <param name="type">The type containing the observable field.</param>
+    /// <param name="setterName">The setter method name.</param>
+    /// <param name="fieldType">The observable field type.</param>
+    /// <returns><see langword="true"/> when a matching setter is declared.</returns>
+    private static bool HasSetter(INamedTypeSymbol type, string setterName, ITypeSymbol fieldType) =>
+        type.GetMembers(setterName)
+            .OfType<IMethodSymbol>()
+            .Any(method =>
+                !method.IsStatic
+                && method.MethodKind == MethodKind.Ordinary
+                && method.DeclaredAccessibility == Accessibility.Protected
+                && method.Parameters.Length == 1
+                && method.Parameters[0].RefKind == RefKind.None
+                && SymbolEqualityComparer.Default.Equals(method.Parameters[0].Type, fieldType)
+            );
 
     /// <summary>
     /// Determines whether the field requests a generated typed change event.

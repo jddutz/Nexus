@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Operations;
@@ -94,6 +95,20 @@ public sealed class ObservableAnalyzer : DiagnosticAnalyzer
             || !fieldReference.Field.GetAttributes().Any(attribute =>
                 SymbolEqualityComparer.Default.Equals(attribute.AttributeClass, observableAttribute)
             )
+        )
+            return;
+
+        var propertyName = fieldReference.Field.Name.TrimStart('_');
+        if (
+            propertyName.Length > 0
+            && fieldReference.Syntax.Ancestors()
+                .OfType<MethodDeclarationSyntax>()
+                .Any(method =>
+                    method.Identifier.ValueText
+                    == "Set"
+                        + char.ToUpperInvariant(propertyName[0])
+                        + propertyName.Substring(1)
+                )
         )
             return;
 

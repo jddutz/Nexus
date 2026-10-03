@@ -465,8 +465,11 @@ public class GraphicalUserInterfaceTests
         gui.Update(0);
         element.Margins = new Margins(2f, 3f, 4f, 5f);
         gui.Update(0);
+        element.HorizontalAlignment = AlignHorizontal.Left;
+        element.VerticalAlignment = AlignVertical.Top;
+        gui.Update(0);
 
-        Assert.Equal(2, arrangementCount);
+        Assert.Equal(3, arrangementCount);
         Assert.Equal(new Rectangle<float>(2f, 4f, 95f, 71f), element.Bounds);
     }
 

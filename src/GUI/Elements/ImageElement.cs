@@ -56,13 +56,8 @@ public partial class ImageElement : Element
     public event Action<Rectangle<int>?, Rectangle<int>?>? SourceRegionChanged;
 
     [Observable(PublicSetter = true)]
-    private SizingMode _sizingMode = SizingMode.Original;
+    private ImageSizingMode _sizingMode = ImageSizingMode.Original;
 
-    [Observable]
-    private AlignHorizontal _horizontalAlignment = AlignHorizontal.Center;
-
-    [Observable]
-    private AlignVertical _verticalAlignment = AlignVertical.Center;
     private Vector2D<float>? _customSize;
     private Vector4D<float>? _customTexCoord;
 
@@ -78,30 +73,14 @@ public partial class ImageElement : Element
 
     /// <summary>Validates the proposed sizing mode and custom-size configuration.</summary>
     /// <param name="value">The proposed sizing mode.</param>
-    private void BeforeSizingModeChanges(SizingMode value)
+    private void BeforeSizingModeChanges(ImageSizingMode value)
     {
         if (!Enum.IsDefined(value))
             throw new ArgumentOutOfRangeException(nameof(value));
-        if (value == SizingMode.Custom && (_customSize is null || _customTexCoord is null))
+        if (value == ImageSizingMode.Custom && (_customSize is null || _customTexCoord is null))
             throw new InvalidOperationException(
                 "Use SetCustomSizingMode to provide a custom size and UV rectangle."
             );
-    }
-
-    /// <summary>Validates the proposed horizontal alignment.</summary>
-    /// <param name="value">The proposed horizontal alignment.</param>
-    private void BeforeHorizontalAlignmentChanges(AlignHorizontal value)
-    {
-        if (!Enum.IsDefined(value))
-            throw new ArgumentOutOfRangeException(nameof(value));
-    }
-
-    /// <summary>Validates the proposed vertical alignment.</summary>
-    /// <param name="value">The proposed vertical alignment.</param>
-    private void BeforeVerticalAlignmentChanges(AlignVertical value)
-    {
-        if (!Enum.IsDefined(value))
-            throw new ArgumentOutOfRangeException(nameof(value));
     }
 
     /// <summary>Rejects a null sampling behavior.</summary>
@@ -161,8 +140,8 @@ public partial class ImageElement : Element
             configurationChanged = true;
         }
 
-        if (SizingMode != SizingMode.Custom)
-            SetSizingMode(SizingMode.Custom);
+        if (SizingMode != ImageSizingMode.Custom)
+            SetSizingMode(ImageSizingMode.Custom);
         if (configurationChanged)
             UpdateTextureSource();
     }
@@ -176,14 +155,18 @@ public partial class ImageElement : Element
             return Vector2D<float>.Zero;
 
         var contentConstraint = GetContentConstraint(constraint);
+        contentConstraint = new(
+            MathF.Min(contentConstraint.X, Width ?? contentConstraint.X),
+            MathF.Min(contentConstraint.Y, Height ?? contentConstraint.Y)
+        );
         if (contentConstraint.X == 0f || contentConstraint.Y == 0f)
             return IncludeMargins(Vector2D<float>.Zero);
 
         var imageSize = GetImageSize(GetEffectiveSourceRegion(texture), contentConstraint);
         return IncludeMargins(
             new(
-                MathF.Min(imageSize.X, contentConstraint.X),
-                MathF.Min(imageSize.Y, contentConstraint.Y)
+                Width is null ? MathF.Min(imageSize.X, contentConstraint.X) : contentConstraint.X,
+                Height is null ? MathF.Min(imageSize.Y, contentConstraint.Y) : contentConstraint.Y
             )
         );
     }
@@ -193,7 +176,12 @@ public partial class ImageElement : Element
     {
         ValidateBounds(bounds);
         base.Arrange(bounds);
-        UpdateVisualComponent(GetContentBounds(bounds));
+        var availableBounds = GetContentBounds(bounds);
+        var contentSize = new Vector2D<float>(
+            MathF.Min(availableBounds.Size.X, Width ?? availableBounds.Size.X),
+            MathF.Min(availableBounds.Size.Y, Height ?? availableBounds.Size.Y)
+        );
+        UpdateVisualComponent(GetAlignedContentBounds(bounds, contentSize));
     }
 
     /// <summary>Synchronizes the image drawable and hit bounds with the current allocation.</summary>
@@ -324,21 +312,21 @@ public partial class ImageElement : Element
         var sourceSize = new Vector2D<float>(sourceWidth, sourceHeight);
         var imageSize = SizingMode switch
         {
-            SizingMode.Original => sourceSize,
-            SizingMode.Fit => sourceSize
+            ImageSizingMode.Original => sourceSize,
+            ImageSizingMode.Fit => sourceSize
                 * MathF.Min(availableSize.X / sourceSize.X, availableSize.Y / sourceSize.Y),
-            SizingMode.FitHorizontal => new(
+            ImageSizingMode.FitHorizontal => new(
                 availableSize.X,
                 sourceSize.Y * availableSize.X / sourceSize.X
             ),
-            SizingMode.FitVertical => new(
+            ImageSizingMode.FitVertical => new(
                 sourceSize.X * availableSize.Y / sourceSize.Y,
                 availableSize.Y
             ),
-            SizingMode.Fill => sourceSize
+            ImageSizingMode.Fill => sourceSize
                 * MathF.Max(availableSize.X / sourceSize.X, availableSize.Y / sourceSize.Y),
-            SizingMode.Stretch => availableSize,
-            SizingMode.Custom => _customSize!.Value,
+            ImageSizingMode.Stretch => availableSize,
+            ImageSizingMode.Custom => _customSize!.Value,
             _ => throw new InvalidOperationException("The configured sizing mode is invalid."),
         };
         if (
@@ -384,7 +372,7 @@ public partial class ImageElement : Element
     /// <returns>The custom UV rectangle in custom mode, or the source pixel rectangle normalized.</returns>
     private Vector4D<float> GetActiveTexCoord(Texture texture, Rectangle<int> region)
     {
-        if (SizingMode == SizingMode.Custom)
+        if (SizingMode == ImageSizingMode.Custom)
             return _customTexCoord!.Value;
 
         return new(

@@ -45,8 +45,8 @@ internal sealed class HelloNexusSceneFactory(
         camera.SetViewportSize(mainWindow.Size.X, mainWindow.Size.Y);
 
         var guiLayer = 1UL << scene.RenderLayers[0]!.Index;
-        var backgroundLayer = 1UL
-            << scene.RenderLayers.Create("Background", RenderPasses.Main).Index;
+        var backgroundLayer =
+            1UL << scene.RenderLayers.Create("Background", RenderPasses.Main).Index;
         var backgroundView = sceneView.Components.OfType<ViewComponent>().Single();
         backgroundView.Name = "Background";
         backgroundView.LayerMask = backgroundLayer;
@@ -69,13 +69,11 @@ internal sealed class HelloNexusSceneFactory(
         var textStyle = CreateRobotoTextStyle();
         const string pressText = "Press ESC to quit";
         var pressTextElement = new TextElement(pressText, textStyle, 1, guiLayer);
+        pressTextElement.HorizontalAlignment = AlignHorizontal.Center;
+        pressTextElement.VerticalAlignment = AlignVertical.Center;
 
         const string welcomeText = "Welcome to the Nexus";
-        var welcomeTextElement = new TextElement(
-            welcomeText,
-            textStyle,
-            renderLayerMask: guiLayer
-        );
+        var welcomeTextElement = new TextElement(welcomeText, textStyle, renderLayerMask: guiLayer);
 
         const string buttonLabel = "Start Physics Test";
         var buttonElement = new TextButton(
@@ -85,7 +83,15 @@ internal sealed class HelloNexusSceneFactory(
             verticalPadding: 10f,
             renderLayerMask: guiLayer,
             sourceBorders: new(64f, 64f, 64f, 64f)
-        ) { Label = buttonLabel };
+        )
+        {
+            Label = buttonLabel,
+        };
+        var buttonSize = buttonElement.Measure(
+            new Vector2D<float>(mainWindow.Size.X, mainWindow.Size.Y)
+        );
+        buttonElement.Width = buttonSize.X + 100f;
+        buttonElement.Height = buttonSize.Y;
         var buttonFocused = false;
         buttonElement.Action = () => buttonElement.Label = "Physics Test Started";
         buttonElement
@@ -105,30 +111,51 @@ internal sealed class HelloNexusSceneFactory(
             }
         )
             inputMap.OnAnyControllerButtonPressed(direction).Invoke(() => buttonFocused = true);
-        const float buttonLabelGap = 10f;
-
         var audioTexture = textureProvider.Get((ContentId)"icon_audio_on");
-        var leftIcon = CreateAudioIconElement(audioTexture, guiLayer);
-        var rightIcon = CreateAudioIconElement(audioTexture, guiLayer);
-        var middleHeader = new MiddleHeaderElement(pressTextElement);
+        var leftIcon = new ImageElement
+        {
+            Texture = audioTexture,
+            SizingMode = ImageSizingMode.Fit,
+            HorizontalAlignment = AlignHorizontal.Left,
+            Margins = new Margins(10f, 0f, 0f, 0f),
+            RenderLayerMask = guiLayer,
+        };
+        var rightIcon = new ImageElement
+        {
+            Texture = audioTexture,
+            SizingMode = ImageSizingMode.Fit,
+            HorizontalAlignment = AlignHorizontal.Right,
+            Margins = new Margins(0f, 10f, 0f, 0f),
+            RenderLayerMask = guiLayer,
+        };
+        buttonElement.HorizontalAlignment = AlignHorizontal.Center;
+        buttonElement.VerticalAlignment = AlignVertical.Top;
+        buttonElement.Margins = new Margins(10f);
+        welcomeTextElement.HorizontalAlignment = AlignHorizontal.Center;
+        welcomeTextElement.VerticalAlignment = AlignVertical.Bottom;
+        welcomeTextElement.Margins = new Margins(10f);
 
-        var header = new HeaderElement(leftIcon, middleHeader, rightIcon);
-
-        var main = new MainContentElement(welcomeTextElement, buttonElement, buttonLabelGap);
-
-        var textLayout = new TextLayoutElement(header, main);
-        scene.Children.Add(textLayout);
+        var grid = new GridLayout();
+        grid.Columns =
+        [
+            GridSize.Relative(1f),
+            GridSize.Relative(1f),
+            GridSize.Relative(1f),
+        ];
+        grid.Rows =
+        [
+            GridSize.Absolute(40f),
+            GridSize.Relative(1f),
+            GridSize.Relative(1f),
+        ];
+        grid.SetCell(0, 0, leftIcon);
+        grid.SetCell(0, 1, pressTextElement);
+        grid.SetCell(0, 2, rightIcon);
+        grid.SetCell(1, 1, welcomeTextElement);
+        grid.SetCell(2, 1, buttonElement);
+        scene.Children.Add(grid);
 
         return scene;
-    }
-
-    /// <summary>Creates an audio icon element with a nominal fixed 48-by-48 size.</summary>
-    /// <param name="texture">The audio icon texture.</param>
-    /// <param name="renderLayerMask">The render layer selected by the header view.</param>
-    /// <returns>The arranged icon element.</returns>
-    private static Element CreateAudioIconElement(Texture texture, ulong renderLayerMask)
-    {
-        return new AudioIconElement(texture, renderLayerMask);
     }
 
     /// <summary>
@@ -153,255 +180,19 @@ internal sealed class HelloNexusSceneFactory(
         {
             base.Arrange(bounds);
             var texture = _texture.Texture!;
-            var boundsAspectRatio = bounds.Size.X / bounds.Size.Y;
+            var boundsAspectRatio = Bounds.Size.X / Bounds.Size.Y;
             var textureAspectRatio = (float)texture.Width / texture.Height;
             var imageSize =
                 boundsAspectRatio > textureAspectRatio
-                    ? new Vector2D<float>(bounds.Size.X, bounds.Size.X / textureAspectRatio)
-                    : new Vector2D<float>(bounds.Size.Y * textureAspectRatio, bounds.Size.Y);
+                    ? new Vector2D<float>(Bounds.Size.X, Bounds.Size.X / textureAspectRatio)
+                    : new Vector2D<float>(Bounds.Size.Y * textureAspectRatio, Bounds.Size.Y);
 
             _texture.Destination = new Rectangle<float>(
-                bounds.Origin.X + (bounds.Size.X - imageSize.X) / 2f,
-                bounds.Origin.Y + (bounds.Size.Y - imageSize.Y) / 2f,
+                Bounds.Origin.X + (Bounds.Size.X - imageSize.X) / 2f,
+                Bounds.Origin.Y + (Bounds.Size.Y - imageSize.Y) / 2f,
                 imageSize.X,
                 imageSize.Y
             );
-        }
-    }
-
-    /// <summary>Arranges a fitted text element within the middle header.</summary>
-    private sealed class MiddleHeaderElement : Element
-    {
-        private readonly TextElement _textElement;
-
-        /// <summary>Initializes the header around its text element.</summary>
-        /// <param name="textElement">The fitted instruction text.</param>
-        public MiddleHeaderElement(TextElement textElement)
-        {
-            _textElement = textElement;
-            AddChild(textElement);
-        }
-
-        /// <inheritdoc />
-        public override void Arrange(Rectangle<float> bounds)
-        {
-            Bounds = bounds;
-            _textElement.Arrange(bounds);
-        }
-    }
-
-    /// <summary>Arranges the two audio icons around the centered middle header.</summary>
-    private sealed class HeaderElement : Element
-    {
-        private readonly Element _leftIcon;
-        private readonly Element _middle;
-        private readonly Element _rightIcon;
-
-        /// <summary>Initializes the header with its three arranged children.</summary>
-        /// <param name="leftIcon">The leading audio icon.</param>
-        /// <param name="middle">The centered instruction element.</param>
-        /// <param name="rightIcon">The trailing audio icon.</param>
-        public HeaderElement(Element leftIcon, Element middle, Element rightIcon)
-        {
-            _leftIcon = leftIcon;
-            _middle = middle;
-            _rightIcon = rightIcon;
-            AddChild(leftIcon);
-            AddChild(middle);
-            AddChild(rightIcon);
-        }
-
-        /// <inheritdoc />
-        public override Vector2D<float> Measure(Vector2D<float> constraint) =>
-            new(constraint.X, MathF.Min(48f, constraint.Y));
-
-        /// <inheritdoc />
-        public override void Arrange(Rectangle<float> bounds)
-        {
-            Bounds = bounds;
-            const float sectionPadding = 10f;
-            const float iconSize = 48f;
-            var gutter = MathF.Min(sectionPadding, bounds.Size.X / 2f);
-            var sideWidth = MathF.Min(iconSize, MathF.Max(0f, bounds.Size.X - gutter * 2f) / 2f);
-            var middleWidth = MathF.Max(0f, bounds.Size.X - sideWidth * 2f - gutter * 2f);
-
-            _leftIcon.Arrange(
-                new Rectangle<float>(bounds.Origin, new Vector2D<float>(sideWidth, bounds.Size.Y))
-            );
-            _middle.Arrange(
-                new Rectangle<float>(
-                    new Vector2D<float>(bounds.Origin.X + sideWidth + gutter, bounds.Origin.Y),
-                    new Vector2D<float>(middleWidth, bounds.Size.Y)
-                )
-            );
-            _rightIcon.Arrange(
-                new Rectangle<float>(
-                    new Vector2D<float>(
-                        bounds.Origin.X + bounds.Size.X - sideWidth,
-                        bounds.Origin.Y
-                    ),
-                    new Vector2D<float>(sideWidth, bounds.Size.Y)
-                )
-            );
-        }
-    }
-
-    /// <summary>Centers the welcome text and Physics button as one content group.</summary>
-    private sealed class MainContentElement : Element
-    {
-        private readonly TextElement _welcomeElement;
-        private readonly TextButton _button;
-        private readonly float _buttonGap;
-
-        /// <summary>Initializes the content group with its text and button children.</summary>
-        /// <param name="welcomeElement">The text element arranged above the button.</param>
-        /// <param name="button">The Physics button.</param>
-        /// <param name="buttonGap">The vertical gap between text and button.</param>
-        public MainContentElement(TextElement welcomeElement, TextButton button, float buttonGap)
-        {
-            _welcomeElement = welcomeElement;
-            _button = button;
-            _buttonGap = buttonGap;
-            AddChild(welcomeElement);
-            AddChild(button);
-        }
-
-        /// <inheritdoc />
-        public override Vector2D<float> Measure(Vector2D<float> constraint) => constraint;
-
-        /// <inheritdoc />
-        public override void Arrange(Rectangle<float> bounds)
-        {
-            Bounds = bounds;
-            var buttonSize = _button.Measure(bounds.Size);
-            var welcomeAvailableHeight = MathF.Max(0f, bounds.Size.Y - buttonSize.Y - _buttonGap);
-            var welcomeSize = _welcomeElement.Measure(
-                new Vector2D<float>(bounds.Size.X, welcomeAvailableHeight)
-            );
-            var groupHeight = welcomeSize.Y + _buttonGap + buttonSize.Y;
-            var groupTop = bounds.Origin.Y + (bounds.Size.Y - groupHeight) / 2f;
-            _welcomeElement.Arrange(
-                new Rectangle<float>(
-                    new Vector2D<float>(bounds.Origin.X, groupTop),
-                    new Vector2D<float>(bounds.Size.X, welcomeSize.Y)
-                )
-            );
-            _button.Arrange(
-                new Rectangle<float>(
-                    new Vector2D<float>(
-                        MathF.Round(bounds.Origin.X + (bounds.Size.X - buttonSize.X) / 2f),
-                        MathF.Round(groupTop + welcomeSize.Y + _buttonGap)
-                    ),
-                    buttonSize
-                )
-            );
-        }
-    }
-
-    /// <summary>
-    /// Places the header and main content within the welcome screen bounds.
-    /// </summary>
-    private sealed class TextLayoutElement : Element
-    {
-        private readonly HeaderElement _header;
-        private readonly MainContentElement _main;
-
-        /// <summary>
-        /// Initializes the screen layout with its header and main content.
-        /// </summary>
-        /// <param name="header">The top header.</param>
-        /// <param name="main">The centered main content.</param>
-        public TextLayoutElement(HeaderElement header, MainContentElement main)
-        {
-            _header = header;
-            _main = main;
-            AddChild(header);
-            AddChild(main);
-        }
-
-        /// <inheritdoc />
-        public override void Arrange(Rectangle<float> bounds)
-        {
-            Bounds = bounds;
-
-            const float headerMargin = 10f;
-            const float mainMargin = 24f;
-            const float sectionPadding = 10f;
-            var headerAvailable = new Vector2D<float>(
-                MathF.Max(0f, bounds.Size.X - headerMargin * 2f),
-                MathF.Max(0f, bounds.Size.Y - headerMargin * 2f)
-            );
-            var headerSize = _header.Measure(headerAvailable);
-            _header.Arrange(
-                new Rectangle<float>(
-                    new Vector2D<float>(
-                        bounds.Origin.X + headerMargin,
-                        bounds.Origin.Y + headerMargin
-                    ),
-                    headerSize
-                )
-            );
-
-            var mainOriginY = bounds.Origin.Y + headerMargin + headerSize.Y + sectionPadding;
-            var mainHeight = MathF.Max(
-                0f,
-                bounds.Size.Y - (mainOriginY - bounds.Origin.Y) - mainMargin
-            );
-            _main.Arrange(
-                new Rectangle<float>(
-                    new Vector2D<float>(bounds.Origin.X + mainMargin, mainOriginY),
-                    new Vector2D<float>(MathF.Max(0f, bounds.Size.X - mainMargin * 2f), mainHeight)
-                )
-            );
-        }
-    }
-
-    /// <summary>
-    /// Measures and crops an audio icon within a square maximum size.
-    /// </summary>
-    private sealed class AudioIconElement : Element
-    {
-        private const float IconSize = 48f;
-        private readonly TextureComponent _texture;
-
-        /// <summary>
-        /// Initializes an audio icon with its texture and render layer.
-        /// </summary>
-        /// <param name="texture">The icon texture.</param>
-        /// <param name="renderLayerMask">The render layer selected by the header view.</param>
-        public AudioIconElement(Texture texture, ulong renderLayerMask)
-            : this(new TextureComponent { Texture = texture, RenderLayerMask = renderLayerMask })
-        { }
-
-        /// <summary>
-        /// Initializes the icon from its owned texture component.
-        /// </summary>
-        /// <param name="texture">The owned icon texture component.</param>
-        private AudioIconElement(TextureComponent texture)
-            : base(components: [texture]) => _texture = texture;
-
-        /// <inheritdoc />
-        public override Vector2D<float> Measure(Vector2D<float> constraint) =>
-            new(MathF.Min(IconSize, constraint.X), MathF.Min(IconSize, constraint.Y));
-
-        /// <inheritdoc />
-        public override void Arrange(Rectangle<float> bounds)
-        {
-            var visibleSize = new Vector2D<float>(
-                MathF.Min(IconSize, bounds.Size.X),
-                MathF.Min(IconSize, bounds.Size.Y)
-            );
-            var cropRatio = new Vector2D<float>(visibleSize.X / IconSize, visibleSize.Y / IconSize);
-            var cropOrigin = new Vector2D<float>((1f - cropRatio.X) / 2f, (1f - cropRatio.Y) / 2f);
-            Bounds = new Rectangle<float>(
-                new Vector2D<float>(
-                    bounds.Origin.X + (bounds.Size.X - visibleSize.X) / 2f,
-                    bounds.Origin.Y + (bounds.Size.Y - visibleSize.Y) / 2f
-                ),
-                visibleSize
-            );
-            _texture.Destination = new Rectangle<float>(Bounds.Origin, visibleSize);
-            _texture.TexCoord = new(cropOrigin.X, cropOrigin.Y, cropRatio.X, cropRatio.Y);
         }
     }
 

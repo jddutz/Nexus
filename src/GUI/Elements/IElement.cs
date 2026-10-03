@@ -25,14 +25,20 @@ public interface IElement : IGameObject
     /// <summary>Occurs when the element loses focus.</summary>
     event EventHandler? FocusLost;
 
-    /// <summary>Gets or sets the explicit height requested for the element.</summary>
+    /// <summary>Gets or sets the requested content height, limited by available layout space.</summary>
     float? Height { get; set; }
 
-    /// <summary>Gets or sets the explicit width requested for the element.</summary>
+    /// <summary>Gets or sets the requested content width, limited by available layout space.</summary>
     float? Width { get; set; }
 
     /// <summary>Gets or sets the element bounds used for hit testing.</summary>
     Rectangle<float> Bounds { get; set; }
+
+    /// <summary>Gets or sets the horizontal alignment within the arranged allocation.</summary>
+    AlignHorizontal HorizontalAlignment { get; set; }
+
+    /// <summary>Gets or sets the vertical alignment within the arranged allocation.</summary>
+    AlignVertical VerticalAlignment { get; set; }
 
     /// <summary>
     /// Gets or sets the boundary regions that derived element types omit from rendering and computed bounds.

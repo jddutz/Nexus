@@ -14,39 +14,12 @@ public partial class Element : GameObject, IElement
     [Observable(PublicSetter = true)]
     private Rectangle<float> _bounds = default;
 
+    [Observable]
     private Margins _margins;
 
-    [Observable(PublicSetter = true)]
-    private bool _isVisible = true;
-
-    [Observable(PublicSetter = true)]
-    private bool _isEnabled = true;
-
-    [Observable(PublicSetter = true)]
-    private bool _canFocus;
-
-    [Observable(PublicSetter = true)]
-    private bool _isFocused;
-    private InputMap? _inputMap;
-
-    /// <summary>Gets or sets the non-rendered regions along the element boundaries.</summary>
-    public Margins Margins
-    {
-        get => _margins;
-        set
-        {
-            ValidateMargins(value);
-            if (_margins == value)
-                return;
-
-            _margins = value;
-            NotifyPropertyChanged(nameof(Margins));
-        }
-    }
-
-    /// <summary>Ensures margin dimensions are finite and non-negative.</summary>
-    /// <param name="value">The margins to validate.</param>
-    private static void ValidateMargins(Margins value)
+    /// <summary>Validates and assigns margins before the observable wrapper raises notifications.</summary>
+    /// <param name="value">The margins to assign.</param>
+    protected virtual void SetMargins(Margins value)
     {
         if (
             !float.IsFinite(value.Left)
@@ -62,7 +35,28 @@ public partial class Element : GameObject, IElement
                 nameof(value),
                 "Margin values must be finite and non-negative."
             );
+
+        _margins = value;
     }
+
+    [Observable]
+    private AlignHorizontal _horizontalAlignment = AlignHorizontal.Center;
+
+    [Observable]
+    private AlignVertical _verticalAlignment = AlignVertical.Center;
+
+    [Observable(PublicSetter = true)]
+    private bool _isVisible = true;
+
+    [Observable(PublicSetter = true)]
+    private bool _isEnabled = true;
+
+    [Observable(PublicSetter = true)]
+    private bool _canFocus;
+
+    [Observable(PublicSetter = true)]
+    private bool _isFocused;
+    private InputMap? _inputMap;
 
     /// <summary>
     /// Initializes an element with its owned components.
@@ -191,6 +185,40 @@ public partial class Element : GameObject, IElement
         );
     }
 
+    /// <summary>Aligns a desired content size within the allocation after applying margins.</summary>
+    /// <param name="bounds">The outer allocation.</param>
+    /// <param name="contentSize">The desired size of the rendered content.</param>
+    /// <returns>The aligned bounds, constrained to the available content area.</returns>
+    protected Rectangle<float> GetAlignedContentBounds(
+        Rectangle<float> bounds,
+        Vector2D<float> contentSize
+    )
+    {
+        var availableBounds = GetContentBounds(bounds);
+        var width = MathF.Min(MathF.Max(0f, contentSize.X), availableBounds.Size.X);
+        var height = MathF.Min(MathF.Max(0f, contentSize.Y), availableBounds.Size.Y);
+        var horizontalOffset = HorizontalAlignment switch
+        {
+            AlignHorizontal.Left => 0f,
+            AlignHorizontal.Center => (availableBounds.Size.X - width) / 2f,
+            AlignHorizontal.Right => availableBounds.Size.X - width,
+            _ => throw new InvalidOperationException("The horizontal alignment is invalid."),
+        };
+        var verticalOffset = VerticalAlignment switch
+        {
+            AlignVertical.Top => 0f,
+            AlignVertical.Center => (availableBounds.Size.Y - height) / 2f,
+            AlignVertical.Bottom => availableBounds.Size.Y - height,
+            _ => throw new InvalidOperationException("The vertical alignment is invalid."),
+        };
+        return new Rectangle<float>(
+            availableBounds.Origin.X + horizontalOffset,
+            availableBounds.Origin.Y + verticalOffset,
+            width,
+            height
+        );
+    }
+
     /// <summary>
     /// Measures the element within the specified constraint.
     /// </summary>
@@ -198,8 +226,16 @@ public partial class Element : GameObject, IElement
     /// <returns>The measured size.</returns>
     public virtual Vector2D<float> Measure(Vector2D<float> constraint)
     {
+        if (!IsEffectivelyVisible)
+            return Vector2D<float>.Zero;
+
         var contentConstraint = GetContentConstraint(constraint);
-        return IncludeMargins(new(Width ?? contentConstraint.X, Height ?? contentConstraint.Y));
+        return IncludeMargins(
+            new(
+                MathF.Min(Width ?? contentConstraint.X, contentConstraint.X),
+                MathF.Min(Height ?? contentConstraint.Y, contentConstraint.Y)
+            )
+        );
     }
 
     /// <summary>
@@ -208,10 +244,21 @@ public partial class Element : GameObject, IElement
     /// <param name="bounds">The allocation assigned to the element.</param>
     public virtual void Arrange(Rectangle<float> bounds)
     {
+        if (!IsEffectivelyVisible)
+        {
+            SetBounds(new Rectangle<float>(bounds.Origin, Vector2D<float>.Zero));
+            return;
+        }
+
+        var availableBounds = GetContentBounds(bounds);
         SetBounds(
-            IsEffectivelyVisible
-                ? GetContentBounds(bounds)
-                : new Rectangle<float>(bounds.Origin, Vector2D<float>.Zero)
+            GetAlignedContentBounds(
+                bounds,
+                new(
+                    MathF.Min(Width ?? availableBounds.Size.X, availableBounds.Size.X),
+                    MathF.Min(Height ?? availableBounds.Size.Y, availableBounds.Size.Y)
+                )
+            )
         );
     }
 }

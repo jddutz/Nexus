@@ -26,7 +26,7 @@ For each `[Observable]` backing field, generate:
 - A public getter.
 - A nonvirtual property setter: public when `ObservableAttribute.PublicSetter` is `true`, otherwise protected.
 - A private `__SetPropertyName` wrapper called by the property setter.
-- A protected virtual `SetPropertyName(T value)` mutation method.
+- A protected virtual `SetPropertyName(T value)` mutation method, unless the authored type provides a compatible protected setter.
 - Two protected virtual after-change hooks.
 
 `PublicSetter` controls the property setter's accessibility, not the accessibility of `SetPropertyName`.
@@ -43,7 +43,22 @@ The wrapper performs these steps in order:
 8. Call `NotifyPropertyChanged(nameof(PropertyName))`.
 9. Raise the typed change event when enabled.
 
-The default `SetPropertyName` implementation assigns the backing field. An override can control that assignment. The private wrapper owns change detection, after-change hooks, and notifications; direct calls to `SetPropertyName` perform mutation without that wrapper. Use property assignment when the full change pipeline is required.
+The default `SetPropertyName` implementation assigns the backing field. An authored protected `SetPropertyName(T value)` method replaces that generated default and controls assignment. This is the pre-assignment validation point: validate the incoming value before assigning the observable backing field. The private wrapper owns change detection, after-change hooks, and notifications; direct calls to `SetPropertyName` perform mutation without that wrapper. Use property assignment when the full change pipeline is required.
+
+For example, a property that must reject invalid values before changing state can provide:
+
+```csharp
+[Nexus.Core.Observable]
+private Margins _margins;
+
+protected virtual void SetMargins(Margins value)
+{
+    ValidateMargins(value);
+    _margins = value;
+}
+```
+
+The generator recognizes this protected setter, leaves its implementation intact, and still generates `__SetMargins` to perform comparisons, invoke after-change hooks, raise `PropertyChanged`, and raise the typed change event. The analyzer permits intentional backing-field access inside the matching custom setter.
 
 Capturing the assigned value before callbacks ensures that the typed event describes this assignment even if a callback performs another assignment.
 
@@ -123,11 +138,11 @@ public partial class Counter
 
 The example assumes the usual `System` and `System.Collections.Generic` imports. With `PublicSetter = false`, only the property setter changes to `protected set`. With `GenerateChangedEvent = false`, omit the typed event and its invocation; `PropertyChanged` notifications still occur.
 
-## Analyzer expectations and outstanding decisions
+## Analyzer expectations
 
-The analyzer warns on direct reads and writes of observable backing fields, including accesses inside authored mutation methods; exceptions for legitimate mutation methods remain unspecified. Event signatures must adhere to `IObservable`'s `Action<string>` contract.
+The analyzer warns on direct reads and writes of observable backing fields outside their matching custom `SetPropertyName` mutation method. Intentional assignment inside that setter is allowed because it is the generator's documented pre-validation extension point. Event signatures must adhere to `IObservable`'s `Action<string>` contract.
 
-The newly agreed wrapper does not specify automatic `ValidatePropertyName` or `BeforePropertyNameChanges` hook invocation. Their treatment remains unresolved; the obsolete document must not be used to infer that behavior. Deferred mutation is not an established requirement. Component-specific modification notifications remain separately owned.
+After-change hooks run only after the custom setter has accepted and assigned the value. Component-specific modification notifications remain separately owned.
 
 ## Implementation status and validation
 

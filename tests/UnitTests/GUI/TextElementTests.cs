@@ -40,6 +40,25 @@ public sealed class TextElementTests
         Assert.Equal(new Rectangle<float>(13.5f, 24f, 2f, 1f), element.Bounds);
     }
 
+    /// <summary>Verifies width and height cap the text measurement constraint.</summary>
+    [Fact]
+    public void WidthAndHeight_limitTextMeasurement()
+    {
+        var element = CreateTextElement("AB");
+        element.Width = 1f;
+        element.Height = 1f;
+
+        Assert.Equal(new Vector2D<float>(1f, 1f), element.Measure(new(10f, 10f)));
+        element.HorizontalAlignment = AlignHorizontal.Right;
+        element.VerticalAlignment = AlignVertical.Bottom;
+        element.Arrange(new Rectangle<float>(10f, 20f, 10f, 10f));
+
+        Assert.Equal(new Rectangle<float>(19f, 29f, 1f, 1f), element.Components
+            .OfType<TextComponent>()
+            .Single()
+            .Destination);
+    }
+
     /// <summary>Verifies a text element can be initialized before its rendering style is assigned.</summary>
     [Fact]
     public void Parameterless_construction_defers_drawables_until_style_is_assigned()

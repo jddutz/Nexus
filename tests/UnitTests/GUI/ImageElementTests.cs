@@ -14,14 +14,14 @@ public sealed class ImageElementTests
 {
     /// <summary>Verifies each sizing mode computes the expected arranged image bounds.</summary>
     [Theory]
-    [InlineData(SizingMode.Original, 10f, 21f, 4f, 2f)]
-    [InlineData(SizingMode.Fit, 10f, 21f, 4f, 2f)]
-    [InlineData(SizingMode.FitHorizontal, 10f, 21f, 4f, 2f)]
-    [InlineData(SizingMode.FitVertical, 10f, 20f, 4f, 4f)]
-    [InlineData(SizingMode.Fill, 10f, 20f, 4f, 4f)]
-    [InlineData(SizingMode.Stretch, 10f, 20f, 4f, 4f)]
+    [InlineData(ImageSizingMode.Original, 10f, 21f, 4f, 2f)]
+    [InlineData(ImageSizingMode.Fit, 10f, 21f, 4f, 2f)]
+    [InlineData(ImageSizingMode.FitHorizontal, 10f, 21f, 4f, 2f)]
+    [InlineData(ImageSizingMode.FitVertical, 10f, 20f, 4f, 4f)]
+    [InlineData(ImageSizingMode.Fill, 10f, 20f, 4f, 4f)]
+    [InlineData(ImageSizingMode.Stretch, 10f, 20f, 4f, 4f)]
     public void Arrange_sizesImageForConfiguredMode(
-        SizingMode sizingMode,
+        ImageSizingMode sizingMode,
         float x,
         float y,
         float width,
@@ -29,7 +29,7 @@ public sealed class ImageElementTests
     )
     {
         var element = CreateImageElement(4, 2);
-        if (sizingMode != SizingMode.Original)
+        if (sizingMode != ImageSizingMode.Original)
             element.SizingMode = sizingMode;
 
         element.Arrange(new Rectangle<float>(10f, 20f, 4f, 4f));
@@ -51,6 +51,22 @@ public sealed class ImageElementTests
         var expectedImageBounds = new Rectangle<float>(12.5f, 23.5f, 4f, 2f);
         AssertBounds(expectedImageBounds, element.Bounds);
         Assert.Equal(expectedImageBounds, element.GetComponent<TextureComponent>()!.Destination);
+    }
+
+    /// <summary>Verifies image dimensions are capped by the element's requested size.</summary>
+    [Fact]
+    public void WidthAndHeight_capMeasuredAndArrangedImageSize()
+    {
+        var element = CreateImageElement(4, 2);
+        element.Width = 2f;
+        element.Height = 1f;
+
+        Assert.Equal(new Vector2D<float>(2f, 1f), element.Measure(new(10f, 10f)));
+        element.Arrange(new Rectangle<float>(10f, 20f, 10f, 10f));
+
+        var expectedBounds = new Rectangle<float>(14f, 24.5f, 2f, 1f);
+        AssertBounds(expectedBounds, element.Bounds);
+        Assert.Equal(expectedBounds, element.GetComponent<TextureComponent>()!.Destination);
     }
 
     /// <summary>Verifies custom sizing uses its independent UV rectangle and validates inputs.</summary>
@@ -108,10 +124,7 @@ public sealed class ImageElementTests
     [Fact]
     public void SourceRegion_isValidatedWhenTextureIsAssigned()
     {
-        var element = new ImageElement
-        {
-            SourceRegion = new Rectangle<int>(0, 0, 5, 3),
-        };
+        var element = new ImageElement { SourceRegion = new Rectangle<int>(0, 0, 5, 3) };
 
         Assert.Throws<ArgumentOutOfRangeException>(() => element.Texture = CreateTexture(4, 2));
         Assert.Null(element.Texture);
@@ -173,11 +186,7 @@ public sealed class ImageElementTests
         int width,
         int height,
         Rectangle<int>? sourceRegion = null
-    ) => new()
-    {
-        Texture = CreateTexture(width, height),
-        SourceRegion = sourceRegion,
-    };
+    ) => new() { Texture = CreateTexture(width, height), SourceRegion = sourceRegion };
 
     /// <summary>Creates a deterministic in-memory RGBA texture.</summary>
     /// <param name="width">The texture width.</param>
@@ -208,9 +217,9 @@ public sealed class ImageElementTests
     {
         var layout = BuiltInShaders.TexturedQuadVertexShader.InstanceLayout;
         var data = new byte[checked(layout.Sum(input => input.Size))];
-        Assert.Single(component.Drawables).WriteInstanceDataTo(
-            checked((ulong)index), 1, layout, data
-        );
+        Assert
+            .Single(component.Drawables)
+            .WriteInstanceDataTo(checked((ulong)index), 1, layout, data);
         var transformSize = System.Runtime.CompilerServices.Unsafe.SizeOf<Matrix4X4<float>>();
         return (
             MemoryMarshal.Read<Matrix4X4<float>>(data),

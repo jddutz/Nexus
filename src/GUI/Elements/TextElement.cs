@@ -22,28 +22,6 @@ public partial class TextElement : Element
     [Observable(PublicSetter = true)]
     private ITextStyle? _style;
 
-    [Observable]
-    private AlignHorizontal _horizontalAlignment = AlignHorizontal.Center;
-
-    [Observable]
-    private AlignVertical _verticalAlignment = AlignVertical.Center;
-
-    /// <summary>Validates the proposed horizontal alignment.</summary>
-    /// <param name="value">The proposed horizontal alignment.</param>
-    private void BeforeHorizontalAlignmentChanges(AlignHorizontal value)
-    {
-        if (!Enum.IsDefined(value))
-            throw new ArgumentOutOfRangeException(nameof(value));
-    }
-
-    /// <summary>Validates the proposed vertical alignment.</summary>
-    /// <param name="value">The proposed vertical alignment.</param>
-    private void BeforeVerticalAlignmentChanges(AlignVertical value)
-    {
-        if (!Enum.IsDefined(value))
-            throw new ArgumentOutOfRangeException(nameof(value));
-    }
-
     /// <summary>Updates the component's line limit after it changes.</summary>
     /// <param name="previousValue">The previous line limit.</param>
     protected virtual partial void AfterMaximumLinesChanges(int? previousValue)
@@ -113,8 +91,19 @@ public partial class TextElement : Element
             return Vector2D<float>.Zero;
 
         EnsureVisualComponent();
+        var contentConstraint = GetContentConstraint(constraint);
+        var measuredSize =
+            _textComponent?.Measure(
+                new(
+                    MathF.Min(contentConstraint.X, Width ?? contentConstraint.X),
+                    MathF.Min(contentConstraint.Y, Height ?? contentConstraint.Y)
+                )
+            ) ?? Vector2D<float>.Zero;
         return IncludeMargins(
-            _textComponent?.Measure(GetContentConstraint(constraint)) ?? Vector2D<float>.Zero
+            new(
+                Width is null ? measuredSize.X : MathF.Min(Width.Value, contentConstraint.X),
+                Height is null ? measuredSize.Y : MathF.Min(Height.Value, contentConstraint.Y)
+            )
         );
     }
 
@@ -136,7 +125,11 @@ public partial class TextElement : Element
         _textComponent.Text = Text;
         _textComponent.MaximumLines = MaximumLines;
         _textComponent.Wrap = true;
-        _textComponent.Destination = contentBounds;
+        var contentSize = new Vector2D<float>(
+            MathF.Min(contentBounds.Size.X, Width ?? contentBounds.Size.X),
+            MathF.Min(contentBounds.Size.Y, Height ?? contentBounds.Size.Y)
+        );
+        _textComponent.Destination = GetAlignedContentBounds(bounds, contentSize);
         _textComponent.Alignment = new Vector2D<float>(
             GetHorizontalAlignment(),
             GetVerticalAlignment()

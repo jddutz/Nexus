@@ -509,10 +509,10 @@ public sealed class ObservableSourceGeneratorTests
     }
 
     /// <summary>
-    /// Verifies partial setter declarations conflict with the generated virtual mutation method.
+    /// Verifies a protected custom setter replaces the generated default assignment method.
     /// </summary>
     [Fact]
-    public void PartialProtectedSetterDeclarationProducesConflict()
+    public void ProtectedSetterImplementationReplacesGeneratedSetter()
     {
         var source =
             ObservableContract
@@ -526,15 +526,30 @@ public sealed class ObservableSourceGeneratorTests
                         [Nexus.Core.Observable]
                         private bool _isBooleanProperty;
 
-                        protected partial void SetIsBooleanProperty(bool value);
+                        protected virtual void SetIsBooleanProperty(bool value)
+                        {
+                            _isBooleanProperty = value;
+                        }
                     }
                 }
                 """;
 
         var result = RunGenerator(source);
 
-        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Id == "NXS012");
-        Assert.Empty(result.GeneratedSources);
+        Assert.DoesNotContain(
+            result.Diagnostics,
+            diagnostic => diagnostic.Severity == DiagnosticSeverity.Error
+        );
+        Assert.DoesNotContain(
+            result.Compilation.GetDiagnostics(),
+            diagnostic => diagnostic.Severity == DiagnosticSeverity.Error
+        );
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+        Assert.DoesNotContain(
+            "protected virtual void SetIsBooleanProperty(bool value)",
+            generated,
+            StringComparison.Ordinal
+        );
     }
 
     /// <summary>

@@ -78,16 +78,20 @@ public sealed class TextButtonTests
         var button = CreateButton("A");
         button.Margins = new Margins(1f, 2f, 3f, 4f);
         button.Padding = new Margins(5f, 6f, 7f, 8f);
+        button.Width = 12f;
+        button.Height = 16f;
+        button.HorizontalAlignment = AlignHorizontal.Left;
+        button.VerticalAlignment = AlignVertical.Top;
         var allocation = new Rectangle<float>(10f, 20f, 60f, 24f);
 
         Assert.Equal(new Vector2D<float>(15f, 23f), button.Measure(new(100f, 100f)));
         button.Arrange(allocation);
 
-        var contentBounds = new Rectangle<float>(11f, 23f, 57f, 17f);
+        var contentBounds = new Rectangle<float>(11f, 23f, 12f, 16f);
         Assert.Equal(contentBounds, button.Bounds);
         Assert.Equal(contentBounds, button.GetComponent<NinePatchComponent>()!.Destination);
         var text = Assert.IsType<TextComponent>(Assert.Single(button.Components.OfType<TextComponent>()));
-        Assert.Equal(new Rectangle<float>(16f, 30f, 46f, 2f), text.Destination);
+        Assert.Equal(new Rectangle<float>(16f, 30f, 1f, 1f), text.Destination);
     }
 
     /// <summary>Verifies hiding removes visuals while retaining layout state for fresh components.</summary>
@@ -161,10 +165,10 @@ public sealed class TextButtonTests
     }
 
     /// <summary>
-    /// Verifies the background and hit area use the complete arranged bounds.
+    /// Verifies the button fills its allocation by default and keeps its label centered.
     /// </summary>
     [Fact]
-    public void Arrange_keepsFullBoundsForBackgroundAndHitArea()
+    public void Arrange_fillsAllocationAndCentersItsLabel()
     {
         var button = CreateButton("A");
         var bounds = new Rectangle<float>(4f, 5f, 60f, 24f);
@@ -180,10 +184,19 @@ public sealed class TextButtonTests
         Assert.Equal(0x1UL, background.RenderLayerMask);
         Assert.Equal(0x1UL, label.RenderLayerMask);
         Assert.Equal(bounds, background.Destination);
-        Assert.Equal(new Rectangle<float>(8f, 8f, 52f, 18f), label.Destination);
+        Assert.Equal(
+            new Rectangle<float>(
+                bounds.Origin.X + 4f,
+                bounds.Origin.Y + 3f,
+                bounds.Size.X - 8f,
+                bounds.Size.Y - 6f
+            ),
+            label.Destination
+        );
         Assert.Equal("A", label.Text);
         Assert.False(label.Wrap);
         Assert.Equal(1, label.MaximumLines);
+        Assert.Equal(new Vector2D<float>(0.5f, 0.5f), label.Alignment);
         Assert.Equal(1UL, DrawableTestData.TextInstanceCount(button));
 
         button.RenderLayerMask = 0x2;
@@ -195,34 +208,74 @@ public sealed class TextButtonTests
     }
 
     /// <summary>
-    /// Verifies padding and alignment update the text layout without moving the button.
+    /// Verifies padding changes button size and shared alignment places the whole button.
     /// </summary>
     [Fact]
-    public void PaddingAndAlignment_controlMeasurementAndLabelPosition()
+    public void PaddingAndAlignment_measureAndPositionTheButton()
     {
         var button = CreateButton("A");
-        var measuredSize = button.Measure(new(100f, 100f));
-        var bounds = new Rectangle<float>(0f, 0f, 60f, 24f);
+        var bounds = new Rectangle<float>(10f, 20f, 60f, 40f);
+        var initialSize = button.Measure(bounds.Size);
+        button.Width = initialSize.X;
+        button.Height = initialSize.Y;
+        button.HorizontalAlignment = AlignHorizontal.Center;
+        button.VerticalAlignment = AlignVertical.Bottom;
+        button.Arrange(bounds);
+        var initialButtonBounds = new Rectangle<float>(
+            bounds.Origin.X + (bounds.Size.X - initialSize.X) / 2f,
+            bounds.Max.Y - initialSize.Y,
+            initialSize.X,
+            initialSize.Y
+        );
+        Assert.Equal(initialButtonBounds, button.Bounds);
+
+        button.Padding = new(8f, 6f);
+        button.Width = null;
+        button.Height = null;
+        var paddedSize = button.Measure(bounds.Size);
+        button.Width = paddedSize.X;
+        button.Height = paddedSize.Y;
         button.Arrange(bounds);
         var text = Assert.IsType<TextComponent>(Assert.Single(button.Components.OfType<TextComponent>()));
-        var centeredTextOrigin = text.LayoutBounds.Origin.X;
-        button.LabelAlignment = TextButtonLabelAlignment.Start;
-        button.Arrange(bounds);
-        var startTextOrigin = text.LayoutBounds.Origin.X;
-        button.LabelAlignment = TextButtonLabelAlignment.End;
-        button.Arrange(bounds);
-        var endTextOrigin = text.LayoutBounds.Origin.X;
-        button.Padding = new(8f, 6f);
-        button.Arrange(bounds);
-
-        Assert.True(startTextOrigin < centeredTextOrigin);
-        Assert.True(centeredTextOrigin < endTextOrigin);
-        Assert.Equal(new Rectangle<float>(8f, 6f, 44f, 12f), text.Destination);
-        Assert.Equal(bounds, button.Bounds);
-        Assert.Equal(
-            new Vector2D<float>(measuredSize.X + 8f, measuredSize.Y + 6f),
-            button.Measure(new(100f, 100f))
+        var paddedButtonBounds = new Rectangle<float>(
+            bounds.Origin.X + (bounds.Size.X - paddedSize.X) / 2f,
+            bounds.Max.Y - paddedSize.Y,
+            paddedSize.X,
+            paddedSize.Y
         );
+
+        Assert.Equal(paddedButtonBounds, button.Bounds);
+        Assert.Equal(
+            new Rectangle<float>(
+                paddedButtonBounds.Origin.X + 8f,
+                paddedButtonBounds.Origin.Y + 6f,
+                paddedButtonBounds.Size.X - 16f,
+                paddedButtonBounds.Size.Y - 12f
+            ),
+            text.Destination
+        );
+        Assert.Equal(new Vector2D<float>(0.5f, 0.5f), text.Alignment);
+        Assert.Equal(
+            new Vector2D<float>(initialSize.X + 8f, initialSize.Y + 6f),
+            paddedSize
+        );
+    }
+
+    /// <summary>Verifies explicit button dimensions measure and arrange to a capped size.</summary>
+    [Fact]
+    public void ExplicitDimensions_matchMeasuredAndArrangedSize()
+    {
+        var button = CreateButton("A");
+        button.Width = 300f;
+        button.Height = 100f;
+        button.HorizontalAlignment = AlignHorizontal.Center;
+        button.VerticalAlignment = AlignVertical.Bottom;
+        var allocation = new Rectangle<float>(10f, 20f, 500f, 200f);
+
+        Assert.Equal(new Vector2D<float>(300f, 100f), button.Measure(allocation.Size));
+        button.Arrange(allocation);
+
+        Assert.Equal(new Rectangle<float>(110f, 120f, 300f, 100f), button.Bounds);
     }
 
     /// <summary>
@@ -246,17 +299,18 @@ public sealed class TextButtonTests
         Assert.Equal(2, button.Components.Count);
     }
 
-    /// <summary>Verifies the assigned action runs for a click anywhere within the full bounds.</summary>
+    /// <summary>Verifies the assigned action runs for a click within the aligned button bounds.</summary>
     [Fact]
-    public void ClickInsideFullBounds_invokesAssignedAction()
+    public void ClickInsideAlignedButtonBounds_invokesAssignedAction()
     {
         var (eventHub, button) = CreateAttachedButton();
         var mouse = new TestMouse(1);
         var actionCount = 0;
         button.Action = () => actionCount++;
+        var position = GetCenter(button.Bounds);
 
-        Publish(eventHub, new MouseButtonPressedEvent(mouse, MouseButtonEnum.Left, new(63f, 28f)));
-        Publish(eventHub, new MouseButtonReleasedEvent(mouse, MouseButtonEnum.Left, new(63f, 28f)));
+        Publish(eventHub, new MouseButtonPressedEvent(mouse, MouseButtonEnum.Left, position));
+        Publish(eventHub, new MouseButtonReleasedEvent(mouse, MouseButtonEnum.Left, position));
 
         Assert.Equal(1, actionCount);
     }
@@ -292,8 +346,9 @@ public sealed class TextButtonTests
         var mouse = new TestMouse(5);
         var actionCount = 0;
         button.Action = () => actionCount++;
+        var initialPosition = GetCenter(button.Bounds);
 
-        Publish(eventHub, new MouseButtonPressedEvent(mouse, MouseButtonEnum.Left, new(10f, 10f)));
+        Publish(eventHub, new MouseButtonPressedEvent(mouse, MouseButtonEnum.Left, initialPosition));
         button.Arrange(new Rectangle<float>(8f, 8f, 4f, 4f));
         Publish(eventHub, new MouseButtonReleasedEvent(mouse, MouseButtonEnum.Left, new(10f, 10f)));
 
@@ -309,18 +364,19 @@ public sealed class TextButtonTests
         var secondMouse = new TestMouse(4);
         var actionCount = 0;
         button.Action = () => actionCount++;
+        var position = GetCenter(button.Bounds);
 
         Publish(
             eventHub,
-            new MouseButtonPressedEvent(firstMouse, MouseButtonEnum.Left, new(10f, 10f))
+            new MouseButtonPressedEvent(firstMouse, MouseButtonEnum.Left, position)
         );
         Publish(
             eventHub,
-            new MouseButtonPressedEvent(secondMouse, MouseButtonEnum.Left, new(10f, 10f))
+            new MouseButtonPressedEvent(secondMouse, MouseButtonEnum.Left, position)
         );
         Publish(
             eventHub,
-            new MouseButtonReleasedEvent(secondMouse, MouseButtonEnum.Left, new(10f, 10f))
+            new MouseButtonReleasedEvent(secondMouse, MouseButtonEnum.Left, position)
         );
         Assert.Equal(0, actionCount);
         Assert.True(scene.Children.Remove(button));
@@ -334,11 +390,11 @@ public sealed class TextButtonTests
         eventHub.Drain();
         Publish(
             eventHub,
-            new MouseButtonPressedEvent(firstMouse, MouseButtonEnum.Left, new(10f, 10f))
+            new MouseButtonPressedEvent(firstMouse, MouseButtonEnum.Left, position)
         );
         Publish(
             eventHub,
-            new MouseButtonReleasedEvent(firstMouse, MouseButtonEnum.Left, new(10f, 10f))
+            new MouseButtonReleasedEvent(firstMouse, MouseButtonEnum.Left, position)
         );
 
         Assert.Equal(1, actionCount);
@@ -352,12 +408,13 @@ public sealed class TextButtonTests
         var mouse = new TestMouse(6);
         var actionCount = 0;
         button.Action = () => actionCount++;
+        var position = GetCenter(button.Bounds);
 
-        Publish(eventHub, new MouseButtonPressedEvent(mouse, MouseButtonEnum.Left, new(10f, 10f)));
-        Publish(eventHub, new MouseCanceledEvent(mouse, new(10f, 10f)));
-        Publish(eventHub, new MouseButtonReleasedEvent(mouse, MouseButtonEnum.Left, new(10f, 10f)));
-        Publish(eventHub, new MouseButtonPressedEvent(mouse, MouseButtonEnum.Left, new(10f, 10f)));
-        Publish(eventHub, new MouseButtonReleasedEvent(mouse, MouseButtonEnum.Left, new(10f, 10f)));
+        Publish(eventHub, new MouseButtonPressedEvent(mouse, MouseButtonEnum.Left, position));
+        Publish(eventHub, new MouseCanceledEvent(mouse, position));
+        Publish(eventHub, new MouseButtonReleasedEvent(mouse, MouseButtonEnum.Left, position));
+        Publish(eventHub, new MouseButtonPressedEvent(mouse, MouseButtonEnum.Left, position));
+        Publish(eventHub, new MouseButtonReleasedEvent(mouse, MouseButtonEnum.Left, position));
 
         Assert.Equal(1, actionCount);
     }
@@ -442,6 +499,12 @@ public sealed class TextButtonTests
         eventHub.Publish(inputEvent);
         eventHub.Drain();
     }
+
+    /// <summary>Gets the center point of a rectangle.</summary>
+    /// <param name="bounds">The rectangle to sample.</param>
+    /// <returns>The center point.</returns>
+    private static Vector2D<float> GetCenter(Rectangle<float> bounds) =>
+        new(bounds.Origin.X + bounds.Size.X / 2f, bounds.Origin.Y + bounds.Size.Y / 2f);
 
     /// <summary>
     /// Creates a button with small in-memory resources suitable for layout tests.

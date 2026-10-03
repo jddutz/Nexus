@@ -5,21 +5,6 @@ using Nexus.Graphics.Text;
 using Nexus.Graphics.Textures;
 
 /// <summary>
-/// Specifies the horizontal alignment of a text button's label.
-/// </summary>
-public enum TextButtonLabelAlignment
-{
-    /// <summary>Aligns the label to the leading edge of the padded content area.</summary>
-    Start,
-
-    /// <summary>Centers the label within the button bounds.</summary>
-    Center,
-
-    /// <summary>Aligns the label to the trailing edge of the padded content area.</summary>
-    End,
-}
-
-/// <summary>
 /// Represents a text button with an instance-owned nine-patch background and text component.
 /// </summary>
 public partial class TextButton : Element
@@ -39,9 +24,6 @@ public partial class TextButton : Element
     [Observable(PublicSetter = true)]
     private string _label = string.Empty;
 
-    [Observable]
-    private TextButtonLabelAlignment _labelAlignment = TextButtonLabelAlignment.Center;
-
     [Observable(PublicSetter = true)]
     private Margins _padding = new();
 
@@ -51,14 +33,6 @@ public partial class TextButton : Element
     /// <summary>Rejects a null label value.</summary>
     /// <param name="value">The proposed label.</param>
     private void BeforeLabelChanges(string value) => ArgumentNullException.ThrowIfNull(value);
-
-    /// <summary>Validates the proposed label alignment.</summary>
-    /// <param name="value">The proposed label alignment.</param>
-    private void BeforeLabelAlignmentChanges(TextButtonLabelAlignment value)
-    {
-        if (!Enum.IsDefined(value))
-            throw new ArgumentOutOfRangeException(nameof(value));
-    }
 
     /// <summary>Updates both visual components after the render-layer mask changes.</summary>
     /// <param name="previousValue">The previous render-layer mask.</param>
@@ -223,6 +197,10 @@ public partial class TextButton : Element
             throw new ArgumentOutOfRangeException(nameof(constraint));
 
         var contentConstraint = GetContentConstraint(constraint);
+        contentConstraint = new(
+            MathF.Min(contentConstraint.X, Width ?? contentConstraint.X),
+            MathF.Min(contentConstraint.Y, Height ?? contentConstraint.Y)
+        );
         var textConstraint = new Vector2D<float>(
             MathF.Max(0f, contentConstraint.X - Padding.Left - Padding.Right),
             MathF.Max(0f, contentConstraint.Y - Padding.Top - Padding.Bottom)
@@ -230,8 +208,12 @@ public partial class TextButton : Element
         var labelSize = _text?.Measure(textConstraint) ?? Vector2D<float>.Zero;
         return IncludeMargins(
             new(
-                MathF.Min(labelSize.X + Padding.Left + Padding.Right, contentConstraint.X),
-                MathF.Min(labelSize.Y + Padding.Top + Padding.Bottom, contentConstraint.Y)
+                Width is null
+                    ? MathF.Min(labelSize.X + Padding.Left + Padding.Right, contentConstraint.X)
+                    : contentConstraint.X,
+                Height is null
+                    ? MathF.Min(labelSize.Y + Padding.Top + Padding.Bottom, contentConstraint.Y)
+                    : contentConstraint.Y
             )
         );
     }
@@ -248,19 +230,16 @@ public partial class TextButton : Element
 
         if (_text is null || _background is null)
             CreateVisualComponents();
-        base.Arrange(bounds);
-
         if (_text is null || _background is null)
             return;
 
-        var contentBounds = GetContentBounds(bounds);
-        var horizontalAlignment = LabelAlignment switch
-        {
-            TextButtonLabelAlignment.Start => 0f,
-            TextButtonLabelAlignment.Center => 0.5f,
-            TextButtonLabelAlignment.End => 1f,
-            _ => throw new InvalidOperationException("Unknown label alignment."),
-        };
+        var availableBounds = GetContentBounds(bounds);
+        var contentSize = new Vector2D<float>(
+            MathF.Min(availableBounds.Size.X, Width ?? availableBounds.Size.X),
+            MathF.Min(availableBounds.Size.Y, Height ?? availableBounds.Size.Y)
+        );
+        var contentBounds = GetAlignedContentBounds(bounds, contentSize);
+        SetBounds(contentBounds);
         _text.Text = Label;
         _text.Wrap = false;
         _text.MaximumLines = 1;
@@ -270,7 +249,7 @@ public partial class TextButton : Element
             MathF.Max(0f, contentBounds.Size.X - Padding.Left - Padding.Right),
             MathF.Max(0f, contentBounds.Size.Y - Padding.Top - Padding.Bottom)
         );
-        _text.Alignment = new Vector2D<float>(horizontalAlignment, 0.5f);
+        _text.Alignment = new Vector2D<float>(0.5f, 0.5f);
         _background.Destination = contentBounds;
     }
 
