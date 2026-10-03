@@ -40,7 +40,13 @@ public partial class Scene : IScene
         RenderLayers.Create("GUI", RenderPasses.Main);
 
         var defaultCamera = new StaticCamera();
-        var viewComponent = new ViewComponent { Camera = defaultCamera, LayerMask = 1 };
+        var viewComponent = new ViewComponent
+        {
+            Camera = defaultCamera,
+            LayerMask = 1,
+            PreserveDrawOrder = true,
+            BlendMode = BlendMode.Alpha,
+        };
         var defaultView = new GameObject2D([defaultCamera, viewComponent]);
         Children.Add(defaultView);
     }

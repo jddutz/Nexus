@@ -28,8 +28,6 @@ public unsafe class VulkanGraphicsSystem(
     PerformanceDiagnostics? diagnostics = null
 ) : IGraphicsSystem, IDisposable
 {
-    private const ulong GuiRenderLayerMask = 1UL;
-
     private readonly PerformanceMetrics? _performanceMetrics = performanceMetrics;
     private readonly PerformanceDiagnostics? _diagnostics = diagnostics;
     private readonly RenderBatchCollection _setupBatches = CreateSetupBatchCollection();
@@ -44,8 +42,8 @@ public unsafe class VulkanGraphicsSystem(
     private static RenderBatchCollection CreateRenderBatchCollection(ViewComponent view)
     {
         var coll = new RenderBatchCollection();
-        IBatchStrategy batchStrategy = (view.LayerMask & GuiRenderLayerMask) != 0
-            ? new DepthSortBatchStrategy()
+        IBatchStrategy batchStrategy = view.PreserveDrawOrder
+            ? new DrawOrderBatchStrategy()
             : new DefaultBatchStrategy();
         coll.Set(RenderPasses.Start, new RenderBatch(new DefaultBatchStrategy()));
 
@@ -71,6 +69,12 @@ public unsafe class VulkanGraphicsSystem(
         coll.Set(RenderPasses.End, new RenderBatch(new DefaultBatchStrategy()));
         return coll;
     }
+
+    /// <summary>Gets active views selected by a drawable's layer mask.</summary>
+    /// <param name="renderLayerMask">The drawable's layer classification mask.</param>
+    /// <returns>The matching active views.</returns>
+    private IEnumerable<ViewComponent> GetDrawableViews(ulong renderLayerMask) =>
+        _activeViews.Where(view => (view.LayerMask & renderLayerMask) != 0);
 
     /// <summary>
     /// Initializes the graphics system and records the current Vulkan state.
@@ -105,7 +109,7 @@ public unsafe class VulkanGraphicsSystem(
         {
             if (IsVisible(view, registration.Drawable))
             {
-                AddDrawableToBatches(batches, registration);
+                AddDrawableToBatches(view, batches, registration);
             }
         }
     }
@@ -124,7 +128,8 @@ public unsafe class VulkanGraphicsSystem(
             drawable,
             drawable.RenderLayerMask,
             persistentCommands,
-            transientCommands
+            transientCommands,
+            []
         );
 
         Action<string> propertyChanged = propertyName =>
@@ -134,9 +139,14 @@ public unsafe class VulkanGraphicsSystem(
         drawable.InstanceDataChanged += OnDrawableInstanceDataChanged;
         drawable.UniformDataChanged += OnDrawableUniformDataChanged;
 
-        foreach (var batches in GetDrawableBatches(drawable.RenderLayerMask))
-        foreach (var command in persistentCommands)
-            AddToBatches(batches, command);
+        var registration = _drawables[drawable.Id];
+        foreach (var view in GetDrawableViews(drawable.RenderLayerMask))
+        {
+            var viewCommands = commandFactory.CreateViewCommands(drawable, view).ToArray();
+            registration.ViewCommands[view.Id] = viewCommands;
+            foreach (var command in viewCommands)
+                AddToBatches(_batches[view.Id], command);
+        }
 
         foreach (var command in transientCommands)
             AddToBatches(_setupBatches, command);
@@ -185,6 +195,13 @@ public unsafe class VulkanGraphicsSystem(
                 case nameof(ViewComponent.RenderPassMask):
                     RebuildViewBatches(view, replaceCollection: true);
                     break;
+                case nameof(ViewComponent.PreserveDrawOrder):
+                case nameof(ViewComponent.BlendMode):
+                case nameof(ViewComponent.EnableDepthTest):
+                case nameof(ViewComponent.EnableDepthWrite):
+                case nameof(ViewComponent.DepthComparison):
+                    RebuildViewBatches(view, replaceCollection: true);
+                    break;
             }
         }
     }
@@ -207,19 +224,22 @@ public unsafe class VulkanGraphicsSystem(
         foreach (var registration in _drawables.Values)
         {
             if (IsVisible(view, registration.Drawable))
-                AddDrawableToBatches(batches, registration);
+                AddDrawableToBatches(view, batches, registration);
         }
     }
 
     /// <summary>Adds retained drawable commands to a view collection.</summary>
     /// <param name="batches">The target view collection.</param>
     /// <param name="registration">The drawable command registration.</param>
-    private static void AddDrawableToBatches(
+    private void AddDrawableToBatches(
+        ViewComponent view,
         RenderBatchCollection batches,
         DrawableRegistration registration
     )
     {
-        foreach (var command in registration.Commands)
+        var commands = commandFactory.CreateViewCommands(registration.Drawable, view).ToArray();
+        registration.ViewCommands[view.Id] = commands;
+        foreach (var command in commands)
             AddToBatches(batches, command);
     }
 
@@ -234,7 +254,11 @@ public unsafe class VulkanGraphicsSystem(
         foreach (var batch in batches)
         {
             batch.Remove(registration.Drawable.Id);
-            foreach (var command in registration.Commands.Concat(registration.TransientCommands))
+            foreach (
+                var command in registration
+                    .Commands.Concat(registration.TransientCommands)
+                    .Concat(registration.ViewCommands.Values.SelectMany(commands => commands))
+            )
                 batch.RemoveCommand(command.Id);
         }
     }
@@ -271,10 +295,8 @@ public unsafe class VulkanGraphicsSystem(
         registration = registration with { RenderLayerMask = drawable.RenderLayerMask };
         _drawables[drawable.Id] = registration;
 
-        var targetBatches = GetDrawableBatches(drawable.RenderLayerMask);
-        foreach (var batches in targetBatches)
-        foreach (var command in registration.Commands)
-            AddToBatches(batches, command);
+        foreach (var view in GetDrawableViews(drawable.RenderLayerMask))
+            AddDrawableToBatches(view, _batches[view.Id], registration);
     }
 
     /// <summary>Routes observable drawable properties to their Vulkan update operation.</summary>
@@ -353,16 +375,10 @@ public unsafe class VulkanGraphicsSystem(
         {
             if (!command.IsSticky || command.Drawable?.Id != drawable.Id)
             {
-                var targetBatches = GetDrawableBatches(drawable.RenderLayerMask).ToArray();
                 if (!command.IsSticky)
                 {
                     transientCommands.Add(command);
                     AddToBatches(_setupBatches, command);
-                }
-                else
-                {
-                    foreach (var batches in targetBatches)
-                        AddToBatches(batches, command);
                 }
 
                 continue;
@@ -380,18 +396,44 @@ public unsafe class VulkanGraphicsSystem(
                 retainedCommands.Remove(replaced);
             }
 
-            foreach (var batches in GetDrawableBatches(drawable.RenderLayerMask))
-                AddToBatches(batches, command);
-
             retainedCommands.Add(command);
         }
 
-        _drawables[drawable.Id] = registration with
+        registration = registration with
         {
             RenderLayerMask = drawable.RenderLayerMask,
             Commands = retainedCommands.ToArray(),
             TransientCommands = transientCommands.ToArray(),
         };
+        _drawables[drawable.Id] = registration;
+        RefreshDrawableViewCommands(registration);
+    }
+
+    /// <summary>Recreates a drawable's per-view commands after its retained state changes.</summary>
+    /// <param name="registration">The drawable registration to refresh.</param>
+    private void RefreshDrawableViewCommands(DrawableRegistration registration)
+    {
+        foreach (var view in _activeViews)
+        {
+            var batches = _batches[view.Id];
+            if (registration.ViewCommands.TryGetValue(view.Id, out var oldCommands))
+            {
+                foreach (var batch in batches)
+                foreach (var command in oldCommands)
+                    batch.RemoveCommand(command.Id);
+            }
+
+            if (!IsVisible(view, registration.Drawable))
+            {
+                registration.ViewCommands.Remove(view.Id);
+                continue;
+            }
+
+            var commands = commandFactory.CreateViewCommands(registration.Drawable, view).ToArray();
+            registration.ViewCommands[view.Id] = commands;
+            foreach (var command in commands)
+                AddToBatches(batches, command);
+        }
     }
 
     /// <summary>Determines whether two commands occupy the same drawable command slot.</summary>
@@ -464,24 +506,14 @@ public unsafe class VulkanGraphicsSystem(
     /// <param name="RenderLayerMask">The layer placement for the retained commands.</param>
     /// <param name="Commands">Persistent commands currently registered in batches.</param>
     /// <param name="TransientCommands">One-shot commands awaiting submission.</param>
+    /// <param name="ViewCommands">Persistent commands configured for each active view.</param>
     private sealed record DrawableRegistration(
         IDrawable Drawable,
         ulong RenderLayerMask,
         IVulkanCommand[] Commands,
-        IVulkanCommand[] TransientCommands
+        IVulkanCommand[] TransientCommands,
+        Dictionary<ComponentId, IVulkanCommand[]> ViewCommands
     );
-
-    /// <summary>
-    /// Gets the batch collections for views selected by a drawable's layer mask.
-    /// </summary>
-    /// <param name="renderLayerMask">The drawable's layer classification mask.</param>
-    /// <returns>The active view batch collections selected by the mask.</returns>
-    private IEnumerable<RenderBatchCollection> GetDrawableBatches(ulong renderLayerMask)
-    {
-        return _activeViews
-            .Where(view => (view.LayerMask & renderLayerMask) != 0)
-            .Select(view => _batches[view.Id]);
-    }
 
     /// <summary>Removes a drawable's commands from every active view collection.</summary>
     /// <param name="registration">The drawable command registration.</param>
@@ -535,6 +567,8 @@ public unsafe class VulkanGraphicsSystem(
             {
                 view.PropertyChanged -= OnViewPropertyChanged;
                 _activeViews.Remove(view);
+                foreach (var registration in _drawables.Values)
+                    registration.ViewCommands.Remove(view.Id);
             }
 
             Debug.WriteLine("Cleared Vulkan graphics view configuration.");

@@ -6,34 +6,20 @@ namespace Nexus.Graphics;
 public class RenderLayerTests
 {
     /// <summary>
-    /// Verifies that the constructor stores every configurable rendering setting.
+    /// Verifies that a render layer stores its classification properties.
     /// </summary>
     [Fact]
     public void Constructor_StoresRenderingSettings()
     {
-        var layer = new RenderLayer(
-            3,
-            "Foreground",
-            RenderPasses.UI,
-            preserveDrawOrder: true,
-            blendMode: BlendMode.Alpha,
-            enableDepthTest: false,
-            enableDepthWrite: false,
-            depthComparison: DepthComparison.Always
-        );
+        var layer = new RenderLayer(3, "Foreground", RenderPasses.UI);
 
         Assert.Equal(3, layer.Index);
         Assert.Equal("Foreground", layer.Name);
         Assert.Equal(RenderPasses.UI, layer.RenderPassMask);
-        Assert.True(layer.PreserveDrawOrder);
-        Assert.Equal(BlendMode.Alpha, layer.BlendMode);
-        Assert.False(layer.EnableDepthTest);
-        Assert.False(layer.EnableDepthWrite);
-        Assert.Equal(DepthComparison.Always, layer.DepthComparison);
     }
 
     /// <summary>
-    /// Verifies that the default GUI layer preserves the existing GUI layer settings.
+    /// Verifies the default GUI layer remains a classification for the main pass.
     /// </summary>
     [Fact]
     public void DefaultGui_UsesDefaultGuiSettings()
@@ -42,5 +28,27 @@ public class RenderLayerTests
             new RenderLayer(0, "GUI", RenderPasses.Main),
             RenderLayer.DefaultGui
         );
+    }
+
+    /// <summary>
+    /// Verifies the view owns render-order and pipeline-state configuration.
+    /// </summary>
+    [Fact]
+    public void ViewComponent_StoresRenderingPolicy()
+    {
+        var view = new Nexus.Graphics.Components.ViewComponent
+        {
+            PreserveDrawOrder = true,
+            BlendMode = BlendMode.PremultipliedAlpha,
+            EnableDepthTest = false,
+            EnableDepthWrite = false,
+            DepthComparison = DepthComparison.Greater,
+        };
+
+        Assert.True(view.PreserveDrawOrder);
+        Assert.Equal(BlendMode.PremultipliedAlpha, view.BlendMode);
+        Assert.False(view.EnableDepthTest);
+        Assert.False(view.EnableDepthWrite);
+        Assert.Equal(DepthComparison.Greater, view.DepthComparison);
     }
 }

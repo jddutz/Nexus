@@ -11,8 +11,8 @@ using Nexus.Graphics.Vulkan.Pipelines;
 using Nexus.Graphics.Vulkan.Rendering;
 using Silk.NET.Vulkan;
 
-/// <summary>Verifies depth-sort batch command ordering.</summary>
-public sealed class DepthSortBatchStrategyTests
+/// <summary>Verifies draw-order batch command ordering.</summary>
+public sealed class DrawOrderBatchStrategyTests
 {
     /// <summary>Verifies draw order precedes pipeline identity in the sort keys.</summary>
     [Fact]
@@ -26,7 +26,7 @@ public sealed class DepthSortBatchStrategyTests
             new TestCommand("background", background, new PipelineId(2), 0),
         };
 
-        var ordered = commands.OrderBy(command => command, new DepthSortBatchStrategy());
+        var ordered = commands.OrderBy(command => command, new DrawOrderBatchStrategy());
 
         Assert.Equal(["background", "text"], ordered.Select(command => command.Name));
     }

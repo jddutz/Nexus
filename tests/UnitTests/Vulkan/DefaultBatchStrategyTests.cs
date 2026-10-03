@@ -49,15 +49,15 @@ public class DefaultBatchStrategyTests
     }
 
     [Fact]
-    public void Compare_orders_drawables_by_draw_order_before_pipeline_and_identifier()
+    public void Compare_groups_by_pipeline_without_preserving_draw_order()
     {
         var laterDrawable = new TestDrawable(1) { DrawOrder = 5 };
         var earlierDrawable = new TestDrawable(2) { DrawOrder = -2 };
         var pipelineId = new PipelineId(7);
         var commands = new[]
         {
-            new TestCommand("later", laterDrawable, pipelineId, long.MaxValue / 2 + 5),
-            new TestCommand("earlier", earlierDrawable, pipelineId, long.MaxValue / 2 - 2),
+            new TestCommand("later", laterDrawable, new PipelineId(2), long.MaxValue / 2 + 5),
+            new TestCommand("earlier", earlierDrawable, new PipelineId(1), long.MaxValue / 2 - 2),
         };
 
         var ordered = commands.OrderBy(command => command, new DefaultBatchStrategy());

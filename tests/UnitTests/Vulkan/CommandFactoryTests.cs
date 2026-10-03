@@ -3,6 +3,7 @@ namespace Tests;
 using Microsoft.Extensions.Logging;
 using Nexus.Core;
 using Nexus.Graphics;
+using Nexus.Graphics.Components;
 using Nexus.Graphics.Geometry;
 using Nexus.Graphics.Shaders;
 using Nexus.Graphics.Textures;
@@ -86,6 +87,44 @@ public class CommandFactoryTests
         Assert.Equal(1, dependencies.Buffers.CreateUniformBufferCount);
         Assert.Equal(1, dependencies.Buffers.UpdateBufferCount);
         Assert.Equal(1, dependencies.Samplers.CreateCount);
+    }
+
+    [Fact]
+    public void CreateViewCommands_uses_and_reuses_view_pipeline_variants()
+    {
+        var dependencies = new TestDependencies();
+        var factory = CreateFactory(dependencies);
+        factory.UseViewStateInDefinition = true;
+        var drawable = CreateDrawable();
+        factory.Create(drawable).ToArray();
+        var basePipelineId = Assert.IsType<BindPipelineCommand>(
+            factory.CreateViewCommands(drawable, new ViewComponent { PreserveDrawOrder = true })
+                .First()
+        ).PipelineId;
+        var configuredView = new ViewComponent
+        {
+            BlendMode = BlendMode.Opaque,
+            EnableDepthTest = false,
+            EnableDepthWrite = false,
+            DepthComparison = DepthComparison.Always,
+        };
+
+        var configuredCommands = factory.CreateViewCommands(drawable, configuredView).ToArray();
+        var repeatedCommands = factory.CreateViewCommands(drawable, configuredView).ToArray();
+
+        var configuredPipeline = Assert.IsType<BindPipelineCommand>(configuredCommands[0]);
+        var repeatedPipeline = Assert.IsType<BindPipelineCommand>(repeatedCommands[0]);
+        Assert.NotEqual(basePipelineId, configuredPipeline.PipelineId);
+        Assert.Equal(configuredPipeline.PipelineId, repeatedPipeline.PipelineId);
+        var definition = Assert.Single(
+            dependencies.Pipelines.Definitions,
+            item => item.Id == configuredPipeline.PipelineId
+        );
+        Assert.False(definition.EnableBlending);
+        Assert.False(definition.EnableDepthTest);
+        Assert.False(definition.EnableDepthWrite);
+        Assert.Equal(CompareOp.Always, definition.DepthCompareOp);
+        Assert.Equal(2, dependencies.Pipelines.GetOrCreateCount);
     }
 
     [Fact]
@@ -336,8 +375,38 @@ public class CommandFactoryTests
             samplerRegistry
         )
     {
+        public bool UseViewStateInDefinition { get; set; }
+
         public PipelineDefinition PipelineDefinition { get; set; } =
             CommandFactoryTests.CreatePipelineDefinition(DescriptorSchemas.Textured);
+
+        protected override PipelineDefinition CreatePipelineDefinition(
+            IDrawable drawable,
+            uint renderPassMask,
+            VertexShader vertexShader,
+            ViewRenderState state
+        )
+        {
+            if (!UseViewStateInDefinition)
+                return base.CreatePipelineDefinition(drawable, renderPassMask, vertexShader, state);
+
+            return new PipelineDefinition(
+                "view-pipeline",
+                vertexShader,
+                null,
+                null,
+                null,
+                drawable.FragmentShader,
+                new RenderPass(1),
+                enableDepthTest: state.EnableDepthTest,
+                enableDepthWrite: state.EnableDepthWrite,
+                depthCompareOp: state.DepthComparison == DepthComparison.Always
+                    ? CompareOp.Always
+                    : CompareOp.Less,
+                enableBlending: state.BlendMode != BlendMode.Opaque,
+                descriptorSchema: DescriptorSchemas.Textured
+            );
+        }
 
         protected override PipelineDefinition BuildPipelineDefinition(
             PipelineDefinitionBuilder builder
@@ -468,6 +537,7 @@ public class CommandFactoryTests
 
     private sealed class TestPipelineRegistry : IPipelineRegistry
     {
+        public List<PipelineDefinition> Definitions { get; } = [];
         public int GetOrCreateCount { get; private set; }
         public int ReleaseCount { get; private set; }
 
@@ -476,6 +546,7 @@ public class CommandFactoryTests
         )
         {
             GetOrCreateCount++;
+            Definitions.Add(description);
             return (new(20), new(21));
         }
 

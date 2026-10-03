@@ -9,7 +9,7 @@ namespace Nexus.Graphics.Vulkan.Rendering;
 /// A drawable depth key is not yet available, so actual back-to-front depth sorting
 /// remains unimplemented.
 /// </remarks>
-public sealed class DepthSortBatchStrategy : IBatchStrategy
+public sealed class DrawOrderBatchStrategy : IBatchStrategy
 {
     /// <inheritdoc />
     public int Compare(IVulkanCommand? x, IVulkanCommand? y)

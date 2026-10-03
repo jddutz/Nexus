@@ -159,10 +159,11 @@ An element supplies the arranged visual placement to its graphics component. A d
 - The agreed simple image model is one ImageElement owning one TextureComponent, owning one TexturedQuad with one instance.
 - Nine-patch rendering uses nine quad instances and reuses geometry.
 - Hidden visuals are removed or deactivated through component lifetime behavior. A drawable visibility flag was not chosen as the hiding mechanism.
-- Views pair a camera with a layer mask. GUI rendering uses a static camera and is ordered after scene rendering. Layer 1 is reserved for GUI in the current convention.
+- Views own the render policy (draw-order preservation, blending, and depth state) for contents selected by their layer mask; render layers only classify contents and render-pass membership. Vulkan creates pipeline variants when views require different blend or depth state.
+- GUI rendering uses a static camera and is ordered after scene rendering. The default GUI view preserves draw order and uses alpha blending. Layer 1 is reserved for GUI in the current convention.
 - Vulkan rendering follows `PrepareFrame`, per-view `Begin`, per-pass `Record`, per-view `Finalize`, then `Submit`.
 - Draw commands execute inside their rendering pass. Resource uploads occur before the pass.
-- Sticky draw commands are retained. Drawables expose an ascending `DrawOrder`; the default batch groups drawable commands by that order before pipeline ID, drawable ID, and render priority.
+- Sticky draw commands are retained. Drawables expose an ascending `DrawOrder`; the default batch strategy groups by pipeline before drawable identity, while views can explicitly select draw-order preservation.
 - Vertex buffers, images, samplers, pipelines, and per-drawable instance buffers have backend registry responsibilities.
 
 ### Text

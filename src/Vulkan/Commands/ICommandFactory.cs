@@ -1,11 +1,19 @@
 namespace Nexus.Graphics.Vulkan.Commands;
 
+using Nexus.Graphics.Components;
+
 /// <summary>Creates, updates, and releases Vulkan commands and resources for drawables.</summary>
 public interface ICommandFactory
 {
     /// <summary>Creates the Vulkan allocation and command set for a drawable.</summary>
     /// <param name="drawable">The drawable to allocate.</param>
     IEnumerable<IVulkanCommand> Create(IDrawable drawable);
+
+    /// <summary>Creates commands using the pipeline configuration owned by a view.</summary>
+    /// <param name="drawable">The drawable to render.</param>
+    /// <param name="view">The view whose rendering policy configures the pipeline.</param>
+    /// <returns>Commands bound to a pipeline variant matching the view.</returns>
+    IEnumerable<IVulkanCommand> CreateViewCommands(IDrawable drawable, ViewComponent view);
 
     /// <summary>Updates the drawable's instance buffer and draw command.</summary>
     /// <param name="drawable">The drawable whose instance data changed.</param>

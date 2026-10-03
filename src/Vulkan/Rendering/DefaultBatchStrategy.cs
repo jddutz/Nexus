@@ -6,6 +6,7 @@ namespace Nexus.Graphics.Vulkan.Rendering;
 /// </summary>
 public sealed class DefaultBatchStrategy : IBatchStrategy
 {
+    /// <inheritdoc />
     public int Compare(IVulkanCommand? x, IVulkanCommand? y)
     {
         if (ReferenceEquals(x, y))
@@ -30,13 +31,6 @@ public sealed class DefaultBatchStrategy : IBatchStrategy
 
         if (x.Drawable is not null && y.Drawable is null)
             return 1;
-
-        if (x.Drawable is not null && y.Drawable is not null)
-        {
-            result = x.Drawable.DrawOrder.CompareTo(y.Drawable.DrawOrder);
-            if (result != 0)
-                return result;
-        }
 
         if (x.PipelineId is not null && y.PipelineId is not null)
         {

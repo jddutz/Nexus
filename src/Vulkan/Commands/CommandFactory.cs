@@ -1,6 +1,7 @@
 namespace Nexus.Graphics.Vulkan.Commands;
 
 using Nexus.Graphics.Text;
+using Nexus.Graphics.Components;
 
 /// <summary>
 /// Creates the Vulkan commands required to render a drawable.
@@ -28,6 +29,13 @@ public unsafe class CommandFactory(
     PerformanceDiagnostics? diagnostics = null
 ) : ICommandFactory
 {
+    private static readonly ViewRenderState DefaultViewRenderState = new(
+        BlendMode.Alpha,
+        EnableDepthTest: true,
+        EnableDepthWrite: true,
+        DepthComparison.Less
+    );
+
     private readonly Dictionary<DrawableId, DrawableAllocation> _allocations = [];
     private readonly PerformanceDiagnostics? _diagnostics = diagnostics;
 
@@ -96,6 +104,10 @@ public unsafe class CommandFactory(
         allocation.PipelineId = pipelineDefinition.Id;
         allocation.Pipeline = pipeline;
         allocation.PipelineLayout = pipelineLayout;
+        allocation.PipelineVariants.Add(
+            DefaultViewRenderState,
+            new PipelineVariant(pipelineDefinition.Id, pipeline, pipelineLayout)
+        );
 
         Debug.WriteLine(
             $"Prepared Vulkan drawable resources. DrawableId={drawable.Id}, PipelineId={pipelineDefinition.Id}"
@@ -247,6 +259,49 @@ public unsafe class CommandFactory(
         Debug.WriteLine(
             $"Created Vulkan commands. DrawableId={drawable.Id}, PipelineId={pipelineDefinition.Id}, VertexCount={drawable.Mesh.Count}"
         );
+    }
+
+    /// <inheritdoc />
+    public IEnumerable<IVulkanCommand> CreateViewCommands(IDrawable drawable, ViewComponent view)
+    {
+        ArgumentNullException.ThrowIfNull(view);
+
+        var allocation = GetAllocation(drawable);
+        var state = new ViewRenderState(
+            view.BlendMode,
+            view.EnableDepthTest,
+            view.EnableDepthWrite,
+            view.DepthComparison
+        );
+
+        if (state == DefaultViewRenderState)
+            return allocation.Commands.ToArray();
+
+        if (!allocation.PipelineVariants.TryGetValue(state, out var variant))
+        {
+            var vertexShader =
+                drawable.VertexShader
+                ?? throw new InvalidOperationException("Drawables must define a vertex shader.");
+            var definition = CreatePipelineDefinition(
+                drawable,
+                RenderPasses.Main,
+                vertexShader,
+                state
+            );
+            variant = allocation
+                .PipelineVariants.Values.FirstOrDefault(
+                    existing => existing.PipelineId == definition.Id
+                )!;
+            if (variant is null)
+            {
+                var (pipeline, pipelineLayout) = pipelineRegistry.GetOrCreate(definition);
+                variant = new PipelineVariant(definition.Id, pipeline, pipelineLayout);
+            }
+            allocation.PipelineVariants.Add(state, variant);
+            RecordPipelineSnapshot(drawable, definition, variant.Pipeline, variant.PipelineLayout);
+        }
+
+        return CreateCommands(allocation, variant);
     }
 
     /// <inheritdoc />
@@ -877,12 +932,15 @@ public unsafe class CommandFactory(
         if (drawable.FragmentShader is null)
             throw new InvalidOperationException("Drawables must define a fragment shader.");
 
+        var previousPipelineIds = allocation
+            .PipelineVariants.Values.Select(variant => variant.PipelineId)
+            .Distinct()
+            .ToArray();
         var pipelineDefinition = CreatePipelineDefinition(
             drawable,
             RenderPasses.Main,
             vertexShader
         );
-        var oldPipelineId = allocation.PipelineId;
 
         if (vertexShader.VertexFormat.Id != allocation.VertexFormat.Id)
         {
@@ -903,10 +961,7 @@ public unsafe class CommandFactory(
                 vertexShader.InstanceLayout.Length == 0 ? null : vertexShader.InstanceLayout;
         }
 
-        var (pipeline, pipelineLayout) =
-            pipelineDefinition.Id == oldPipelineId
-                ? (pipelineRegistry.Get(oldPipelineId), pipelineRegistry.GetLayout(oldPipelineId))
-                : pipelineRegistry.GetOrCreate(pipelineDefinition);
+        var (pipeline, pipelineLayout) = pipelineRegistry.GetOrCreate(pipelineDefinition);
         allocation.VertexShader = vertexShader;
         allocation.PipelineId = pipelineDefinition.Id;
         allocation.Pipeline = pipeline;
@@ -936,8 +991,14 @@ public unsafe class CommandFactory(
             );
         }
 
-        if (oldPipelineId != allocation.PipelineId)
-            pipelineRegistry.Release(oldPipelineId);
+        foreach (var pipelineId in previousPipelineIds)
+            pipelineRegistry.Release(pipelineId);
+
+        allocation.PipelineVariants.Clear();
+        allocation.PipelineVariants.Add(
+            DefaultViewRenderState,
+            new PipelineVariant(pipelineDefinition.Id, pipeline, pipelineLayout)
+        );
 
         return RebuildCommands(allocation);
     }
@@ -959,7 +1020,12 @@ public unsafe class CommandFactory(
         foreach (var binding in allocation.ImageSamplerBindings)
             samplerRegistry.Release(binding.SamplingBehavior);
 
-        pipelineRegistry.Release(allocation.PipelineId);
+        foreach (
+            var pipelineId in allocation
+                .PipelineVariants.Values.Select(variant => variant.PipelineId)
+                .Distinct()
+        )
+            pipelineRegistry.Release(pipelineId);
         if (allocation.InstanceLayout is not null)
             instanceBufferRegistry.Release(drawable.Id);
 
@@ -1072,6 +1138,19 @@ public unsafe class CommandFactory(
         IDrawable drawable,
         uint renderPassMask,
         VertexShader vertexShader
+    ) => CreatePipelineDefinition(drawable, renderPassMask, vertexShader, DefaultViewRenderState);
+
+    /// <summary>Creates a pipeline definition using the render state selected by a view.</summary>
+    /// <param name="drawable">The drawable whose shader state defines the pipeline.</param>
+    /// <param name="renderPassMask">The render-pass mask used by the drawable.</param>
+    /// <param name="vertexShader">The drawable's required vertex shader.</param>
+    /// <param name="state">The view-specific render state.</param>
+    /// <returns>The immutable definition for the requested pipeline variant.</returns>
+    protected virtual PipelineDefinition CreatePipelineDefinition(
+        IDrawable drawable,
+        uint renderPassMask,
+        VertexShader vertexShader,
+        ViewRenderState state
     )
     {
         var pipelineDefinitionBuilder = new PipelineDefinitionBuilder(
@@ -1082,7 +1161,63 @@ public unsafe class CommandFactory(
             .WithDescriptorSchema(DescriptorSchemas.Textured)
             .WithRenderPass(swapChain.Passes[RenderPasses.GetIndex(renderPassMask)]);
 
-        pipelineDefinitionBuilder.WithBlending();
+        pipelineDefinitionBuilder
+            .WithBlending(
+                state.BlendMode switch
+                {
+                    BlendMode.Opaque => false,
+                    BlendMode.Alpha or BlendMode.PremultipliedAlpha or BlendMode.Additive => true,
+                    _ => throw new ArgumentOutOfRangeException(
+                        nameof(state),
+                        state.BlendMode,
+                        "Unsupported blend mode."
+                    ),
+                }
+            )
+            .WithBlendFactors(
+                state.BlendMode switch
+                {
+                    BlendMode.PremultipliedAlpha => BlendFactor.One,
+                    BlendMode.Opaque or BlendMode.Alpha or BlendMode.Additive =>
+                        BlendFactor.SrcAlpha,
+                    _ => throw new ArgumentOutOfRangeException(
+                        nameof(state),
+                        state.BlendMode,
+                        "Unsupported blend mode."
+                    ),
+                },
+                state.BlendMode switch
+                {
+                    BlendMode.Additive => BlendFactor.One,
+                    BlendMode.Opaque or BlendMode.Alpha or BlendMode.PremultipliedAlpha =>
+                        BlendFactor.OneMinusSrcAlpha,
+                    _ => throw new ArgumentOutOfRangeException(
+                        nameof(state),
+                        state.BlendMode,
+                        "Unsupported blend mode."
+                    ),
+                }
+            )
+            .WithDepthTest(state.EnableDepthTest)
+            .WithDepthWrite(state.EnableDepthWrite)
+            .WithDepthCompare(
+                state.DepthComparison switch
+                {
+                    DepthComparison.Never => CompareOp.Never,
+                    DepthComparison.Less => CompareOp.Less,
+                    DepthComparison.Equal => CompareOp.Equal,
+                    DepthComparison.LessOrEqual => CompareOp.LessOrEqual,
+                    DepthComparison.Greater => CompareOp.Greater,
+                    DepthComparison.NotEqual => CompareOp.NotEqual,
+                    DepthComparison.GreaterOrEqual => CompareOp.GreaterOrEqual,
+                    DepthComparison.Always => CompareOp.Always,
+                    _ => throw new ArgumentOutOfRangeException(
+                        nameof(state),
+                        state.DepthComparison,
+                        "Unsupported depth comparison."
+                    ),
+                }
+            );
 
         if (drawable.TessellationControlShader is not null)
             pipelineDefinitionBuilder.WithShader(drawable.TessellationControlShader);
@@ -1094,6 +1229,62 @@ public unsafe class CommandFactory(
             pipelineDefinitionBuilder.WithShader(drawable.FragmentShader);
 
         return BuildPipelineDefinition(pipelineDefinitionBuilder);
+    }
+
+    /// <summary>Creates commands that use the specified pipeline variant.</summary>
+    /// <param name="allocation">The retained drawable resources.</param>
+    /// <param name="variant">The pipeline and layout for one view policy.</param>
+    /// <returns>The persistent commands for the variant.</returns>
+    private IReadOnlyList<IVulkanCommand> CreateCommands(
+        DrawableAllocation allocation,
+        PipelineVariant variant
+    )
+    {
+        var commands = new List<IVulkanCommand>
+        {
+            new BindPipelineCommand(
+                RenderPasses.Main,
+                variant.PipelineId,
+                allocation.Drawable,
+                variant.Pipeline
+            ),
+            new BindDescriptorSetsCommand(
+                RenderPasses.Main,
+                variant.PipelineId,
+                allocation.Drawable,
+                variant.PipelineLayout,
+                allocation.DescriptorSets
+            ),
+            new BindVertexBufferCommand(
+                RenderPasses.Main,
+                variant.PipelineId,
+                allocation.Drawable,
+                0,
+                vertexBufferRegistry.Get(allocation.Mesh.Id, allocation.VertexFormat.Id)
+            ),
+        };
+
+        if (allocation.InstanceLayout is not null)
+            commands.Add(
+                new BindVertexBufferCommand(
+                    RenderPasses.Main,
+                    variant.PipelineId,
+                    allocation.Drawable,
+                    1,
+                    instanceBufferRegistry.Get(allocation.Drawable.Id)
+                )
+            );
+
+        commands.Add(
+            new DrawCommand(
+                RenderPasses.Main,
+                variant.PipelineId,
+                allocation.Drawable,
+                checked((uint)allocation.Drawable.Mesh.Count),
+                checked((uint)allocation.Drawable.InstanceCount)
+            )
+        );
+        return commands;
     }
 
     /// <summary>
@@ -1148,5 +1339,28 @@ public unsafe class CommandFactory(
         public List<UniformBufferAllocation> UniformBuffers { get; } = [];
         public List<ImageSamplerAllocation> ImageSamplerBindings { get; } = [];
         public List<IVulkanCommand> Commands { get; } = [];
+        public Dictionary<ViewRenderState, PipelineVariant> PipelineVariants { get; } = [];
     }
+
+    /// <summary>Identifies the immutable rendering policy used to build a pipeline.</summary>
+    /// <param name="BlendMode">The blending mode.</param>
+    /// <param name="EnableDepthTest">Whether depth testing is enabled.</param>
+    /// <param name="EnableDepthWrite">Whether depth writes are enabled.</param>
+    /// <param name="DepthComparison">The depth comparison operation.</param>
+    protected readonly record struct ViewRenderState(
+        BlendMode BlendMode,
+        bool EnableDepthTest,
+        bool EnableDepthWrite,
+        DepthComparison DepthComparison
+    );
+
+    /// <summary>Stores a realized view-specific Vulkan pipeline.</summary>
+    /// <param name="PipelineId">The pipeline registry identifier.</param>
+    /// <param name="Pipeline">The Vulkan graphics pipeline.</param>
+    /// <param name="PipelineLayout">The compatible pipeline layout.</param>
+    private sealed record PipelineVariant(
+        PipelineId PipelineId,
+        Pipeline Pipeline,
+        PipelineLayout PipelineLayout
+    );
 }
