@@ -44,17 +44,18 @@ internal sealed class HelloNexusSceneFactory(
         var camera = sceneView.Components.OfType<StaticCamera>().Single();
         camera.SetViewportSize(mainWindow.Size.X, mainWindow.Size.Y);
 
-        const ulong backgroundLayer = 1;
-        const ulong foregroundLayer = 2;
+        var guiLayer = 1UL << scene.RenderLayers[0]!.Index;
+        var backgroundLayer = 1UL
+            << scene.RenderLayers.Create("Background", RenderPasses.Main).Index;
         var backgroundView = sceneView.Components.OfType<ViewComponent>().Single();
         backgroundView.Name = "Background";
         backgroundView.LayerMask = backgroundLayer;
 
-        var foregroundView = scene.CreateChild<View>();
-        foregroundView.ViewComponent.Name = "Foreground";
-        foregroundView.ViewComponent.Camera = camera;
-        foregroundView.ViewComponent.LayerMask = foregroundLayer;
-        foregroundView.ViewComponent.RenderOrder = 1;
+        var guiView = scene.CreateChild<View>();
+        guiView.ViewComponent.Name = "GUI";
+        guiView.ViewComponent.Camera = camera;
+        guiView.ViewComponent.LayerMask = guiLayer;
+        guiView.ViewComponent.RenderOrder = 1;
 
         var backgroundTexture = new TextureComponent
         {
@@ -67,13 +68,13 @@ internal sealed class HelloNexusSceneFactory(
 
         var textStyle = CreateRobotoTextStyle();
         const string pressText = "Press ESC to quit";
-        var pressTextElement = new TextElement(pressText, textStyle, 1, foregroundLayer);
+        var pressTextElement = new TextElement(pressText, textStyle, 1, guiLayer);
 
         const string welcomeText = "Welcome to the Nexus";
         var welcomeTextElement = new TextElement(
             welcomeText,
             textStyle,
-            renderLayerMask: foregroundLayer
+            renderLayerMask: guiLayer
         );
 
         const string buttonLabel = "Start Physics Test";
@@ -82,8 +83,7 @@ internal sealed class HelloNexusSceneFactory(
             textureProvider.Get((ContentId)"button_texture"),
             horizontalPadding: 16f,
             verticalPadding: 10f,
-            backgroundRenderLayerMask: backgroundLayer,
-            textRenderLayerMask: foregroundLayer,
+            renderLayerMask: guiLayer,
             sourceBorders: new(64f, 64f, 64f, 64f)
         ) { Label = buttonLabel };
         var buttonFocused = false;
@@ -108,8 +108,8 @@ internal sealed class HelloNexusSceneFactory(
         const float buttonLabelGap = 10f;
 
         var audioTexture = textureProvider.Get((ContentId)"icon_audio_on");
-        var leftIcon = CreateAudioIconElement(audioTexture, foregroundLayer);
-        var rightIcon = CreateAudioIconElement(audioTexture, foregroundLayer);
+        var leftIcon = CreateAudioIconElement(audioTexture, guiLayer);
+        var rightIcon = CreateAudioIconElement(audioTexture, guiLayer);
         var middleHeader = new MiddleHeaderElement(pressTextElement);
 
         var header = new HeaderElement(leftIcon, middleHeader, rightIcon);

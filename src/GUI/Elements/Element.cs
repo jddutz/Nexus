@@ -14,6 +14,8 @@ public partial class Element : GameObject, IElement
     [Observable(PublicSetter = true)]
     private Rectangle<float> _bounds = default;
 
+    private Margins _margins;
+
     [Observable(PublicSetter = true)]
     private bool _isVisible = true;
 
@@ -26,6 +28,41 @@ public partial class Element : GameObject, IElement
     [Observable(PublicSetter = true)]
     private bool _isFocused;
     private InputMap? _inputMap;
+
+    /// <summary>Gets or sets the non-rendered regions along the element boundaries.</summary>
+    public Margins Margins
+    {
+        get => _margins;
+        set
+        {
+            ValidateMargins(value);
+            if (_margins == value)
+                return;
+
+            _margins = value;
+            NotifyPropertyChanged(nameof(Margins));
+        }
+    }
+
+    /// <summary>Ensures margin dimensions are finite and non-negative.</summary>
+    /// <param name="value">The margins to validate.</param>
+    private static void ValidateMargins(Margins value)
+    {
+        if (
+            !float.IsFinite(value.Left)
+            || !float.IsFinite(value.Right)
+            || !float.IsFinite(value.Top)
+            || !float.IsFinite(value.Bottom)
+            || value.Left < 0f
+            || value.Right < 0f
+            || value.Top < 0f
+            || value.Bottom < 0f
+        )
+            throw new ArgumentOutOfRangeException(
+                nameof(value),
+                "Margin values must be finite and non-negative."
+            );
+    }
 
     /// <summary>
     /// Initializes an element with its owned components.
@@ -119,13 +156,51 @@ public partial class Element : GameObject, IElement
     /// <summary>Requests a fresh measure-and-arrange pass from the GUI.</summary>
     protected void InvalidateLayout() => NotifyPropertyChanged(string.Empty);
 
+    /// <summary>Gets the available content size after subtracting the margins.</summary>
+    /// <param name="constraint">The available outer size.</param>
+    /// <returns>The available size inside the margins.</returns>
+    protected Vector2D<float> GetContentConstraint(Vector2D<float> constraint) =>
+        new(
+            MathF.Max(0f, constraint.X - Margins.Left - Margins.Right),
+            MathF.Max(0f, constraint.Y - Margins.Top - Margins.Bottom)
+        );
+
+    /// <summary>Adds the margins to a measured content size.</summary>
+    /// <param name="contentSize">The measured size inside the margins.</param>
+    /// <returns>The measured size including the margins.</returns>
+    protected Vector2D<float> IncludeMargins(Vector2D<float> contentSize) =>
+        new(
+            contentSize.X + Margins.Left + Margins.Right,
+            contentSize.Y + Margins.Top + Margins.Bottom
+        );
+
+    /// <summary>Gets the portion of an allocation inside the margins.</summary>
+    /// <param name="bounds">The outer allocation.</param>
+    /// <returns>The content bounds after insetting each side by its margin.</returns>
+    protected Rectangle<float> GetContentBounds(Rectangle<float> bounds)
+    {
+        var width = MathF.Max(0f, bounds.Size.X);
+        var height = MathF.Max(0f, bounds.Size.Y);
+        var left = MathF.Min(Margins.Left, width);
+        var top = MathF.Min(Margins.Top, height);
+        return new Rectangle<float>(
+            bounds.Origin.X + left,
+            bounds.Origin.Y + top,
+            MathF.Max(0f, width - Margins.Left - Margins.Right),
+            MathF.Max(0f, height - Margins.Top - Margins.Bottom)
+        );
+    }
+
     /// <summary>
     /// Measures the element within the specified constraint.
     /// </summary>
     /// <param name="constraint">The available size constraint.</param>
     /// <returns>The measured size.</returns>
-    public virtual Vector2D<float> Measure(Vector2D<float> constraint) =>
-        new(Width ?? constraint.X, Height ?? constraint.Y);
+    public virtual Vector2D<float> Measure(Vector2D<float> constraint)
+    {
+        var contentConstraint = GetContentConstraint(constraint);
+        return IncludeMargins(new(Width ?? contentConstraint.X, Height ?? contentConstraint.Y));
+    }
 
     /// <summary>
     /// Arranges the element within the specified allocation.
@@ -135,7 +210,7 @@ public partial class Element : GameObject, IElement
     {
         SetBounds(
             IsEffectivelyVisible
-                ? bounds
+                ? GetContentBounds(bounds)
                 : new Rectangle<float>(bounds.Origin, Vector2D<float>.Zero)
         );
     }

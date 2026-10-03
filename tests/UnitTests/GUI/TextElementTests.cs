@@ -22,6 +22,24 @@ public sealed class TextElementTests
         Assert.Equal(Vector2D<float>.Zero, element.Measure(Vector2D<float>.Zero));
     }
 
+    /// <summary>Verifies margins constrain text layout and are excluded from computed bounds.</summary>
+    [Fact]
+    public void Margins_constrainMeasurementAndTextBounds()
+    {
+        var element = CreateTextElement("AB");
+        element.Margins = new Margins(1f, 2f, 3f, 4f);
+        var allocation = new Rectangle<float>(10f, 20f, 10f, 10f);
+
+        Assert.Equal(new Vector2D<float>(5f, 8f), element.Measure(new(10f, 10f)));
+        element.Arrange(allocation);
+
+        var text = Assert.IsType<TextComponent>(Assert.Single(element.Components));
+        var contentBounds = new Rectangle<float>(11f, 23f, 7f, 3f);
+        Assert.Equal(contentBounds, text.Destination);
+        Assert.Equal(text.LayoutBounds, element.Bounds);
+        Assert.Equal(new Rectangle<float>(13.5f, 24f, 2f, 1f), element.Bounds);
+    }
+
     /// <summary>Verifies a text element can be initialized before its rendering style is assigned.</summary>
     [Fact]
     public void Parameterless_construction_defers_drawables_until_style_is_assigned()

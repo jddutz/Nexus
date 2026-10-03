@@ -71,6 +71,24 @@ public sealed class TextButtonTests
         Assert.Equal(new Vector2D<float>(10f, 7f), button.Measure(new(100f, 100f)));
     }
 
+    /// <summary>Verifies margins are excluded from a button's background and hit bounds.</summary>
+    [Fact]
+    public void Margins_insetBackgroundAndLabelContent()
+    {
+        var button = CreateButton("A");
+        button.Margins = new Margins(1f, 2f, 3f, 4f);
+        var allocation = new Rectangle<float>(10f, 20f, 60f, 24f);
+
+        Assert.Equal(new Vector2D<float>(12f, 14f), button.Measure(new(100f, 100f)));
+        button.Arrange(allocation);
+
+        var contentBounds = new Rectangle<float>(11f, 23f, 57f, 17f);
+        Assert.Equal(contentBounds, button.Bounds);
+        Assert.Equal(contentBounds, button.GetComponent<NinePatchComponent>()!.Destination);
+        var text = Assert.IsType<TextComponent>(Assert.Single(button.Components.OfType<TextComponent>()));
+        Assert.Equal(new Rectangle<float>(15f, 26f, 49f, 11f), text.Destination);
+    }
+
     /// <summary>Verifies hiding removes visuals while retaining layout state for fresh components.</summary>
     [Fact]
     public void Visibility_removesAndRecreatesVisualComponents()
@@ -149,17 +167,30 @@ public sealed class TextButtonTests
     {
         var button = CreateButton("A");
         var bounds = new Rectangle<float>(4f, 5f, 60f, 24f);
+        button.RenderLayerMask = 0x1;
 
         button.Arrange(bounds);
 
         Assert.Equal(bounds, button.Bounds);
-        Assert.Equal(bounds, button.GetComponent<NinePatchComponent>()!.Destination);
-        var text = Assert.IsType<TextComponent>(Assert.Single(button.Components.OfType<TextComponent>()));
-        Assert.Equal(new Rectangle<float>(8f, 8f, 52f, 18f), text.Destination);
-        Assert.Equal("A", text.Text);
-        Assert.False(text.Wrap);
-        Assert.Equal(1, text.MaximumLines);
+        var background = button.GetComponent<NinePatchComponent>()!;
+        var label = Assert.IsType<TextComponent>(
+            Assert.Single(button.Components.OfType<TextComponent>())
+        );
+        Assert.Equal(0x1UL, background.RenderLayerMask);
+        Assert.Equal(0x1UL, label.RenderLayerMask);
+        Assert.Equal(bounds, background.Destination);
+        Assert.Equal(new Rectangle<float>(8f, 8f, 52f, 18f), label.Destination);
+        Assert.Equal("A", label.Text);
+        Assert.False(label.Wrap);
+        Assert.Equal(1, label.MaximumLines);
         Assert.Equal(1UL, DrawableTestData.TextInstanceCount(button));
+
+        button.RenderLayerMask = 0x2;
+
+        Assert.Equal(0x2UL, background.RenderLayerMask);
+        Assert.Equal(0x2UL, label.RenderLayerMask);
+        Assert.All(background.Drawables, drawable => Assert.Equal(0x2UL, drawable.RenderLayerMask));
+        Assert.All(label.Drawables, drawable => Assert.Equal(0x2UL, drawable.RenderLayerMask));
     }
 
     /// <summary>

@@ -113,7 +113,9 @@ public partial class TextElement : Element
             return Vector2D<float>.Zero;
 
         EnsureVisualComponent();
-        return _textComponent?.Measure(constraint) ?? Vector2D<float>.Zero;
+        return IncludeMargins(
+            _textComponent?.Measure(GetContentConstraint(constraint)) ?? Vector2D<float>.Zero
+        );
     }
 
     /// <inheritdoc />
@@ -130,10 +132,11 @@ public partial class TextElement : Element
         if (_textComponent is null)
             return;
 
+        var contentBounds = GetContentBounds(bounds);
         _textComponent.Text = Text;
         _textComponent.MaximumLines = MaximumLines;
         _textComponent.Wrap = true;
-        _textComponent.Destination = bounds;
+        _textComponent.Destination = contentBounds;
         _textComponent.Alignment = new Vector2D<float>(
             GetHorizontalAlignment(),
             GetVerticalAlignment()

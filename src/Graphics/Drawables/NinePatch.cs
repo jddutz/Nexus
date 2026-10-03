@@ -110,18 +110,18 @@ public partial class NinePatch : IDrawable
         var sourceTop = SourceBorders.Y / textureHeight;
         var sourceRight = SourceBorders.Z / textureWidth;
         var sourceBottom = SourceBorders.W / textureHeight;
-        var destinationLeft = FitBorders(
-            SourceBorders.X,
-            SourceBorders.Z,
-            Destination.Size.X,
-            out var destinationRight
-        );
-        var destinationTop = FitBorders(
-            SourceBorders.Y,
-            SourceBorders.W,
-            Destination.Size.Y,
-            out var destinationBottom
-        );
+        var horizontalBorders = SourceBorders.X + SourceBorders.Z;
+        var verticalBorders = SourceBorders.Y + SourceBorders.W;
+        var scale = 1f;
+        if (horizontalBorders > 0f)
+            scale = MathF.Min(scale, Destination.Size.X / horizontalBorders);
+        if (verticalBorders > 0f)
+            scale = MathF.Min(scale, Destination.Size.Y / verticalBorders);
+
+        var destinationLeft = SourceBorders.X * scale;
+        var destinationTop = SourceBorders.Y * scale;
+        var destinationRight = SourceBorders.Z * scale;
+        var destinationBottom = SourceBorders.W * scale;
         var destinationWidths = new[]
         {
             destinationLeft,
@@ -197,28 +197,6 @@ public partial class NinePatch : IDrawable
 
         var view = Matrix4X4<float>.Identity;
         MemoryMarshal.Write(target, in view);
-    }
-
-    /// <summary>
-    /// Fits opposing borders within a destination extent by proportionally compressing them
-    /// when their combined size exceeds the extent, leaving no center space in that case.
-    /// </summary>
-    /// <param name="leading">The leading border width.</param>
-    /// <param name="trailing">The trailing border width.</param>
-    /// <param name="extent">The destination extent.</param>
-    /// <param name="fittedTrailing">The fitted trailing border width.</param>
-    /// <returns>The fitted leading border width.</returns>
-    private static float FitBorders(
-        float leading,
-        float trailing,
-        float extent,
-        out float fittedTrailing
-    )
-    {
-        var total = leading + trailing;
-        var scale = total > extent && total > 0f ? extent / total : 1f;
-        fittedTrailing = trailing * scale;
-        return leading * scale;
     }
 
     /// <summary>Validates the instance layout used by textured quad shaders.</summary>

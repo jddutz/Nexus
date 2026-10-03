@@ -37,6 +37,22 @@ public sealed class ImageElementTests
         AssertBounds(new Rectangle<float>(x, y, width, height), element.Bounds);
     }
 
+    /// <summary>Verifies margins limit image sizing and keep visuals inside the content bounds.</summary>
+    [Fact]
+    public void Margins_limitMeasurementAndImageRendering()
+    {
+        var element = CreateImageElement(4, 2);
+        element.Margins = new Margins(1f, 2f, 3f, 4f);
+        var allocation = new Rectangle<float>(10f, 20f, 10f, 10f);
+
+        Assert.Equal(new Vector2D<float>(7f, 9f), element.Measure(new(10f, 10f)));
+        element.Arrange(allocation);
+
+        var expectedImageBounds = new Rectangle<float>(12.5f, 23.5f, 4f, 2f);
+        AssertBounds(expectedImageBounds, element.Bounds);
+        Assert.Equal(expectedImageBounds, element.GetComponent<TextureComponent>()!.Destination);
+    }
+
     /// <summary>Verifies custom sizing uses its independent UV rectangle and validates inputs.</summary>
     [Fact]
     public void SetCustomSizingMode_appliesSizeAndIndependentUvRectangle()

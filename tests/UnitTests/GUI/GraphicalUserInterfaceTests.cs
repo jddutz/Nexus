@@ -445,6 +445,31 @@ public class GraphicalUserInterfaceTests
         Assert.Equal(new Rectangle<float>(Vector2D<float>.Zero, new(1920, 1080)), arrangedBounds);
     }
 
+    /// <summary>Verifies changing margins schedules a new layout pass.</summary>
+    [Fact]
+    public void MarginsChange_invalidatesLayout()
+    {
+        var eventHub = new EventHub();
+        var gui = new GraphicalUserInterface(eventHub, new TestWindowService(new(100, 80)));
+        var arrangementCount = 0;
+        var element = new LayoutProbeElement(
+            arrange: (_, _) => arrangementCount++
+        );
+        var scene = new Scene();
+        scene.Children.Add(element);
+        ActivateScene(scene);
+        gui.Initialize();
+        eventHub.Publish(new SceneLoadedEvent(scene));
+        eventHub.Drain();
+
+        gui.Update(0);
+        element.Margins = new Margins(2f, 3f, 4f, 5f);
+        gui.Update(0);
+
+        Assert.Equal(2, arrangementCount);
+        Assert.Equal(new Rectangle<float>(2f, 4f, 95f, 71f), element.Bounds);
+    }
+
     /// <summary>
     /// Verifies a concrete container chooses how its child element is arranged.
     /// </summary>

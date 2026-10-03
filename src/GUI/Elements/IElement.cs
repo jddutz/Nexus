@@ -1,7 +1,7 @@
 namespace Nexus.GUI;
 
 /// <summary>
-/// Defines the dimensions, hit-test bounds, and layout protocol of a GUI element.
+/// Defines the state, hit-test bounds, and layout behavior of a GUI element.
 /// </summary>
 public interface IElement : IGameObject
 {
@@ -33,6 +33,12 @@ public interface IElement : IGameObject
 
     /// <summary>Gets or sets the element bounds used for hit testing.</summary>
     Rectangle<float> Bounds { get; set; }
+
+    /// <summary>
+    /// Gets or sets the boundary regions that derived element types omit from rendering and computed bounds.
+    /// </summary>
+    /// <remarks>All margins are zero in the default value.</remarks>
+    Margins Margins { get; set; }
 
     /// <summary>Measures the element within the specified size constraint.</summary>
     /// <param name="constraint">The available size constraint.</param>

@@ -27,14 +27,16 @@ public partial class TextButton : Element
     private readonly List<IObservable> _visibilityAncestors = [];
     private readonly Texture _texture;
     private readonly ITextStyle _textStyle;
-    private readonly ulong _backgroundRenderLayerMask;
-    private readonly ulong _textRenderLayerMask;
     private readonly Vector4D<float> _sourceBorders;
     private readonly ISamplingBehavior _samplingBehavior;
     private NinePatchComponent? _background;
     private TextComponent? _text;
     private float _horizontalPadding;
     private float _verticalPadding;
+
+    /// <summary>Gets or sets the render-layer mask shared by the button visuals.</summary>
+    [Observable(PublicSetter = true)]
+    private ulong _renderLayerMask = ulong.MaxValue;
 
     [Observable(PublicSetter = true)]
     private string _label = string.Empty;
@@ -55,6 +57,16 @@ public partial class TextButton : Element
     {
         if (!Enum.IsDefined(value))
             throw new ArgumentOutOfRangeException(nameof(value));
+    }
+
+    /// <summary>Updates both visual components after the render-layer mask changes.</summary>
+    /// <param name="previousValue">The previous render-layer mask.</param>
+    protected virtual partial void AfterRenderLayerMaskChanges(ulong previousValue)
+    {
+        if (_background is not null)
+            _background.RenderLayerMask = RenderLayerMask;
+        if (_text is not null)
+            _text.RenderLayerMask = RenderLayerMask;
     }
 
     /// <summary>Updates the text component after the button label changes.</summary>
@@ -100,8 +112,7 @@ public partial class TextButton : Element
     /// <param name="texture">The shared nine-patch texture.</param>
     /// <param name="horizontalPadding">The horizontal label padding.</param>
     /// <param name="verticalPadding">The vertical label padding.</param>
-    /// <param name="backgroundRenderLayerMask">The render-layer mask for the background.</param>
-    /// <param name="textRenderLayerMask">The render-layer mask for the text.</param>
+    /// <param name="renderLayerMask">The render-layer mask shared by the background and text.</param>
     /// <param name="sourceBorders">The source texture border widths.</param>
     /// <param name="samplingBehavior">The texture sampling behavior.</param>
     public TextButton(
@@ -109,8 +120,7 @@ public partial class TextButton : Element
         Texture texture,
         float horizontalPadding = 16f,
         float verticalPadding = 10f,
-        ulong backgroundRenderLayerMask = ulong.MaxValue,
-        ulong textRenderLayerMask = ulong.MaxValue,
+        ulong renderLayerMask = ulong.MaxValue,
         Vector4D<float>? sourceBorders = null,
         ISamplingBehavior? samplingBehavior = null
     )
@@ -127,8 +137,7 @@ public partial class TextButton : Element
         _textStyle = textStyle;
         _horizontalPadding = horizontalPadding;
         _verticalPadding = verticalPadding;
-        _backgroundRenderLayerMask = backgroundRenderLayerMask;
-        _textRenderLayerMask = textRenderLayerMask;
+        RenderLayerMask = renderLayerMask;
         _sourceBorders = sourceBorders ?? new Vector4D<float>(12f, 12f, 12f, 12f);
         _samplingBehavior = samplingBehavior ?? SamplingBehaviors.PixelPerfect;
         SetCanFocus(true);
@@ -145,13 +154,13 @@ public partial class TextButton : Element
         var background = new NinePatchComponent { };
         var text = new TextComponent(_textStyle)
         {
-            RenderLayerMask = _textRenderLayerMask,
+            RenderLayerMask = RenderLayerMask,
             Text = Label,
             Wrap = false,
             MaximumLines = 1,
         };
         background.Texture = _texture;
-        background.RenderLayerMask = _backgroundRenderLayerMask;
+        background.RenderLayerMask = RenderLayerMask;
         background.SamplingBehavior = _samplingBehavior;
         background.SourceBorders = _sourceBorders;
         _background = background;
@@ -245,14 +254,17 @@ public partial class TextButton : Element
         )
             throw new ArgumentOutOfRangeException(nameof(constraint));
 
+        var contentConstraint = GetContentConstraint(constraint);
         var textConstraint = new Vector2D<float>(
-            MathF.Max(0f, constraint.X - 2f * _horizontalPadding),
-            MathF.Max(0f, constraint.Y - 2f * _verticalPadding)
+            MathF.Max(0f, contentConstraint.X - 2f * _horizontalPadding),
+            MathF.Max(0f, contentConstraint.Y - 2f * _verticalPadding)
         );
         var labelSize = _text?.Measure(textConstraint) ?? Vector2D<float>.Zero;
-        return new(
-            MathF.Min(labelSize.X + _horizontalPadding * 2f, constraint.X),
-            MathF.Min(labelSize.Y + _verticalPadding * 2f, constraint.Y)
+        return IncludeMargins(
+            new(
+                MathF.Min(labelSize.X + _horizontalPadding * 2f, contentConstraint.X),
+                MathF.Min(labelSize.Y + _verticalPadding * 2f, contentConstraint.Y)
+            )
         );
     }
 
@@ -273,6 +285,7 @@ public partial class TextButton : Element
         if (_text is null || _background is null)
             return;
 
+        var contentBounds = GetContentBounds(bounds);
         var horizontalAlignment = LabelAlignment switch
         {
             TextButtonLabelAlignment.Start => 0f,
@@ -284,13 +297,13 @@ public partial class TextButton : Element
         _text.Wrap = false;
         _text.MaximumLines = 1;
         _text.Destination = new Rectangle<float>(
-            bounds.Origin.X + _horizontalPadding,
-            bounds.Origin.Y + _verticalPadding,
-            MathF.Max(0f, bounds.Size.X - 2f * _horizontalPadding),
-            MathF.Max(0f, bounds.Size.Y - 2f * _verticalPadding)
+            contentBounds.Origin.X + _horizontalPadding,
+            contentBounds.Origin.Y + _verticalPadding,
+            MathF.Max(0f, contentBounds.Size.X - 2f * _horizontalPadding),
+            MathF.Max(0f, contentBounds.Size.Y - 2f * _verticalPadding)
         );
         _text.Alignment = new Vector2D<float>(horizontalAlignment, 0.5f);
-        _background.Destination = bounds;
+        _background.Destination = contentBounds;
     }
 
 }

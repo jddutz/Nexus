@@ -172,16 +172,20 @@ public partial class ImageElement : Element
     {
         ValidateAvailableSize(constraint, nameof(constraint));
         var texture = Texture;
-        if (
-            !IsEffectivelyVisible
-            || texture is null
-            || constraint.X == 0f
-            || constraint.Y == 0f
-        )
+        if (!IsEffectivelyVisible || texture is null)
             return Vector2D<float>.Zero;
 
-        var imageSize = GetImageSize(GetEffectiveSourceRegion(texture), constraint);
-        return new(MathF.Min(imageSize.X, constraint.X), MathF.Min(imageSize.Y, constraint.Y));
+        var contentConstraint = GetContentConstraint(constraint);
+        if (contentConstraint.X == 0f || contentConstraint.Y == 0f)
+            return IncludeMargins(Vector2D<float>.Zero);
+
+        var imageSize = GetImageSize(GetEffectiveSourceRegion(texture), contentConstraint);
+        return IncludeMargins(
+            new(
+                MathF.Min(imageSize.X, contentConstraint.X),
+                MathF.Min(imageSize.Y, contentConstraint.Y)
+            )
+        );
     }
 
     /// <inheritdoc />
@@ -189,7 +193,7 @@ public partial class ImageElement : Element
     {
         ValidateBounds(bounds);
         base.Arrange(bounds);
-        UpdateVisualComponent(bounds);
+        UpdateVisualComponent(GetContentBounds(bounds));
     }
 
     /// <summary>Synchronizes the image drawable and hit bounds with the current allocation.</summary>

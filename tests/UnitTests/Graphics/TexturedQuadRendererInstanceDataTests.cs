@@ -178,14 +178,14 @@ public sealed class TextureComponentInstanceDataTests
         return renderers;
     }
 
-    /// <summary>Verifies nine-patch packing and border fitting for a destination smaller than its borders.</summary>
+    /// <summary>Verifies nine-patch packing applies uniform border fitting to a small destination.</summary>
     [Fact]
-    public void NinePatch_packs_nine_regions_and_fits_borders_to_small_destinations()
+    public void NinePatch_packs_nine_regions_and_uniformly_fits_borders_to_small_destinations()
     {
         var component = new NinePatchComponent
         {
             Texture = new Texture("test", 100, 80, new Color[100 * 80]),
-            Destination = new Rectangle<float>(0f, 0f, 15f, 12f),
+            Destination = new Rectangle<float>(0f, 0f, 15f, 10f),
             TexCoord = new(0.2f, 0.1f, 0.5f, 0.5f),
             SourceBorders = new(10f, 8f, 10f, 8f),
         };
@@ -208,8 +208,9 @@ public sealed class TextureComponentInstanceDataTests
             data.AsSpan(4 * 96 + textureRegionOffset, 16)
         );
 
-        Assert.Equal(7.5f, topLeftTransform.M11);
-        Assert.Equal(6f, topLeftTransform.M22);
+        Assert.Equal(6.25f, topLeftTransform.M11);
+        Assert.Equal(5f, topLeftTransform.M22);
+        Assert.Equal(10f / 8f, topLeftTransform.M11 / topLeftTransform.M22);
         Assert.Equal(0.2f, topLeftRegion.X, 6);
         Assert.Equal(0.1f, topLeftRegion.Y, 6);
         Assert.Equal(0.1f, topLeftRegion.Z, 6);
@@ -222,9 +223,9 @@ public sealed class TextureComponentInstanceDataTests
         Assert.Empty(component.Drawables);
     }
 
-    /// <summary>Verifies source borders remain fixed while the center stretches.</summary>
+    /// <summary>Verifies vertical border compression is shared with horizontal borders.</summary>
     [Fact]
-    public void NinePatch_uses_source_borders_for_destination_caps()
+    public void NinePatch_shares_border_compression_across_both_axes()
     {
         var component = new NinePatchComponent
         {
@@ -244,7 +245,7 @@ public sealed class TextureComponentInstanceDataTests
             data.AsSpan(textureRegionOffset, 16)
         );
 
-        Assert.Equal(64f, topLeftTransform.M11);
+        Assert.Equal(19f, topLeftTransform.M11);
         Assert.Equal(19f, topLeftTransform.M22);
         Assert.Equal(64f / 384f, topLeftRegion.Z, 6);
         Assert.Equal(64f / 128f, topLeftRegion.W, 6);

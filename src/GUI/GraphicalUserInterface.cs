@@ -229,6 +229,7 @@ public sealed class GraphicalUserInterface(IEventHub eventHub, IWindowService? w
                     is ""
                         or nameof(Element.Width)
                         or nameof(Element.Height)
+                        or nameof(Element.Margins)
                         or nameof(TextElement.Text)
                         or nameof(TextElement.Style)
                         or nameof(TextElement.MaximumLines)
