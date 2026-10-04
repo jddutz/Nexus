@@ -13,7 +13,7 @@ public class GameSystemStartSceneTests
     [Fact]
     public void Initialize_loadsConfiguredSceneWhenMultipleScenesAreRegistered()
     {
-        var registry = new SceneRegistry();
+        var registry = SceneRegistryTestHelper.CreateEmptyRegistry();
         var firstScene = CreateScene();
         var configuredScene = CreateScene();
         registry.Register("First", () => firstScene);
@@ -29,7 +29,7 @@ public class GameSystemStartSceneTests
     [Fact]
     public void Initialize_throwsWhenConfiguredSceneIsMissing()
     {
-        var gameSystem = CreateGameSystem(new SceneRegistry(), "Missing");
+        var gameSystem = CreateGameSystem(SceneRegistryTestHelper.CreateEmptyRegistry(), "Missing");
 
         var exception = Assert.Throws<InvalidOperationException>(gameSystem.Initialize);
 
@@ -40,7 +40,7 @@ public class GameSystemStartSceneTests
     [Fact]
     public void Initialize_usesOnlyRegisteredSceneWhenStartSceneIsUnspecified()
     {
-        var registry = new SceneRegistry();
+        var registry = SceneRegistryTestHelper.CreateEmptyRegistry();
         var scene = CreateScene();
         registry.Register("OnlyScene", () => scene);
         var gameSystem = CreateGameSystem(registry);
@@ -54,7 +54,7 @@ public class GameSystemStartSceneTests
     [Fact]
     public void Initialize_throwsWhenNoSceneIsRegistered()
     {
-        var gameSystem = CreateGameSystem(new SceneRegistry());
+        var gameSystem = CreateGameSystem(SceneRegistryTestHelper.CreateEmptyRegistry());
 
         var exception = Assert.Throws<InvalidOperationException>(gameSystem.Initialize);
 
@@ -65,7 +65,7 @@ public class GameSystemStartSceneTests
     [Fact]
     public void Initialize_throwsAndListsAvailableScenesWhenSeveralAreRegistered()
     {
-        var registry = new SceneRegistry();
+        var registry = SceneRegistryTestHelper.CreateEmptyRegistry();
         registry.Register("SceneA", CreateScene);
         registry.Register("SceneB", CreateScene);
         var gameSystem = CreateGameSystem(registry);
@@ -82,7 +82,7 @@ public class GameSystemStartSceneTests
     public void Initialize_propagatesSelectedSceneConstructionFailure()
     {
         var expectedException = new InvalidOperationException("Scene construction failed.");
-        var registry = new SceneRegistry();
+        var registry = SceneRegistryTestHelper.CreateEmptyRegistry();
         registry.Register("Broken", () => throw expectedException);
         registry.Register("Fallback", CreateScene);
         var gameSystem = CreateGameSystem(registry, "Broken");

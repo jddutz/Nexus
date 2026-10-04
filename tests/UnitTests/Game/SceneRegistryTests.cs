@@ -14,7 +14,7 @@ public class SceneRegistryTests
     [Fact]
     public void Load_usesRegisteredFactoryAndReturnsNullForUnknownScene()
     {
-        var registry = new SceneRegistry();
+        var registry = SceneRegistryTestHelper.CreateEmptyRegistry();
         const string sceneName = "WelcomeScreen";
         var scene = new Scene(NodeId.New())
         {
@@ -34,7 +34,7 @@ public class SceneRegistryTests
     [Fact]
     public void Register_throwsWhenSceneNameIsAlreadyRegistered()
     {
-        var registry = new SceneRegistry();
+        var registry = SceneRegistryTestHelper.CreateEmptyRegistry();
         const string sceneName = "DuplicateScene";
         registry.Register(
             sceneName,
@@ -63,10 +63,40 @@ public class SceneRegistryTests
     [Fact]
     public void Load_throwsWhenRegisteredFactoryReturnsNull()
     {
-        var registry = new SceneRegistry();
+        var registry = SceneRegistryTestHelper.CreateEmptyRegistry();
         const string sceneName = "NullScene";
         registry.Register(sceneName, () => null!);
 
         Assert.Throws<InvalidOperationException>(() => registry.Load(sceneName));
+    }
+
+    /// <summary>Verifies the default registry discovers concrete scenes and applies name overrides.</summary>
+    [Fact]
+    public void Discover_registersConcreteScenesAndUsesAttributeOnlyToOverrideName()
+    {
+        var registry =
+            SceneRegistryTestHelper.CreateForAssemblyContaining<UnattributedDiscoveredScene>();
+
+        Assert.Contains(nameof(UnattributedDiscoveredScene), registry.RegisteredSceneNames);
+        Assert.Contains("RenamedDiscoveredScene", registry.RegisteredSceneNames);
+        Assert.DoesNotContain(nameof(OverriddenDiscoveredScene), registry.RegisteredSceneNames);
+        Assert.IsType<UnattributedDiscoveredScene>(
+            registry.Load(nameof(UnattributedDiscoveredScene))
+        );
+    }
+
+    /// <summary>A concrete scene discovered by its default class name.</summary>
+    public sealed class UnattributedDiscoveredScene : Scene
+    {
+        /// <summary>Creates a scene used to verify default name discovery.</summary>
+        public UnattributedDiscoveredScene() { }
+    }
+
+    /// <summary>A scene whose discovery name is overridden by its attribute.</summary>
+    [Scene("RenamedDiscoveredScene")]
+    public sealed class OverriddenDiscoveredScene : Scene
+    {
+        /// <summary>Creates a scene used to verify attribute name overrides.</summary>
+        public OverriddenDiscoveredScene() { }
     }
 }

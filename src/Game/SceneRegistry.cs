@@ -1,7 +1,7 @@
 namespace Nexus.Game;
 
 /// <summary>
-/// Discovers attributed scene classes and loads scenes by name.
+/// Discovers concrete scene classes and loads scenes by name.
 /// </summary>
 public class SceneRegistry : ISceneRegistry
 {
@@ -10,7 +10,7 @@ public class SceneRegistry : ISceneRegistry
     /// <inheritdoc/>
     public IReadOnlyCollection<string> RegisteredSceneNames => _sceneFactories.Keys;
 
-    /// <summary>Creates an empty registry for manually registered scenes.</summary>
+    /// <summary>Creates a registry that discovers scenes in the entry assembly.</summary>
     public SceneRegistry()
         : this(new EmptyServiceProvider(), Options.Create(new SceneRegistrySettings()))
     {
@@ -33,21 +33,16 @@ public class SceneRegistry : ISceneRegistry
         {
             foreach (var type in assembly.GetTypes())
             {
-                var attribute = type.GetCustomAttribute<SceneAttribute>(inherit: false);
-                if (attribute is null)
-                    continue;
-
                 if (
                     !type.IsClass
                     || type.IsAbstract
                     || type.ContainsGenericParameters
                     || !typeof(IScene).IsAssignableFrom(type)
                 )
-                    throw new InvalidOperationException(
-                        $"Scene type '{type.FullName}' must be a concrete, non-generic class implementing IScene."
-                    );
+                    continue;
 
-                var sceneName = attribute.Name ?? type.Name;
+                var attribute = type.GetCustomAttribute<SceneAttribute>(inherit: false);
+                var sceneName = attribute?.Name ?? type.Name;
                 if (string.IsNullOrWhiteSpace(sceneName))
                     throw new InvalidOperationException(
                         $"Scene type '{type.FullName}' has an empty registration name."

@@ -68,7 +68,7 @@ public class GameSystemEventRegistrationTests
         var child = new EventHandlingGameObject([childComponent]);
         root.AddChild(child);
         scene.Children.Add(root);
-        var sceneRegistry = new SceneRegistry();
+        var sceneRegistry = SceneRegistryTestHelper.CreateEmptyRegistry();
         sceneRegistry.Register(sceneName, () => scene);
         var gameSystem = CreateGameSystem(new EventHub(), sceneRegistry, sceneName);
 
@@ -97,7 +97,7 @@ public class GameSystemEventRegistrationTests
         {
             MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
         };
-        var sceneRegistry = new SceneRegistry();
+        var sceneRegistry = SceneRegistryTestHelper.CreateEmptyRegistry();
         sceneRegistry.Register(sceneName, () => scene);
         var gameSystem = CreateGameSystem(new EventHub(), sceneRegistry, sceneName);
         gameSystem.Initialize();
@@ -142,7 +142,7 @@ public class GameSystemEventRegistrationTests
     {
         var gameSystem = CreateGameSystem(
             new EventHub(),
-            new SceneRegistry(),
+            SceneRegistryTestHelper.CreateEmptyRegistry(),
             "MissingScene"
         );
 
@@ -239,7 +239,7 @@ public class GameSystemEventRegistrationTests
         new(
             eventHub,
             NullLogger<GameSystem>.Instance,
-            sceneRegistry ?? new SceneRegistry(),
+            sceneRegistry ?? SceneRegistryTestHelper.CreateEmptyRegistry(),
             Options.Create(new GameSettings { StartSceneId = startSceneId })
         );
 

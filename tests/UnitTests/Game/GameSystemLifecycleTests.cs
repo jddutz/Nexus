@@ -264,7 +264,7 @@ public class GameSystemLifecycleTests
         IEventHub? eventHub = null
     )
     {
-        var registry = new SceneRegistry();
+        var registry = SceneRegistryTestHelper.CreateEmptyRegistry();
         registry.Register("Lifecycle", () => scene);
         return new GameSystem(
             eventHub ?? new EventHub(),

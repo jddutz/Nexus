@@ -3,7 +3,6 @@ namespace HelloNexus;
 /// <summary>
 /// Builds the HelloNexus welcome screen and its application-specific content.
 /// </summary>
-[Scene]
 public class WelcomeScreen : Scene
 {
     private readonly ITextStyleRegistry _textStyles;

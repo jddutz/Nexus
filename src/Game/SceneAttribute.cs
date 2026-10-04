@@ -1,10 +1,10 @@
 namespace Nexus.Game;
 
 /// <summary>
-/// Marks a scene class for automatic registration.
+/// Overrides the default registration name of an automatically discovered scene.
 /// </summary>
 /// <param name="name">
-/// The registration name. When omitted, the class name is used.
+/// The registration name. When omitted, the scene class name is used.
 /// </param>
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = false)]
 public sealed class SceneAttribute(string? name = null) : Attribute

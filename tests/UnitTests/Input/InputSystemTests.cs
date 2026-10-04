@@ -637,7 +637,7 @@ public class InputSystemTests
         nextMap.OnKeyPressed(KeyEnum.Escape).Invoke(() => thirdCalls++);
         nextScene.InputMap = nextMap;
 
-        var sceneRegistry = new SceneRegistry();
+        var sceneRegistry = SceneRegistryTestHelper.CreateEmptyRegistry();
         sceneRegistry.Register(sceneName, () => scene);
         var gameSystem = new SwitchableGameSystem(
             eventHub,

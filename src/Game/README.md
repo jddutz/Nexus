@@ -5,7 +5,7 @@ Game owns concrete scenes, scene registration, and the game-system lifecycle coo
 ## Main types and behavior
 
 - `Scene` implements a scene root; `View` represents game-side view functionality.
-- `ISceneRegistry` and `SceneRegistry` provide named scene registration and loading.
+- `ISceneRegistry` and `SceneRegistry` discover concrete scenes from the entry assembly by default and provide named scene loading. `SceneAttribute` optionally overrides a scene's class-name-based registration name.
 - `IGameSystem` and `GameSystem` manage the current scene and object/component activation and deactivation.
 - `GameSettings` accepts an optional initial scene name through the `Game` configuration section.
 
