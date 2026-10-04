@@ -1,5 +1,6 @@
 namespace Nexus.GUI.Elements;
 
+using Nexus.Graphics;
 using Nexus.Graphics.Cameras;
 using Nexus.Graphics.Components;
 
@@ -17,7 +18,7 @@ public partial class View : Element
 
     /// <summary>Gets or sets the scene render layers visible through this view.</summary>
     [Observable]
-    private ulong _layerMask;
+    private ulong _layerMask = RenderLayers.All;
 
     /// <summary>Gets or sets the rendering order relative to other views.</summary>
     [Observable]

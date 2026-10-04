@@ -87,7 +87,7 @@ public partial class TextRenderer : Component, IGraphicsComponent
 
     /// <summary>Gets or sets the render-layer mask applied to the glyph drawable.</summary>
     [Observable(PublicSetter = true)]
-    private ulong _renderLayerMask = ulong.MaxValue;
+    private ulong _renderLayerMask = RenderLayers.All;
 
     /// <summary>Applies the changed render-layer mask to the current drawable.</summary>
     /// <param name="previousValue">The previous render-layer mask.</param>

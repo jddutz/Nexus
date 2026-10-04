@@ -9,7 +9,7 @@ public partial class NinePatch : IDrawable
     public DrawableId Id { get; } = DrawableId.New();
 
     [Observable(PublicSetter = true)]
-    private ulong _renderLayerMask = ulong.MaxValue;
+    private ulong _renderLayerMask = RenderLayers.All;
 
     /// <summary>Gets or sets the drawable's position in render order.</summary>
     [Observable(PublicSetter = true)]

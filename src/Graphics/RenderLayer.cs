@@ -9,11 +9,6 @@ namespace Nexus.Graphics;
 public readonly record struct RenderLayer(int index, string name, uint renderPassMask)
 {
     /// <summary>
-    /// Gets the default GUI render layer.
-    /// </summary>
-    public static RenderLayer DefaultGui { get; } = new(0, "GUI", RenderPasses.Main);
-
-    /// <summary>
     /// Gets the zero-based index of the render layer.
     /// </summary>
     public int Index { get; } = index;

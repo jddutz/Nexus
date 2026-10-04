@@ -584,7 +584,7 @@ public sealed class TextSpanTests
         Assert.Equal(Vector2D<float>.Zero, component.Alignment);
         Assert.Null(component.MaximumLines);
         Assert.True(component.Wrap);
-        Assert.Equal(ulong.MaxValue, component.RenderLayerMask);
+        Assert.Equal(RenderLayers.All, component.RenderLayerMask);
         Assert.Equal(new Rectangle<float>(0f, 0f, 0f, 0f), component.LayoutBounds);
     }
 

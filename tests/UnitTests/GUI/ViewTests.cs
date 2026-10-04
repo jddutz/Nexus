@@ -16,6 +16,8 @@ public sealed class ViewTests
 
         Assert.Same(view.ViewComponent, Assert.Single(view.Components.OfType<ViewRenderer>()));
         Assert.Same(view.ViewComponent, Assert.Single(view.Components));
+        Assert.Equal(RenderLayers.All, view.LayerMask);
+        Assert.Equal(RenderLayers.All, view.ViewComponent.LayerMask);
     }
 
     /// <summary>Verifies public view configuration is propagated to the owned renderer.</summary>

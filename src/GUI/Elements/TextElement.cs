@@ -1,5 +1,6 @@
 namespace Nexus.GUI.Elements;
 
+using Nexus.Graphics;
 using Nexus.Graphics.Components;
 using Nexus.Graphics.Text;
 
@@ -15,7 +16,7 @@ public partial class TextElement : Element
     private int? _maximumLines;
 
     [Observable]
-    private ulong _renderLayerMask = ulong.MaxValue;
+    private ulong _renderLayerMask = RenderLayers.All;
     private TextRenderer? _textComponent;
 
     /// <summary>Gets or sets the color applied to the text glyphs.</summary>
@@ -82,7 +83,7 @@ public partial class TextElement : Element
         string text,
         ITextStyle style,
         int? maximumLines = null,
-        ulong renderLayerMask = ulong.MaxValue
+        ulong renderLayerMask = RenderLayers.All
     )
         : this()
     {

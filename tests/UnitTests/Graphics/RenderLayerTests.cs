@@ -18,13 +18,12 @@ public class RenderLayerTests
         Assert.Equal(RenderPasses.UI, layer.RenderPassMask);
     }
 
-    /// <summary>
-    /// Verifies the default GUI layer remains a classification for the main pass.
-    /// </summary>
+    /// <summary>Verifies common layer masks target the expected render-layer slots.</summary>
     [Fact]
-    public void DefaultGui_UsesDefaultGuiSettings()
+    public void RenderLayers_ExposesDefaultUIAndAllMasks()
     {
-        Assert.Equal(new RenderLayer(0, "GUI", RenderPasses.Main), RenderLayer.DefaultGui);
+        Assert.Equal(1UL, RenderLayers.DefaultUI);
+        Assert.Equal(ulong.MaxValue, RenderLayers.All);
     }
 
     /// <summary>

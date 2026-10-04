@@ -16,7 +16,7 @@ public partial class TextureRenderer : Component, IGraphicsComponent
     public IReadOnlyList<IDrawable> Drawables => _drawables;
 
     [Observable(PublicSetter = true)]
-    private ulong _renderLayerMask = ulong.MaxValue;
+    private ulong _renderLayerMask = RenderLayers.All;
 
     /// <inheritdoc />
     protected virtual partial void AfterRenderLayerMaskChanges(ulong previousValue) =>

@@ -692,7 +692,7 @@ public class CommandFactoryTests
         public DrawableId Id => new(1);
 
         /// <inheritdoc />
-        public ulong RenderLayerMask => ulong.MaxValue;
+        public ulong RenderLayerMask => RenderLayers.All;
 
         /// <inheritdoc />
         public int DrawOrder { get; set; }

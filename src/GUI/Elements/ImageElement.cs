@@ -1,5 +1,7 @@
 namespace Nexus.GUI.Elements;
 
+using Nexus.Graphics;
+
 /// <summary>Lays out, clips, and renders one texture image inside its assigned rectangle.</summary>
 public partial class ImageElement : Element
 {
@@ -68,7 +70,7 @@ public partial class ImageElement : Element
     private Color _color = Colors.White;
 
     [Observable]
-    private ulong _renderLayerMask = ulong.MaxValue;
+    private ulong _renderLayerMask = RenderLayers.All;
     private TextureRenderer? _imageComponent;
 
     /// <summary>Validates the proposed sizing mode and custom-size configuration.</summary>

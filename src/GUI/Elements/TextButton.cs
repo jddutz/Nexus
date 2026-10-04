@@ -1,5 +1,6 @@
 namespace Nexus.GUI.Elements;
 
+using Nexus.Graphics;
 using Nexus.Graphics.Components;
 using Nexus.Graphics.Text;
 using Nexus.Graphics.Textures;
@@ -19,7 +20,7 @@ public partial class TextButton : Element
 
     /// <summary>Gets or sets the render-layer mask shared by the button visuals.</summary>
     [Observable(PublicSetter = true)]
-    private ulong _renderLayerMask = ulong.MaxValue;
+    private ulong _renderLayerMask = RenderLayers.All;
 
     [Observable(PublicSetter = true)]
     private string _label = string.Empty;
@@ -79,7 +80,7 @@ public partial class TextButton : Element
         ITexture texture,
         float horizontalPadding = 16f,
         float verticalPadding = 10f,
-        ulong renderLayerMask = ulong.MaxValue,
+        ulong renderLayerMask = RenderLayers.All,
         Vector4D<float>? sourceBorders = null,
         ISamplingBehavior? samplingBehavior = null
     )
