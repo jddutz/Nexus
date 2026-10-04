@@ -642,7 +642,7 @@ public class InputSystemTests
         var gameSystem = new SwitchableGameSystem(
             eventHub,
             sceneRegistry,
-            Options.Create(new GameSettings { InitialScene = sceneName })
+            sceneName
         );
 
         eventHub.Publish(new KeyPressedEvent(keyboard, KeyEnum.Escape));
@@ -722,13 +722,17 @@ public class InputSystemTests
     /// Exposes the protected generated scene setter for lifecycle transition tests.
     /// </summary>
     /// <param name="eventHub">The event hub used by the game system.</param>
-    /// <param name="sceneRegistry">The registry used to load the initial scene.</param>
-    /// <param name="gameSettings">The game settings.</param>
+    /// <param name="sceneRegistry">The registry used to load the start scene.</param>
     private sealed class SwitchableGameSystem(
         IEventHub eventHub,
         ISceneRegistry sceneRegistry,
-        IOptions<GameSettings> gameSettings
-    ) : GameSystem(eventHub, NullLogger<GameSystem>.Instance, sceneRegistry, gameSettings)
+        string startSceneId
+    ) : GameSystem(
+        eventHub,
+        NullLogger<GameSystem>.Instance,
+        sceneRegistry,
+        Options.Create(new GameSettings { StartSceneId = startSceneId })
+    )
     {
         /// <summary>Changes the current scene using the protected generated setter.</summary>
         /// <param name="scene">The scene to activate, or <see langword="null"/>.</param>

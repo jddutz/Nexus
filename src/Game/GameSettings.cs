@@ -5,6 +5,6 @@ namespace Nexus.Game;
 /// </summary>
 public sealed record GameSettings
 {
-    /// <summary>Gets or sets the name of the initial scene.</summary>
-    public string InitialScene { get; set; } = string.Empty;
+    /// <summary>Gets or sets the identifier of the scene to start.</summary>
+    public string StartSceneId { get; set; } = string.Empty;
 }

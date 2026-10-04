@@ -23,6 +23,7 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(configuration);
 
         services.AddOptions<GameSettings>().Bind(configuration.GetSection("Game"));
+        services.AddOptions<SceneRegistrySettings>();
         services.TryAddSingleton<IFontBuilder, FontBuilder>();
         services.TryAddSingleton<IGameSystem, GameSystem>();
         services.TryAddSingleton<ISceneRegistry, SceneRegistry>();

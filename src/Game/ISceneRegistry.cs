@@ -20,4 +20,5 @@ public interface ISceneRegistry
     /// <returns>The loaded scene, or <see langword="null"/> when it cannot be loaded.</returns>
     /// <exception cref="InvalidOperationException">The registered factory returns <see langword="null"/>.</exception>
     IScene? Load(string sceneName);
+
 }

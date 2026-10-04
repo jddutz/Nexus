@@ -21,7 +21,7 @@ public class GameSystemEventRegistrationTests
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(
-                new Dictionary<string, string?> { ["Game:InitialScene"] = "ConfiguredScene" }
+                new Dictionary<string, string?> { ["Game:StartSceneId"] = "ConfiguredScene" }
             )
             .Build();
         var services = new ServiceCollection();
@@ -30,7 +30,25 @@ public class GameSystemEventRegistrationTests
         using var serviceProvider = services.BuildServiceProvider();
         var settings = serviceProvider.GetRequiredService<IOptions<GameSettings>>().Value;
 
-        Assert.Equal("ConfiguredScene", settings.InitialScene);
+        Assert.Equal("ConfiguredScene", settings.StartSceneId);
+    }
+
+    /// <summary>Verifies scene registry settings use their discovery defaults.</summary>
+    [Fact]
+    public void AddGameServices_registersSceneRegistrySettings()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(
+                new Dictionary<string, string?> { ["Game:StartSceneId"] = "ConfiguredScene" }
+            )
+            .Build();
+        var services = new ServiceCollection();
+        services.AddGameServices(configuration);
+
+        using var serviceProvider = services.BuildServiceProvider();
+        var settings = serviceProvider.GetRequiredService<IOptions<SceneRegistrySettings>>().Value;
+
+        Assert.True(settings.ScanEntryAssembly);
     }
 
     /// <summary>
@@ -52,17 +70,10 @@ public class GameSystemEventRegistrationTests
         scene.Children.Add(root);
         var sceneRegistry = new SceneRegistry();
         sceneRegistry.Register(sceneName, () => scene);
-        var gameSystem = CreateGameSystem(
-            new EventHub(),
-            sceneRegistry,
-            new GameSettings { InitialScene = sceneName }
-        );
-
-        Assert.Null(gameSystem.InitialScene);
+        var gameSystem = CreateGameSystem(new EventHub(), sceneRegistry, sceneName);
 
         gameSystem.Initialize();
 
-        Assert.Same(scene, gameSystem.InitialScene);
         Assert.Same(scene, gameSystem.CurrentScene);
         Assert.False(root.IsActivated);
         Assert.False(child.IsActivated);
@@ -88,11 +99,7 @@ public class GameSystemEventRegistrationTests
         };
         var sceneRegistry = new SceneRegistry();
         sceneRegistry.Register(sceneName, () => scene);
-        var gameSystem = CreateGameSystem(
-            new EventHub(),
-            sceneRegistry,
-            new GameSettings { InitialScene = sceneName }
-        );
+        var gameSystem = CreateGameSystem(new EventHub(), sceneRegistry, sceneName);
         gameSystem.Initialize();
 
         var rootComponent = new EventHandlingComponent();
@@ -136,7 +143,7 @@ public class GameSystemEventRegistrationTests
         var gameSystem = CreateGameSystem(
             new EventHub(),
             new SceneRegistry(),
-            new GameSettings { InitialScene = "MissingScene" }
+            "MissingScene"
         );
 
         var exception = Assert.Throws<InvalidOperationException>(gameSystem.Initialize);
@@ -227,13 +234,13 @@ public class GameSystemEventRegistrationTests
     private static GameSystem CreateGameSystem(
         IEventHub eventHub,
         ISceneRegistry? sceneRegistry = null,
-        GameSettings? gameSettings = null
+        string startSceneId = ""
     ) =>
         new(
             eventHub,
             NullLogger<GameSystem>.Instance,
             sceneRegistry ?? new SceneRegistry(),
-            Options.Create(gameSettings ?? new GameSettings())
+            Options.Create(new GameSettings { StartSceneId = startSceneId })
         );
 
     /// <summary>

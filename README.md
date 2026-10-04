@@ -73,7 +73,7 @@ Add `appsettings.json`:
     "ApplicationVersion": "1.0.0"
   },
   "Game": {
-    "InitialScene": "WelcomeScreen"
+    "StartSceneId": "WelcomeScreen"
   },
   "Window": {
     "Title": "Hello Nexus",
@@ -103,7 +103,7 @@ Build your content with NAP:
 nap build
 ```
 
-Define a concrete scene named `WelcomeScreen` in the application project. Nexus discovers scene classes in the entry assembly and loads the scene named by `Game:InitialScene`. No manual scene-factory registration is required.
+Define a concrete scene named `WelcomeScreen` in the application project. Nexus discovers scene classes in the entry assembly, and `Game:StartSceneId` selects the scene that `GameSystem` activates. No manual scene-factory registration is required.
 
 To discover scenes in another assembly, configure the registry before constructing `Application`:
 

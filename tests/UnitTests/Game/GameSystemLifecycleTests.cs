@@ -270,7 +270,7 @@ public class GameSystemLifecycleTests
             eventHub ?? new EventHub(),
             NullLogger<GameSystem>.Instance,
             registry,
-            Options.Create(new GameSettings { InitialScene = "Lifecycle" }),
+            Options.Create(new GameSettings { StartSceneId = "Lifecycle" }),
             windowService
         );
     }

@@ -7,7 +7,7 @@ namespace Nexus.Game;
 /// </summary>
 /// <param name="eventHub">The event hub used to register handlers and publish lifecycle events.</param>
 /// <param name="logger">The logger used for game-system diagnostics.</param>
-/// <param name="sceneRegistry">The registry used to load the configured initial scene.</param>
+/// <param name="sceneRegistry">The registry used to load the configured start scene.</param>
 /// <param name="gameSettings">The settings bound from the Game configuration section.</param>
 /// <param name="windowService">The service used to synchronize the current scene camera with the main window, or <see langword="null"/> in a headless runtime.</param>
 public partial class GameSystem(
@@ -21,6 +21,7 @@ public partial class GameSystem(
     private readonly IEventHub _eventHub = eventHub;
     private readonly ILogger<GameSystem> _logger = logger;
     private readonly ISceneRegistry _sceneRegistry = sceneRegistry;
+    private readonly GameSettings _settings = gameSettings.Value;
     private readonly IWindowService? _windowService = windowService;
     private readonly HashSet<ISceneNode> _subscribedSceneNodes = [];
     private readonly HashSet<object> _removedDuringTraversal = new(
@@ -75,14 +76,6 @@ public partial class GameSystem(
         public int ParentIndex { get; }
     }
 
-    /// <summary>Gets the settings bound to the Game configuration section.</summary>
-    public GameSettings Settings { get; } = gameSettings.Value;
-
-    /// <summary>
-    /// Gets the configured initial scene after initialization, or <see langword="null"/> beforehand.
-    /// </summary>
-    public IScene? InitialScene { get; private set; }
-
     [Observable(Public = false)]
     private IScene? _currentScene = null;
 
@@ -91,16 +84,14 @@ public partial class GameSystem(
     /// </summary>
     public void Initialize()
     {
-        var initialSceneName = Settings.InitialScene;
         var initialScene =
-            _sceneRegistry.Load(initialSceneName)
+            _sceneRegistry.Load(_settings.StartSceneId)
             ?? throw new InvalidOperationException(
-                $"Initial scene '{initialSceneName}' is not registered."
+                $"Start scene '{_settings.StartSceneId}' is not registered."
             );
-        InitialScene = initialScene;
 
         _logger.LogInformation(
-            "Initializing game system. InitialSceneType={InitialSceneType}",
+            "Initializing game system. StartSceneType={StartSceneType}",
             initialScene.GetType().Name
         );
 
