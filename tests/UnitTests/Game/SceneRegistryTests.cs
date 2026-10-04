@@ -1,6 +1,8 @@
 using Nexus.Core;
 namespace Tests;
 
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Nexus.Game;
 
 /// <summary>
@@ -74,8 +76,12 @@ public class SceneRegistryTests
     [Fact]
     public void Discover_registersConcreteScenesAndUsesAttributeOnlyToOverrideName()
     {
-        var registry =
-            SceneRegistryTestHelper.CreateForAssemblyContaining<UnattributedDiscoveredScene>();
+        using var services =
+            SceneRegistryTestHelper.CreateServicesScanningAssemblyContaining<UnattributedDiscoveredScene>();
+        var registry = new SceneRegistry(
+            services,
+            services.GetRequiredService<IOptions<SceneRegistrySettings>>()
+        );
 
         Assert.Contains(nameof(UnattributedDiscoveredScene), registry.RegisteredSceneNames);
         Assert.Contains("RenamedDiscoveredScene", registry.RegisteredSceneNames);
@@ -83,6 +89,13 @@ public class SceneRegistryTests
         Assert.IsType<UnattributedDiscoveredScene>(
             registry.Load(nameof(UnattributedDiscoveredScene))
         );
+    }
+
+    /// <summary>Verifies scene-name overrides reject whitespace names.</summary>
+    [Fact]
+    public void SceneAttribute_throwsWhenNameIsWhitespace()
+    {
+        Assert.Throws<ArgumentException>(() => new SceneAttribute("  "));
     }
 
     /// <summary>A concrete scene discovered by its default class name.</summary>

@@ -93,10 +93,11 @@ public partial class GameSystem(
             initialScene.GetType().Name
         );
 
-        _logger.LogTrace("Activating scene...");
         CurrentScene = initialScene;
-        _logger.LogTrace("Scene activation complete.");
-        _logger.LogInformation("Game system initialized and initial scene activated.");
+        _logger.LogTrace(
+            "Initial scene selected; entity initialization and activation are deferred until lifecycle traversal."
+        );
+        _logger.LogInformation("Game system initialized and initial scene selected.");
     }
 
     /// <summary>Selects the configured scene or resolves an unambiguous registered scene.</summary>
@@ -270,11 +271,15 @@ public partial class GameSystem(
                 if (entry.Entity is not { } entity || !IsInCurrentHierarchy(index, entries))
                     continue;
 
-                if (!entity.IsInitialized)
+                var wasInitialized = entity.IsInitialized;
+                if (!wasInitialized)
                     entity.Initialize();
 
                 if (!IsInCurrentHierarchy(index, entries))
                     continue;
+
+                if (!wasInitialized && entity is Scene initializedScene)
+                    SynchronizeSceneCameraWithMainWindow(initializedScene);
 
                 if (!entity.IsActivated && AreParentsActivated(entry, entries))
                 {
@@ -430,7 +435,8 @@ public partial class GameSystem(
     }
 
     /// <summary>
-    /// Deactivates the previous scene and activates the newly assigned scene.
+    /// Deactivates the previous scene and tracks the newly selected current scene.
+    /// Initialization and activation of the current scene are performed during lifecycle traversal.
     /// </summary>
     /// <param name="previousValue">The scene active before the assignment.</param>
     protected virtual partial void AfterCurrentSceneChanges(IScene? previousValue)
@@ -470,9 +476,9 @@ public partial class GameSystem(
 
                 if (_windowService is not null)
                 {
-                    var windowSize = _windowService.GetMainWindow().Size;
-                    scene.MainCamera.SetViewportSize(windowSize.X, windowSize.Y);
                     _eventHub.Register(this);
+                    if (scene.IsInitialized)
+                        SynchronizeSceneCameraWithMainWindow(scene);
                 }
             }
 
@@ -480,10 +486,21 @@ public partial class GameSystem(
         }
 
         _logger.LogInformation(
-            "Active scene changed. PreviousSceneType={PreviousSceneType}, CurrentSceneType={CurrentSceneType}",
+            "Current scene changed. PreviousSceneType={PreviousSceneType}, CurrentSceneType={CurrentSceneType}",
             previousValue?.GetType().Name ?? "None",
             currentScene?.GetType().Name ?? "None"
         );
+    }
+
+    /// <summary>Synchronizes an initialized scene's camera viewport with the main window.</summary>
+    /// <param name="scene">The initialized scene whose camera is synchronized.</param>
+    private void SynchronizeSceneCameraWithMainWindow(Scene scene)
+    {
+        if (_windowService is null)
+            return;
+
+        var windowSize = _windowService.GetMainWindow().Size;
+        scene.MainCamera.SetViewportSize(windowSize.X, windowSize.Y);
     }
 
     /// <summary>
@@ -496,6 +513,7 @@ public partial class GameSystem(
             _windowService is null
             || message.WindowId != _windowService.MainWindowId
             || CurrentScene is not Scene scene
+            || !scene.IsInitialized
         )
             return;
 

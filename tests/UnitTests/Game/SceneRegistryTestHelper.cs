@@ -1,5 +1,6 @@
 namespace Tests;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Nexus.Game;
 
@@ -14,14 +15,18 @@ internal static class SceneRegistryTestHelper
             Options.Create(new SceneRegistrySettings { ScanEntryAssembly = false })
         );
 
-    /// <summary>Creates a registry that scans the assembly containing the specified type.</summary>
+    /// <summary>Creates a service provider whose scene settings scan the specified type's assembly.</summary>
     /// <typeparam name="T">A type in the assembly to scan.</typeparam>
-    /// <returns>A registry containing the discovered scenes in the specified assembly.</returns>
-    internal static SceneRegistry CreateForAssemblyContaining<T>()
+    /// <returns>A service provider with configured scene-discovery options.</returns>
+    internal static ServiceProvider CreateServicesScanningAssemblyContaining<T>()
     {
-        var settings = new SceneRegistrySettings { ScanEntryAssembly = false };
-        settings.AddAssemblyContaining<T>();
-        return new SceneRegistry(EmptyServiceProvider.Instance, Options.Create(settings));
+        var services = new ServiceCollection();
+        services.Configure<SceneRegistrySettings>(settings =>
+        {
+            settings.ScanEntryAssembly = false;
+            settings.AddAssemblyContaining<T>();
+        });
+        return services.BuildServiceProvider();
     }
 
     /// <summary>Provides no services to scenes created by a test registry.</summary>

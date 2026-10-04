@@ -213,13 +213,16 @@ public class GameSystemLifecycleTests
     public void InitializeAndResize_updatesCurrentSceneMainCameraFromMainWindow()
     {
         var camera = new Nexus.Graphics.Cameras.StaticCamera();
-        var scene = new Scene() { MainCamera = camera };
+        var scene = new CameraInitializingScene(camera) { MainCamera = null! };
         var windowService = new TestWindowService(new(800, 600));
         var eventHub = new EventHub();
         var gameSystem = CreateGameSystem(scene, windowService, eventHub);
         gameSystem.Initialize();
 
+        Assert.False(scene.IsInitialized);
         Assert.Empty(scene.Children);
+        gameSystem.Update(0);
+        Assert.True(scene.IsInitialized);
         var initialProjection = scene.MainCamera.ProjectionMatrix;
         Assert.Equal(
             Matrix4X4.CreateOrthographicOffCenter(
@@ -351,6 +354,26 @@ public class GameSystemLifecycleTests
         public override void Update(double deltaTime)
         {
             calls.Add("scene.update");
+        }
+    }
+
+    /// <summary>Provides its main camera during scene initialization.</summary>
+    private sealed class CameraInitializingScene : Scene
+    {
+        private readonly Nexus.Graphics.Cameras.StaticCamera _camera;
+
+        /// <summary>Creates a scene that sets its required camera during initialization.</summary>
+        /// <param name="camera">The camera to assign when initialization runs.</param>
+        public CameraInitializingScene(Nexus.Graphics.Cameras.StaticCamera camera)
+        {
+            _camera = camera;
+        }
+
+        /// <inheritdoc />
+        public override void Initialize()
+        {
+            MainCamera = _camera;
+            base.Initialize();
         }
     }
 

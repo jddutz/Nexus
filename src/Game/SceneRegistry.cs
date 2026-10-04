@@ -10,12 +10,6 @@ public class SceneRegistry : ISceneRegistry
     /// <inheritdoc/>
     public IReadOnlyCollection<string> RegisteredSceneNames => _sceneFactories.Keys;
 
-    /// <summary>Creates a registry that discovers scenes in the entry assembly.</summary>
-    public SceneRegistry()
-        : this(new EmptyServiceProvider(), Options.Create(new SceneRegistrySettings()))
-    {
-    }
-
     /// <summary>Creates the registry and discovers scenes in the configured assemblies.</summary>
     /// <param name="services">The provider used to construct scenes when loaded.</param>
     /// <param name="options">The scene discovery settings.</param>
@@ -82,12 +76,4 @@ public class SceneRegistry : ISceneRegistry
             );
     }
 
-    /// <summary>Provides no services for parameterless registry instances.</summary>
-    private sealed class EmptyServiceProvider : IServiceProvider
-    {
-        /// <summary>Returns no service.</summary>
-        /// <param name="serviceType">The requested service type.</param>
-        /// <returns>Always <see langword="null"/>.</returns>
-        public object? GetService(Type serviceType) => null;
-    }
 }

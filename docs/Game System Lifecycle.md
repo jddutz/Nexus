@@ -2,7 +2,7 @@
 
 ## Scope
 
-`GameSystem` owns lifecycle traversal for the active scene. Every frame, it performs one parent-first traversal of the active scene, its game-object hierarchy, and each game object's components. The scene itself is initialized and activated when it becomes current, and deactivated when it stops being current.
+`GameSystem` owns lifecycle traversal for the current scene. Selecting a current scene publishes its loaded event; the scene is initialized and activated during lifecycle traversal, and deactivated when it stops being current. Every frame, the system performs one parent-first traversal of the scene, its game-object hierarchy, and each game object's components.
 
 ## Frame Traversal
 
