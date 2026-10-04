@@ -24,7 +24,7 @@ public class GameObjectTests
         var defaultCamera = Assert.IsType<StaticCamera>(
             Assert.Single(defaultView.Components.OfType<StaticCamera>())
         );
-        var viewComponent = Assert.Single(defaultView.Components.OfType<ViewComponent>());
+        var viewComponent = Assert.Single(defaultView.Components.OfType<ViewRenderer>());
 
         Assert.Equal(nodeId, scene.Id);
         Assert.Same(scene, defaultView.Parent);
@@ -39,8 +39,8 @@ public class GameObjectTests
         Assert.Same(defaultCamera, viewComponent.Camera);
         Assert.IsNotAssignableFrom<IGameObject>(scene);
         var view = new View();
-        Assert.Equal(nameof(ViewComponent), view.ViewComponent.Name);
-        Assert.Equal(RenderPasses.Main, view.ViewComponent.RenderPassMask);
+        Assert.Equal(nameof(ViewRenderer), (string)view.ViewComponent.Name);
+        Assert.Equal(RenderPasses.Main, (uint)view.ViewComponent.RenderPassMask);
         Assert.Contains(view.ViewComponent, view.Components);
     }
 
@@ -156,7 +156,7 @@ public class GameObjectTests
         var scene = new Scene();
         var defaultView = Assert.IsType<GameObject2D>(Assert.Single(scene.Children));
         var defaultCamera = Assert.Single(defaultView.Components.OfType<StaticCamera>());
-        var viewComponent = Assert.Single(defaultView.Components.OfType<ViewComponent>());
+        var viewComponent = Assert.Single(defaultView.Components.OfType<ViewRenderer>());
         var activationNotifications = 0;
         scene.PropertyChanged += propertyName =>
         {

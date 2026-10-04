@@ -50,7 +50,10 @@ public sealed class ImageElementTests
 
         var expectedImageBounds = new Rectangle<float>(12.5f, 23.5f, 4f, 2f);
         AssertBounds(expectedImageBounds, element.Bounds);
-        Assert.Equal(expectedImageBounds, element.GetComponent<TextureComponent>()!.Destination);
+        Assert.Equal(
+            expectedImageBounds,
+            (Rectangle<float>)element.GetComponent<TextureRenderer>()!.Destination
+        );
     }
 
     /// <summary>Verifies image dimensions are capped by the element's requested size.</summary>
@@ -66,7 +69,10 @@ public sealed class ImageElementTests
 
         var expectedBounds = new Rectangle<float>(14f, 24.5f, 2f, 1f);
         AssertBounds(expectedBounds, element.Bounds);
-        Assert.Equal(expectedBounds, element.GetComponent<TextureComponent>()!.Destination);
+        Assert.Equal(
+            expectedBounds,
+            (Rectangle<float>)element.GetComponent<TextureRenderer>()!.Destination
+        );
     }
 
     /// <summary>Verifies custom sizing uses its independent UV rectangle and validates inputs.</summary>
@@ -78,7 +84,7 @@ public sealed class ImageElementTests
         element.Arrange(new Rectangle<float>(0f, 0f, 8f, 6f));
 
         Assert.Equal(new Vector2D<float>(3f, 2f), element.Measure(new(8f, 6f)));
-        var quad = ReadQuad(element.GetComponent<TextureComponent>()!, 0);
+        var quad = ReadQuad(element.GetComponent<TextureRenderer>()!, 0);
         Assert.Equal(new Vector4D<float>(0.25f, 0.25f, 0.5f, 0.5f), quad.TexCoord);
         Assert.Throws<ArgumentOutOfRangeException>(() =>
             element.SetCustomSizingMode(Vector2D<float>.Zero, new(0f, 0f, 1f, 1f))
@@ -96,7 +102,7 @@ public sealed class ImageElementTests
         element.Arrange(new Rectangle<float>(5f, 7f, 4f, 2f));
 
         AssertBounds(new Rectangle<float>(5f, 7f, 4f, 2f), element.Bounds);
-        var quad = ReadQuad(element.GetComponent<TextureComponent>()!, 0);
+        var quad = ReadQuad(element.GetComponent<TextureRenderer>()!, 0);
         Assert.Equal(1f / 3f, quad.TexCoord.X, 6);
         Assert.Equal(0.375f, quad.TexCoord.Y, 6);
         Assert.Equal(1f / 3f, quad.TexCoord.Z, 6);
@@ -140,7 +146,7 @@ public sealed class ImageElementTests
         var parent = new Element();
         var element = CreateImageElement(4, 2);
         element.Arrange(new Rectangle<float>(2f, 3f, 8f, 4f));
-        var original = element.GetComponent<TextureComponent>();
+        var original = element.GetComponent<TextureRenderer>();
         parent.AddChild(element);
 
         parent.IsVisible = false;
@@ -150,7 +156,7 @@ public sealed class ImageElementTests
         parent.IsVisible = true;
         element.Arrange(new Rectangle<float>(2f, 3f, 8f, 4f));
 
-        var recreated = element.GetComponent<TextureComponent>();
+        var recreated = element.GetComponent<TextureRenderer>();
         Assert.NotNull(recreated);
         Assert.NotSame(original, recreated);
         AssertBounds(new Rectangle<float>(3f, 3.5f, 6f, 3f), element.Bounds);
@@ -174,7 +180,7 @@ public sealed class ImageElementTests
         element.Texture = CreateTexture(4, 2);
         element.Arrange(new Rectangle<float>(0f, 0f, 10f, 10f));
 
-        Assert.NotNull(element.GetComponent<TextureComponent>());
+        Assert.NotNull(element.GetComponent<TextureRenderer>());
     }
 
     /// <summary>Creates an image element backed by deterministic texture dimensions.</summary>
@@ -211,7 +217,7 @@ public sealed class ImageElementTests
     /// <param name="index">The zero-based instance index.</param>
     /// <returns>The decoded transform and UV rectangle.</returns>
     private static (Matrix4X4<float> Transform, Vector4D<float> TexCoord) ReadQuad(
-        TextureComponent component,
+        TextureRenderer component,
         int index
     )
     {

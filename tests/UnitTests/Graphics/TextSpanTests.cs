@@ -37,8 +37,8 @@ public sealed class TextSpanTests
         var texture = new Texture("test", 1, 1, [Colors.White]);
         IDrawable[] drawables =
         [
-            Assert.Single(new TextureComponent { Texture = texture }.Drawables),
-            Assert.Single(new TextureComponent { Texture = texture }.Drawables),
+            Assert.Single(new TextureRenderer { Texture = texture }.Drawables),
+            Assert.Single(new TextureRenderer { Texture = texture }.Drawables),
             CreateSpan(CreateStyle(), "A"),
         ];
 
@@ -352,7 +352,7 @@ public sealed class TextSpanTests
     [Fact]
     public void TextComponent_wraps_at_word_boundary_when_separator_exceeds_width()
     {
-        var component = new TextComponent(CreateStyle())
+        var component = new TextRenderer(CreateStyle())
         {
             Destination = new Rectangle<float>(0f, 0f, 2f, 2f),
             Text = "A B",
@@ -371,7 +371,7 @@ public sealed class TextSpanTests
     {
         var style = CreateStyle(fontMetrics: new FontMetrics(emSize, 1, 0, lineHeight));
 
-        Assert.Throws<InvalidOperationException>(() => new TextComponent(style));
+        Assert.Throws<InvalidOperationException>(() => new TextRenderer(style));
     }
 
     /// <summary>Verifies each prepared glyph contributes one complete 100-byte instance.</summary>
@@ -577,7 +577,7 @@ public sealed class TextSpanTests
     [Fact]
     public void TextComponent_uses_contract_defaults()
     {
-        var component = new TextComponent(CreateStyle());
+        var component = new TextRenderer(CreateStyle());
 
         Assert.Equal(string.Empty, component.Text);
         Assert.Equal(new Rectangle<float>(0f, 0f, 0f, 0f), component.Destination);
@@ -592,7 +592,7 @@ public sealed class TextSpanTests
     [Fact]
     public void TextComponent_validates_layout_inputs()
     {
-        var component = new TextComponent(CreateStyle())
+        var component = new TextRenderer(CreateStyle())
         {
             Destination = new Rectangle<float>(0f, 0f, 2f, 2f),
             Text = "A",
@@ -627,7 +627,7 @@ public sealed class TextSpanTests
     [Fact]
     public void TextComponent_measure_is_side_effect_free_and_accepts_infinity()
     {
-        var component = new TextComponent(CreateStyle())
+        var component = new TextRenderer(CreateStyle())
         {
             Destination = new Rectangle<float>(0f, 0f, 10f, 10f),
             Text = "A",
@@ -655,7 +655,7 @@ public sealed class TextSpanTests
     [Fact]
     public void TextComponent_maximum_lines_limits_line_creation_not_character_processing()
     {
-        var component = new TextComponent(CreateStyle())
+        var component = new TextRenderer(CreateStyle())
         {
             Destination = new Rectangle<float>(0f, 0f, 4f, 1f),
             MaximumLines = 1,
@@ -672,7 +672,7 @@ public sealed class TextSpanTests
     [Fact]
     public void TextComponent_normalizes_crlf_before_rune_enumeration()
     {
-        var component = new TextComponent(CreateStyle())
+        var component = new TextRenderer(CreateStyle())
         {
             Destination = new Rectangle<float>(0f, 0f, 4f, 2f),
             Text = "A\r\nB",
@@ -687,7 +687,7 @@ public sealed class TextSpanTests
     [Fact]
     public void TextComponent_zero_width_and_nonwrapping_width_fit_visible_prefixes()
     {
-        var component = new TextComponent(CreateStyle())
+        var component = new TextRenderer(CreateStyle())
         {
             Destination = new Rectangle<float>(0f, 0f, 1f, 1f),
             Wrap = false,
@@ -705,7 +705,7 @@ public sealed class TextSpanTests
     [Fact]
     public void TextComponent_measure_and_arrangement_apply_the_same_height_fitting()
     {
-        var component = new TextComponent(CreateStyle())
+        var component = new TextRenderer(CreateStyle())
         {
             Destination = new Rectangle<float>(0f, 0f, 4f, 1f),
             Text = "A\nB",
@@ -722,7 +722,7 @@ public sealed class TextSpanTests
     [Fact]
     public void TextComponent_horizontal_alignment_is_calculated_per_line()
     {
-        var component = new TextComponent(CreateStyle())
+        var component = new TextRenderer(CreateStyle())
         {
             Destination = new Rectangle<float>(0f, 0f, 4f, 2f),
             Alignment = new Vector2D<float>(0.5f, 0f),
@@ -739,7 +739,7 @@ public sealed class TextSpanTests
     [Fact]
     public void TextComponent_vertical_alignment_uses_logical_line_boxes()
     {
-        var component = new TextComponent(CreateStyle(fontMetrics: new FontMetrics(1, 1, 0, 2)))
+        var component = new TextRenderer(CreateStyle(fontMetrics: new FontMetrics(1, 1, 0, 2)))
         {
             Destination = new Rectangle<float>(3f, 4f, 4f, 5f),
             Alignment = new Vector2D<float>(0f, 0.5f),
@@ -760,7 +760,7 @@ public sealed class TextSpanTests
     [Fact]
     public void TextComponent_style_changes_reuse_and_resynchronize_the_span()
     {
-        var component = new TextComponent(CreateStyle())
+        var component = new TextRenderer(CreateStyle())
         {
             Destination = new Rectangle<float>(0f, 0f, 2f, 2f),
             Text = "A",
@@ -782,7 +782,7 @@ public sealed class TextSpanTests
     [Fact]
     public void TextComponent_propagates_draw_order_to_spans()
     {
-        var component = new TextComponent(CreateStyle())
+        var component = new TextRenderer(CreateStyle())
         {
             Destination = new Rectangle<float>(0f, 0f, 2f, 2f),
             Text = "A",
@@ -806,7 +806,7 @@ public sealed class TextSpanTests
     [Fact]
     public void TextComponent_measure_validates_only_its_own_inputs()
     {
-        var component = new TextComponent(CreateStyle())
+        var component = new TextRenderer(CreateStyle())
         {
             Destination = new Rectangle<float>(0f, 0f, 1f, 1f),
             Text = "A",
@@ -824,7 +824,7 @@ public sealed class TextSpanTests
         var style = CreateStyle(
             kerning: new Dictionary<(int, int), double> { [('A', 'B')] = -0.5 }
         );
-        var component = new TextComponent(style)
+        var component = new TextRenderer(style)
         {
             Destination = new Rectangle<float>(0f, 0f, 4f, 1f),
             Text = "A?B",
@@ -841,7 +841,7 @@ public sealed class TextSpanTests
     [Fact]
     public void TextComponent_layout_bounds_use_destination_coordinates()
     {
-        var component = new TextComponent(CreateStyle())
+        var component = new TextRenderer(CreateStyle())
         {
             Destination = new Rectangle<float>(10f, 20f, 8f, 6f),
             Alignment = new Vector2D<float>(0.5f, 0.5f),

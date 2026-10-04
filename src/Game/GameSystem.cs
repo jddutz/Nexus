@@ -1,3 +1,5 @@
+using Nexus.Graphics.Events;
+
 namespace Nexus.Game;
 
 /// <summary>
@@ -7,16 +9,19 @@ namespace Nexus.Game;
 /// <param name="logger">The logger used for game-system diagnostics.</param>
 /// <param name="sceneRegistry">The registry used to load the configured initial scene.</param>
 /// <param name="gameSettings">The settings bound from the Game configuration section.</param>
+/// <param name="windowService">The service used to synchronize the current scene camera with the main window, or <see langword="null"/> in a headless runtime.</param>
 public partial class GameSystem(
     IEventHub eventHub,
     ILogger<GameSystem> logger,
     ISceneRegistry sceneRegistry,
-    IOptions<GameSettings> gameSettings
+    IOptions<GameSettings> gameSettings,
+    IWindowService? windowService = null
 ) : IGameSystem, IObservable
 {
     private readonly IEventHub _eventHub = eventHub;
     private readonly ILogger<GameSystem> _logger = logger;
     private readonly ISceneRegistry _sceneRegistry = sceneRegistry;
+    private readonly IWindowService? _windowService = windowService;
     private readonly HashSet<ISceneNode> _subscribedSceneNodes = [];
     private readonly HashSet<object> _removedDuringTraversal = new(
         ReferenceEqualityComparer.Instance
@@ -424,6 +429,9 @@ public partial class GameSystem(
 
             if (previousValue is Scene previousInputScene)
             {
+                if (_windowService is not null)
+                    _eventHub.Unregister(this);
+
                 previousInputScene.InputMapChanged -= OnCurrentSceneInputMapChanged;
                 previousInputScene.InputMap?.Unregister(_eventHub);
             }
@@ -444,7 +452,16 @@ public partial class GameSystem(
             SubscribeSceneNode(currentScene);
 
             if (currentScene is Scene scene)
+            {
                 scene.InputMapChanged += OnCurrentSceneInputMapChanged;
+
+                if (_windowService is not null)
+                {
+                    var windowSize = _windowService.GetMainWindow().Size;
+                    scene.StaticCamera.SetViewportSize(windowSize.X, windowSize.Y);
+                    _eventHub.Register(this);
+                }
+            }
 
             _eventHub.Publish(new SceneLoadedEvent(currentScene));
         }
@@ -454,6 +471,22 @@ public partial class GameSystem(
             previousValue?.GetType().Name ?? "None",
             currentScene?.GetType().Name ?? "None"
         );
+    }
+
+    /// <summary>
+    /// Updates the active scene's static camera when the main window changes size.
+    /// </summary>
+    /// <param name="message">The window-resized event.</param>
+    public void Handle(WindowResizedEvent message)
+    {
+        if (
+            _windowService is null
+            || message.WindowId != _windowService.MainWindowId
+            || CurrentScene is not Scene scene
+        )
+            return;
+
+        scene.StaticCamera.SetViewportSize(message.Size.X, message.Size.Y);
     }
 
     /// <summary>

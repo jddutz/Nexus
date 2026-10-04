@@ -23,6 +23,9 @@ public partial class Scene : IScene
     [Observable(PublicSetter = true)]
     private InputMap? _inputMap;
 
+    [Observable(PublicSetter = false)]
+    private StaticCamera _staticCamera = new();
+
     /// <summary>
     /// Initializes a new instance of the <see cref="Scene"/> class with the specified identifier.
     /// </summary>
@@ -39,15 +42,14 @@ public partial class Scene : IScene
 
         RenderLayers.Create("GUI", RenderPasses.Main);
 
-        var defaultCamera = new StaticCamera();
-        var viewComponent = new ViewComponent
+        var viewComponent = new ViewRenderer
         {
-            Camera = defaultCamera,
+            Camera = StaticCamera,
             LayerMask = 1,
             PreserveDrawOrder = true,
             BlendMode = BlendMode.Alpha,
         };
-        var defaultView = new GameObject2D([defaultCamera, viewComponent]);
+        var defaultView = new GameObject2D([StaticCamera, viewComponent]);
         Children.Add(defaultView);
     }
 

@@ -1,10 +1,15 @@
 namespace Tests;
 
+using System.Reflection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Nexus.Core;
 using Nexus.Core.Events;
 using Nexus.Game;
+using Nexus.Graphics;
+using Nexus.Graphics.Events;
+using Silk.NET.Maths;
+using Silk.NET.Windowing;
 
 /// <summary>
 /// Verifies parent-first lifecycle traversal and mutation handling in the game system.
@@ -187,20 +192,140 @@ public class GameSystemLifecycleTests
     }
 
     /// <summary>
+    /// Verifies the current scene's static camera tracks the main window size and ignores other windows.
+    /// </summary>
+    [Fact]
+    public void InitializeAndResize_updatesCurrentSceneStaticCameraFromMainWindow()
+    {
+        var scene = new Scene();
+        var defaultView = Assert.Single(scene.Children.OfType<IGameObject>());
+        var viewComponent = Assert.Single(defaultView.Components.OfType<ViewRenderer>());
+        var windowService = new TestWindowService(new(800, 600));
+        var eventHub = new EventHub();
+        var gameSystem = CreateGameSystem(scene, windowService, eventHub);
+        gameSystem.Initialize();
+
+        Assert.Same(scene.StaticCamera, viewComponent.Camera);
+        var initialProjection = scene.StaticCamera.ProjectionMatrix;
+        Assert.Equal(
+            Matrix4X4.CreateOrthographicOffCenter(
+                0f,
+                800f,
+                0f,
+                600f,
+                scene.StaticCamera.NearPlane,
+                scene.StaticCamera.FarPlane
+            ),
+            initialProjection
+        );
+
+        eventHub.Publish(new WindowResizedEvent(2, new(1280, 720)));
+        eventHub.Drain();
+        Assert.Equal(initialProjection, scene.StaticCamera.ProjectionMatrix);
+
+        eventHub.Publish(new WindowResizedEvent(windowService.MainWindowId, new(1280, 720)));
+        eventHub.Drain();
+
+        Assert.Equal(
+            Matrix4X4.CreateOrthographicOffCenter(
+                0f,
+                1280f,
+                0f,
+                720f,
+                scene.StaticCamera.NearPlane,
+                scene.StaticCamera.FarPlane
+            ),
+            scene.StaticCamera.ProjectionMatrix
+        );
+    }
+
+    /// <summary>
     /// Creates a game system whose initial scene is the supplied scene.
     /// </summary>
     /// <param name="scene">The scene to activate.</param>
     /// <returns>A game system registered with the scene.</returns>
-    private static GameSystem CreateGameSystem(IScene scene)
+    private static GameSystem CreateGameSystem(
+        IScene scene,
+        IWindowService? windowService = null,
+        IEventHub? eventHub = null
+    )
     {
         var registry = new SceneRegistry();
         registry.Register("Lifecycle", () => scene);
         return new GameSystem(
-            new EventHub(),
+            eventHub ?? new EventHub(),
             NullLogger<GameSystem>.Instance,
             registry,
-            Options.Create(new GameSettings { InitialScene = "Lifecycle" })
+            Options.Create(new GameSettings { InitialScene = "Lifecycle" }),
+            windowService
         );
+    }
+
+    /// <summary>
+    /// Provides a test window service backed by a size-only proxy window.
+    /// </summary>
+    private sealed class TestWindowService : IWindowService
+    {
+        private readonly IWindow _window;
+
+        /// <summary>Gets the main window identifier used by resize events.</summary>
+        public WindowId MainWindowId => 1;
+
+        /// <summary>Initializes the test window with its starting size.</summary>
+        /// <param name="size">The logical window size.</param>
+        public TestWindowService(Vector2D<int> size)
+        {
+            _window = DispatchProxy.Create<IWindow, TestWindow>();
+            ((TestWindow)(object)_window).Size = size;
+        }
+
+        /// <summary>Gets the test window with the specified identifier.</summary>
+        /// <param name="windowId">The requested window identifier.</param>
+        /// <returns>The proxied test window.</returns>
+        public IWindow GetWindow(WindowId windowId) => _window;
+
+        /// <summary>Gets the test main window.</summary>
+        /// <returns>The proxied test window.</returns>
+        public IWindow GetMainWindow() => _window;
+
+        /// <summary>Creates no additional windows in this test service.</summary>
+        /// <param name="settings">The requested window settings.</param>
+        /// <returns>This method does not return.</returns>
+        public WindowId CreateWindow(WindowSettings settings) => throw new NotSupportedException();
+
+        /// <summary>Closes no windows in this test service.</summary>
+        /// <param name="windowId">The requested window identifier.</param>
+        public void CloseWindow(WindowId? windowId = null) => throw new NotSupportedException();
+    }
+
+    /// <summary>
+    /// Implements the window size property required by the game system tests.
+    /// </summary>
+    public class TestWindow : DispatchProxy
+    {
+        /// <summary>Gets or sets the logical size exposed by the test window.</summary>
+        public Vector2D<int> Size { get; set; }
+
+        /// <summary>Handles calls made against the proxied window interface.</summary>
+        /// <param name="targetMethod">The invoked window member.</param>
+        /// <param name="args">The invoked member arguments.</param>
+        /// <returns>The size property value when requested.</returns>
+        protected override object? Invoke(MethodInfo? targetMethod, object?[]? args) =>
+            targetMethod?.Name switch
+            {
+                "get_Size" => Size,
+                "set_Size" => SetSize(args),
+                _ => throw new NotSupportedException(targetMethod?.Name),
+            };
+
+        /// <summary>Stores the value passed to the proxied size setter.</summary>
+        /// <param name="args">The setter arguments.</param>
+        /// <returns><see langword="null"/>.</returns>
+        private object? SetSize(object?[]? args)
+        {
+            Size = (Vector2D<int>)args![0]!;
+            return null;
+        }
     }
 
     /// <summary>

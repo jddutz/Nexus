@@ -41,8 +41,8 @@ public sealed class TextButtonTests
         Assert.Equal(2, first.Components.Count());
         Assert.NotSame(first, second);
         Assert.NotSame(
-            first.GetComponent<NinePatchComponent>(),
-            second.GetComponent<NinePatchComponent>()
+            first.GetComponent<NinePatchRenderer>(),
+            second.GetComponent<NinePatchRenderer>()
         );
         Assert.NotSame(DrawableTestData.TextGraphics(first), DrawableTestData.TextGraphics(second));
         Assert.Equal("B", first.Label);
@@ -63,7 +63,9 @@ public sealed class TextButtonTests
         button.Arrange(new Rectangle<float>(0f, 0f, 9f, 7f));
         Assert.Equal("AB", button.Label);
         Assert.Equal(1UL, DrawableTestData.TextInstanceCount(button));
-        var text = Assert.IsType<TextComponent>(Assert.Single(button.Components.OfType<TextComponent>()));
+        var text = Assert.IsType<TextRenderer>(
+            Assert.Single(button.Components.OfType<TextRenderer>())
+        );
         Assert.Equal("AB", text.Text);
         Assert.False(text.Wrap);
         Assert.Equal(1, text.MaximumLines);
@@ -82,8 +84,10 @@ public sealed class TextButtonTests
 
         Assert.Equal(
             Colors.WhiteSmoke,
-            Assert.IsType<TextComponent>(Assert.Single(button.Components.OfType<TextComponent>()))
-                .Color
+            (Color)
+                Assert
+                    .IsType<TextRenderer>(Assert.Single(button.Components.OfType<TextRenderer>()))
+                    .Color
         );
     }
 
@@ -105,8 +109,13 @@ public sealed class TextButtonTests
 
         var contentBounds = new Rectangle<float>(11f, 23f, 12f, 16f);
         Assert.Equal(contentBounds, button.Bounds);
-        Assert.Equal(contentBounds, button.GetComponent<NinePatchComponent>()!.Destination);
-        var text = Assert.IsType<TextComponent>(Assert.Single(button.Components.OfType<TextComponent>()));
+        Assert.Equal(
+            contentBounds,
+            (Rectangle<float>)button.GetComponent<NinePatchRenderer>()!.Destination
+        );
+        var text = Assert.IsType<TextRenderer>(
+            Assert.Single(button.Components.OfType<TextRenderer>())
+        );
         Assert.Equal(new Rectangle<float>(16f, 30f, 1f, 1f), text.Destination);
     }
 
@@ -119,7 +128,7 @@ public sealed class TextButtonTests
         var button = CreateButton("AB");
         var bounds = new Rectangle<float>(4f, 5f, 60f, 24f);
         button.Arrange(bounds);
-        var originalBackground = button.GetComponent<NinePatchComponent>();
+        var originalBackground = button.GetComponent<NinePatchRenderer>();
         var originalText = DrawableTestData.TextGraphics(button);
         var addedComponents = new List<IComponent>();
         var removedComponents = new List<IComponent>();
@@ -144,7 +153,7 @@ public sealed class TextButtonTests
         button.IsVisible = true;
         button.Arrange(hiddenBounds);
 
-        var recreatedBackground = button.GetComponent<NinePatchComponent>();
+        var recreatedBackground = button.GetComponent<NinePatchRenderer>();
         var recreatedText = DrawableTestData.TextGraphics(button);
         Assert.NotNull(recreatedBackground);
         Assert.NotNull(recreatedText);
@@ -157,9 +166,10 @@ public sealed class TextButtonTests
         Assert.Equal(hiddenBounds, recreatedBackground.Destination);
         Assert.Equal(
             new Rectangle<float>(6f, 5f, 28f, 20f),
-            Assert.IsType<TextComponent>(
-                Assert.Single(button.Components.OfType<TextComponent>())
-            ).Destination
+            (Rectangle<float>)
+                Assert
+                    .IsType<TextRenderer>(Assert.Single(button.Components.OfType<TextRenderer>()))
+                    .Destination
         );
         Assert.Equal(new Vector2D<float>(14f, 11f), button.Measure(new(100f, 100f)));
     }
@@ -193,9 +203,9 @@ public sealed class TextButtonTests
         button.Arrange(bounds);
 
         Assert.Equal(bounds, button.Bounds);
-        var background = button.GetComponent<NinePatchComponent>()!;
-        var label = Assert.IsType<TextComponent>(
-            Assert.Single(button.Components.OfType<TextComponent>())
+        var background = button.GetComponent<NinePatchRenderer>()!;
+        var label = Assert.IsType<TextRenderer>(
+            Assert.Single(button.Components.OfType<TextRenderer>())
         );
         Assert.Equal(0x1UL, background.RenderLayerMask);
         Assert.Equal(0x1UL, label.RenderLayerMask);
@@ -252,7 +262,9 @@ public sealed class TextButtonTests
         button.Width = paddedSize.X;
         button.Height = paddedSize.Y;
         button.Arrange(bounds);
-        var text = Assert.IsType<TextComponent>(Assert.Single(button.Components.OfType<TextComponent>()));
+        var text = Assert.IsType<TextRenderer>(
+            Assert.Single(button.Components.OfType<TextRenderer>())
+        );
         var paddedButtonBounds = new Rectangle<float>(
             bounds.Origin.X + (bounds.Size.X - paddedSize.X) / 2f,
             bounds.Max.Y - paddedSize.Y,
@@ -271,10 +283,7 @@ public sealed class TextButtonTests
             text.Destination
         );
         Assert.Equal(new Vector2D<float>(0.5f, 0.5f), text.Alignment);
-        Assert.Equal(
-            new Vector2D<float>(initialSize.X + 8f, initialSize.Y + 6f),
-            paddedSize
-        );
+        Assert.Equal(new Vector2D<float>(initialSize.X + 8f, initialSize.Y + 6f), paddedSize);
     }
 
     /// <summary>Verifies explicit button dimensions measure and arrange to a capped size.</summary>
@@ -364,7 +373,10 @@ public sealed class TextButtonTests
         button.Action = () => actionCount++;
         var initialPosition = GetCenter(button.Bounds);
 
-        Publish(eventHub, new MouseButtonPressedEvent(mouse, MouseButtonEnum.Left, initialPosition));
+        Publish(
+            eventHub,
+            new MouseButtonPressedEvent(mouse, MouseButtonEnum.Left, initialPosition)
+        );
         button.Arrange(new Rectangle<float>(8f, 8f, 4f, 4f));
         Publish(eventHub, new MouseButtonReleasedEvent(mouse, MouseButtonEnum.Left, new(10f, 10f)));
 
@@ -382,14 +394,8 @@ public sealed class TextButtonTests
         button.Action = () => actionCount++;
         var position = GetCenter(button.Bounds);
 
-        Publish(
-            eventHub,
-            new MouseButtonPressedEvent(firstMouse, MouseButtonEnum.Left, position)
-        );
-        Publish(
-            eventHub,
-            new MouseButtonPressedEvent(secondMouse, MouseButtonEnum.Left, position)
-        );
+        Publish(eventHub, new MouseButtonPressedEvent(firstMouse, MouseButtonEnum.Left, position));
+        Publish(eventHub, new MouseButtonPressedEvent(secondMouse, MouseButtonEnum.Left, position));
         Publish(
             eventHub,
             new MouseButtonReleasedEvent(secondMouse, MouseButtonEnum.Left, position)
@@ -404,14 +410,8 @@ public sealed class TextButtonTests
         button.Activate();
         eventHub.Publish(new GameObjectActivatedEvent(button));
         eventHub.Drain();
-        Publish(
-            eventHub,
-            new MouseButtonPressedEvent(firstMouse, MouseButtonEnum.Left, position)
-        );
-        Publish(
-            eventHub,
-            new MouseButtonReleasedEvent(firstMouse, MouseButtonEnum.Left, position)
-        );
+        Publish(eventHub, new MouseButtonPressedEvent(firstMouse, MouseButtonEnum.Left, position));
+        Publish(eventHub, new MouseButtonReleasedEvent(firstMouse, MouseButtonEnum.Left, position));
 
         Assert.Equal(1, actionCount);
     }
@@ -615,8 +615,7 @@ public sealed class TextButtonTests
         public IReadOnlyDictionary<
             (int LeftCodepoint, int RightCodepoint),
             double
-        > Kerning
-        { get; } = new Dictionary<(int, int), double>();
+        > Kerning { get; } = new Dictionary<(int, int), double>();
 
         /// <inheritdoc/>
         public double Size { get; } = 1;

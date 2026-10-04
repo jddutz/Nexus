@@ -17,7 +17,7 @@ namespace Nexus.Graphics.Vulkan;
 public unsafe class VulkanGraphicsSystem(
     Context context,
     ISwapChain swapChain,
-    IRenderer renderer,
+    IVulkanRenderer renderer,
     ISyncManager syncManager,
     IEventHub eventHub,
     ICommandFactory commandFactory,
@@ -32,14 +32,14 @@ public unsafe class VulkanGraphicsSystem(
     private readonly PerformanceDiagnostics? _diagnostics = diagnostics;
     private readonly RenderBatchCollection _setupBatches = CreateSetupBatchCollection();
     private readonly Dictionary<ComponentId, RenderBatchCollection> _batches = [];
-    private readonly List<ViewComponent> _activeViews = [];
+    private readonly List<ViewRenderer> _activeViews = [];
     private readonly Dictionary<DrawableId, DrawableRegistration> _drawables = [];
     private readonly Dictionary<DrawableId, Action<string>> _drawablePropertyChangedHandlers = [];
     private readonly HashSet<IGraphicsComponent> _components = [];
 
     /// <summary>Creates the render batches enabled by a view.</summary>
     /// <param name="view">The view whose render passes configure the collection.</param>
-    private static RenderBatchCollection CreateRenderBatchCollection(ViewComponent view)
+    private static RenderBatchCollection CreateRenderBatchCollection(ViewRenderer view)
     {
         var coll = new RenderBatchCollection();
         IBatchStrategy batchStrategy = view.PreserveDrawOrder
@@ -73,7 +73,7 @@ public unsafe class VulkanGraphicsSystem(
     /// <summary>Gets active views selected by a drawable's layer mask.</summary>
     /// <param name="renderLayerMask">The drawable's layer classification mask.</param>
     /// <returns>The matching active views.</returns>
-    private IEnumerable<ViewComponent> GetDrawableViews(ulong renderLayerMask) =>
+    private IEnumerable<ViewRenderer> GetDrawableViews(ulong renderLayerMask) =>
         _activeViews.Where(view => (view.LayerMask & renderLayerMask) != 0);
 
     /// <summary>
@@ -91,7 +91,7 @@ public unsafe class VulkanGraphicsSystem(
 
     /// <summary>Creates and populates the batch collection for an active view.</summary>
     /// <param name="view">The activated view configuration.</param>
-    private void ActivateViewComponent(ViewComponent view)
+    private void ActivateViewComponent(ViewRenderer view)
     {
         if (_batches.ContainsKey(view.Id))
             throw new InvalidOperationException($"View {view.Id} is already active.");
@@ -159,7 +159,7 @@ public unsafe class VulkanGraphicsSystem(
     /// <inheritdoc />
     public void Handle(ComponentActivatedEvent e)
     {
-        if (e.Component is ViewComponent view)
+        if (e.Component is ViewRenderer view)
         {
             ActivateViewComponent(view);
             return;
@@ -189,17 +189,17 @@ public unsafe class VulkanGraphicsSystem(
 
             switch (propertyName)
             {
-                case nameof(ViewComponent.LayerMask):
+                case nameof(ViewRenderer.LayerMask):
                     RebuildViewBatches(view, replaceCollection: false);
                     break;
-                case nameof(ViewComponent.RenderPassMask):
+                case nameof(ViewRenderer.RenderPassMask):
                     RebuildViewBatches(view, replaceCollection: true);
                     break;
-                case nameof(ViewComponent.PreserveDrawOrder):
-                case nameof(ViewComponent.BlendMode):
-                case nameof(ViewComponent.EnableDepthTest):
-                case nameof(ViewComponent.EnableDepthWrite):
-                case nameof(ViewComponent.DepthComparison):
+                case nameof(ViewRenderer.PreserveDrawOrder):
+                case nameof(ViewRenderer.BlendMode):
+                case nameof(ViewRenderer.EnableDepthTest):
+                case nameof(ViewRenderer.EnableDepthWrite):
+                case nameof(ViewRenderer.DepthComparison):
                     RebuildViewBatches(view, replaceCollection: true);
                     break;
             }
@@ -209,7 +209,7 @@ public unsafe class VulkanGraphicsSystem(
     /// <summary>Rebuilds a view collection or its drawable membership.</summary>
     /// <param name="view">The view whose collection is updated.</param>
     /// <param name="replaceCollection">Whether to recreate pass batches.</param>
-    private void RebuildViewBatches(ViewComponent view, bool replaceCollection)
+    private void RebuildViewBatches(ViewRenderer view, bool replaceCollection)
     {
         var batches = replaceCollection ? CreateRenderBatchCollection(view) : _batches[view.Id];
 
@@ -232,7 +232,7 @@ public unsafe class VulkanGraphicsSystem(
     /// <param name="batches">The target view collection.</param>
     /// <param name="registration">The drawable command registration.</param>
     private void AddDrawableToBatches(
-        ViewComponent view,
+        ViewRenderer view,
         RenderBatchCollection batches,
         DrawableRegistration registration
     )
@@ -536,19 +536,25 @@ public unsafe class VulkanGraphicsSystem(
     /// <param name="view">The view being evaluated.</param>
     /// <param name="drawable">The drawable being evaluated.</param>
     /// <returns><see langword="true"/> when the masks intersect.</returns>
-    private static bool IsVisible(ViewComponent view, IDrawable drawable) =>
+    private static bool IsVisible(ViewRenderer view, IDrawable drawable) =>
         (view.LayerMask & drawable.RenderLayerMask) != 0;
 
     /// <summary>Gets the view's clipped pixel region, defaulting an unset region to the full target.</summary>
     /// <param name="view">The view whose clipping region is converted.</param>
     /// <returns>The target-clamped pixel offset and extent.</returns>
-    private (int X, int Y, uint Width, uint Height) GetClippingRegion(ViewComponent view)
+    private (int X, int Y, uint Width, uint Height) GetClippingRegion(ViewRenderer view)
     {
         var targetWidth = checked((int)swapChain.Extent.Width);
         var targetHeight = checked((int)swapChain.Extent.Height);
         var region = view.ClippingRegion;
 
-        if (region.Origin.X == 0 && region.Origin.Y == 0 && region.Max.X == 0 && region.Max.Y == 0)
+        if (
+            !view.HasExplicitClippingRegion
+            && region.Origin.X == 0
+            && region.Origin.Y == 0
+            && region.Max.X == 0
+            && region.Max.Y == 0
+        )
             return (0, 0, checked((uint)targetWidth), checked((uint)targetHeight));
 
         var x = Math.Clamp(region.Origin.X, 0, targetWidth);
@@ -561,7 +567,7 @@ public unsafe class VulkanGraphicsSystem(
     /// <inheritdoc />
     public void Handle(ComponentDeactivatedEvent e)
     {
-        if (e.Component is ViewComponent view)
+        if (e.Component is ViewRenderer view)
         {
             if (_batches.Remove(view.Id))
             {
@@ -628,12 +634,11 @@ public unsafe class VulkanGraphicsSystem(
             )
             {
                 var clip = GetClippingRegion(view);
-                if (clip.Width == 0 || clip.Height == 0)
+                var viewCamera = view.Camera;
+                if (clip.Width == 0 || clip.Height == 0 || viewCamera is null)
                     continue;
 
-                view.Camera?.SetViewportSize(clip.Width, clip.Height);
-                var viewProjectionMatrix =
-                    view.Camera?.ViewProjectionMatrix ?? Matrix4X4<float>.Identity;
+                var viewProjectionMatrix = viewCamera.ViewProjectionMatrix;
                 var batches = _batches[view.Id];
 
                 if (_diagnostics?.IsEnabled == true)

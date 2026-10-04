@@ -8,15 +8,15 @@ public class View : GameObject
     /// <summary>
     /// Gets the component that configures this view's render layers.
     /// </summary>
-    public ViewComponent ViewComponent { get; }
+    public ViewRenderer ViewComponent { get; }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="View"/> class.
     /// </summary>
     public View()
-        : base([new ViewComponent()])
+        : base([new ViewRenderer()])
     {
-        ViewComponent = Components.OfType<ViewComponent>().Single();
+        ViewComponent = Components.OfType<ViewRenderer>().Single();
     }
 
     /// <summary>
@@ -24,8 +24,8 @@ public class View : GameObject
     /// </summary>
     /// <param name="id">The identifier for the view.</param>
     public View(uint id)
-        : base(id, [new ViewComponent()])
+        : base(id, [new ViewRenderer()])
     {
-        ViewComponent = Components.OfType<ViewComponent>().Single();
+        ViewComponent = Components.OfType<ViewRenderer>().Single();
     }
 }

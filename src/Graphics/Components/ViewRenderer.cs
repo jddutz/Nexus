@@ -1,14 +1,12 @@
-using Nexus.Graphics.Cameras;
-
 namespace Nexus.Graphics.Components;
 
 /// <summary>
 /// Configures the rendering properties for a given view.
 /// </summary>
-public partial class ViewComponent : Component
+public partial class ViewRenderer : Component
 {
     [Observable]
-    private string _name = nameof(ViewComponent);
+    private string _name = nameof(ViewRenderer);
 
     [Observable(PublicSetter = true)]
     private ICameraComponent? _camera = null;
@@ -18,6 +16,10 @@ public partial class ViewComponent : Component
 
     [Observable]
     private Rectangle<int> _clippingRegion;
+
+    /// <summary>Gets or sets whether the clipping rectangle is explicit instead of full-target.</summary>
+    [Observable]
+    private bool _hasExplicitClippingRegion;
 
     [Observable]
     private uint _renderPassMask = RenderPasses.Main;

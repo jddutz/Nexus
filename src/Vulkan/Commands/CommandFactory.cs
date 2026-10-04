@@ -1,7 +1,7 @@
 namespace Nexus.Graphics.Vulkan.Commands;
 
-using Nexus.Graphics.Text;
 using Nexus.Graphics.Components;
+using Nexus.Graphics.Text;
 
 /// <summary>
 /// Creates the Vulkan commands required to render a drawable.
@@ -262,7 +262,7 @@ public unsafe class CommandFactory(
     }
 
     /// <inheritdoc />
-    public IEnumerable<IVulkanCommand> CreateViewCommands(IDrawable drawable, ViewComponent view)
+    public IEnumerable<IVulkanCommand> CreateViewCommands(IDrawable drawable, ViewRenderer view)
     {
         ArgumentNullException.ThrowIfNull(view);
 
@@ -288,10 +288,9 @@ public unsafe class CommandFactory(
                 vertexShader,
                 state
             );
-            variant = allocation
-                .PipelineVariants.Values.FirstOrDefault(
-                    existing => existing.PipelineId == definition.Id
-                )!;
+            variant = allocation.PipelineVariants.Values.FirstOrDefault(existing =>
+                existing.PipelineId == definition.Id
+            )!;
             if (variant is null)
             {
                 var (pipeline, pipelineLayout) = pipelineRegistry.GetOrCreate(definition);

@@ -3,19 +3,19 @@ namespace Nexus.Graphics.Components;
 using System.Text;
 
 /// <summary>Layouts styled text and exposes its prepared glyph drawable.</summary>
-public partial class TextComponent : Component, IGraphicsComponent
+public partial class TextRenderer : Component, IGraphicsComponent
 {
     private List<TextSpan> _spans = [];
     private IReadOnlyList<IDrawable> _drawables = Array.Empty<IDrawable>();
     private Rectangle<float> _layoutBounds;
 
     /// <summary>Initializes an empty text component that can receive its style later.</summary>
-    public TextComponent() { }
+    public TextRenderer() { }
 
     /// <summary>Initializes a text component with the style used by its glyphs.</summary>
     /// <param name="style">The font and visual style used by the text.</param>
     /// <exception cref="ArgumentNullException"><paramref name="style"/> is null.</exception>
-    public TextComponent(ITextStyle style)
+    public TextRenderer(ITextStyle style)
         : this()
     {
         TextStyle = style ?? throw new ArgumentNullException(nameof(style));
@@ -40,8 +40,7 @@ public partial class TextComponent : Component, IGraphicsComponent
 
     /// <summary>Rebuilds glyph output after source text changes.</summary>
     /// <param name="previousValue">The previous source text.</param>
-    protected virtual partial void AfterTextChanges(string previousValue)
-        => RebuildDrawable();
+    protected virtual partial void AfterTextChanges(string previousValue) => RebuildDrawable();
 
     /// <summary>Gets or sets the destination rectangle used for layout and placement.</summary>
     [Observable(PublicSetter = true)]
@@ -49,8 +48,8 @@ public partial class TextComponent : Component, IGraphicsComponent
 
     /// <summary>Updates glyph placement after destination changes.</summary>
     /// <param name="previousValue">The previous destination rectangle.</param>
-    protected virtual partial void AfterDestinationChanges(Rectangle<float> previousValue)
-        => RebuildDrawable();
+    protected virtual partial void AfterDestinationChanges(Rectangle<float> previousValue) =>
+        RebuildDrawable();
 
     /// <summary>Gets or sets normalized horizontal and vertical alignment within the destination.</summary>
     [Observable(PublicSetter = true)]
@@ -58,8 +57,8 @@ public partial class TextComponent : Component, IGraphicsComponent
 
     /// <summary>Updates glyph placement after alignment changes.</summary>
     /// <param name="previousValue">The previous normalized alignment.</param>
-    protected virtual partial void AfterAlignmentChanges(Vector2D<float> previousValue)
-        => RebuildDrawable();
+    protected virtual partial void AfterAlignmentChanges(Vector2D<float> previousValue) =>
+        RebuildDrawable();
 
     /// <summary>Gets or sets the maximum number of laid-out lines, or null for no explicit limit.</summary>
     [Observable(PublicSetter = true)]
@@ -75,8 +74,8 @@ public partial class TextComponent : Component, IGraphicsComponent
 
     /// <summary>Rebuilds glyph layout after the maximum line count changes.</summary>
     /// <param name="previousValue">The previous maximum line count.</param>
-    protected virtual partial void AfterMaximumLinesChanges(int? previousValue)
-        => RebuildDrawable();
+    protected virtual partial void AfterMaximumLinesChanges(int? previousValue) =>
+        RebuildDrawable();
 
     /// <summary>Gets or sets whether lines wrap to the destination width.</summary>
     [Observable(PublicSetter = true)]
@@ -84,8 +83,7 @@ public partial class TextComponent : Component, IGraphicsComponent
 
     /// <summary>Rebuilds glyph layout after wrapping changes.</summary>
     /// <param name="previousValue">The previous wrapping setting.</param>
-    protected virtual partial void AfterWrapChanges(bool previousValue) =>
-        RebuildDrawable();
+    protected virtual partial void AfterWrapChanges(bool previousValue) => RebuildDrawable();
 
     /// <summary>Gets or sets the render-layer mask applied to the glyph drawable.</summary>
     [Observable(PublicSetter = true)]
@@ -272,7 +270,8 @@ public partial class TextComponent : Component, IGraphicsComponent
         if (text.Length == 0 || maximumLines == 0 || availableWidth == 0f || availableHeight == 0f)
             return TextLayoutResult.Empty;
 
-        var sourceLines = text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n')
+        var sourceLines = text.Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace('\r', '\n')
             .Split('\n', StringSplitOptions.None);
         var lines = new List<LayoutLine>();
         foreach (var sourceLine in sourceLines)
@@ -285,8 +284,7 @@ public partial class TextComponent : Component, IGraphicsComponent
         }
 
         var heightLineCount =
-            float.IsPositiveInfinity(availableHeight)
-            || availableHeight >= lines.Count * lineHeight
+            float.IsPositiveInfinity(availableHeight) || availableHeight >= lines.Count * lineHeight
                 ? lines.Count
                 : Math.Max(0, (int)MathF.Floor(availableHeight / lineHeight));
         if (maximumLines is { } maximumLineCount)
@@ -593,12 +591,13 @@ public partial class TextComponent : Component, IGraphicsComponent
         public Vector2D<float> MeasuredSize { get; }
 
         /// <summary>Gets the empty layout result.</summary>
-        public static TextLayoutResult Empty { get; } = new(
-            Array.Empty<LayoutLine>(),
-            [],
-            new Rectangle<float>(0f, 0f, 0f, 0f),
-            Vector2D<float>.Zero
-        );
+        public static TextLayoutResult Empty { get; } =
+            new(
+                Array.Empty<LayoutLine>(),
+                [],
+                new Rectangle<float>(0f, 0f, 0f, 0f),
+                Vector2D<float>.Zero
+            );
     }
 
     /// <summary>Calculates the union of nonzero-area glyph geometry.</summary>
@@ -623,8 +622,14 @@ public partial class TextComponent : Component, IGraphicsComponent
 
             left = MathF.Min(left, instance.Position.X + checked((float)planeBounds.Left) * scale);
             top = MathF.Min(top, instance.Position.Y - checked((float)planeBounds.Top) * scale);
-            right = MathF.Max(right, instance.Position.X + checked((float)planeBounds.Right) * scale);
-            bottom = MathF.Max(bottom, instance.Position.Y - checked((float)planeBounds.Bottom) * scale);
+            right = MathF.Max(
+                right,
+                instance.Position.X + checked((float)planeBounds.Right) * scale
+            );
+            bottom = MathF.Max(
+                bottom,
+                instance.Position.Y - checked((float)planeBounds.Bottom) * scale
+            );
         }
 
         return float.IsFinite(left)
@@ -644,11 +649,15 @@ public partial class TextComponent : Component, IGraphicsComponent
             || !double.IsFinite(style.FontMetrics.EmSize)
             || style.FontMetrics.EmSize <= 0d
         )
-            throw new InvalidOperationException("Text style size and em size must be finite and positive.");
+            throw new InvalidOperationException(
+                "Text style size and em size must be finite and positive."
+            );
 
         var scale = (float)(style.Size / style.FontMetrics.EmSize);
         if (!float.IsFinite(scale) || scale <= 0f)
-            throw new InvalidOperationException("Text style metrics produce an invalid glyph scale.");
+            throw new InvalidOperationException(
+                "Text style metrics produce an invalid glyph scale."
+            );
 
         return scale;
     }
@@ -662,7 +671,9 @@ public partial class TextComponent : Component, IGraphicsComponent
     {
         var lineHeight = (float)style.FontMetrics.LineHeight * scale;
         if (!float.IsFinite(lineHeight) || lineHeight <= 0f)
-            throw new InvalidOperationException("Text style line height must be finite and positive.");
+            throw new InvalidOperationException(
+                "Text style line height must be finite and positive."
+            );
 
         return lineHeight;
     }

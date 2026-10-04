@@ -12,6 +12,7 @@ using Nexus.GUI.Elements;
 using Nexus.Input;
 using Nexus.Input.Devices;
 using Silk.NET.Maths;
+using GuiView = Nexus.GUI.Elements.View;
 
 /// <summary>
 /// Creates the HelloNexus welcome scene and its application-specific content.
@@ -47,17 +48,17 @@ internal sealed class HelloNexusSceneFactory(
         var guiLayer = 1UL << guiLayerDefinition.Index;
         var backgroundLayer =
             1UL << scene.RenderLayers.Create("Background", RenderPasses.Main).Index;
-        var backgroundView = sceneView.Components.OfType<ViewComponent>().Single();
+        var backgroundView = sceneView.Components.OfType<ViewRenderer>().Single();
         backgroundView.Name = "Background";
         backgroundView.LayerMask = backgroundLayer;
 
-        var guiView = scene.CreateChild<View>();
+        var guiView = scene.CreateChild<GuiView>();
         guiView.ViewComponent.Name = "GUI";
-        guiView.ViewComponent.Camera = camera;
-        guiView.ViewComponent.LayerMask = guiLayer;
-        guiView.ViewComponent.RenderOrder = 1;
+        guiView.Camera = camera;
+        guiView.LayerMask = guiLayer;
+        guiView.RenderOrder = 1;
 
-        var backgroundTexture = new TextureComponent
+        var backgroundTexture = new TextureRenderer
         {
             Texture = textureRegistry.GetOrCreate((ContentId)"hello_nexus_background_image"),
             Destination = new Rectangle<float>(0f, 0f, mainWindow.Size.X, mainWindow.Size.Y),
@@ -145,18 +146,8 @@ internal sealed class HelloNexusSceneFactory(
         welcomeTextElement.Margins = new Margins(10f);
 
         var grid = new GridLayout();
-        grid.Columns =
-        [
-            GridSize.Relative(1f),
-            GridSize.Relative(1f),
-            GridSize.Relative(1f),
-        ];
-        grid.Rows =
-        [
-            GridSize.Absolute(40f),
-            GridSize.Relative(1f),
-            GridSize.Relative(1f),
-        ];
+        grid.Columns = [GridSize.Relative(1f), GridSize.Relative(1f), GridSize.Relative(1f)];
+        grid.Rows = [GridSize.Absolute(40f), GridSize.Relative(1f), GridSize.Relative(1f)];
         grid.SetCell(0, 0, leftIcon);
         grid.SetCell(0, 1, pressTextElement);
         grid.SetCell(0, 2, rightIcon);
@@ -172,13 +163,13 @@ internal sealed class HelloNexusSceneFactory(
     /// </summary>
     private sealed class BackgroundElement : Element
     {
-        private readonly TextureComponent _texture;
+        private readonly TextureRenderer _texture;
 
         /// <summary>
         /// Initializes the background element with its texture component.
         /// </summary>
         /// <param name="texture">The background texture component.</param>
-        public BackgroundElement(TextureComponent texture)
+        public BackgroundElement(TextureRenderer texture)
             : base(components: [texture])
         {
             _texture = texture;
@@ -204,5 +195,4 @@ internal sealed class HelloNexusSceneFactory(
             );
         }
     }
-
 }

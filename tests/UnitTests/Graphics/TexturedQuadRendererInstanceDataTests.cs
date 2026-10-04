@@ -26,7 +26,7 @@ public sealed class TextureComponentInstanceDataTests
     [Fact]
     public void TextureComponent_propagates_draw_order_to_drawable()
     {
-        var component = new TextureComponent { Texture = CreateTexture(), DrawOrder = 3 };
+        var component = new TextureRenderer { Texture = CreateTexture(), DrawOrder = 3 };
         var drawable = Assert.Single(component.Drawables);
 
         Assert.Equal(3, drawable.DrawOrder);
@@ -41,7 +41,7 @@ public sealed class TextureComponentInstanceDataTests
     [Fact]
     public void NinePatchComponent_propagates_draw_order_to_drawable()
     {
-        var component = new NinePatchComponent { Texture = CreateTexture(), DrawOrder = 4 };
+        var component = new NinePatchRenderer { Texture = CreateTexture(), DrawOrder = 4 };
         var drawable = Assert.Single(component.Drawables);
 
         Assert.Equal(4, drawable.DrawOrder);
@@ -76,7 +76,7 @@ public sealed class TextureComponentInstanceDataTests
     [Fact]
     public void MissingTexture_keepsComponentWithoutDrawableUntilAssigned()
     {
-        var component = new TextureComponent();
+        var component = new TextureRenderer();
 
         Assert.Empty(component.Drawables);
         component.Texture = CreateTexture();
@@ -159,7 +159,7 @@ public sealed class TextureComponentInstanceDataTests
     [Fact]
     public void PropertyChanges_raise_matching_drawable_events()
     {
-        var renderer = new TextureComponent { Texture = CreateTexture() };
+        var renderer = new TextureRenderer { Texture = CreateTexture() };
         var drawable = renderer.Drawables.Single();
         var renderLayerChanges = 0;
         var samplingBehaviorChanges = 0;
@@ -183,7 +183,7 @@ public sealed class TextureComponentInstanceDataTests
     /// Creates the textured-quad data used by the HelloNexus demo grid.
     /// </summary>
     /// <returns>The configured renderers in grid order.</returns>
-    private static TextureComponent[] CreateDemoGrid()
+    private static TextureRenderer[] CreateDemoGrid()
     {
         const int columns = 16;
         const int rows = 9;
@@ -194,7 +194,7 @@ public sealed class TextureComponentInstanceDataTests
         var cellHeight = 2.0f / rows;
         var regionWidth = 1.0f / atlasColumns;
         var regionHeight = 1.0f / atlasRows;
-        var renderers = new TextureComponent[columns * rows];
+        var renderers = new TextureRenderer[columns * rows];
 
         for (var x = 0; x < columns; x++)
         {
@@ -204,7 +204,7 @@ public sealed class TextureComponentInstanceDataTests
                 var atlasIndex = index % (atlasColumns * atlasRows);
                 var centerX = -1.0f + (x + 0.5f) * cellWidth;
                 var centerY = -1.0f + (y + 0.5f) * cellHeight;
-                var renderer = new TextureComponent
+                var renderer = new TextureRenderer
                 {
                     Texture = CreateTexture(),
                     TexCoord = new(
@@ -232,7 +232,7 @@ public sealed class TextureComponentInstanceDataTests
     [Fact]
     public void NinePatch_packs_nine_regions_and_uniformly_fits_borders_to_small_destinations()
     {
-        var component = new NinePatchComponent
+        var component = new NinePatchRenderer
         {
             Texture = new Texture("test", 100, 80, new Color[100 * 80]),
             Destination = new Rectangle<float>(0f, 0f, 15f, 10f),
@@ -277,7 +277,7 @@ public sealed class TextureComponentInstanceDataTests
     [Fact]
     public void NinePatch_shares_border_compression_across_both_axes()
     {
-        var component = new NinePatchComponent
+        var component = new NinePatchRenderer
         {
             Texture = new Texture("capsule", 384, 128, new Color[384 * 128]),
             Destination = new Rectangle<float>(0f, 0f, 160f, 38f),
@@ -305,7 +305,7 @@ public sealed class TextureComponentInstanceDataTests
     [Fact]
     public void Destination_packs_explicit_rectangle()
     {
-        var component = new TextureComponent
+        var component = new TextureRenderer
         {
             Texture = CreateTexture(),
             Destination = new Rectangle<float>(10f, 20f, 30f, 40f),
@@ -325,7 +325,7 @@ public sealed class TextureComponentInstanceDataTests
     {
         var destination = new Rectangle<float>(10f, 20f, 30f, 40f);
         var texture = CreateTexture();
-        var component = new TextureComponent { Texture = texture, Destination = destination };
+        var component = new TextureRenderer { Texture = texture, Destination = destination };
         var drawable = new TexturedQuad { Texture = texture, Destination = destination };
         var layout = BuiltInShaders.TexturedQuadVertexShader.InstanceLayout;
         var data = Tests.DrawableTestData.ReadInstances(drawable, layout);
@@ -342,7 +342,7 @@ public sealed class TextureComponentInstanceDataTests
     [Fact]
     public void Destination_changes_raise_instance_data_event_only_when_changed()
     {
-        var component = new TextureComponent { Texture = CreateTexture() };
+        var component = new TextureRenderer { Texture = CreateTexture() };
         var drawable = component.Drawables.Single();
         var changes = 0;
         drawable.InstanceDataChanged += (_, _) => changes++;
@@ -358,7 +358,7 @@ public sealed class TextureComponentInstanceDataTests
     [Fact]
     public void Destination_invalid_values_remove_drawable_until_state_is_valid()
     {
-        var component = new TextureComponent { Texture = CreateTexture() };
+        var component = new TextureRenderer { Texture = CreateTexture() };
         var previous = Assert.Single(component.Drawables);
 
         component.Destination = new Rectangle<float>(float.NaN, 0f, 1f, 1f);
@@ -375,7 +375,7 @@ public sealed class TextureComponentInstanceDataTests
     [Fact]
     public void Owner_changes_do_not_move_destination_geometry()
     {
-        var component = new TextureComponent
+        var component = new TextureRenderer
         {
             Texture = CreateTexture(),
             Destination = new Rectangle<float>(10f, 20f, 30f, 40f),
@@ -392,7 +392,7 @@ public sealed class TextureComponentInstanceDataTests
     /// <summary>Reads the packed transform for a single texture instance.</summary>
     /// <param name="component">The component to inspect.</param>
     /// <returns>The packed transform.</returns>
-    private static Matrix4X4<float> ReadTransform(TextureComponent component)
+    private static Matrix4X4<float> ReadTransform(TextureRenderer component)
     {
         var data = Tests.DrawableTestData.ReadInstances(
             Assert.Single(component.Drawables),

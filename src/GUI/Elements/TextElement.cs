@@ -16,7 +16,7 @@ public partial class TextElement : Element
 
     [Observable]
     private ulong _renderLayerMask = ulong.MaxValue;
-    private TextComponent? _textComponent;
+    private TextRenderer? _textComponent;
 
     /// <summary>Gets or sets the color applied to the text glyphs.</summary>
     [Observable(PublicSetter = true)]
@@ -162,7 +162,7 @@ public partial class TextElement : Element
         if (_textComponent is not null)
             return;
 
-        var textComponent = new TextComponent
+        var textComponent = new TextRenderer
         {
             TextStyle = Style,
             Color = Color,

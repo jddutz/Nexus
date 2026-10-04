@@ -24,10 +24,7 @@ public class RenderLayerTests
     [Fact]
     public void DefaultGui_UsesDefaultGuiSettings()
     {
-        Assert.Equal(
-            new RenderLayer(0, "GUI", RenderPasses.Main),
-            RenderLayer.DefaultGui
-        );
+        Assert.Equal(new RenderLayer(0, "GUI", RenderPasses.Main), RenderLayer.DefaultGui);
     }
 
     /// <summary>
@@ -36,7 +33,7 @@ public class RenderLayerTests
     [Fact]
     public void ViewComponent_StoresRenderingPolicy()
     {
-        var view = new Nexus.Graphics.Components.ViewComponent
+        var view = new Nexus.Graphics.Components.ViewRenderer
         {
             PreserveDrawOrder = true,
             BlendMode = BlendMode.PremultipliedAlpha,

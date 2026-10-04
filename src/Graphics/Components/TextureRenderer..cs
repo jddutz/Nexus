@@ -1,19 +1,19 @@
 namespace Nexus.Graphics.Components;
 
-/// <summary>Draws a resizable texture region as four corners, four edges, and a center.</summary>
-public partial class NinePatchComponent : Component, IGraphicsComponent
+/// <summary>Draws a texture using one <see cref="TexturedQuad"/> drawable.</summary>
+public partial class TextureRenderer : Component, IGraphicsComponent
 {
-    private NinePatch? _drawable;
+    private TexturedQuad? _drawable;
     private IReadOnlyList<IDrawable> _drawables = Array.Empty<IDrawable>();
-
-    /// <inheritdoc />
-    public IReadOnlyList<IDrawable> Drawables => _drawables;
 
     /// <inheritdoc />
     public event EventHandler<DrawableEventArgs>? DrawableAdded;
 
     /// <inheritdoc />
     public event EventHandler<DrawableEventArgs>? DrawableRemoved;
+
+    /// <inheritdoc />
+    public IReadOnlyList<IDrawable> Drawables => _drawables;
 
     [Observable(PublicSetter = true)]
     private ulong _renderLayerMask = ulong.MaxValue;
@@ -73,13 +73,6 @@ public partial class NinePatchComponent : Component, IGraphicsComponent
         UpdateDrawable(drawable => drawable.TexCoord = TexCoord);
 
     [Observable(PublicSetter = true)]
-    private Vector4D<float> _sourceBorders = new(0f, 0f, 0f, 0f);
-
-    /// <inheritdoc />
-    protected virtual partial void AfterSourceBordersChanges() =>
-        UpdateDrawable(drawable => drawable.SourceBorders = SourceBorders);
-
-    [Observable(PublicSetter = true)]
     private Color _color = Colors.White;
 
     /// <inheritdoc />
@@ -97,27 +90,29 @@ public partial class NinePatchComponent : Component, IGraphicsComponent
 
         if (_drawable is null)
         {
+            var texture = Texture!;
+            var samplingBehavior = SamplingBehavior!;
             RegisterDrawable(
-                new NinePatch
+                new TexturedQuad
                 {
-                    Texture = Texture!,
+                    Texture = texture,
                     RenderLayerMask = RenderLayerMask,
                     DrawOrder = DrawOrder,
-                    SamplingBehavior = SamplingBehavior!,
+                    SamplingBehavior = samplingBehavior,
                     VertexShader = VertexShader,
                     FragmentShader = FragmentShader,
                     Destination = Destination,
                     TexCoord = TexCoord,
-                    SourceBorders = SourceBorders,
                     Color = Color,
                 }
             );
+            return;
         }
     }
 
     /// <summary>Validates state and updates one property on the current drawable.</summary>
     /// <param name="update">The drawable update to apply.</param>
-    private void UpdateDrawable(Action<NinePatch> update)
+    private void UpdateDrawable(Action<TexturedQuad> update)
     {
         if (!IsValidState())
         {
@@ -142,8 +137,6 @@ public partial class NinePatchComponent : Component, IGraphicsComponent
         && FragmentShader is not null
         && IsValidDestination(Destination)
         && IsValidTexCoord(TexCoord)
-        && IsValidSourceBorders(SourceBorders)
-        && IsValidBordersFit(SourceBorders, Texture, TexCoord)
         && IsValidColor(Color);
 
     /// <summary>Validates destination coordinates and positive extents.</summary>
@@ -168,29 +161,6 @@ public partial class NinePatchComponent : Component, IGraphicsComponent
         && texCoord.X + texCoord.Z <= 1f
         && texCoord.Y + texCoord.W <= 1f;
 
-    /// <summary>Validates finite, non-negative source border widths.</summary>
-    private static bool IsValidSourceBorders(Vector4D<float> sourceBorders) =>
-        float.IsFinite(sourceBorders.X)
-        && float.IsFinite(sourceBorders.Y)
-        && float.IsFinite(sourceBorders.Z)
-        && float.IsFinite(sourceBorders.W)
-        && sourceBorders.X >= 0f
-        && sourceBorders.Y >= 0f
-        && sourceBorders.Z >= 0f
-        && sourceBorders.W >= 0f;
-
-    /// <summary>Validates that source borders fit the selected texture region.</summary>
-    private static bool IsValidBordersFit(
-        Vector4D<float> sourceBorders,
-        ITexture? texture,
-        Vector4D<float> texCoord
-    ) =>
-        texture is null
-        || (
-            sourceBorders.X + sourceBorders.Z <= texCoord.Z * texture.Width
-            && sourceBorders.Y + sourceBorders.W <= texCoord.W * texture.Height
-        );
-
     /// <summary>Validates color channels in the normalized color range.</summary>
     private static bool IsValidColor(Color color) =>
         float.IsFinite(color.R)
@@ -204,7 +174,7 @@ public partial class NinePatchComponent : Component, IGraphicsComponent
 
     /// <summary>Registers a newly valid drawable with this component.</summary>
     /// <param name="drawable">The drawable to expose.</param>
-    private void RegisterDrawable(NinePatch drawable)
+    private void RegisterDrawable(TexturedQuad drawable)
     {
         _drawable = drawable;
         _drawables = [drawable];

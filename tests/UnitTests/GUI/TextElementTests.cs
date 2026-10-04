@@ -36,7 +36,7 @@ public sealed class TextElementTests
         Assert.Equal(new Vector2D<float>(5f, 8f), element.Measure(new(10f, 10f)));
         element.Arrange(allocation);
 
-        var text = Assert.IsType<TextComponent>(Assert.Single(element.Components));
+        var text = Assert.IsType<TextRenderer>(Assert.Single(element.Components));
         var contentBounds = new Rectangle<float>(11f, 23f, 7f, 3f);
         Assert.Equal(contentBounds, text.Destination);
         Assert.Equal(text.LayoutBounds, element.Bounds);
@@ -56,10 +56,10 @@ public sealed class TextElementTests
         element.VerticalAlignment = AlignVertical.Bottom;
         element.Arrange(new Rectangle<float>(10f, 20f, 10f, 10f));
 
-        Assert.Equal(new Rectangle<float>(19f, 29f, 1f, 1f), element.Components
-            .OfType<TextComponent>()
-            .Single()
-            .Destination);
+        Assert.Equal(
+            new Rectangle<float>(19f, 29f, 1f, 1f),
+            element.Components.OfType<TextRenderer>().Single().Destination
+        );
     }
 
     /// <summary>Verifies a text element can be initialized before its rendering style is assigned.</summary>
@@ -86,8 +86,8 @@ public sealed class TextElementTests
         element.Arrange(new Rectangle<float>(0f, 0f, 2f, 2f));
         element.SortOrder = 7;
 
-        var component = Assert.IsType<TextComponent>(
-            Assert.Single(element.Components.OfType<TextComponent>())
+        var component = Assert.IsType<TextRenderer>(
+            Assert.Single(element.Components.OfType<TextRenderer>())
         );
         Assert.Equal(7, component.DrawOrder);
         Assert.Equal(7, Assert.Single(component.Drawables).DrawOrder);
@@ -119,7 +119,7 @@ public sealed class TextElementTests
         element.Arrange(new Rectangle<float>(0f, 0f, 2f, 2f));
         element.Color = Colors.WhiteSmoke;
 
-        var component = Assert.IsType<TextComponent>(Assert.Single(element.Components));
+        var component = Assert.IsType<TextRenderer>(Assert.Single(element.Components));
         var span = Assert.IsType<TextSpan>(Assert.Single(component.Drawables));
         var instances = DrawableTestData.ReadInstances(
             span,
@@ -138,22 +138,16 @@ public sealed class TextElementTests
         var bounds = new Rectangle<float>(10f, 20f, 8f, 6f);
 
         element.Arrange(bounds);
-        var text = Assert.IsType<TextComponent>(Assert.Single(element.Components));
+        var text = Assert.IsType<TextRenderer>(Assert.Single(element.Components));
         Assert.Equal(text.LayoutBounds, element.Bounds);
-        Assert.Equal(
-            new Rectangle<float>(13.5f, 22.5f, 1f, 1f),
-            text.LayoutBounds
-        );
+        Assert.Equal(new Rectangle<float>(13.5f, 22.5f, 1f, 1f), text.LayoutBounds);
 
         element.HorizontalAlignment = AlignHorizontal.Right;
         element.VerticalAlignment = AlignVertical.Bottom;
         element.Arrange(bounds);
 
         Assert.Equal(text.LayoutBounds, element.Bounds);
-        Assert.Equal(
-            new Rectangle<float>(17f, 25f, 1f, 1f),
-            text.LayoutBounds
-        );
+        Assert.Equal(new Rectangle<float>(17f, 25f, 1f, 1f), text.LayoutBounds);
     }
 
     /// <summary>Verifies a line is omitted when its complete line box exceeds available height.</summary>
@@ -195,7 +189,7 @@ public sealed class TextElementTests
         Assert.NotSame(original, recreated);
         Assert.Equal(2UL, DrawableTestData.TextInstanceCount(element));
         Assert.Equal(new Vector2D<float>(2f, 1f), element.Measure(new(20f, 20f)));
-        var text = Assert.IsType<TextComponent>(Assert.Single(element.Components));
+        var text = Assert.IsType<TextRenderer>(Assert.Single(element.Components));
         Assert.Equal(bounds, text.Destination);
         Assert.Equal(text.LayoutBounds, element.Bounds);
     }
@@ -211,7 +205,7 @@ public sealed class TextElementTests
         element.Text = "AB";
         Assert.Equal(2UL, DrawableTestData.TextInstanceCount(element));
         element.Arrange(bounds);
-        var text = Assert.IsType<TextComponent>(Assert.Single(element.Components));
+        var text = Assert.IsType<TextRenderer>(Assert.Single(element.Components));
         Assert.Equal(bounds, text.Destination);
         Assert.Equal(text.LayoutBounds, element.Bounds);
 
@@ -249,7 +243,7 @@ public sealed class TextElementTests
         Assert.Empty(element.Components);
         element.Arrange(hiddenBounds);
         Assert.Equal(1UL, DrawableTestData.TextInstanceCount(element));
-        var text = Assert.IsType<TextComponent>(Assert.Single(element.Components));
+        var text = Assert.IsType<TextRenderer>(Assert.Single(element.Components));
         Assert.Equal(hiddenBounds, text.Destination);
         Assert.Equal(text.LayoutBounds, element.Bounds);
     }
@@ -290,8 +284,7 @@ public sealed class TextElementTests
         public IReadOnlyDictionary<
             (int LeftCodepoint, int RightCodepoint),
             double
-        > Kerning
-        { get; } = new Dictionary<(int, int), double>();
+        > Kerning { get; } = new Dictionary<(int, int), double>();
 
         /// <inheritdoc />
         public double Size { get; } = 1;

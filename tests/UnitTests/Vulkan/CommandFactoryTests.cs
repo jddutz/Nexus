@@ -97,11 +97,11 @@ public class CommandFactoryTests
         var basePipelineId = Assert
             .IsType<BindPipelineCommand>(
                 factory
-                    .CreateViewCommands(drawable, new ViewComponent { PreserveDrawOrder = true })
+                    .CreateViewCommands(drawable, new ViewRenderer { PreserveDrawOrder = true })
                     .First()
             )
             .PipelineId;
-        var configuredView = new ViewComponent
+        var configuredView = new ViewRenderer
         {
             BlendMode = BlendMode.Opaque,
             EnableDepthTest = false,

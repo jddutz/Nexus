@@ -7,6 +7,7 @@ global using Microsoft.Extensions.Options;
 global using Nexus.Assets.Fonts;
 global using Nexus.Core;
 global using Nexus.Graphics;
+global using Nexus.Graphics.Cameras;
 global using Nexus.Graphics.Drawables;
 global using Nexus.Graphics.Geometry;
 global using Nexus.Graphics.Shaders;

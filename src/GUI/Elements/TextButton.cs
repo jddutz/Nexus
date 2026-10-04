@@ -14,8 +14,8 @@ public partial class TextButton : Element
     private readonly ITextStyle _textStyle;
     private readonly Vector4D<float> _sourceBorders;
     private readonly ISamplingBehavior _samplingBehavior;
-    private NinePatchComponent? _background;
-    private TextComponent? _text;
+    private NinePatchRenderer? _background;
+    private TextRenderer? _text;
 
     /// <summary>Gets or sets the render-layer mask shared by the button visuals.</summary>
     [Observable(PublicSetter = true)]
@@ -105,8 +105,8 @@ public partial class TextButton : Element
     /// <summary>Creates fresh visual components from the button's retained configuration.</summary>
     private void CreateVisualComponents()
     {
-        var background = new NinePatchComponent { };
-        var text = new TextComponent(_textStyle)
+        var background = new NinePatchRenderer { };
+        var text = new TextRenderer(_textStyle)
         {
             Color = TextColor,
             RenderLayerMask = RenderLayerMask,
@@ -229,8 +229,7 @@ public partial class TextButton : Element
                 Height is null
                     ? MathF.Min(labelSize.Y + Padding.Top + Padding.Bottom, contentConstraint.Y)
                     : contentConstraint.Y
-            )
-            + Margins;
+            ) + Margins;
     }
 
     /// <inheritdoc />
@@ -267,5 +266,4 @@ public partial class TextButton : Element
         _text.Alignment = new Vector2D<float>(0.5f, 0.5f);
         _background.Destination = contentBounds;
     }
-
 }

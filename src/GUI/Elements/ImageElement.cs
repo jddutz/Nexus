@@ -69,7 +69,7 @@ public partial class ImageElement : Element
 
     [Observable]
     private ulong _renderLayerMask = ulong.MaxValue;
-    private TextureComponent? _imageComponent;
+    private TextureRenderer? _imageComponent;
 
     /// <summary>Validates the proposed sizing mode and custom-size configuration.</summary>
     /// <param name="value">The proposed sizing mode.</param>
@@ -236,7 +236,7 @@ public partial class ImageElement : Element
         );
         if (_imageComponent is null)
         {
-            _imageComponent = new TextureComponent();
+            _imageComponent = new TextureRenderer();
             AddComponent(_imageComponent);
         }
 
@@ -275,7 +275,7 @@ public partial class ImageElement : Element
     /// <param name="destination">The clipped visual destination.</param>
     /// <param name="texCoord">The clipped normalized source rectangle.</param>
     private void SynchronizeVisualComponent(
-        TextureComponent component,
+        TextureRenderer component,
         ITexture texture,
         Rectangle<float> destination,
         Vector4D<float> texCoord
