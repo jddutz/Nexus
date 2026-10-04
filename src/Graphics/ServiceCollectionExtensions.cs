@@ -24,7 +24,7 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(configuration);
 
         services.AddOptions<WindowSettings>().Bind(configuration.GetSection("Window"));
-        services.TryAddSingleton<IContentProvider<Texture>, TextureProvider>();
+        services.TryAddSingleton<ITextureRegistry, TextureRegistry>();
         return services;
     }
 }

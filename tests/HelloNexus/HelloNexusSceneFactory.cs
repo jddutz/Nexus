@@ -20,12 +20,12 @@ using Silk.NET.Maths;
 /// <param name="windowService">Provides the main window dimensions.</param>
 /// <param name="contentManifest">Describes the content available to the application.</param>
 /// <param name="fontBuilder">Builds font data for the welcome text.</param>
-/// <param name="textureProvider">Loads textures from the content library.</param>
+/// <param name="textureRegistry">Loads and tracks textures from the content library.</param>
 internal sealed class HelloNexusSceneFactory(
     IWindowService windowService,
     IContentManifest contentManifest,
     IFontBuilder fontBuilder,
-    IContentProvider<Texture> textureProvider
+    ITextureRegistry textureRegistry
 )
 {
     /// <summary>
@@ -62,7 +62,7 @@ internal sealed class HelloNexusSceneFactory(
 
         var backgroundTexture = new TextureComponent
         {
-            Texture = textureProvider.Get((ContentId)"hello_nexus_background_image"),
+            Texture = textureRegistry.GetOrCreate((ContentId)"hello_nexus_background_image"),
             Destination = new Rectangle<float>(0f, 0f, mainWindow.Size.X, mainWindow.Size.Y),
             RenderLayerMask = backgroundLayer,
         };
@@ -81,7 +81,7 @@ internal sealed class HelloNexusSceneFactory(
         const string buttonLabel = "Start Physics Test";
         var buttonElement = new TextButton(
             textStyle,
-            textureProvider.Get((ContentId)"button_texture"),
+            textureRegistry.GetOrCreate((ContentId)"button_texture"),
             horizontalPadding: 16f,
             verticalPadding: 10f,
             renderLayerMask: guiLayer,
@@ -114,7 +114,7 @@ internal sealed class HelloNexusSceneFactory(
             }
         )
             inputMap.OnAnyControllerButtonPressed(direction).Invoke(() => buttonFocused = true);
-        var audioTexture = textureProvider.Get((ContentId)"icon_audio_on");
+        var audioTexture = textureRegistry.GetOrCreate((ContentId)"icon_audio_on");
         var leftIcon = new ImageElement
         {
             Texture = audioTexture,
