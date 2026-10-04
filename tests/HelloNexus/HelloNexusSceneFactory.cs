@@ -56,7 +56,7 @@ internal sealed class HelloNexusSceneFactory(
                     {
                         Text = "Press ESC to quit",
                         Style = textStyleNormal,
-                        Color = Colors.WhiteSmoke,
+                        Color = Colors.DarkGray,
                         Margins = new Margins(0f, 0f, 18f, 0f),
                         MaximumLines = 1,
                         HorizontalAlignment = AlignHorizontal.Center,
