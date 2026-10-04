@@ -9,7 +9,7 @@ public partial class ViewRenderer : Component
     private string _name = nameof(ViewRenderer);
 
     [Observable(PublicSetter = true)]
-    private ICameraComponent? _camera = null;
+    private ICamera? _camera = null;
 
     [Observable(PublicSetter = true)]
     private ulong _layerMask = 0;

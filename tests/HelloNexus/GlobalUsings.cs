@@ -1,3 +1,13 @@
 global using Microsoft.Extensions.Configuration;
 global using Microsoft.Extensions.DependencyInjection;
+global using Nexus.Core;
+global using Nexus.Game;
+global using Nexus.Graphics;
+global using Nexus.Graphics.Cameras;
+global using Nexus.Graphics.Text;
+global using Nexus.Graphics.Textures;
+global using Nexus.GUI;
+global using Nexus.GUI.Elements;
+global using Nexus.Input;
+global using Nexus.Input.Devices;
 global using Nexus.Runtime;

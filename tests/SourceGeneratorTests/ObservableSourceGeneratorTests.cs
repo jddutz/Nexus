@@ -30,6 +30,7 @@ public sealed class ObservableSourceGeneratorTests
                 public string? PropertyName { get; } = propertyName;
                 public bool PublicSetter { get; set; } = true;
                 public bool GenerateChangedEvent { get; set; } = true;
+                public bool Required { get; set; }
             }
 
             public interface IObservable
@@ -1025,6 +1026,53 @@ public sealed class ObservableSourceGeneratorTests
                 generated
                     .SourceText.ToString()
                     .Contains("ValueChanged = null!", StringComparison.Ordinal)
+        );
+    }
+
+    /// <summary>
+    /// Verifies required observable fields generate required properties with initializer enforcement.
+    /// </summary>
+    [Fact]
+    public void RequiredFieldsGenerateRequiredProperties()
+    {
+        var source =
+            ObservableContract
+            + """
+                namespace Probe
+                {
+                    public partial class Target : Nexus.Core.IObservable
+                    {
+                        public event Action<string>? PropertyChanged;
+                        [Nexus.Core.Observable(Required = true)]
+                        private object _value = null!;
+                    }
+
+                    public static class Factory
+                    {
+                        public static Target Create() => new() { Value = new object() };
+                    }
+                }
+                """;
+
+        var result = RunGenerator(source);
+        var generated = Assert.Single(result.GeneratedSources).SourceText.ToString();
+
+        Assert.Contains("public required ", generated);
+        Assert.Contains(" Value", generated);
+        Assert.DoesNotContain(
+            result.Compilation.GetDiagnostics(),
+            diagnostic => diagnostic.Severity == DiagnosticSeverity.Error
+        );
+
+        var missingInitializer = source.Replace(
+            "new() { Value = new object() }",
+            "new()",
+            StringComparison.Ordinal
+        );
+        var missingInitializerResult = RunGenerator(missingInitializer);
+        Assert.Contains(
+            missingInitializerResult.Compilation.GetDiagnostics(),
+            diagnostic => diagnostic.Id == "CS9035"
         );
     }
 

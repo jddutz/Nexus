@@ -458,7 +458,7 @@ public partial class GameSystem(
                 if (_windowService is not null)
                 {
                     var windowSize = _windowService.GetMainWindow().Size;
-                    scene.StaticCamera.SetViewportSize(windowSize.X, windowSize.Y);
+                    scene.MainCamera.SetViewportSize(windowSize.X, windowSize.Y);
                     _eventHub.Register(this);
                 }
             }
@@ -474,7 +474,7 @@ public partial class GameSystem(
     }
 
     /// <summary>
-    /// Updates the active scene's static camera when the main window changes size.
+    /// Updates the active scene's main camera when the main window changes size.
     /// </summary>
     /// <param name="message">The window-resized event.</param>
     public void Handle(WindowResizedEvent message)
@@ -486,7 +486,7 @@ public partial class GameSystem(
         )
             return;
 
-        scene.StaticCamera.SetViewportSize(message.Size.X, message.Size.Y);
+        scene.MainCamera.SetViewportSize(message.Size.X, message.Size.Y);
     }
 
     /// <summary>

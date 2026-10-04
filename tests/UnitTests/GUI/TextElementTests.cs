@@ -76,6 +76,18 @@ public sealed class TextElementTests
         Assert.Equal(1UL, DrawableTestData.TextInstanceCount(element));
     }
 
+    /// <summary>Verifies text and style can both be supplied in a parameterless initializer.</summary>
+    [Fact]
+    public void Object_initializer_sets_text_and_style_before_layout()
+    {
+        var element = new TextElement { Text = "A", Style = new TestTextStyle() };
+
+        element.Arrange(new Rectangle<float>(0f, 0f, 2f, 2f));
+
+        Assert.Equal("A", element.Text);
+        Assert.Equal(1UL, DrawableTestData.TextInstanceCount(element));
+    }
+
     /// <summary>Verifies an element propagates sort order to its graphics component and drawable.</summary>
     [Fact]
     public void SortOrder_propagates_to_text_component_and_drawable()

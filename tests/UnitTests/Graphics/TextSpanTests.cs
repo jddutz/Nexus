@@ -518,6 +518,7 @@ public sealed class TextSpanTests
     {
         var glyph = new FontGlyph('A', 12, new(0, 0, 10, 12), new(0, 0, 10, 12));
         var font = new FontBuildResult(
+            "Roboto-Regular",
             new FontAtlas(1, 1, [1, 2, 3]),
             new FontMetrics(48, 36, -12, 48),
             [glyph],
@@ -540,6 +541,7 @@ public sealed class TextSpanTests
     {
         var glyph = new FontGlyph('A', 12, new(0, 0, 10, 12), new(0, 0, 10, 12));
         var font = new FontBuildResult(
+            "Roboto-Regular",
             new FontAtlas(1, 1, [1, 2, 3]),
             new FontMetrics(48, 36, -12, 48),
             [glyph],
@@ -550,6 +552,7 @@ public sealed class TextSpanTests
         var style = new TextStyle(font, texture, 18);
         var equivalentStyle = new TextStyle(
             new FontBuildResult(
+                "Roboto-Regular",
                 new FontAtlas(1, 1, [1, 2, 3]),
                 new FontMetrics(48, 36, -12, 48),
                 [glyph],
@@ -560,6 +563,7 @@ public sealed class TextSpanTests
             18
         );
         var differentFont = new FontBuildResult(
+            "Roboto-Bold",
             new FontAtlas(1, 1, [1, 2, 4]),
             font.Metrics,
             font.Glyphs,

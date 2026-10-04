@@ -1,5 +1,7 @@
 namespace Nexus.Assets.Fonts;
 
+using Nexus.Core;
+
 /// <summary>
 /// Builds complete font atlas and runtime metadata from a font source.
 /// </summary>
@@ -8,6 +10,7 @@ public interface IFontBuilder
     /// <summary>
     /// Builds the requested glyphs and packages the generated atlas and metadata.
     /// </summary>
+    /// <param name="fontId">The content identifier of the source font.</param>
     /// <param name="sourcePath">The source TrueType or OpenType font path.</param>
     /// <param name="codepoints">The Unicode codepoints required by the font build.</param>
     /// <param name="settings">The atlas and distance-field generation settings.</param>
@@ -15,6 +18,7 @@ public interface IFontBuilder
     /// <exception cref="ArgumentNullException">An argument is null.</exception>
     /// <exception cref="FontBuildException">The requested font result cannot be generated.</exception>
     FontBuildResult Build(
+        ContentId fontId,
         string sourcePath,
         IReadOnlyList<int> codepoints,
         FontGenerationSettings settings

@@ -5,4 +5,8 @@
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Core\Nexus.Core.csproj" />
+  </ItemGroup>
 </Project>

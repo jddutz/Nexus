@@ -46,6 +46,25 @@ public class GridLayoutTests
         Assert.Equal([GridSize.Relative()], layout.Rows);
     }
 
+    /// <summary>Verifies the two-dimensional indexer delegates to cell access and assignment.</summary>
+    [Fact]
+    public void Indexer_getsAndSetsCells()
+    {
+        var layout = new GridLayout
+        {
+            Rows = [GridSize.Relative()],
+            Columns = [GridSize.Relative()],
+        };
+        var element = new Element();
+
+        layout[0, 0] = element;
+
+        Assert.Same(element, layout[0, 0]);
+        layout[0, 0] = null;
+        Assert.Null(layout[0, 0]);
+        Assert.Empty(layout.Children);
+    }
+
     /// <summary>Verifies grid sizes support named constructor arguments.</summary>
     [Fact]
     public void GridSizeConstructor_acceptsNamedArguments()

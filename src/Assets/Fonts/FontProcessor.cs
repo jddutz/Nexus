@@ -60,7 +60,12 @@ public sealed class FontProcessor
         {
             definition.Generation.Validate();
             var codepoints = definition.Glyphs.GetCodepoints();
-            var result = _builder.Build(sourcePath, codepoints, definition.Generation);
+            var result = _builder.Build(
+                definition.ContentId,
+                sourcePath,
+                codepoints,
+                definition.Generation
+            );
             return result;
         }
         catch (FontBuildException exception)

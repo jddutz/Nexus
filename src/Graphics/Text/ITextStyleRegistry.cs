@@ -6,11 +6,12 @@ namespace Nexus.Graphics.Text;
 public interface ITextStyleRegistry : IDisposable
 {
     /// <summary>
-    /// Gets an existing style for the description or builds and registers it.
+    /// Gets the style for the requested font and size, creating and registering it if needed.
     /// </summary>
-    /// <param name="description">The font and size configuration of the style.</param>
+    /// <param name="fontId">The content identifier of the font.</param>
+    /// <param name="size">The requested text size.</param>
     /// <returns>The cached or newly generated style.</returns>
-    ITextStyle GetOrCreate(TextStyleDescription description);
+    ITextStyle GetOrCreate(ContentId fontId, float size);
 
     /// <summary>
     /// Gets a registered style by its identity.

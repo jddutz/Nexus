@@ -43,6 +43,16 @@ public class GridLayout : Element
     /// <summary>Gets the number of column tracks.</summary>
     public int ColumnCount => _cols.Count;
 
+    /// <summary>Gets or sets the occupant at the specified cell.</summary>
+    /// <param name="row">The zero-based row index.</param>
+    /// <param name="column">The zero-based column index.</param>
+    /// <returns>The occupant at the cell, or <see langword="null"/> when it is empty.</returns>
+    public IElement? this[int row, int column]
+    {
+        get => GetCell(row, column);
+        set => SetCell(row, column, value);
+    }
+
     /// <summary>Gets the occupant at the specified cell, or <see langword="null"/> if it is empty.</summary>
     public IElement? GetCell(int row, int column)
     {

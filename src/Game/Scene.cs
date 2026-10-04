@@ -23,8 +23,8 @@ public partial class Scene : IScene
     [Observable(PublicSetter = true)]
     private InputMap? _inputMap;
 
-    [Observable(PublicSetter = false)]
-    private StaticCamera _staticCamera = new();
+    [Observable(PublicSetter = true, Required = true)]
+    private ICamera _mainCamera = null!;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="Scene"/> class with the specified identifier.

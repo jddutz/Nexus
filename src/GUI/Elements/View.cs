@@ -14,7 +14,7 @@ public partial class View : Element
 
     /// <summary>Gets or sets the camera used to project selected scene content.</summary>
     [Observable]
-    private ICameraComponent? _camera;
+    private ICamera? _camera;
 
     /// <summary>Gets or sets the scene render layers visible through this view.</summary>
     [Observable]
@@ -50,7 +50,7 @@ public partial class View : Element
 
     /// <summary>Synchronizes the assigned camera with the owned renderer.</summary>
     /// <param name="previousValue">The camera previously assigned to the view.</param>
-    protected virtual partial void AfterCameraChanges(ICameraComponent? previousValue) =>
+    protected virtual partial void AfterCameraChanges(ICamera? previousValue) =>
         ViewComponent.Camera = Camera;
 
     /// <summary>Synchronizes the layer mask with the owned renderer.</summary>
@@ -154,16 +154,10 @@ public partial class View : Element
 
         var left = (int)Math.Clamp(Math.Ceiling((double)bounds.Origin.X), 0d, int.MaxValue);
         var top = (int)Math.Clamp(Math.Ceiling((double)bounds.Origin.Y), 0d, int.MaxValue);
-        var right = (int)Math.Clamp(
-            Math.Floor((double)bounds.Origin.X + bounds.Size.X),
-            left,
-            int.MaxValue
-        );
-        var bottom = (int)Math.Clamp(
-            Math.Floor((double)bounds.Origin.Y + bounds.Size.Y),
-            top,
-            int.MaxValue
-        );
+        var right = (int)
+            Math.Clamp(Math.Floor((double)bounds.Origin.X + bounds.Size.X), left, int.MaxValue);
+        var bottom = (int)
+            Math.Clamp(Math.Floor((double)bounds.Origin.Y + bounds.Size.Y), top, int.MaxValue);
 
         return new Rectangle<int>(left, top, right - left, bottom - top);
     }

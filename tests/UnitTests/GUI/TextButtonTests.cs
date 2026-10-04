@@ -19,6 +19,46 @@ namespace Tests;
 /// </summary>
 public sealed class TextButtonTests
 {
+    /// <summary>Verifies a button without a style remains usable and renders after one is assigned.</summary>
+    [Fact]
+    public void Parameterless_construction_handles_missing_style_until_assigned()
+    {
+        var button = new TextButton { Label = "A", Padding = new(2f, 2f) };
+        var bounds = new Rectangle<float>(0f, 0f, 20f, 20f);
+
+        Assert.True(button.CanFocus);
+        Assert.True(button.Measure(new(100f, 100f)).X >= 0f);
+        button.Arrange(bounds);
+        var text = Assert.IsType<TextRenderer>(
+            Assert.Single(button.Components.OfType<TextRenderer>())
+        );
+        Assert.Empty(text.Drawables);
+
+        button.Style = new TestTextStyle();
+        button.Arrange(bounds);
+
+        Assert.Equal(1UL, DrawableTestData.TextInstanceCount(button));
+    }
+
+    /// <summary>Verifies text button resources can be configured with an object initializer.</summary>
+    [Fact]
+    public void Object_initializer_configures_style_texture_and_label()
+    {
+        var button = new TextButton
+        {
+            Style = new TestTextStyle(),
+            Texture = new Texture("button", 8, 8, new Color[64]),
+            SourceBorders = new Vector4D<float>(1f, 1f, 1f, 1f),
+            Padding = new(2f, 2f),
+            Label = "A",
+        };
+
+        button.Arrange(new Rectangle<float>(0f, 0f, 20f, 20f));
+
+        Assert.Equal(1UL, DrawableTestData.TextInstanceCount(button));
+        Assert.Same(button.Texture, button.GetComponent<NinePatchRenderer>()!.Texture);
+    }
+
     /// <summary>
     /// Verifies separate buttons own distinct components and independent labels.
     /// </summary>
@@ -122,7 +162,7 @@ public sealed class TextButtonTests
     [Fact]
     public void Visibility_removesAndRecreatesVisualComponents()
     {
-        var scene = new Scene();
+        var scene = new Scene() { MainCamera = new Nexus.Graphics.Cameras.StaticCamera() };
         var parent = new Element();
         var button = CreateButton("AB");
         var bounds = new Rectangle<float>(4f, 5f, 60f, 24f);
@@ -308,7 +348,7 @@ public sealed class TextButtonTests
     [Fact]
     public void AddChild_registersButtonInScene()
     {
-        var scene = new Scene();
+        var scene = new Scene() { MainCamera = new Nexus.Graphics.Cameras.StaticCamera() };
         var parent = new GameObject();
         scene.Children.Add(parent);
         scene.Activate();
@@ -330,13 +370,19 @@ public sealed class TextButtonTests
         var (eventHub, button) = CreateAttachedButton();
         var mouse = new TestMouse(1);
         var actionCount = 0;
-        button.Action = () => actionCount++;
+        TextButton? actionButton = null;
+        button.Action = clickedButton =>
+        {
+            actionButton = clickedButton;
+            actionCount++;
+        };
         var position = GetCenter(button.Bounds);
 
         Publish(eventHub, new MouseButtonPressedEvent(mouse, MouseButtonEnum.Left, position));
         Publish(eventHub, new MouseButtonReleasedEvent(mouse, MouseButtonEnum.Left, position));
 
         Assert.Equal(1, actionCount);
+        Assert.Same(button, actionButton);
     }
 
     /// <summary>Verifies an outside release or outside-origin press does not invoke the action.</summary>
@@ -346,7 +392,7 @@ public sealed class TextButtonTests
         var (eventHub, button) = CreateAttachedButton();
         var mouse = new TestMouse(2);
         var actionCount = 0;
-        button.Action = () => actionCount++;
+        button.Action = _ => actionCount++;
 
         Publish(eventHub, new MouseButtonPressedEvent(mouse, MouseButtonEnum.Left, new(10f, 10f)));
         Publish(
@@ -369,7 +415,7 @@ public sealed class TextButtonTests
         var (eventHub, button) = CreateAttachedButton();
         var mouse = new TestMouse(5);
         var actionCount = 0;
-        button.Action = () => actionCount++;
+        button.Action = _ => actionCount++;
         var initialPosition = GetCenter(button.Bounds);
 
         Publish(
@@ -390,7 +436,7 @@ public sealed class TextButtonTests
         var firstMouse = new TestMouse(3);
         var secondMouse = new TestMouse(4);
         var actionCount = 0;
-        button.Action = () => actionCount++;
+        button.Action = _ => actionCount++;
         var position = GetCenter(button.Bounds);
 
         Publish(eventHub, new MouseButtonPressedEvent(firstMouse, MouseButtonEnum.Left, position));
@@ -422,7 +468,7 @@ public sealed class TextButtonTests
         var (eventHub, button) = CreateAttachedButton();
         var mouse = new TestMouse(6);
         var actionCount = 0;
-        button.Action = () => actionCount++;
+        button.Action = _ => actionCount++;
         var position = GetCenter(button.Bounds);
 
         Publish(eventHub, new MouseButtonPressedEvent(mouse, MouseButtonEnum.Left, position));
@@ -442,13 +488,13 @@ public sealed class TextButtonTests
         var sceneInputMap = new InputMap(eventHub);
         var actionCount = 0;
         var buttonFocused = false;
-        button.Action = () => actionCount++;
+        button.Action = _ => actionCount++;
         button
             .InputMap.OnAnyControllerButtonPressed(ControllerSemanticNames.FaceBottom)
             .Invoke(() =>
             {
                 if (buttonFocused)
-                    button.Action?.Invoke();
+                    button.Action?.Invoke(button);
             });
         sceneInputMap
             .OnAnyControllerButtonPressed(ControllerSemanticNames.DPadDown)
@@ -496,7 +542,7 @@ public sealed class TextButtonTests
         var gui = new GraphicalUserInterface(eventHub);
         var button = CreateButton("A");
         button.Arrange(new Rectangle<float>(4f, 5f, 60f, 24f));
-        var scene = new Scene();
+        var scene = new Scene() { MainCamera = new Nexus.Graphics.Cameras.StaticCamera() };
         scene.Children.Add(button);
         scene.Activate();
         button.Activate();

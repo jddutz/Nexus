@@ -41,8 +41,9 @@ dotnet test Nexus.slnx
 Rendering tests serialize drawables into caller-owned buffers through `IDrawable.WriteInstanceDataTo` and `WriteUniformDataTo`. GUI text tests inspect prepared glyphs through public graphics-component contracts rather than depending on internal GUI component types or restoring Graphics-side string layout.
 Graphics components expose `DrawOrder` and propagate it to every drawable they own.
 GUI elements expose `SortOrder` and propagate it to each owned graphics component.
-Text style generation caches extracted font outlines and reuses rasterized atlases for compatible
-requested sizes within a 0.5x–2x range; sizes outside that range generate a new raster variant.
+Text styles are cached by font ContentId and requested size; rasterized atlases are cached
+separately and reused for compatible sizes within a 0.5x–2x range, generating a raster variant
+when no compatible one exists.
 
 Lifecycle state changes use generated property setters so change hooks and notifications run. Scene activation does not activate the hierarchy by itself; lifecycle tests either run `GameSystem.Update` or explicitly activate their fixture nodes. The generator and observable contracts remain unchanged.
 
@@ -199,6 +200,7 @@ The revised TextComponent specification must define the exact source API, output
 - Deferred property mutation is not currently an established requirement.
 - Templates separate construction recipes from created objects, with optional initialization callbacks and dependency-injected construction.
 - Concrete GUI classes such as TextButton are preferred for GUI behavior. Templates remain available for authoring and composition.
+- GUI elements support parameterless construction and property-based initialization; text visuals tolerate styles or textures being assigned later.
 
 ## Open architectural questions
 

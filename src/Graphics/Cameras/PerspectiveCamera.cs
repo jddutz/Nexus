@@ -3,7 +3,7 @@ namespace Nexus.Graphics.Cameras;
 /// <summary>
 /// Movable perspective world camera with a configurable field of view, aspect ratio, and clipping planes.
 /// </summary>
-public partial class PerspectiveCamera : Component, ICameraComponent
+public partial class PerspectiveCamera : Component, ICamera
 {
     [Observable]
     private Vector3D<float> _position = Vector3D<float>.Zero;

@@ -11,12 +11,24 @@ using Nexus.Graphics.Textures;
 public partial class TextButton : Element
 {
     private readonly List<IObservable> _visibilityAncestors = [];
-    private readonly ITexture _texture;
-    private readonly ITextStyle _textStyle;
-    private readonly Vector4D<float> _sourceBorders;
-    private readonly ISamplingBehavior _samplingBehavior;
     private NinePatchRenderer? _background;
     private TextRenderer? _text;
+
+    /// <summary>Gets or sets the optional texture used by the button background.</summary>
+    [Observable(PublicSetter = true)]
+    private ITexture? _texture;
+
+    /// <summary>Gets or sets the optional style used by the button label.</summary>
+    [Observable(PublicSetter = true)]
+    private ITextStyle? _style;
+
+    /// <summary>Gets or sets the source texture border widths.</summary>
+    [Observable(PublicSetter = true)]
+    private Vector4D<float> _sourceBorders = new(12f, 12f, 12f, 12f);
+
+    /// <summary>Gets or sets the background texture sampling behavior.</summary>
+    [Observable(PublicSetter = true)]
+    private ISamplingBehavior _samplingBehavior = SamplingBehaviors.PixelPerfect;
 
     /// <summary>Gets or sets the render-layer mask shared by the button visuals.</summary>
     [Observable(PublicSetter = true)]
@@ -30,10 +42,11 @@ public partial class TextButton : Element
     private Color _textColor = Colors.White;
 
     [Observable(PublicSetter = true)]
-    private Margins _padding = new();
+    private Margins _padding = new(16f, 10f);
 
+    /// <summary>Gets or sets the action invoked for a click, receiving this button instance.</summary>
     [Observable(PublicSetter = true)]
-    private Action? _action;
+    private Action<TextButton>? _action;
 
     /// <summary>Rejects a null label value.</summary>
     /// <param name="value">The proposed label.</param>
@@ -65,8 +78,55 @@ public partial class TextButton : Element
             _text.Color = TextColor;
     }
 
+    /// <summary>Updates the label renderer when its optional style changes.</summary>
+    /// <param name="previousValue">The previous style.</param>
+    protected virtual partial void AfterStyleChanges(ITextStyle? previousValue)
+    {
+        if (_text is not null)
+            _text.TextStyle = Style;
+    }
+
+    /// <summary>Updates the background renderer when its optional texture changes.</summary>
+    /// <param name="previousValue">The previous texture.</param>
+    protected virtual partial void AfterTextureChanges(ITexture? previousValue)
+    {
+        if (_background is not null)
+            _background.Texture = Texture;
+    }
+
+    /// <summary>Updates the background renderer when its source borders change.</summary>
+    /// <param name="previousValue">The previous source borders.</param>
+    protected virtual partial void AfterSourceBordersChanges(Vector4D<float> previousValue)
+    {
+        if (_background is not null)
+            _background.SourceBorders = SourceBorders;
+    }
+
+    /// <summary>Updates the background renderer when its sampling behavior changes.</summary>
+    /// <param name="previousValue">The previous sampling behavior.</param>
+    protected virtual partial void AfterSamplingBehaviorChanges(
+        ISamplingBehavior previousValue
+    )
+    {
+        if (_background is not null)
+            _background.SamplingBehavior = SamplingBehavior;
+    }
+
+    /// <summary>Rejects a null sampling behavior.</summary>
+    /// <param name="value">The proposed sampling behavior.</param>
+    private void BeforeSamplingBehaviorChanges(ISamplingBehavior value) =>
+        ArgumentNullException.ThrowIfNull(value);
+
+    /// <summary>Initializes a text button with empty, assignable visual resources.</summary>
+    public TextButton()
+    {
+        SetCanFocus(true);
+        InputMap.OnMouseButtonReleased(MouseButtonEnum.Left).Invoke(InvokeAction);
+        CreateVisualComponents();
+    }
+
     /// <summary>
-    /// Initializes a text button and creates its owned visual components.
+    /// Initializes a text button with its initial visual resources and layout settings.
     /// </summary>
     /// <param name="textStyle">The shared font and text style.</param>
     /// <param name="texture">The shared nine-patch texture.</param>
@@ -84,41 +144,41 @@ public partial class TextButton : Element
         Vector4D<float>? sourceBorders = null,
         ISamplingBehavior? samplingBehavior = null
     )
-        : base()
+        : this()
     {
         ArgumentNullException.ThrowIfNull(textStyle);
         ArgumentNullException.ThrowIfNull(texture);
 
-        _texture = texture;
-        _textStyle = textStyle;
+        Style = textStyle;
+        Texture = texture;
         Padding = new(horizontalPadding, verticalPadding);
         RenderLayerMask = renderLayerMask;
-        _sourceBorders = sourceBorders ?? new Vector4D<float>(12f, 12f, 12f, 12f);
-        _samplingBehavior = samplingBehavior ?? SamplingBehaviors.PixelPerfect;
-        SetCanFocus(true);
-        InputMap.OnMouseButtonReleased(MouseButtonEnum.Left).Invoke(InvokeAction);
-        CreateVisualComponents();
+        SourceBorders = sourceBorders ?? new Vector4D<float>(12f, 12f, 12f, 12f);
+        SamplingBehavior = samplingBehavior ?? SamplingBehaviors.PixelPerfect;
     }
 
     /// <summary>Invokes the action assigned to this button, if any.</summary>
-    private void InvokeAction() => Action?.Invoke();
+    private void InvokeAction() => Action?.Invoke(this);
 
     /// <summary>Creates fresh visual components from the button's retained configuration.</summary>
     private void CreateVisualComponents()
     {
-        var background = new NinePatchRenderer { };
-        var text = new TextRenderer(_textStyle)
+        var background = new NinePatchRenderer
         {
+            Texture = Texture,
+            RenderLayerMask = RenderLayerMask,
+            SamplingBehavior = SamplingBehavior,
+            SourceBorders = SourceBorders,
+        };
+        var text = new TextRenderer
+        {
+            TextStyle = Style,
             Color = TextColor,
             RenderLayerMask = RenderLayerMask,
             Text = Label,
             Wrap = false,
             MaximumLines = 1,
         };
-        background.Texture = _texture;
-        background.RenderLayerMask = RenderLayerMask;
-        background.SamplingBehavior = _samplingBehavior;
-        background.SourceBorders = _sourceBorders;
         _background = background;
         _text = text;
         AddComponent(background);
@@ -222,7 +282,8 @@ public partial class TextButton : Element
             MathF.Max(0f, contentConstraint.X - Padding.Left - Padding.Right),
             MathF.Max(0f, contentConstraint.Y - Padding.Top - Padding.Bottom)
         );
-        var labelSize = _text?.Measure(textConstraint) ?? Vector2D<float>.Zero;
+        var labelSize =
+            Style is null ? Vector2D<float>.Zero : _text!.Measure(textConstraint);
         return new Vector2D<float>(
                 Width is null
                     ? MathF.Min(labelSize.X + Padding.Left + Padding.Right, contentConstraint.X)

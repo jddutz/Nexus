@@ -19,7 +19,9 @@ public sealed class FontBuilderTests
         if (fontPath is null)
             return;
 
+        const string fontContentId = "test-font";
         var result = new FontBuilder().Build(
+            fontContentId,
             fontPath,
             ['A', 'V', ' '],
             new FontGenerationSettings
@@ -30,6 +32,7 @@ public sealed class FontBuilderTests
             }
         );
 
+        Assert.Equal(fontContentId, result.FontId.Value);
         Assert.Equal(32, result.Metrics.EmSize);
         Assert.True(result.Metrics.Ascender > 0);
         Assert.True(result.Metrics.Descender < 0);
@@ -69,6 +72,7 @@ public sealed class FontBuilderTests
         try
         {
             var result = new FontBuilder().Build(
+                "synthetic-font",
                 fontPath,
                 ['A'],
                 new FontGenerationSettings
@@ -111,6 +115,7 @@ public sealed class FontBuilderTests
         try
         {
             var result = new FontBuilder().Build(
+                "synthetic-font",
                 fontPath,
                 ['A'],
                 new FontGenerationSettings

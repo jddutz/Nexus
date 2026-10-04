@@ -21,4 +21,9 @@ public sealed class ObservableAttribute(string? propertyName = null) : Attribute
     /// Gets or sets whether a typed property-changed event is generated.
     /// </summary>
     public bool GenerateChangedEvent { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets whether the generated property must be assigned during object initialization.
+    /// </summary>
+    public bool Required { get; set; }
 }

@@ -40,7 +40,10 @@ public class GameSystemEventRegistrationTests
     public void Update_activatesTheConfiguredInitialScene()
     {
         const string sceneName = "WelcomeScreen";
-        var scene = new Scene(NodeId.New());
+        var scene = new Scene(NodeId.New())
+        {
+            MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
+        };
         var rootComponent = new EventHandlingComponent();
         var root = new EventHandlingGameObject([rootComponent]);
         var childComponent = new EventHandlingComponent();
@@ -79,7 +82,10 @@ public class GameSystemEventRegistrationTests
     public void ActiveScene_tracksLifecycleForDynamicallyChangedHierarchy()
     {
         const string sceneName = "DynamicScene";
-        var scene = new Scene(NodeId.New());
+        var scene = new Scene(NodeId.New())
+        {
+            MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
+        };
         var sceneRegistry = new SceneRegistry();
         sceneRegistry.Register(sceneName, () => scene);
         var gameSystem = CreateGameSystem(

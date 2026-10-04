@@ -23,7 +23,10 @@ public class GameSystemLifecycleTests
     public void Update_runsSceneAndDependentsInParentFirstOrder()
     {
         var calls = new List<string>();
-        var scene = new LifecycleScene(calls);
+        var scene = new LifecycleScene(calls)
+        {
+            MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
+        };
         var parent = new LifecycleGameObject("parent", calls);
         var component = new LifecycleComponent("component", calls);
         var child = new LifecycleGameObject("child", calls);
@@ -47,7 +50,10 @@ public class GameSystemLifecycleTests
     public void Update_initializesUnderInactiveParentAndRetriesActivation()
     {
         var calls = new List<string>();
-        var scene = new LifecycleScene(calls);
+        var scene = new LifecycleScene(calls)
+        {
+            MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
+        };
         var parent = new LifecycleGameObject("parent", calls) { ActivationAllowed = false };
         var child = new LifecycleGameObject("child", calls);
         var component = new LifecycleComponent("component", calls);
@@ -92,7 +98,10 @@ public class GameSystemLifecycleTests
     public void Update_skipsRemovedAndReaddedSubtreeUntilNextFrame()
     {
         var calls = new List<string>();
-        var scene = new LifecycleScene(calls);
+        var scene = new LifecycleScene(calls)
+        {
+            MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
+        };
         var parent = new LifecycleGameObject("parent", calls);
         var child = new LifecycleGameObject("child", calls);
         var component = new LifecycleComponent("component", calls);
@@ -135,7 +144,10 @@ public class GameSystemLifecycleTests
     public void Update_defersAddedChildUntilNextFrame()
     {
         var calls = new List<string>();
-        var scene = new LifecycleScene(calls);
+        var scene = new LifecycleScene(calls)
+        {
+            MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
+        };
         var parent = new LifecycleGameObject("parent", calls);
         var child = new LifecycleGameObject("child", calls);
         scene.Children.Add(parent);
@@ -167,7 +179,10 @@ public class GameSystemLifecycleTests
     public void ActiveScene_transferPreservesInitializationState()
     {
         var calls = new List<string>();
-        var scene = new LifecycleScene(calls);
+        var scene = new LifecycleScene(calls)
+        {
+            MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
+        };
         var source = new LifecycleGameObject("source", calls);
         var destination = new LifecycleGameObject("destination", calls);
         var movedObject = new LifecycleGameObject("moved", calls);
@@ -192,34 +207,35 @@ public class GameSystemLifecycleTests
     }
 
     /// <summary>
-    /// Verifies the current scene's static camera tracks the main window size and ignores other windows.
+    /// Verifies the current scene's main camera tracks the main window size and ignores other windows.
     /// </summary>
     [Fact]
-    public void InitializeAndResize_updatesCurrentSceneStaticCameraFromMainWindow()
+    public void InitializeAndResize_updatesCurrentSceneMainCameraFromMainWindow()
     {
-        var scene = new Scene();
+        var camera = new Nexus.Graphics.Cameras.StaticCamera();
+        var scene = new Scene() { MainCamera = camera };
         var windowService = new TestWindowService(new(800, 600));
         var eventHub = new EventHub();
         var gameSystem = CreateGameSystem(scene, windowService, eventHub);
         gameSystem.Initialize();
 
         Assert.Empty(scene.Children);
-        var initialProjection = scene.StaticCamera.ProjectionMatrix;
+        var initialProjection = scene.MainCamera.ProjectionMatrix;
         Assert.Equal(
             Matrix4X4.CreateOrthographicOffCenter(
                 0f,
                 800f,
                 0f,
                 600f,
-                scene.StaticCamera.NearPlane,
-                scene.StaticCamera.FarPlane
+                camera.NearPlane,
+                camera.FarPlane
             ),
             initialProjection
         );
 
         eventHub.Publish(new WindowResizedEvent(2, new(1280, 720)));
         eventHub.Drain();
-        Assert.Equal(initialProjection, scene.StaticCamera.ProjectionMatrix);
+        Assert.Equal(initialProjection, scene.MainCamera.ProjectionMatrix);
 
         eventHub.Publish(new WindowResizedEvent(windowService.MainWindowId, new(1280, 720)));
         eventHub.Drain();
@@ -230,10 +246,10 @@ public class GameSystemLifecycleTests
                 1280f,
                 0f,
                 720f,
-                scene.StaticCamera.NearPlane,
-                scene.StaticCamera.FarPlane
+                camera.NearPlane,
+                camera.FarPlane
             ),
-            scene.StaticCamera.ProjectionMatrix
+            scene.MainCamera.ProjectionMatrix
         );
     }
 

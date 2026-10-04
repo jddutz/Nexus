@@ -25,6 +25,7 @@ For each `[Observable]` backing field, generate:
 
 - A public getter.
 - A nonvirtual property setter: public when `ObservableAttribute.PublicSetter` is `true`, otherwise protected.
+- The `required` modifier when `ObservableAttribute.Required` is `true`.
 - A private `__SetPropertyName` wrapper called by the property setter.
 - A protected virtual `SetPropertyName(T value)` mutation method, unless the authored type provides a compatible protected setter.
 - Two protected virtual after-change hooks.

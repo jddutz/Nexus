@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.IO.Compression;
 using Nexus.Assets.Fonts;
+using Nexus.Core;
 
 namespace Nexus.AssetPipeline.Tests;
 
@@ -55,7 +56,8 @@ public sealed class FontProcessorTests : IDisposable
 
         var actual = processor.Process(CreateDefinition("font.ttf"), _folder);
 
-        Assert.Same(expected, actual);
+        Assert.NotSame(expected, actual);
+        Assert.Equal(new ContentId("ui.default"), actual.FontId);
         Assert.Equal(95, actual.Glyphs.Count);
     }
 
@@ -147,6 +149,7 @@ public sealed class FontProcessorTests : IDisposable
 
     private static FontBuildResult CreateResult(int glyphCount = 95) =>
         new(
+            "test-font",
             new FontAtlas(2, 2, new byte[12]),
             new FontMetrics(48, .8, -.2, 1.2),
             Enumerable
@@ -167,19 +170,21 @@ public sealed class FontProcessorTests : IDisposable
         public bool WasCalled { get; private set; }
 
         public FontBuildResult Build(
+            ContentId fontId,
             string sourcePath,
             IReadOnlyList<int> codepoints,
             FontGenerationSettings settings
         )
         {
             WasCalled = true;
-            return result ?? CreateResult(codepoints.Count);
+            return (result ?? CreateResult(codepoints.Count)) with { FontId = fontId };
         }
     }
 
     private sealed class ThrowingBuilder : IFontBuilder
     {
         public FontBuildResult Build(
+            ContentId fontId,
             string sourcePath,
             IReadOnlyList<int> codepoints,
             FontGenerationSettings settings

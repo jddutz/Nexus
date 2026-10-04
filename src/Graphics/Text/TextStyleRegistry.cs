@@ -7,33 +7,51 @@ using Nexus.Assets.Fonts;
 /// </summary>
 /// <param name="manifest">Provides the configured content root and font file mappings.</param>
 /// <param name="fontBuilder">Builds generated font atlas data.</param>
-public sealed class TextStyleRegistry(
-    IContentManifest manifest,
-    IFontBuilder fontBuilder
-) : ITextStyleRegistry
+public sealed class TextStyleRegistry(IContentManifest manifest, IFontBuilder fontBuilder)
+    : ITextStyleRegistry
 {
+    private readonly record struct TextStyleKey(ContentId FontId, float Size);
+
+    /// <summary>Stores one generated raster that can be reused across compatible sizes.</summary>
+    /// <param name="FontResourceId">The source font content identifier.</param>
+    /// <param name="EmSize">The generation size of the raster.</param>
+    /// <param name="Font">The generated font data.</param>
+    private sealed record CachedRaster(ContentId FontResourceId, int EmSize, FontBuildResult Font);
+
+    /// <summary>Identifies a generated raster by source font and resolved generation size.</summary>
+    /// <param name="FontResourceId">The source font content identifier.</param>
+    /// <param name="EmSize">The resolved raster generation size.</param>
+    private sealed record RasterKey(ContentId FontResourceId, int EmSize);
+
     private readonly IContentManifest _manifest =
         manifest ?? throw new ArgumentNullException(nameof(manifest));
     private readonly IFontBuilder _fontBuilder =
         fontBuilder ?? throw new ArgumentNullException(nameof(fontBuilder));
-    private readonly Dictionary<TextStyleDescription, TextStyleId> _descriptions = [];
+    private readonly Dictionary<TextStyleKey, TextStyleId> _styleIdLookup = [];
     private readonly Dictionary<TextStyleId, ITextStyle> _styles = [];
     private readonly Dictionary<ContentId, ITexture> _atlasTextures = [];
     private readonly Dictionary<RasterKey, CachedRaster> _rasters = [];
 
     /// <inheritdoc />
-    public ITextStyle GetOrCreate(TextStyleDescription description)
+    public ITextStyle GetOrCreate(ContentId fontId, float size)
     {
-        ValidateDescription(description);
-        if (_descriptions.TryGetValue(description, out var styleId))
+        if (!float.IsFinite(size) || size <= 0f)
+            throw new ArgumentOutOfRangeException(
+                nameof(size),
+                "Text size must be positive and finite."
+            );
+
+        var key = new TextStyleKey(fontId, size);
+
+        if (_styleIdLookup.TryGetValue(key, out var styleId))
             return _styles[styleId];
 
-        var raster = GetOrCreateRaster(description);
+        var raster = GetOrCreateRaster(fontId, size);
         var texture = CreateAtlasTexture(raster);
-        var style = new TextStyle(raster.Font, texture, description.Size);
-        _descriptions.Add(description, style.Id);
-        _styles.TryAdd(style.Id, style);
-        return _styles[style.Id];
+        var style = new TextStyle(raster.Font, texture, size);
+        _styles.Add(style.Id, style);
+        _styleIdLookup.Add(key, style.Id);
+        return style;
     }
 
     /// <inheritdoc />
@@ -48,7 +66,7 @@ public sealed class TextStyleRegistry(
     /// <inheritdoc />
     public void Reset()
     {
-        _descriptions.Clear();
+        _styleIdLookup.Clear();
         _styles.Clear();
         _atlasTextures.Clear();
         _rasters.Clear();
@@ -67,28 +85,28 @@ public sealed class TextStyleRegistry(
     /// </summary>
     /// <param name="description">The requested text style description.</param>
     /// <returns>The selected or newly generated raster.</returns>
-    private CachedRaster GetOrCreateRaster(TextStyleDescription description)
+    private CachedRaster GetOrCreateRaster(ContentId fontId, float size)
     {
-        var compatible = _rasters.Values
-            .Where(raster =>
-                raster.FontResourceId == description.FontResourceId
-                && description.Size >= raster.EmSize * 0.5f
-                && description.Size <= raster.EmSize * 2f
+        var compatible = _rasters
+            .Values.Where(raster =>
+                raster.FontResourceId == fontId
+                && size >= raster.EmSize * 0.5f
+                && size <= raster.EmSize * 2f
             )
-            .OrderBy(raster => Math.Abs(raster.EmSize - description.Size))
+            .OrderBy(raster => Math.Abs(raster.EmSize - size))
             .FirstOrDefault();
         if (compatible is not null)
             return compatible;
 
-        var emSize = Math.Clamp((int)MathF.Round(description.Size), 16, 256);
-        var key = new RasterKey(description.FontResourceId, emSize);
+        var emSize = Math.Clamp((int)MathF.Round(size), 16, 256);
+        var key = new RasterKey(fontId, emSize);
         if (_rasters.TryGetValue(key, out var cached))
             return cached;
 
         var raster = new CachedRaster(
-            description.FontResourceId,
+            fontId,
             emSize,
-            BuildFont(description.FontResourceId, emSize)
+            BuildFont(fontId, emSize)
         );
         _rasters.Add(key, raster);
         return raster;
@@ -105,6 +123,7 @@ public sealed class TextStyleRegistry(
             _manifest.Fonts.GetContentFilePath(fontResourceId)
         );
         return _fontBuilder.Build(
+            fontResourceId,
             filepath,
             new FontGlyphRepertoire().GetCodepoints(),
             new FontGenerationSettings { EmSize = emSize }
@@ -149,38 +168,5 @@ public sealed class TextStyleRegistry(
         );
         _atlasTextures.Add(contentId, texture);
         return texture;
-    }
-
-    /// <summary>Stores one generated raster that can be reused across compatible sizes.</summary>
-    /// <param name="FontResourceId">The source font content identifier.</param>
-    /// <param name="EmSize">The generation size of the raster.</param>
-    /// <param name="Font">The generated font data.</param>
-    private sealed record CachedRaster(
-        ContentId FontResourceId,
-        int EmSize,
-        FontBuildResult Font
-    );
-
-    /// <summary>Identifies a generated raster by source font and resolved generation size.</summary>
-    /// <param name="FontResourceId">The source font content identifier.</param>
-    /// <param name="EmSize">The resolved raster generation size.</param>
-    private sealed record RasterKey(ContentId FontResourceId, int EmSize);
-
-    /// <summary>Validates the public text style description.</summary>
-    /// <param name="description">The description to validate.</param>
-    private static void ValidateDescription(TextStyleDescription description)
-    {
-        if (string.IsNullOrWhiteSpace(description.FontFamily))
-            throw new ArgumentException("Font family is required.", nameof(description));
-        if (description.FontResourceId == ContentId.Invalid)
-            throw new ArgumentException("Font resource ID is required.", nameof(description));
-        if (!float.IsFinite(description.Size) || description.Size <= 0f)
-            throw new ArgumentOutOfRangeException(nameof(description), "Size must be positive and finite.");
-        // TODO: Apply WidthFactor during text layout before accepting non-default values.
-        if (!float.IsFinite(description.WidthFactor) || description.WidthFactor <= 0f)
-            throw new ArgumentOutOfRangeException(nameof(description), "Width factor must be positive and finite.");
-        // TODO: Apply OutlineWidth during font generation and text rendering before accepting non-default values.
-        if (!float.IsFinite(description.OutlineWidth) || description.OutlineWidth < 0f)
-            throw new ArgumentOutOfRangeException(nameof(description), "Outline width must be finite and non-negative.");
     }
 }

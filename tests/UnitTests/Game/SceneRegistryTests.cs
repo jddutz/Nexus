@@ -17,7 +17,10 @@ public class SceneRegistryTests
     {
         var registry = new SceneRegistry();
         const string sceneName = "WelcomeScreen";
-        var scene = new Scene(NodeId.New());
+        var scene = new Scene(NodeId.New())
+        {
+            MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
+        };
 
         registry.Register(sceneName, () => scene);
 
@@ -33,10 +36,24 @@ public class SceneRegistryTests
     {
         var registry = new SceneRegistry();
         const string sceneName = "DuplicateScene";
-        registry.Register(sceneName, () => new Scene(NodeId.New()));
+        registry.Register(
+            sceneName,
+            () =>
+                new Scene(NodeId.New())
+                {
+                    MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
+                }
+        );
 
         Assert.Throws<ArgumentException>(() =>
-            registry.Register(sceneName, () => new Scene(NodeId.New()))
+            registry.Register(
+                sceneName,
+                () =>
+                    new Scene(NodeId.New())
+                    {
+                        MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
+                    }
+            )
         );
     }
 

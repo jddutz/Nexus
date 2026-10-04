@@ -13,6 +13,11 @@ public interface ITextStyle
     TextStyleId Id { get; }
 
     /// <summary>
+    /// Gets the requested text size in the font's units.
+    /// </summary>
+    double Size { get; }
+
+    /// <summary>
     /// Gets the texture atlas containing the glyph images.
     /// </summary>
     ITexture Texture { get; }
@@ -36,9 +41,4 @@ public interface ITextStyle
     /// Gets the kerning adjustments indexed by adjacent glyph code points.
     /// </summary>
     IReadOnlyDictionary<(int LeftCodepoint, int RightCodepoint), double> Kerning { get; }
-
-    /// <summary>
-    /// Gets the requested text size in the font's units.
-    /// </summary>
-    double Size { get; }
 }

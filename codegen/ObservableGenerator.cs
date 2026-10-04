@@ -992,6 +992,28 @@ public sealed class ObservableGenerator : IIncrementalGenerator
     }
 
     /// <summary>
+    /// Determines whether the generated property must be assigned during initialization.
+    /// </summary>
+    /// <param name="field">The field annotated with <see cref="ObservableAttributeName"/>.</param>
+    /// <returns><see langword="true"/> when the generated property is required.</returns>
+    private static bool IsRequired(IFieldSymbol field)
+    {
+        foreach (var attribute in field.GetAttributes())
+        {
+            if (attribute.AttributeClass?.ToDisplayString() != ObservableAttributeName)
+                continue;
+
+            foreach (var argument in attribute.NamedArguments)
+            {
+                if (argument.Key == "Required" && argument.Value.Value is bool required)
+                    return required;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// Gets the fully qualified hook parameter type, preserving a nullable field annotation.
     /// </summary>
     /// <param name="field">The observable backing field.</param>
@@ -1087,6 +1109,7 @@ public sealed class ObservableGenerator : IIncrementalGenerator
             .AppendLine(".</summary>");
         builder
             .Append("    public ")
+            .Append(IsRequired(plan.Field) ? "required " : string.Empty)
             .Append(typeName)
             .Append(' ')
             .Append(propertyName)

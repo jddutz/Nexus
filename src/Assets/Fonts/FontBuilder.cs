@@ -2,6 +2,7 @@ using Nexus.Assets.Typography.Atlas;
 using Nexus.Assets.Typography.DistanceFields;
 using Nexus.Assets.Typography.FontReader.TrueType;
 using Nexus.Assets.Typography.Geometry;
+using Nexus.Core;
 
 namespace Nexus.Assets.Fonts;
 
@@ -18,6 +19,7 @@ public sealed class FontBuilder : IFontBuilder
     /// <summary>
     /// Generates glyph distance fields, packs their atlas, and assembles the runtime font result.
     /// </summary>
+    /// <param name="fontId">The content identifier of the source font.</param>
     /// <param name="sourcePath">The source TrueType or OpenType font path.</param>
     /// <param name="codepoints">The Unicode codepoints required by the font build.</param>
     /// <param name="settings">The atlas and distance-field generation settings.</param>
@@ -25,6 +27,7 @@ public sealed class FontBuilder : IFontBuilder
     /// <exception cref="ArgumentNullException">An argument is null.</exception>
     /// <exception cref="FontBuildException">The requested font result cannot be generated.</exception>
     public FontBuildResult Build(
+        ContentId fontId,
         string sourcePath,
         IReadOnlyList<int> codepoints,
         FontGenerationSettings settings
@@ -113,6 +116,7 @@ public sealed class FontBuilder : IFontBuilder
             (face.Ascender - face.Descender + face.LineGap) * emScale
         );
         var result = new FontBuildResult(
+            fontId,
             atlasResult.Atlas,
             metrics,
             glyphs,

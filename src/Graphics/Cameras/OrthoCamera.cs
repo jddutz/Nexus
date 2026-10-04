@@ -4,7 +4,7 @@ namespace Nexus.Graphics.Cameras;
 /// Movable orthographic world camera with a fixed axis-aligned orientation, used for simulating
 /// 2D rendering using 3D world coordinates.
 /// </summary>
-public partial class OrthoCamera : Component, ICameraComponent
+public partial class OrthoCamera : Component, ICamera
 {
     [Observable]
     private float _width = 10f;

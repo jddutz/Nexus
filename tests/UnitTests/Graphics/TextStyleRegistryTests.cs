@@ -14,6 +14,7 @@ public sealed class TextStyleRegistryTests
     public void GetOrCreate_convertsRgbAtlasToRgbaTexture()
     {
         var font = new FontBuildResult(
+            "test-font",
             new FontAtlas(2, 1, [17, 29, 43, 51, 61, 71]),
             new FontMetrics(16, 12, -4, 16),
             [],
@@ -33,7 +34,7 @@ public sealed class TextStyleRegistryTests
         );
         using var registry = new TextStyleRegistry(manifest, new StubFontBuilder(font));
 
-        var style = registry.GetOrCreate(new TextStyleDescription("Test", "test-font", 16));
+        var style = registry.GetOrCreate("test-font", 16);
         Span<byte> pixels = stackalloc byte[8];
 
         Assert.Equal(ColorFormatEnum.RGBA8UNorm, style.Texture.TextureFormat);
@@ -41,14 +42,62 @@ public sealed class TextStyleRegistryTests
         Assert.Equal(new byte[] { 17, 29, 43, 255, 51, 61, 71, 255 }, pixels.ToArray());
     }
 
+    /// <summary>Verifies exact text styles share a compatible generated raster.</summary>
+    [Fact]
+    public void GetOrCreate_caches_requested_styles_and_reuses_a_compatible_raster()
+    {
+        var font = new FontBuildResult(
+            "test-font",
+            new FontAtlas(1, 1, [17, 29, 43]),
+            new FontMetrics(16, 12, -4, 16),
+            [],
+            [],
+            new MsdfMetadata(4, 16)
+        );
+        var manifest = new ContentManifest(
+            string.Empty,
+            new ConfigurationBuilder()
+                .AddInMemoryCollection(
+                    new Dictionary<string, string?>
+                    {
+                        ["Fonts:Content:test-font:FilePath"] = "test-font.ttf",
+                    }
+                )
+                .Build()
+        );
+        var builder = new StubFontBuilder(font);
+        using var registry = new TextStyleRegistry(manifest, builder);
+
+        var style16 = registry.GetOrCreate("test-font", 16);
+        var sameStyle16 = registry.GetOrCreate("test-font", 16);
+        var style18 = registry.GetOrCreate("test-font", 18);
+
+        Assert.Same(style16, sameStyle16);
+        Assert.NotSame(style16, style18);
+        Assert.NotEqual(style16.Id, style18.Id);
+        Assert.Equal(16, style16.Size);
+        Assert.Equal(18, style18.Size);
+        Assert.Same(style16.Texture, style18.Texture);
+        Assert.Equal(1, builder.BuildCount);
+        Assert.Same(style16, registry.Get(style16.Id));
+        Assert.Same(style18, registry.Get(style18.Id));
+    }
+
     /// <summary>Provides one fixed font result to the text-style registry test.</summary>
     private sealed class StubFontBuilder(FontBuildResult result) : IFontBuilder
     {
+        public int BuildCount { get; private set; }
+
         /// <inheritdoc />
         public FontBuildResult Build(
+            ContentId fontId,
             string sourcePath,
             IReadOnlyList<int> codepoints,
             FontGenerationSettings settings
-        ) => result;
+        )
+        {
+            BuildCount++;
+            return result with { FontId = fontId };
+        }
     }
 }

@@ -16,12 +16,13 @@ public class GameObjectTests
     public void Scene_isTopLevelEntityWithNodeId()
     {
         var nodeId = new NodeId(1);
-        var scene = new Scene(nodeId);
+        var camera = new Nexus.Graphics.Cameras.StaticCamera();
+        var scene = new Scene(nodeId) { MainCamera = camera };
 
         Assert.Equal(nodeId, scene.Id);
         Assert.Same(scene, scene.GetSceneNode(scene.Id));
         Assert.Empty(scene.Children);
-        Assert.Null(scene.StaticCamera.Owner);
+        Assert.Null(camera.Owner);
         Assert.IsNotAssignableFrom<IGameObject>(scene);
     }
 
@@ -89,7 +90,7 @@ public class GameObjectTests
         var parent = new GameObject();
         var child = new GameObject();
         var otherParent = new GameObject();
-        var scene = new Scene();
+        var scene = new Scene() { MainCamera = new Nexus.Graphics.Cameras.StaticCamera() };
         parent.Children.Add(child);
 
         Assert.Throws<InvalidOperationException>(() => parent.Children.Add(null!));
@@ -134,7 +135,7 @@ public class GameObjectTests
     [Fact]
     public void Scene_activationChangesOnlySceneState()
     {
-        var scene = new Scene();
+        var scene = new Scene() { MainCamera = new Nexus.Graphics.Cameras.StaticCamera() };
         var activationNotifications = 0;
         scene.PropertyChanged += propertyName =>
         {
@@ -147,7 +148,7 @@ public class GameObjectTests
         Assert.Equal(1, activationNotifications);
         Assert.Equal(1, activationNotifications);
         Assert.Empty(scene.Children);
-        Assert.False(scene.StaticCamera.IsActivated);
+        Assert.False(((Nexus.Graphics.Cameras.StaticCamera)scene.MainCamera).IsActivated);
 
         scene.Deactivate();
 
@@ -177,7 +178,7 @@ public class GameObjectTests
         var leaf = new GameObject(12);
         root.AddChild(child);
         child.AddChild(leaf);
-        var scene = new Scene();
+        var scene = new Scene() { MainCamera = new Nexus.Graphics.Cameras.StaticCamera() };
 
         scene.Children.Add(root);
 
@@ -208,7 +209,10 @@ public class GameObjectTests
     [Fact]
     public void Scene_rejectsDuplicateIdsBeforeMutatingCollections()
     {
-        var scene = new Scene(new NodeId(500));
+        var scene = new Scene(new NodeId(500))
+        {
+            MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
+        };
         var existingNode = new GameObject(501);
         scene.Children.Add(existingNode);
 
@@ -240,7 +244,10 @@ public class GameObjectTests
     [Fact]
     public void Scene_rejectsDuplicateIdsAddedUnderRegisteredGameObjects()
     {
-        var scene = new Scene(new NodeId(600));
+        var scene = new Scene(new NodeId(600))
+        {
+            MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
+        };
         var registeredParent = new GameObject(601);
         var existingNode = new GameObject(602);
         scene.Children.Add(registeredParent);
@@ -268,8 +275,14 @@ public class GameObjectTests
         var leaf = new GameObject(22);
         node.Children.Add(child);
         child.Children.Add(leaf);
-        var previousScene = new Scene(new NodeId(100));
-        var nextScene = new Scene(new NodeId(101));
+        var previousScene = new Scene(new NodeId(100))
+        {
+            MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
+        };
+        var nextScene = new Scene(new NodeId(101))
+        {
+            MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
+        };
         previousScene.Children.Add(node);
 
         Assert.Throws<InvalidOperationException>(() => nextScene.Children.Add(node));
@@ -298,13 +311,13 @@ public class GameObjectTests
     [Fact]
     public void SceneChildrenValidation_rejectsNullAndCycles()
     {
-        var scene = new Scene();
+        var scene = new Scene() { MainCamera = new Nexus.Graphics.Cameras.StaticCamera() };
         var child = new GameObject();
         scene.Children.Add(child);
 
         Assert.Throws<InvalidOperationException>(() => scene.Children.Add(null!));
         Assert.Throws<InvalidOperationException>(() => scene.Children.Add(scene));
-        var otherScene = new Scene();
+        var otherScene = new Scene() { MainCamera = new Nexus.Graphics.Cameras.StaticCamera() };
         Assert.Throws<InvalidOperationException>(() => scene.Children.Add(otherScene));
         Assert.Throws<InvalidOperationException>(() => child.Children.Add(scene));
         Assert.Throws<InvalidOperationException>(() => otherScene.Parent = scene);

@@ -74,28 +74,15 @@ public partial class TextElement : Element
             EnsureVisualComponent();
     }
 
-    /// <summary>Initializes a text element with source text, style, and optional line limit.</summary>
-    /// <param name="text">The complete source text.</param>
-    /// <param name="style">The font and visual style used to measure and render text.</param>
-    /// <param name="maximumLines">The maximum displayed line count, or null to fit the height.</param>
-    /// <param name="renderLayerMask">The render-layer mask applied to generated text.</param>
-    public TextElement(
-        string text,
-        ITextStyle style,
-        int? maximumLines = null,
-        ulong renderLayerMask = RenderLayers.All
-    )
+    /// <summary>Initializes a text element with initial text and optional style data.</summary>
+    /// <param name="text">The initial source text.</param>
+    /// <param name="style">The optional text style.</param>
+    public TextElement(string text, ITextStyle? style)
         : this()
     {
         ArgumentNullException.ThrowIfNull(text);
-        ArgumentNullException.ThrowIfNull(style);
-        if (maximumLines is <= 0)
-            throw new ArgumentOutOfRangeException(nameof(maximumLines));
-
         Text = text;
         Style = style;
-        MaximumLines = maximumLines;
-        RenderLayerMask = renderLayerMask;
     }
 
     /// <inheritdoc />

@@ -4,7 +4,7 @@ namespace Nexus.Graphics.Cameras;
 /// Orthographic screen-space camera for UI and 2D rendering, using a top-left origin coordinate
 /// system (+X right, +Y down) that maps pixel coordinates directly to Vulkan clip space.
 /// </summary>
-public partial class StaticCamera : Component, ICameraComponent
+public partial class StaticCamera : Component, ICamera
 {
     private float _viewportWidth = 1f;
     private float _viewportHeight = 1f;
@@ -29,7 +29,7 @@ public partial class StaticCamera : Component, ICameraComponent
     public IReadOnlyList<IDrawable> Renderables => [];
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="StaticCamera"/> class with a default 1x1
+    /// Initializes a new instance of the <see cref="ICamera"/> class with a default 1x1
     /// viewport. Call <see cref="SetViewportSize"/> before rendering.
     /// </summary>
     public StaticCamera()

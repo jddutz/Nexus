@@ -1,14 +1,18 @@
 namespace Nexus.Assets.Fonts;
 
+using Nexus.Core;
+
 /// <summary>
 /// Contains all generated data required to write and describe a font asset.
 /// </summary>
+/// <param name="FontId">The content identifier of the source font.</param>
 /// <param name="Atlas">The generated RGB8 atlas.</param>
 /// <param name="Metrics">The font-wide metrics.</param>
 /// <param name="Glyphs">The generated glyph metrics and bounds.</param>
 /// <param name="Kerning">The kerning pairs for requested glyphs.</param>
 /// <param name="Msdf">The parameters needed to interpret the MSDF atlas.</param>
 public sealed record FontBuildResult(
+    ContentId FontId,
     FontAtlas Atlas,
     FontMetrics Metrics,
     IReadOnlyList<FontGlyph> Glyphs,
