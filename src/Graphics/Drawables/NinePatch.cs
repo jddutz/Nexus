@@ -16,7 +16,7 @@ public partial class NinePatch : IDrawable
     private int _drawOrder;
 
     /// <inheritdoc />
-    public Mesh Mesh { get; } = BuiltInMesh.TexturedQuadOffset;
+    public Mesh Mesh { get; } = BuiltInGeometry.TexturedQuadOffset;
 
     [Observable(PublicSetter = true)]
     private ITexture _texture = BuiltInTextures.Invalid;

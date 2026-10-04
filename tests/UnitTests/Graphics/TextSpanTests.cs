@@ -22,13 +22,10 @@ public sealed class TextSpanTests
     {
         var span = CreateSpan(CreateStyle(), "AB");
 
-        Assert.Equal(BuiltInMesh.TexturedQuadOffset.Id, span.Mesh.Id);
+        Assert.Equal(BuiltInGeometry.TexturedQuadOffset.Id, span.Mesh.Id);
         Assert.Equal(2UL, span.InstanceCount);
         Assert.Equal(
-            [
-                new Vector4D<float>(0f, 0f, 0.5f, 1f),
-                new Vector4D<float>(0.5f, 0f, 0f, 1f),
-            ],
+            [new Vector4D<float>(0f, 0f, 0.5f, 1f), new Vector4D<float>(0.5f, 0f, 0f, 1f)],
             ReadTextureRegions(span)
         );
     }
@@ -45,7 +42,10 @@ public sealed class TextSpanTests
             CreateSpan(CreateStyle(), "A"),
         ];
 
-        Assert.Equal(drawables.Length, drawables.Select(drawable => drawable.Id).Distinct().Count());
+        Assert.Equal(
+            drawables.Length,
+            drawables.Select(drawable => drawable.Id).Distinct().Count()
+        );
     }
 
     /// <summary>Verifies serialized glyph transforms include their prepared positions.</summary>
@@ -187,11 +187,7 @@ public sealed class TextSpanTests
     public void Collection_changes_update_count_and_notify_once_per_change()
     {
         var style = CreateStyle();
-        var duplicate = new GlyphInstance(
-            style.Glyphs['A'],
-            Vector2D<float>.Zero,
-            Colors.White
-        );
+        var duplicate = new GlyphInstance(style.Glyphs['A'], Vector2D<float>.Zero, Colors.White);
         var span = new TextSpan { Texture = style.Texture };
         span.SetInstances([duplicate, duplicate]);
         var changes = 0;
@@ -206,10 +202,7 @@ public sealed class TextSpanTests
 
         Assert.Equal(2UL, span.InstanceCount);
         Assert.Equal(
-            [
-                new Vector4D<float>(0f, 0f, 0.5f, 1f),
-                new Vector4D<float>(0.5f, 0f, 0f, 1f),
-            ],
+            [new Vector4D<float>(0f, 0f, 0.5f, 1f), new Vector4D<float>(0.5f, 0f, 0f, 1f)],
             ReadTextureRegions(span)
         );
         Assert.Equal(2, changes);
@@ -320,12 +313,14 @@ public sealed class TextSpanTests
     [Fact]
     public void Prepared_whitespace_advances_following_glyph()
     {
-        var style = new TestTextStyle(new Dictionary<int, FontGlyph>
-        {
-            ['A'] = new('A', 1, new(0, 0, 1, 1), new(0, 0, 1, 1)),
-            ['B'] = new('B', 1, new(0, 0, 1, 1), new(1, 0, 1, 1)),
-            [' '] = new(' ', 1, new(0, 0, 0, 0), new(0, 0, 0, 0)),
-        });
+        var style = new TestTextStyle(
+            new Dictionary<int, FontGlyph>
+            {
+                ['A'] = new('A', 1, new(0, 0, 1, 1), new(0, 0, 1, 1)),
+                ['B'] = new('B', 1, new(0, 0, 1, 1), new(1, 0, 1, 1)),
+                [' '] = new(' ', 1, new(0, 0, 0, 0), new(0, 0, 0, 0)),
+            }
+        );
         var span = CreateSpan(style, "A B");
         var data = ReadInstances(span);
         var whitespace = MemoryMarshal.Read<Matrix4X4<float>>(data.Span[100..]);
@@ -410,9 +405,15 @@ public sealed class TextSpanTests
         var span = CreateSpan(CreateStyle(), "AB");
         var layout = BuiltInShaders.MsdfTextVertexShader.InstanceLayout;
 
-        Assert.Throws<ArgumentOutOfRangeException>(() => span.WriteInstanceDataTo(3, 0, layout, []));
-        Assert.Throws<ArgumentOutOfRangeException>(() => span.WriteInstanceDataTo(1, 2, layout, new byte[200]));
-        Assert.Throws<ArgumentException>(() => span.WriteInstanceDataTo(0, 1, layout, new byte[99]));
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            span.WriteInstanceDataTo(3, 0, layout, [])
+        );
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            span.WriteInstanceDataTo(1, 2, layout, new byte[200])
+        );
+        Assert.Throws<ArgumentException>(() =>
+            span.WriteInstanceDataTo(0, 1, layout, new byte[99])
+        );
         Assert.Throws<ArgumentException>(() => span.WriteInstanceDataTo(0, 1, [], new byte[100]));
     }
 
@@ -430,12 +431,7 @@ public sealed class TextSpanTests
         span.SetInstances([new GlyphInstance(glyph, Vector2D<float>.Zero, Colors.White)]);
         var data = new byte[100];
 
-        span.WriteInstanceDataTo(
-            0,
-            1,
-            BuiltInShaders.MsdfTextVertexShader.InstanceLayout,
-            data
-        );
+        span.WriteInstanceDataTo(0, 1, BuiltInShaders.MsdfTextVertexShader.InstanceLayout, data);
 
         Assert.Equal(2f, MemoryMarshal.Read<Matrix4X4<float>>(data).M11);
         Assert.Equal(3f, MemoryMarshal.Read<float>(data.AsSpan(96)));
@@ -507,7 +503,10 @@ public sealed class TextSpanTests
         var span = CreateSpan(CreateStyle(), "AB");
         var expectedInstances = ReadInstances(span).ToArray();
 
-        var uniform = DrawableTestData.ReadUniform(span, BuiltInShaders.MsdfTextVertexShader.UniformLayout);
+        var uniform = DrawableTestData.ReadUniform(
+            span,
+            BuiltInShaders.MsdfTextVertexShader.UniformLayout
+        );
 
         Assert.Equal(Matrix4X4<float>.Identity, MemoryMarshal.Read<Matrix4X4<float>>(uniform.Span));
         Assert.Equal(expectedInstances, ReadInstances(span).ToArray());
@@ -519,8 +518,11 @@ public sealed class TextSpanTests
     {
         var glyph = new FontGlyph('A', 12, new(0, 0, 10, 12), new(0, 0, 10, 12));
         var font = new FontBuildResult(
-            new FontAtlas(1, 1, [1, 2, 3]), new FontMetrics(48, 36, -12, 48),
-            [glyph], [new TextKerningPair('A', 'V', -2)], new MsdfMetadata(4, 48)
+            new FontAtlas(1, 1, [1, 2, 3]),
+            new FontMetrics(48, 36, -12, 48),
+            [glyph],
+            [new TextKerningPair('A', 'V', -2)],
+            new MsdfMetadata(4, 48)
         );
         var texture = new Texture("Roboto", 1, 1, [Colors.White]);
         var style = new TextStyle(font, texture, 18, Colors.WhiteSmoke);
@@ -622,7 +624,10 @@ public sealed class TextSpanTests
             Text = "AB",
         };
 
-        Assert.Equal(2UL, Assert.IsType<TextSpan>(Assert.Single(component.Drawables)).InstanceCount);
+        Assert.Equal(
+            2UL,
+            Assert.IsType<TextSpan>(Assert.Single(component.Drawables)).InstanceCount
+        );
     }
 
     /// <summary>Verifies CRLF is treated as one line break and LF is not emitted as text.</summary>
@@ -651,7 +656,10 @@ public sealed class TextSpanTests
             Text = "AB",
         };
 
-        Assert.Equal(1UL, Assert.IsType<TextSpan>(Assert.Single(component.Drawables)).InstanceCount);
+        Assert.Equal(
+            1UL,
+            Assert.IsType<TextSpan>(Assert.Single(component.Drawables)).InstanceCount
+        );
         Assert.Equal(Vector2D<float>.Zero, component.Measure(new(0f, 1f)));
     }
 
@@ -666,7 +674,10 @@ public sealed class TextSpanTests
         };
 
         Assert.Equal(new Vector2D<float>(1f, 1f), component.Measure(new(4f, 1f)));
-        Assert.Equal(1UL, Assert.IsType<TextSpan>(Assert.Single(component.Drawables)).InstanceCount);
+        Assert.Equal(
+            1UL,
+            Assert.IsType<TextSpan>(Assert.Single(component.Drawables)).InstanceCount
+        );
     }
 
     /// <summary>Verifies each line aligns against its own measured extent.</summary>
@@ -690,9 +701,7 @@ public sealed class TextSpanTests
     [Fact]
     public void TextComponent_vertical_alignment_uses_logical_line_boxes()
     {
-        var component = new TextComponent(
-            CreateStyle(fontMetrics: new FontMetrics(1, 1, 0, 2))
-        )
+        var component = new TextComponent(CreateStyle(fontMetrics: new FontMetrics(1, 1, 0, 2)))
         {
             Destination = new Rectangle<float>(3f, 4f, 4f, 5f),
             Alignment = new Vector2D<float>(0f, 0.5f),
@@ -774,7 +783,9 @@ public sealed class TextSpanTests
     [Fact]
     public void TextComponent_unsupported_runes_reset_kerning_and_spaces_have_no_visible_bounds()
     {
-        var style = CreateStyle(kerning: new Dictionary<(int, int), double> { [('A', 'B')] = -0.5 });
+        var style = CreateStyle(
+            kerning: new Dictionary<(int, int), double> { [('A', 'B')] = -0.5 }
+        );
         var component = new TextComponent(style)
         {
             Destination = new Rectangle<float>(0f, 0f, 4f, 1f),
@@ -807,11 +818,7 @@ public sealed class TextSpanTests
     public void TextSpan_uses_msdf_shaders_and_packs_distance_range()
     {
         var span = CreateSpan(
-            CreateStyle(
-                msdf: new(2.5, 1),
-                size: 18,
-                fontMetrics: new(48, 36, -12, 48)
-            ),
+            CreateStyle(msdf: new(2.5, 1), size: 18, fontMetrics: new(48, 36, -12, 48)),
             "A"
         );
         var data = ReadInstances(span);
@@ -905,17 +912,25 @@ public sealed class TextSpanTests
     {
         /// <inheritdoc />
         public ITexture Texture { get; } = new Texture("atlas", 2, 1, [Colors.White, Colors.White]);
+
         /// <inheritdoc />
         public IReadOnlyDictionary<int, FontGlyph> Glyphs { get; } = glyphs;
+
         /// <inheritdoc />
         public FontMetrics FontMetrics { get; } = fontMetrics ?? new(1, 1, 0, 1);
+
         /// <inheritdoc />
         public MsdfMetadata Msdf { get; } = msdf ?? new(4, 1);
+
         /// <inheritdoc />
-        public IReadOnlyDictionary<(int LeftCodepoint, int RightCodepoint), double> Kerning { get; } =
-            kerning ?? new Dictionary<(int, int), double>();
+        public IReadOnlyDictionary<
+            (int LeftCodepoint, int RightCodepoint),
+            double
+        > Kerning { get; } = kerning ?? new Dictionary<(int, int), double>();
+
         /// <inheritdoc />
         public Color Color { get; } = Colors.White;
+
         /// <inheritdoc />
         public double Size { get; } = size;
     }

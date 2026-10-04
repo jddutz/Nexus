@@ -84,7 +84,7 @@ public partial class TextSpan : IDrawable
     public DrawableId Id { get; } = DrawableId.New();
 
     /// <inheritdoc />
-    public Mesh Mesh { get; } = BuiltInMesh.TexturedQuadOffset;
+    public Mesh Mesh { get; } = BuiltInGeometry.TexturedQuadOffset;
 
     /// <summary>Gets or sets the atlas texture containing the glyph images.</summary>
     [Observable(PublicSetter = true)]

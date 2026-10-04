@@ -74,10 +74,7 @@ public class CommandFactoryTests
             command => Assert.IsType<BindVertexBufferCommand>(command),
             command => Assert.IsType<DrawCommand>(command)
         );
-        Assert.Equal(
-            long.MaxValue / 2,
-            Assert.IsType<DrawCommand>(commands[^1]).RenderPriority
-        );
+        Assert.Equal(long.MaxValue / 2, Assert.IsType<DrawCommand>(commands[^1]).RenderPriority);
         Assert.Equal(1, dependencies.Geometry.CreateCount);
         Assert.Equal(1, dependencies.Texture.CreateCount);
         Assert.Equal(1, dependencies.Pipelines.GetOrCreateCount);
@@ -97,10 +94,13 @@ public class CommandFactoryTests
         factory.UseViewStateInDefinition = true;
         var drawable = CreateDrawable();
         factory.Create(drawable).ToArray();
-        var basePipelineId = Assert.IsType<BindPipelineCommand>(
-            factory.CreateViewCommands(drawable, new ViewComponent { PreserveDrawOrder = true })
-                .First()
-        ).PipelineId;
+        var basePipelineId = Assert
+            .IsType<BindPipelineCommand>(
+                factory
+                    .CreateViewCommands(drawable, new ViewComponent { PreserveDrawOrder = true })
+                    .First()
+            )
+            .PipelineId;
         var configuredView = new ViewComponent
         {
             BlendMode = BlendMode.Opaque,
@@ -483,7 +483,7 @@ public class CommandFactoryTests
             return [];
         }
 
-        public VkBuffer Get(MeshId meshId, VertexFormatId formatId) => new(11);
+        public VkBuffer Get(GeometryId meshId, VertexFormatId formatId) => new(11);
 
         public VkBuffer Get(DrawableId drawableId) => new(12);
 
@@ -674,12 +674,14 @@ public class CommandFactoryTests
             add { }
             remove { }
         }
+
         /// <inheritdoc />
         event EventHandler? IDrawable.InstanceDataChanged
         {
             add { }
             remove { }
         }
+
         /// <inheritdoc />
         event EventHandler? IDrawable.UniformDataChanged
         {
@@ -689,18 +691,25 @@ public class CommandFactoryTests
 
         /// <inheritdoc />
         public DrawableId Id => new(1);
+
         /// <inheritdoc />
         public ulong RenderLayerMask => ulong.MaxValue;
+
         /// <inheritdoc />
         public int DrawOrder { get; set; }
+
         /// <inheritdoc />
         public Mesh Mesh => mesh;
+
         /// <inheritdoc />
         public ITexture Texture { get; set; } = texture;
+
         /// <summary>Gets the test texture's color format.</summary>
         public ColorFormatEnum TextureFormat => ColorFormatEnum.RGBA8UNorm;
+
         /// <inheritdoc />
         public ulong InstanceCount { get; set; } = 1;
+
         /// <inheritdoc />
         public ISamplingBehavior SamplingBehavior => samplingBehavior;
 
@@ -722,12 +731,16 @@ public class CommandFactoryTests
 
         /// <inheritdoc />
         public VertexShader? VertexShader => vertexShader;
+
         /// <inheritdoc />
         public IShaderContract? TessellationControlShader => tessellationControlShader;
+
         /// <inheritdoc />
         public IShaderContract? TessellationEvalShader => tessellationEvalShader;
+
         /// <inheritdoc />
         public IShaderContract? GeometryShader => geometryShader;
+
         /// <inheritdoc />
         public FragmentShader? FragmentShader => fragmentShader;
     }

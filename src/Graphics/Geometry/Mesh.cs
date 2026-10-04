@@ -4,7 +4,7 @@ public class Mesh : IGeometry
 {
     private readonly Vertex[] _vertices;
 
-    public MeshId Id { get; }
+    public GeometryId Id { get; }
     public string Name { get; }
     public PrimitiveTopologyEnum Topology { get; }
     public ulong Count => (ulong)_vertices.Length;

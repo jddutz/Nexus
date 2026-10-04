@@ -8,7 +8,7 @@ public interface IGeometry
     /// <summary>
     /// Gets the unique identifier of the geometry.
     /// </summary>
-    MeshId Id { get; }
+    GeometryId Id { get; }
 
     /// <summary>
     /// Gets the display name of the geometry.

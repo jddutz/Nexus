@@ -1,6 +1,6 @@
 namespace Nexus.Graphics.Geometry;
 
-public static class BuiltInMesh
+public static class BuiltInGeometry
 {
     public static Mesh Empty => new(nameof(Empty), PrimitiveTopologyEnum.TriangleList, []);
 

@@ -6,8 +6,8 @@ public sealed class ContentManifest(string contentLibraryPath, IConfiguration co
     public string ContentLibraryPath { get; } = contentLibraryPath;
     public IConfiguration Textures { get; } = configuration.GetSection("Textures");
     public IConfiguration Geometry { get; } = configuration.GetSection("Geometry");
-    public IConfiguration Audio { get; } = configuration.GetSection("Audio");
     public IConfiguration Fonts { get; } = configuration.GetSection("Fonts");
+    public IConfiguration Audio { get; } = configuration.GetSection("Audio");
 }
 
 public static class ContentManagementExtensions

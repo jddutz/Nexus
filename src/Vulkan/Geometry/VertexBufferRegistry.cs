@@ -139,7 +139,7 @@ public unsafe class VertexBufferRegistry : IVertexBufferRegistry
     /// <param name="meshId">The geometry identifier.</param>
     /// <param name="formatId">The vertex-format identifier.</param>
     /// <returns>The registered Vulkan vertex buffer.</returns>
-    public VkBuffer Get(MeshId meshId, VertexFormatId formatId)
+    public VkBuffer Get(GeometryId meshId, VertexFormatId formatId)
     {
         var key = ComputeVertexBufferId(meshId, formatId);
 
@@ -157,7 +157,7 @@ public unsafe class VertexBufferRegistry : IVertexBufferRegistry
     /// <param name="meshId">The mesh identity.</param>
     /// <param name="formatId">The vertex format identity.</param>
     /// <returns>The computed vertex-buffer identity.</returns>
-    private static ulong ComputeVertexBufferId(MeshId meshId, VertexFormatId formatId) =>
+    private static ulong ComputeVertexBufferId(GeometryId meshId, VertexFormatId formatId) =>
         new IdentityHashBuilder("VertexBufferId").Add(meshId).Add(formatId).Compute();
 
     /// <summary>

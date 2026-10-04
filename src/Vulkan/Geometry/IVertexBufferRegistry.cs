@@ -28,7 +28,7 @@ public interface IVertexBufferRegistry : IDisposable
     /// <exception cref="KeyNotFoundException">
     /// The geometry and vertex format do not identify a registered buffer.
     /// </exception>
-    VkBuffer Get(MeshId meshId, VertexFormatId formatId);
+    VkBuffer Get(GeometryId meshId, VertexFormatId formatId);
 
     /// <summary>
     /// Releases a reference to the buffer for a geometry resource in the specified vertex format.
