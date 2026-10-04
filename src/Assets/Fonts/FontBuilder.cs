@@ -10,6 +10,11 @@ namespace Nexus.Assets.Fonts;
 /// </summary>
 public sealed class FontBuilder : IFontBuilder
 {
+    private readonly object _cacheLock = new();
+    private readonly Dictionary<string, CachedFontSource> _fontSources = new(
+        StringComparer.OrdinalIgnoreCase
+    );
+
     /// <summary>
     /// Generates glyph distance fields, packs their atlas, and assembles the runtime font result.
     /// </summary>
@@ -33,8 +38,9 @@ public sealed class FontBuilder : IFontBuilder
             throw new FontBuildException("At least one glyph codepoint is required.");
 
         var requestedCodepoints = codepoints.Distinct().ToArray();
-        var reader = TrueTypeFontReader.Open(sourcePath);
-        var face = reader.FontFace;
+        var fontPath = Path.GetFullPath(sourcePath);
+        var source = GetFontSource(fontPath);
+        var face = source.Reader.FontFace;
         var pixelsPerFontUnit = settings.EmSize / (float)face.UnitsPerEm;
         var distanceRange = (float)settings.DistanceRange;
         var bitmapPadding = checked(settings.Padding + (int)Math.Ceiling(settings.DistanceRange));
@@ -54,12 +60,8 @@ public sealed class FontBuilder : IFontBuilder
 
         foreach (var codepoint in requestedCodepoints)
         {
-            var glyphIndex = reader.GetGlyphIndex(codepoint);
-            var horizontalMetrics = reader.GetHorizontalMetrics(glyphIndex);
-            var contours = reader
-                .GetGlyphOutline(glyphIndex)
-                .Contours.Select(FontContourConverter.Convert)
-                .ToArray();
+            var sourceGlyph = GetSourceGlyph(source, codepoint);
+            var contours = sourceGlyph.Contours;
             var geometryBounds = GeometryBoundsCalculator.GetBounds(contours);
             var bitmap = msdfGenerator.Generate(contours, msdfSettings);
             var expansion = settings.DistanceRange;
@@ -75,7 +77,7 @@ public sealed class FontBuilder : IFontBuilder
             glyphData.Add(
                 (
                     codepoint,
-                    horizontalMetrics.AdvanceWidth * (double)pixelsPerFontUnit,
+                    sourceGlyph.AdvanceWidth * (double)pixelsPerFontUnit,
                     planeBounds,
                     bitmap
                 )
@@ -114,11 +116,107 @@ public sealed class FontBuilder : IFontBuilder
             atlasResult.Atlas,
             metrics,
             glyphs,
-            reader.GetKerningPairs(requestedCodepoints),
+            GetKerningPairs(source, requestedCodepoints),
             new MsdfMetadata(settings.DistanceRange, settings.EmSize)
         );
         return result;
     }
+
+    /// <summary>
+    /// Gets cached source data, reloading and reparsing the file when its metadata changes.
+    /// </summary>
+    /// <param name="sourcePath">The normalized source font path.</param>
+    /// <returns>The cached source font.</returns>
+    private CachedFontSource GetFontSource(string sourcePath)
+    {
+        lock (_cacheLock)
+        {
+            var fileInfo = new FileInfo(sourcePath);
+            if (!fileInfo.Exists)
+                throw new FontBuildException($"Font source '{sourcePath}' does not exist.");
+
+            var lastWriteTimeUtc = fileInfo.LastWriteTimeUtc;
+            if (
+                _fontSources.TryGetValue(sourcePath, out var cached)
+                && cached.Length == fileInfo.Length
+                && cached.LastWriteTimeUtc == lastWriteTimeUtc
+            )
+                return cached;
+
+            var data = File.ReadAllBytes(sourcePath);
+            var source = new CachedFontSource(
+                new TrueTypeFontReader(data),
+                data.LongLength,
+                lastWriteTimeUtc
+            );
+            _fontSources[sourcePath] = source;
+            return source;
+        }
+    }
+
+    /// <summary>Gets and caches one converted glyph outline from a source font.</summary>
+    /// <param name="source">The cached source font.</param>
+    /// <param name="codepoint">The Unicode codepoint to extract.</param>
+    /// <returns>The source glyph data.</returns>
+    private CachedSourceGlyph GetSourceGlyph(CachedFontSource source, int codepoint)
+    {
+        lock (_cacheLock)
+        {
+            if (source.Glyphs.TryGetValue(codepoint, out var cached))
+                return cached;
+
+            var glyphIndex = source.Reader.GetGlyphIndex(codepoint);
+            var metrics = source.Reader.GetHorizontalMetrics(glyphIndex);
+            var contours = source.Reader
+                .GetGlyphOutline(glyphIndex)
+                .Contours.Select(FontContourConverter.Convert)
+                .ToArray();
+            cached = new CachedSourceGlyph(metrics.AdvanceWidth, contours);
+            source.Glyphs.Add(codepoint, cached);
+            return cached;
+        }
+    }
+
+    /// <summary>Gets kerning for the requested codepoints from a cached source font.</summary>
+    /// <param name="source">The cached source font.</param>
+    /// <param name="codepoints">The codepoints included in the build.</param>
+    /// <returns>The kerning pairs for the requested codepoints.</returns>
+    private IReadOnlyList<TextKerningPair> GetKerningPairs(
+        CachedFontSource source,
+        IReadOnlyList<int> codepoints
+    )
+    {
+        lock (_cacheLock)
+            return source.Reader.GetKerningPairs(codepoints);
+    }
+
+    /// <summary>Stores parsed source data and the file metadata used for invalidation.</summary>
+    /// <param name="Reader">The parsed font reader.</param>
+    /// <param name="Length">The source file length.</param>
+    /// <param name="LastWriteTimeUtc">The source file's last-write timestamp.</param>
+    private sealed class CachedFontSource(
+        TrueTypeFontReader Reader,
+        long Length,
+        DateTime LastWriteTimeUtc
+    )
+    {
+        /// <summary>Gets the parsed font reader.</summary>
+        public TrueTypeFontReader Reader { get; } = Reader;
+
+        /// <summary>Gets the source file length.</summary>
+        public long Length { get; } = Length;
+
+        /// <summary>Gets the source file's last-write timestamp.</summary>
+        public DateTime LastWriteTimeUtc { get; } = LastWriteTimeUtc;
+
+        /// <summary>Gets the converted glyph outlines cached by Unicode codepoint.</summary>
+        public Dictionary<int, CachedSourceGlyph> Glyphs { get; } = [];
+    }
+
+    /// <summary>Stores source metrics and converted geometry for one glyph.</summary>
+    /// <param name="AdvanceWidth">The glyph advance in source font units.</param>
+    /// <param name="Contours">The converted glyph contours.</param>
+    private sealed record CachedSourceGlyph(double AdvanceWidth, Contour[] Contours);
 
     /// <summary>
     /// Aligns the atlas crop with the plane origin and exact plane extent after raster rounding.

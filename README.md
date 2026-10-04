@@ -41,6 +41,8 @@ dotnet test Nexus.slnx
 Rendering tests serialize drawables into caller-owned buffers through `IDrawable.WriteInstanceDataTo` and `WriteUniformDataTo`. GUI text tests inspect prepared glyphs through public graphics-component contracts rather than depending on internal GUI component types or restoring Graphics-side string layout.
 Graphics components expose `DrawOrder` and propagate it to every drawable they own.
 GUI elements expose `SortOrder` and propagate it to each owned graphics component.
+Text style generation caches extracted font outlines and reuses rasterized atlases for compatible
+requested sizes within a 0.5x–2x range; sizes outside that range generate a new raster variant.
 
 Lifecycle state changes use generated property setters so change hooks and notifications run. Scene activation does not activate the hierarchy by itself; lifecycle tests either run `GameSystem.Update` or explicitly activate their fixture nodes. The generator and observable contracts remain unchanged.
 

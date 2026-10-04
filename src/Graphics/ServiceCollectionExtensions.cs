@@ -25,6 +25,7 @@ public static class ServiceCollectionExtensions
 
         services.AddOptions<WindowSettings>().Bind(configuration.GetSection("Window"));
         services.TryAddSingleton<ITextureRegistry, TextureRegistry>();
+        services.TryAddSingleton<ITextStyleRegistry, TextStyleRegistry>();
         return services;
     }
 }
