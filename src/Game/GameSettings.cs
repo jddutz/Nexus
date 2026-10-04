@@ -6,5 +6,5 @@ namespace Nexus.Game;
 public sealed record GameSettings
 {
     /// <summary>Gets or sets the identifier of the scene to start.</summary>
-    public string StartSceneId { get; set; } = string.Empty;
+    public string? StartSceneId { get; set; }
 }

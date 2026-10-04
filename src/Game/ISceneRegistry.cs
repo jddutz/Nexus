@@ -5,6 +5,9 @@ namespace Nexus.Game;
 /// </summary>
 public interface ISceneRegistry
 {
+    /// <summary>Gets the names of all registered scenes.</summary>
+    IReadOnlyCollection<string> RegisteredSceneNames { get; }
+
     /// <summary>
     /// Registers a factory for the specified scene name.
     /// </summary>

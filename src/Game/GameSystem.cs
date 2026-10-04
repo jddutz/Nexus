@@ -84,11 +84,9 @@ public partial class GameSystem(
     /// </summary>
     public void Initialize()
     {
-        var initialScene =
-            _sceneRegistry.Load(_settings.StartSceneId)
-            ?? throw new InvalidOperationException(
-                $"Start scene '{_settings.StartSceneId}' is not registered."
-            );
+        var startSceneId = ResolveStartSceneId();
+        var initialScene = _sceneRegistry.Load(startSceneId)
+            ?? throw new InvalidOperationException($"Start scene '{startSceneId}' is not registered.");
 
         _logger.LogInformation(
             "Initializing game system. StartSceneType={StartSceneType}",
@@ -99,6 +97,30 @@ public partial class GameSystem(
         CurrentScene = initialScene;
         _logger.LogTrace("Scene activation complete.");
         _logger.LogInformation("Game system initialized and initial scene activated.");
+    }
+
+    /// <summary>Selects the configured scene or resolves an unambiguous registered scene.</summary>
+    /// <returns>The name of the scene to load.</returns>
+    /// <exception cref="InvalidOperationException">
+    /// No scene is registered, or more than one scene is registered without a configured start scene.
+    /// </exception>
+    private string ResolveStartSceneId()
+    {
+        if (!string.IsNullOrWhiteSpace(_settings.StartSceneId))
+            return _settings.StartSceneId;
+
+        var registeredSceneNames = _sceneRegistry.RegisteredSceneNames;
+        if (registeredSceneNames.Count == 0)
+            throw new InvalidOperationException(
+                "No scene was discovered. Register a scene before initializing the game system."
+            );
+
+        if (registeredSceneNames.Count == 1)
+            return registeredSceneNames.Single();
+
+        throw new InvalidOperationException(
+            $"Multiple scenes were discovered. Set 'Game:StartSceneId' to one of the registered scenes: {string.Join(", ", registeredSceneNames)}."
+        );
     }
 
     /// <summary>

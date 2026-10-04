@@ -23,6 +23,7 @@ public class SceneRegistryTests
 
         registry.Register(sceneName, () => scene);
 
+        Assert.Equal([sceneName], registry.RegisteredSceneNames);
         Assert.Same(scene, registry.Load(sceneName));
         Assert.Null(registry.Load("UnknownScene"));
     }

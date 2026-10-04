@@ -7,6 +7,9 @@ public class SceneRegistry : ISceneRegistry
 {
     private readonly Dictionary<string, Func<IScene>> _sceneFactories = new(StringComparer.Ordinal);
 
+    /// <inheritdoc/>
+    public IReadOnlyCollection<string> RegisteredSceneNames => _sceneFactories.Keys;
+
     /// <summary>Creates an empty registry for manually registered scenes.</summary>
     public SceneRegistry()
         : this(new EmptyServiceProvider(), Options.Create(new SceneRegistrySettings()))
