@@ -13,6 +13,61 @@ namespace Nexus.GUI;
 /// <param name="Bottom">The height of the region along the bottom boundary.</param>
 public readonly record struct Margins(float Left, float Right, float Top, float Bottom)
 {
+    /// <summary>Adds the total horizontal and vertical margins to a size.</summary>
+    /// <param name="size">The content size.</param>
+    /// <param name="margins">The margins to add.</param>
+    /// <returns>The size including the margins.</returns>
+    public static Vector2D<float> operator +(Vector2D<float> size, Margins margins) =>
+        new(
+            size.X + margins.Left + margins.Right,
+            size.Y + margins.Top + margins.Bottom
+        );
+
+    /// <summary>Adds the total horizontal and vertical margins to a size.</summary>
+    /// <param name="margins">The margins to add.</param>
+    /// <param name="size">The content size.</param>
+    /// <returns>The size including the margins.</returns>
+    public static Vector2D<float> operator +(Margins margins, Vector2D<float> size) =>
+        size + margins;
+
+    /// <summary>Subtracts the total horizontal and vertical margins from a size.</summary>
+    /// <param name="size">The outer size.</param>
+    /// <param name="margins">The margins to subtract.</param>
+    /// <returns>The size inside the margins.</returns>
+    public static Vector2D<float> operator -(Vector2D<float> size, Margins margins) =>
+        new(
+            size.X - margins.Left - margins.Right,
+            size.Y - margins.Top - margins.Bottom
+        );
+
+    /// <summary>Expands bounds outward by the margins.</summary>
+    /// <param name="bounds">The content bounds.</param>
+    /// <param name="margins">The margins to add around the bounds.</param>
+    /// <returns>The outer bounds including the margins.</returns>
+    public static Rectangle<float> operator +(Rectangle<float> bounds, Margins margins) =>
+        new(
+            bounds.Origin.X - margins.Left,
+            bounds.Origin.Y - margins.Top,
+            bounds.Size.X + margins.Left + margins.Right,
+            bounds.Size.Y + margins.Top + margins.Bottom
+        );
+
+    /// <summary>Insets bounds by the margins.</summary>
+    /// <param name="bounds">The outer bounds.</param>
+    /// <param name="margins">The margins to remove from the bounds.</param>
+    /// <returns>The content bounds inside the margins.</returns>
+    public static Rectangle<float> operator -(Rectangle<float> bounds, Margins margins)
+    {
+        var width = MathF.Max(0f, bounds.Size.X);
+        var height = MathF.Max(0f, bounds.Size.Y);
+        return new Rectangle<float>(
+            bounds.Origin.X + MathF.Min(margins.Left, width),
+            bounds.Origin.Y + MathF.Min(margins.Top, height),
+            MathF.Max(0f, width - margins.Left - margins.Right),
+            MathF.Max(0f, height - margins.Top - margins.Bottom)
+        );
+    }
+
     /// <summary>Initializes all four boundary regions to the same size.</summary>
     /// <param name="all">The size applied to every boundary.</param>
     public Margins(float all)

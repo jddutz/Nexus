@@ -151,6 +151,7 @@ An element supplies the arranged visual placement to its graphics component. A d
 - Transform recomputation is driven by relevant property and hierarchy changes. Recomputing every object's matrices every frame is unnecessary.
 - GUI elements operate in screen space and implement the 2D spatial contract. Element size is applied when constructing visual drawable transforms.
 - Concrete element classes own their internal virtual measurement and arrangement behavior. The earlier reusable layout-rule model was discarded.
+- Grid tracks support absolute, content-sized auto, and relative sizing. Auto columns are measured before auto rows so wrapped content can determine row heights at resolved column widths.
 - GUI view conversion is handled by the camera. DPI-related conversion must not be independently duplicated in components without an explicit requirement.
 
 ### Graphics and rendering

@@ -154,21 +154,22 @@ public partial class ImageElement : Element
         if (!IsEffectivelyVisible || texture is null)
             return Vector2D<float>.Zero;
 
-        var contentConstraint = GetContentConstraint(constraint);
+        var contentConstraint = new Vector2D<float>(
+            MathF.Max(0f, constraint.X - Margins.Left - Margins.Right),
+            MathF.Max(0f, constraint.Y - Margins.Top - Margins.Bottom)
+        );
         contentConstraint = new(
             MathF.Min(contentConstraint.X, Width ?? contentConstraint.X),
             MathF.Min(contentConstraint.Y, Height ?? contentConstraint.Y)
         );
         if (contentConstraint.X == 0f || contentConstraint.Y == 0f)
-            return IncludeMargins(Vector2D<float>.Zero);
+            return Vector2D<float>.Zero + Margins;
 
         var imageSize = GetImageSize(GetEffectiveSourceRegion(texture), contentConstraint);
-        return IncludeMargins(
-            new(
+        return new Vector2D<float>(
                 Width is null ? MathF.Min(imageSize.X, contentConstraint.X) : contentConstraint.X,
                 Height is null ? MathF.Min(imageSize.Y, contentConstraint.Y) : contentConstraint.Y
-            )
-        );
+            ) + Margins;
     }
 
     /// <inheritdoc />
@@ -176,12 +177,7 @@ public partial class ImageElement : Element
     {
         ValidateBounds(bounds);
         base.Arrange(bounds);
-        var availableBounds = GetContentBounds(bounds);
-        var contentSize = new Vector2D<float>(
-            MathF.Min(availableBounds.Size.X, Width ?? availableBounds.Size.X),
-            MathF.Min(availableBounds.Size.Y, Height ?? availableBounds.Size.Y)
-        );
-        UpdateVisualComponent(GetAlignedContentBounds(bounds, contentSize));
+        UpdateVisualComponent(Bounds);
     }
 
     /// <summary>Synchronizes the image drawable and hit bounds with the current allocation.</summary>

@@ -196,7 +196,10 @@ public partial class TextButton : Element
         )
             throw new ArgumentOutOfRangeException(nameof(constraint));
 
-        var contentConstraint = GetContentConstraint(constraint);
+        var contentConstraint = new Vector2D<float>(
+            MathF.Max(0f, constraint.X - Margins.Left - Margins.Right),
+            MathF.Max(0f, constraint.Y - Margins.Top - Margins.Bottom)
+        );
         contentConstraint = new(
             MathF.Min(contentConstraint.X, Width ?? contentConstraint.X),
             MathF.Min(contentConstraint.Y, Height ?? contentConstraint.Y)
@@ -206,8 +209,7 @@ public partial class TextButton : Element
             MathF.Max(0f, contentConstraint.Y - Padding.Top - Padding.Bottom)
         );
         var labelSize = _text?.Measure(textConstraint) ?? Vector2D<float>.Zero;
-        return IncludeMargins(
-            new(
+        return new Vector2D<float>(
                 Width is null
                     ? MathF.Min(labelSize.X + Padding.Left + Padding.Right, contentConstraint.X)
                     : contentConstraint.X,
@@ -215,7 +217,7 @@ public partial class TextButton : Element
                     ? MathF.Min(labelSize.Y + Padding.Top + Padding.Bottom, contentConstraint.Y)
                     : contentConstraint.Y
             )
-        );
+            + Margins;
     }
 
     /// <inheritdoc />
@@ -233,7 +235,7 @@ public partial class TextButton : Element
         if (_text is null || _background is null)
             return;
 
-        var availableBounds = GetContentBounds(bounds);
+        var availableBounds = bounds - Margins;
         var contentSize = new Vector2D<float>(
             MathF.Min(availableBounds.Size.X, Width ?? availableBounds.Size.X),
             MathF.Min(availableBounds.Size.Y, Height ?? availableBounds.Size.Y)

@@ -68,9 +68,23 @@ public class ElementTests
         Assert.Equal(new Vector2D<float>(30f, 40f), element.Measure(allocation.Size));
 
         element.Margins = new Margins(3f, 4f, 5f, 6f);
+        Assert.Equal(new Vector2D<float>(23f, 29f), element.Measure(allocation.Size));
         element.Arrange(allocation);
 
         Assert.Equal(new Rectangle<float>(13f, 25f, 23f, 29f), element.Bounds);
+    }
+
+    /// <summary>Verifies parent margins inset the bounds passed to child elements.</summary>
+    [Fact]
+    public void Arrange_passesContentBoundsToChildren()
+    {
+        var parent = new Element { Margins = new Margins(1f, 2f, 3f, 4f) };
+        var child = new LayoutTrackingElement();
+        parent.AddChild(child);
+
+        parent.Arrange(new Rectangle<float>(10f, 20f, 100f, 80f));
+
+        Assert.Equal(new Rectangle<float>(11f, 23f, 97f, 73f), child.ArrangedBounds);
     }
 
     /// <summary>Verifies requested dimensions measure and arrange to the same capped size.</summary>
@@ -104,6 +118,29 @@ public class ElementTests
         Assert.Throws<ArgumentOutOfRangeException>(() => element.Margins = new(float.PositiveInfinity));
     }
 
+    /// <summary>Verifies margin arithmetic adjusts horizontal and vertical vector components.</summary>
+    [Fact]
+    public void Margins_adjustVectorSizes()
+    {
+        var margins = new Margins(1f, 2f, 3f, 4f);
+        var contentSize = new Vector2D<float>(10f, 20f);
+
+        Assert.Equal(new Vector2D<float>(13f, 27f), contentSize + margins);
+        Assert.Equal(new Vector2D<float>(13f, 27f), margins + contentSize);
+        Assert.Equal(new Vector2D<float>(7f, 13f), contentSize - margins);
+    }
+
+    /// <summary>Verifies margin arithmetic expands and insets rectangles.</summary>
+    [Fact]
+    public void Margins_adjustRectangleBounds()
+    {
+        var margins = new Margins(1f, 2f, 3f, 4f);
+        var contentBounds = new Rectangle<float>(10f, 20f, 30f, 40f);
+
+        Assert.Equal(new Rectangle<float>(9f, 17f, 33f, 47f), contentBounds + margins);
+        Assert.Equal(new Rectangle<float>(11f, 23f, 27f, 33f), contentBounds - margins);
+    }
+
     /// <summary>Verifies hidden elements expose zero bounds until the next layout pass.</summary>
     [Fact]
     public void Visibility_collapsesBoundsUntilRearranged()
@@ -130,5 +167,19 @@ public class ElementTests
         Assert.Equal(Vector2D<float>.Zero, element.Bounds.Size);
         element.Arrange(bounds);
         Assert.Equal(bounds, element.Bounds);
+    }
+
+    /// <summary>Captures the constraint and allocation passed to an element during layout.</summary>
+    private sealed class LayoutTrackingElement : Element
+    {
+        /// <summary>Gets the last allocation supplied to <see cref="Arrange"/>.</summary>
+        public Rectangle<float> ArrangedBounds { get; private set; }
+
+        /// <inheritdoc />
+        public override void Arrange(Rectangle<float> bounds)
+        {
+            ArrangedBounds = bounds;
+            base.Arrange(bounds);
+        }
     }
 }

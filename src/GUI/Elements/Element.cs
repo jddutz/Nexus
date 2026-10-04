@@ -184,39 +184,13 @@ public partial class Element : GameObject, IElement
     /// <summary>Requests a fresh measure-and-arrange pass from the GUI.</summary>
     protected void InvalidateLayout() => NotifyPropertyChanged(string.Empty);
 
-    /// <summary>Gets the available content size after subtracting the margins.</summary>
-    /// <param name="constraint">The available outer size.</param>
-    /// <returns>The available size inside the margins.</returns>
-    protected Vector2D<float> GetContentConstraint(Vector2D<float> constraint) =>
-        new(
-            MathF.Max(0f, constraint.X - Margins.Left - Margins.Right),
-            MathF.Max(0f, constraint.Y - Margins.Top - Margins.Bottom)
-        );
-
-    /// <summary>Adds the margins to a measured content size.</summary>
-    /// <param name="contentSize">The measured size inside the margins.</param>
-    /// <returns>The measured size including the margins.</returns>
-    protected Vector2D<float> IncludeMargins(Vector2D<float> contentSize) =>
-        new(
-            contentSize.X + Margins.Left + Margins.Right,
-            contentSize.Y + Margins.Top + Margins.Bottom
-        );
-
-    /// <summary>Gets the portion of an allocation inside the margins.</summary>
-    /// <param name="bounds">The outer allocation.</param>
-    /// <returns>The content bounds after insetting each side by its margin.</returns>
-    protected Rectangle<float> GetContentBounds(Rectangle<float> bounds)
+    /// <summary>Arranges each direct child within the supplied bounds.</summary>
+    /// <param name="bounds">The bounds assigned to each child.</param>
+    protected void ArrangeChildren(Rectangle<float> bounds)
     {
-        var width = MathF.Max(0f, bounds.Size.X);
-        var height = MathF.Max(0f, bounds.Size.Y);
-        var left = MathF.Min(Margins.Left, width);
-        var top = MathF.Min(Margins.Top, height);
-        return new Rectangle<float>(
-            bounds.Origin.X + left,
-            bounds.Origin.Y + top,
-            MathF.Max(0f, width - Margins.Left - Margins.Right),
-            MathF.Max(0f, height - Margins.Top - Margins.Bottom)
-        );
+        foreach (var child in Children)
+            if (child is IElement element)
+                element.Arrange(bounds);
     }
 
     /// <summary>Aligns a desired content size within the allocation after applying margins.</summary>
@@ -228,7 +202,7 @@ public partial class Element : GameObject, IElement
         Vector2D<float> contentSize
     )
     {
-        var availableBounds = GetContentBounds(bounds);
+        var availableBounds = bounds - Margins;
         var width = MathF.Min(MathF.Max(0f, contentSize.X), availableBounds.Size.X);
         var height = MathF.Min(MathF.Max(0f, contentSize.Y), availableBounds.Size.Y);
         var horizontalOffset = HorizontalAlignment switch
@@ -263,12 +237,11 @@ public partial class Element : GameObject, IElement
         if (!IsEffectivelyVisible)
             return Vector2D<float>.Zero;
 
-        var contentConstraint = GetContentConstraint(constraint);
-        return IncludeMargins(
-            new(
-                MathF.Min(Width ?? contentConstraint.X, contentConstraint.X),
-                MathF.Min(Height ?? contentConstraint.Y, contentConstraint.Y)
-            )
+        var contentConstraint = constraint - Margins;
+
+        return new Vector2D<float>(
+            MathF.Min(Width ?? contentConstraint.X, contentConstraint.X),
+            MathF.Min(Height ?? contentConstraint.Y, contentConstraint.Y)
         );
     }
 
@@ -281,18 +254,21 @@ public partial class Element : GameObject, IElement
         if (!IsEffectivelyVisible)
         {
             SetBounds(new Rectangle<float>(bounds.Origin, Vector2D<float>.Zero));
+            ArrangeChildren(new Rectangle<float>(bounds.Origin, Vector2D<float>.Zero));
             return;
         }
 
-        var availableBounds = GetContentBounds(bounds);
-        SetBounds(
-            GetAlignedContentBounds(
-                bounds,
-                new(
-                    MathF.Min(Width ?? availableBounds.Size.X, availableBounds.Size.X),
-                    MathF.Min(Height ?? availableBounds.Size.Y, availableBounds.Size.Y)
-                )
+        var contentRect = bounds - Margins;
+
+        var aligned = GetAlignedContentBounds(
+            bounds,
+            new(
+                MathF.Min(Width ?? contentRect.Size.X, contentRect.Size.X),
+                MathF.Min(Height ?? contentRect.Size.Y, contentRect.Size.Y)
             )
         );
+
+        SetBounds(aligned);
+        ArrangeChildren(aligned);
     }
 }

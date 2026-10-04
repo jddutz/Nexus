@@ -10,7 +10,7 @@ public readonly record struct GridSize
     /// <summary>Initializes a grid track with an optional value.</summary>
     /// <param name="mode">The sizing mode for the track.</param>
     /// <param name="value">
-    /// The absolute length or relative weight, defaulting to zero.
+    /// The absolute length or relative weight, defaulting to zero. Auto tracks must use zero.
     /// Relative tracks must use a positive value.
     /// </param>
     public GridSize(GridSizeMode mode, float value = 0f)
@@ -24,6 +24,11 @@ public readonly record struct GridSize
             throw new ArgumentOutOfRangeException(
                 nameof(value),
                 "Relative weight must be greater than zero."
+            );
+        if (mode == GridSizeMode.Auto && value != 0f)
+            throw new ArgumentOutOfRangeException(
+                nameof(value),
+                "Auto tracks must use a value of zero."
             );
 
         Mode = mode;
@@ -43,4 +48,7 @@ public readonly record struct GridSize
     /// <summary>Creates a relative-weight grid track.</summary>
     /// <param name="weight">The positive track weight.</param>
     public static GridSize Relative(float weight = 1f) => new(GridSizeMode.Relative, weight);
+
+    /// <summary>Gets an auto-sized grid track.</summary>
+    public static GridSize Auto { get; } = new(GridSizeMode.Auto, 0f);
 }

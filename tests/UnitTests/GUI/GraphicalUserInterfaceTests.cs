@@ -101,16 +101,7 @@ public class GraphicalUserInterfaceTests
         var layoutCount = 0;
         var childArrangementCount = 0;
         var root = new LayoutProbeElement(
-            arrange: (element, bounds) =>
-            {
-                layoutCount++;
-                foreach (
-                    var child in element
-                        .Children.OfType<Element>()
-                        .Where(child => child.IsActivated)
-                )
-                    child.Arrange(bounds);
-            }
+            arrange: (_, _) => layoutCount++
         );
         var initiallyDiscoveredChildArrangementCount = 0;
         var initiallyDiscoveredChild = new LayoutProbeElement(

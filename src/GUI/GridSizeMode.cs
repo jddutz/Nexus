@@ -4,4 +4,5 @@ public enum GridSizeMode
 {
     Absolute,
     Relative,
+    Auto,
 }

@@ -117,7 +117,10 @@ public partial class FlowLayout : Element
         if (!IsEffectivelyVisible)
             return Vector2D<float>.Zero;
 
-        var available = GetContentConstraint(constraint);
+        var available = new Vector2D<float>(
+            MathF.Max(0f, constraint.X - Margins.Left - Margins.Right),
+            MathF.Max(0f, constraint.Y - Margins.Top - Margins.Bottom)
+        );
         var plan = BuildPlan(available);
         var occupied = new Vector2D<float>(plan.PrimaryExtent, plan.CrossExtent);
         if (Priority == LayoutPriority.Vertical)
@@ -127,7 +130,7 @@ public partial class FlowLayout : Element
             MathF.Min(Width ?? occupied.X, available.X),
             MathF.Min(Height ?? occupied.Y, available.Y)
         );
-        return IncludeMargins(desired);
+        return desired + Margins;
     }
 
     /// <inheritdoc />
@@ -144,7 +147,7 @@ public partial class FlowLayout : Element
             return;
         }
 
-        var available = GetContentBounds(bounds);
+        var available = bounds - Margins;
         var desired = new Vector2D<float>(
             MathF.Min(Width ?? available.Size.X, available.Size.X),
             MathF.Min(Height ?? available.Size.Y, available.Size.Y)

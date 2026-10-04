@@ -69,6 +69,9 @@ public class GridLayoutTests
         Assert.Throws<ArgumentOutOfRangeException>(
             () => new GridSize(GridSizeMode.Absolute, -1f)
         );
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => new GridSize(GridSizeMode.Auto, 1f)
+        );
     }
 
     /// <summary>Verifies cells receive the lengths allocated to their row and column tracks.</summary>
@@ -97,6 +100,59 @@ public class GridLayoutTests
         Assert.Equal(new Rectangle<float>(20f, 10f, 60f, 40f), fourth.Bounds);
     }
 
+    /// <summary>Verifies auto tracks include measured occupant margins before relative allocation.</summary>
+    [Fact]
+    public void Arrange_autoColumnsMeasureContentAndMarginsBeforeRelativeTracks()
+    {
+        var layout = new GridLayout
+        {
+            Rows = [GridSize.Absolute(20f)],
+            Columns =
+            [
+                GridSize.Absolute(10f),
+                GridSize.Auto,
+                GridSize.Absolute(15f),
+                GridSize.Relative(),
+            ],
+        };
+        layout.SetCell(
+            0,
+            1,
+            new MeasuredElement(new(30f, 12f)) { Margins = new Margins(2f, 3f, 4f, 5f) }
+        );
+        var relativeOccupant = new Element();
+        layout.SetCell(0, 3, relativeOccupant);
+
+        layout.Arrange(new Rectangle<float>(0f, 0f, 100f, 20f));
+
+        Assert.Equal(new Rectangle<float>(60f, 0f, 40f, 20f), relativeOccupant.Bounds);
+    }
+
+    /// <summary>Verifies auto rows are measured after the maximum auto-column width is resolved.</summary>
+    [Fact]
+    public void MeasureAndArrange_autoRowsUseResolvedColumnWidths()
+    {
+        var layout = new GridLayout
+        {
+            Rows = [GridSize.Auto, GridSize.Relative()],
+            Columns = [GridSize.Auto],
+        };
+        layout.SetCell(
+            0,
+            0,
+            new MeasuredElement(new(40f, 0f), width => width < 40f ? 35f : 20f)
+            {
+                Margins = new Margins(2f, 3f, 4f, 5f),
+            }
+        );
+        layout.SetCell(1, 0, new MeasuredElement(new(60f, 10f)));
+
+        Assert.Equal(new Vector2D<float>(60f, 100f), layout.Measure(new(100f, 100f)));
+        layout.Arrange(new Rectangle<float>(0f, 0f, 100f, 100f));
+
+        Assert.Equal(29f, layout.GetCell(1, 0)!.Bounds.Origin.Y);
+    }
+
     /// <summary>Verifies resizing track definitions preserves cells that remain in range.</summary>
     [Fact]
     public void TrackDefinitions_resizeCellsAndRetainOverlappingOccupants()
@@ -115,5 +171,37 @@ public class GridLayoutTests
 
         Assert.Same(occupant, layout.GetCell(0, 0));
         Assert.Null(layout.GetCell(0, 1));
+    }
+
+    /// <summary>Measures configured content while accounting for the element's margins.</summary>
+    private sealed class MeasuredElement : Element
+    {
+        private readonly Vector2D<float> _desiredSize;
+        private readonly Func<float, float>? _heightForWidth;
+
+        /// <summary>Initializes a measurable test element.</summary>
+        /// <param name="desiredSize">The desired content size.</param>
+        /// <param name="heightForWidth">An optional content-height function of available width.</param>
+        public MeasuredElement(
+            Vector2D<float> desiredSize,
+            Func<float, float>? heightForWidth = null
+        )
+        {
+            _desiredSize = desiredSize;
+            _heightForWidth = heightForWidth;
+        }
+
+        /// <inheritdoc/>
+        public override Vector2D<float> Measure(Vector2D<float> constraint)
+        {
+            var contentWidth = MathF.Max(0f, constraint.X - Margins.Left - Margins.Right);
+            var contentHeight = MathF.Max(0f, constraint.Y - Margins.Top - Margins.Bottom);
+            var desiredHeight = _heightForWidth?.Invoke(contentWidth) ?? _desiredSize.Y;
+            return new Vector2D<float>(
+                    MathF.Min(_desiredSize.X, contentWidth),
+                    MathF.Min(desiredHeight, contentHeight)
+                )
+                + Margins;
+        }
     }
 }

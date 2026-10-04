@@ -71,7 +71,8 @@ public partial class TextElement : Element
         ITextStyle style,
         int? maximumLines = null,
         ulong renderLayerMask = ulong.MaxValue
-    ) : this()
+    )
+        : this()
     {
         ArgumentNullException.ThrowIfNull(text);
         ArgumentNullException.ThrowIfNull(style);
@@ -91,20 +92,22 @@ public partial class TextElement : Element
             return Vector2D<float>.Zero;
 
         EnsureVisualComponent();
-        var contentConstraint = GetContentConstraint(constraint);
+        var contentConstraint = new Vector2D<float>(
+            MathF.Max(0f, constraint.X - Margins.Left - Margins.Right),
+            MathF.Max(0f, constraint.Y - Margins.Top - Margins.Bottom)
+        );
         var measuredSize =
             _textComponent?.Measure(
                 new(
                     MathF.Min(contentConstraint.X, Width ?? contentConstraint.X),
                     MathF.Min(contentConstraint.Y, Height ?? contentConstraint.Y)
                 )
-            ) ?? Vector2D<float>.Zero;
-        return IncludeMargins(
-            new(
+            )
+            ?? Vector2D<float>.Zero;
+        return new Vector2D<float>(
                 Width is null ? measuredSize.X : MathF.Min(Width.Value, contentConstraint.X),
                 Height is null ? measuredSize.Y : MathF.Min(Height.Value, contentConstraint.Y)
-            )
-        );
+            ) + Margins;
     }
 
     /// <inheritdoc />
@@ -113,7 +116,7 @@ public partial class TextElement : Element
         if (!IsEffectivelyVisible)
         {
             RemoveVisualComponent();
-            SetBounds(new Rectangle<float>(bounds.Origin, Vector2D<float>.Zero));
+            base.Arrange(bounds);
             return;
         }
 
@@ -121,7 +124,7 @@ public partial class TextElement : Element
         if (_textComponent is null)
             return;
 
-        var contentBounds = GetContentBounds(bounds);
+        var contentBounds = bounds - Margins;
         _textComponent.Text = Text;
         _textComponent.MaximumLines = MaximumLines;
         _textComponent.Wrap = true;
@@ -135,6 +138,10 @@ public partial class TextElement : Element
             GetVerticalAlignment()
         );
         SetBounds(_textComponent.LayoutBounds);
+
+        foreach (var child in Children)
+            if (child is IElement element)
+                element.Arrange(Bounds);
     }
 
     /// <summary>Creates a text component when measurement or arrangement requires one.</summary>
@@ -235,5 +242,4 @@ public partial class TextElement : Element
         base.AfterIsVisibleChanges();
         UpdateVisualComponent();
     }
-
 }

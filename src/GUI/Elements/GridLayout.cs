@@ -92,25 +92,22 @@ public class GridLayout : Element
         if (!IsEffectivelyVisible)
             return Vector2D<float>.Zero;
 
-        var available = GetContentConstraint(constraint);
-        var size = new Vector2D<float>(
-            DesiredLength(_cols, available.X, Width),
-            DesiredLength(_rows, available.Y, Height)
+        var available = new Vector2D<float>(
+            MathF.Max(0f, constraint.X - Margins.Left - Margins.Right),
+            MathF.Max(0f, constraint.Y - Margins.Top - Margins.Bottom)
         );
-        var columnTracks = new TrackAllocator(_cols, size.X);
-        var rowTracks = new TrackAllocator(_rows, size.Y);
-        for (var row = 0; row < RowCount; row++)
-        {
-            var rowSize = rowTracks.Next();
-            var columns = columnTracks;
-            for (var column = 0; column < ColumnCount; column++)
-            {
-                var columnSize = columns.Next();
-                GetCell(row, column)?.Measure(new(columnSize, rowSize));
-            }
-        }
-        // Track definitions, rather than child content, determine desired size.
-        return IncludeMargins(size);
+        var widthConstraint = MathF.Min(Width ?? available.X, available.X);
+        var heightConstraint = MathF.Min(Height ?? available.Y, available.Y);
+        var autoColumns = MeasureAutoColumns(widthConstraint, heightConstraint);
+        var width = DesiredLength(_cols, available.X, Width, autoColumns);
+        var columnLengths = AllocateTracks(_cols, width, autoColumns);
+        var autoRows = MeasureAutoRows(heightConstraint, width, columnLengths);
+        var size = new Vector2D<float>(
+            width,
+            DesiredLength(_rows, available.Y, Height, autoRows)
+        );
+        // Relative tracks fill the constraint; absolute and auto tracks determine intrinsic size.
+        return size + Margins;
     }
 
     /// <inheritdoc/>
@@ -121,10 +118,24 @@ public class GridLayout : Element
             throw new ArgumentOutOfRangeException(nameof(bounds));
         ValidateExplicitSize();
 
-        var available = GetContentBounds(bounds);
+        var available = bounds - Margins;
+        var widthConstraint = MathF.Min(Width ?? available.Size.X, available.Size.X);
+        var heightConstraint = MathF.Min(Height ?? available.Size.Y, available.Size.Y);
+        var autoColumns = IsEffectivelyVisible
+            ? MeasureAutoColumns(widthConstraint, heightConstraint)
+            : new float[ColumnCount];
+        var width = DesiredLength(_cols, available.Size.X, Width, autoColumns);
+        var columnLengths = AllocateTracks(
+            _cols,
+            IsEffectivelyVisible ? width : 0f,
+            autoColumns
+        );
+        var autoRows = IsEffectivelyVisible
+            ? MeasureAutoRows(heightConstraint, width, columnLengths)
+            : new float[RowCount];
         var size = new Vector2D<float>(
-            DesiredLength(_cols, available.Size.X, Width),
-            DesiredLength(_rows, available.Size.Y, Height)
+            width,
+            DesiredLength(_rows, available.Size.Y, Height, autoRows)
         );
         var destination = GetAlignedContentBounds(bounds, size);
         SetBounds(
@@ -133,8 +144,12 @@ public class GridLayout : Element
                 : new Rectangle<float>(destination.Origin, Vector2D<float>.Zero)
         );
 
-        var columnTracks = new TrackAllocator(_cols, IsEffectivelyVisible ? size.X : 0f);
-        var rowTracks = new TrackAllocator(_rows, IsEffectivelyVisible ? size.Y : 0f);
+        var columnTracks = new TrackAllocator(
+            _cols,
+            IsEffectivelyVisible ? size.X : 0f,
+            autoColumns
+        );
+        var rowTracks = new TrackAllocator(_rows, IsEffectivelyVisible ? size.Y : 0f, autoRows);
         var y = destination.Origin.Y;
         for (var row = 0; row < RowCount; row++)
         {
@@ -200,19 +215,129 @@ public class GridLayout : Element
             throw new InvalidOperationException("Height must be finite and non-negative.");
     }
 
+    /// <summary>Measures occupants in auto columns to determine their content widths.</summary>
+    /// <param name="availableWidth">The width available after reserving absolute tracks.</param>
+    /// <param name="availableHeight">The height constraint supplied to occupants.</param>
+    /// <returns>The measured outer width for each column track.</returns>
+    private float[] MeasureAutoColumns(float availableWidth, float availableHeight)
+    {
+        var sizes = new float[ColumnCount];
+        var occupantWidth = (float)Math.Max(0d, availableWidth - AbsoluteLength(_cols));
+        for (var column = 0; column < ColumnCount; column++)
+        {
+            if (_cols[column].Mode != GridSizeMode.Auto)
+                continue;
+            for (var row = 0; row < RowCount; row++)
+            {
+                var occupant = GetCell(row, column);
+                if (occupant is null)
+                    continue;
+                var measured = occupant.Measure(new(occupantWidth, availableHeight));
+                ValidateMeasuredSize(measured);
+                sizes[column] = MathF.Max(sizes[column], measured.X);
+            }
+        }
+        return sizes;
+    }
+
+    /// <summary>Measures auto rows after resolving column widths, allowing wrapped content to settle.</summary>
+    /// <param name="availableHeight">The height available to auto rows after absolute tracks.</param>
+    /// <param name="availableWidth">The resolved grid width.</param>
+    /// <param name="columnLengths">The allocated width of each column.</param>
+    /// <returns>The measured outer height for each row track.</returns>
+    private float[] MeasureAutoRows(
+        float availableHeight,
+        float availableWidth,
+        IReadOnlyList<float> columnLengths
+    )
+    {
+        var sizes = new float[RowCount];
+        var occupantHeight = (float)Math.Max(0d, availableHeight - AbsoluteLength(_rows));
+        var columns = new TrackAllocator(_cols, availableWidth, columnLengths);
+        for (var row = 0; row < RowCount; row++)
+        {
+            if (_rows[row].Mode != GridSizeMode.Auto)
+                continue;
+            var rowColumns = columns;
+            for (var column = 0; column < ColumnCount; column++)
+            {
+                var occupant = GetCell(row, column);
+                var columnLength = rowColumns.Next();
+                if (occupant is null)
+                    continue;
+                var measured = occupant.Measure(new(columnLength, occupantHeight));
+                ValidateMeasuredSize(measured);
+                sizes[row] = MathF.Max(sizes[row], measured.Y);
+            }
+        }
+        return sizes;
+    }
+
     /// <summary>Calculates the desired length from track definitions and an optional requested size.</summary>
-    private static float DesiredLength(List<GridSize> tracks, float available, float? requested)
+    /// <param name="tracks">The track definitions.</param>
+    /// <param name="available">The maximum length available.</param>
+    /// <param name="requested">An optional explicit length.</param>
+    /// <param name="autoSizes">Measured content lengths for auto tracks.</param>
+    /// <returns>The desired length, capped by the available space.</returns>
+    private static float DesiredLength(
+        List<GridSize> tracks,
+        float available,
+        float? requested,
+        IReadOnlyList<float> autoSizes
+    )
     {
         if (requested is { } value)
             return MathF.Min(value, available);
-        double absolute = 0;
+        if (tracks.Any(track => track.Mode == GridSizeMode.Relative))
+            return available;
+
+        double desired = 0;
+        for (var index = 0; index < tracks.Count; index++)
+            desired += tracks[index].Mode switch
+            {
+                GridSizeMode.Absolute => tracks[index].Value,
+                GridSizeMode.Auto => autoSizes[index],
+                _ => 0d,
+            };
+        return (float)Math.Min(desired, available);
+    }
+
+    /// <summary>Allocates resolved lengths for the supplied tracks.</summary>
+    /// <param name="tracks">The track definitions.</param>
+    /// <param name="available">The available length.</param>
+    /// <param name="autoSizes">Measured content lengths for auto tracks.</param>
+    /// <returns>One allocated length per track.</returns>
+    private static float[] AllocateTracks(
+        List<GridSize> tracks,
+        float available,
+        IReadOnlyList<float> autoSizes
+    )
+    {
+        var lengths = new float[tracks.Count];
+        var allocator = new TrackAllocator(tracks, available, autoSizes);
+        for (var index = 0; index < lengths.Length; index++)
+            lengths[index] = allocator.Next();
+        return lengths;
+    }
+
+    /// <summary>Returns the combined length reserved by absolute tracks.</summary>
+    /// <param name="tracks">The track definitions.</param>
+    /// <returns>The sum of absolute track lengths.</returns>
+    private static double AbsoluteLength(List<GridSize> tracks)
+    {
+        double length = 0;
         foreach (var track in tracks)
-        {
-            if (track.Mode == GridSizeMode.Relative)
-                return available;
-            absolute += track.Value;
-        }
-        return (float)Math.Min(absolute, available);
+            if (track.Mode == GridSizeMode.Absolute)
+                length += track.Value;
+        return length;
+    }
+
+    /// <summary>Rejects invalid sizes returned by an occupant's measurement implementation.</summary>
+    /// <param name="size">The measured occupant size.</param>
+    private static void ValidateMeasuredSize(Vector2D<float> size)
+    {
+        if (!float.IsFinite(size.X) || !float.IsFinite(size.Y) || size.X < 0f || size.Y < 0f)
+            throw new InvalidOperationException("An occupant returned an invalid measured size.");
     }
 
     /// <summary>Enumerates track lengths without allocating a result array.</summary>
@@ -220,30 +345,45 @@ public class GridLayout : Element
     {
         private readonly List<GridSize> _tracks;
         private readonly double _available;
-        private readonly double _scale;
+        private readonly double _absoluteScale;
+        private readonly IReadOnlyList<float> _autoSizes;
+        private readonly double _autoScale;
         private readonly double _remaining;
         private readonly double _weights;
         private int _index;
         private double _consumed;
 
         /// <summary>Initializes an allocator for the provided tracks and available length.</summary>
-        public TrackAllocator(List<GridSize> tracks, float available)
+        public TrackAllocator(
+            List<GridSize> tracks,
+            float available,
+            IReadOnlyList<float> autoSizes
+        )
         {
             _tracks = tracks;
             _available = available;
+            _autoSizes = autoSizes;
             _index = 0;
             _consumed = 0;
 
             double absolute = 0;
+            double auto = 0;
             _weights = 0;
-            foreach (var track in tracks)
+            for (var index = 0; index < tracks.Count; index++)
+            {
+                var track = tracks[index];
                 if (track.Mode == GridSizeMode.Absolute)
                     absolute += track.Value;
+                else if (track.Mode == GridSizeMode.Auto)
+                    auto += autoSizes[index];
                 else
                     _weights += track.Value;
+            }
 
-            _scale = absolute > available ? available / absolute : 1d;
-            _remaining = Math.Max(0d, available - absolute);
+            _absoluteScale = absolute > available ? available / absolute : 1d;
+            var remainingAfterAbsolute = Math.Max(0d, available - absolute * _absoluteScale);
+            _autoScale = auto > remainingAfterAbsolute ? remainingAfterAbsolute / auto : 1d;
+            _remaining = Math.Max(0d, remainingAfterAbsolute - auto * _autoScale);
         }
 
         /// <summary>Gets the next track length, bounded by the unallocated remainder.</summary>
@@ -251,7 +391,8 @@ public class GridLayout : Element
         {
             var track = _tracks[_index++];
             var length =
-                track.Mode == GridSizeMode.Absolute ? track.Value * _scale
+                track.Mode == GridSizeMode.Absolute ? track.Value * _absoluteScale
+                : track.Mode == GridSizeMode.Auto ? _autoSizes[_index - 1] * _autoScale
                 : _weights > 0 ? _remaining * track.Value / _weights
                 : 0d;
             // Limit cumulative rounding so no track extends past the allocation.
