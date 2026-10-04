@@ -822,7 +822,7 @@ public unsafe class SwapChain : ISwapChain
     /// </summary>
     /// <param name="imageIndex">The index of the swapchain image to present.</param>
     /// <param name="renderFinishedSemaphore">The semaphore that must be signaled before presentation.</param>
-    public void Present(uint imageIndex, Semaphore renderFinishedSemaphore)
+    public Result Present(uint imageIndex, Semaphore renderFinishedSemaphore)
     {
         // Raise BeforePresent event for testing infrastructure (pixel sampling)
         // At this point, the image is in PresentSrcKhr layout and ready to sample
@@ -853,14 +853,16 @@ public unsafe class SwapChain : ISwapChain
 
         var result = _khrSwapchain!.QueuePresent(_context.PresentQueue, &presentInfo);
 
-        if (result == Result.ErrorOutOfDateKhr || result == Result.SuboptimalKhr)
-        {
-            // Caller should handle recreation
-        }
-        else if (result != Result.Success)
+        if (
+            result != Result.Success
+            && result != Result.ErrorOutOfDateKhr
+            && result != Result.SuboptimalKhr
+        )
         {
             throw new Exception($"Failed to present swap chain image: {result}");
         }
+
+        return result;
     }
 
     /// <summary>
@@ -887,6 +889,10 @@ public unsafe class SwapChain : ISwapChain
     /// </remarks>
     public void Recreate()
     {
+        var windowSize = _context.Window.Size;
+        if (windowSize.X <= 0 || windowSize.Y <= 0)
+            return;
+
         // Wait for device to finish operations
         _context.VulkanApi.DeviceWaitIdle(_context.Device);
 

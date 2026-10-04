@@ -163,7 +163,7 @@ An element supplies the arranged visual placement to its graphics component. A d
 - Nine-patch rendering uses nine quad instances and reuses geometry.
 - Hidden visuals are removed or deactivated through component lifetime behavior. A drawable visibility flag was not chosen as the hiding mechanism.
 - Views own the render policy (draw-order preservation, blending, and depth state) for contents selected by their layer mask; render layers only classify contents and render-pass membership. Vulkan creates pipeline variants when views require different blend or depth state.
-- GUI rendering uses a static camera and is ordered after scene rendering. The default GUI view preserves draw order and uses alpha blending. Layer 1 is reserved for GUI in the current convention.
+- Scenes do not create a default render view. Scene composition creates views, attaches the scene's static camera to the chosen view owner, and selects render layers explicitly; `GameSystem` forwards main-window size changes to that camera.
 - Vulkan rendering follows `PrepareFrame`, per-view `Begin`, per-pass `Record`, per-view `Finalize`, then `Submit`.
 - Draw commands execute inside their rendering pass. Resource uploads occur before the pass.
 - Sticky draw commands are retained. Drawables expose an ascending `DrawOrder`; the default batch strategy groups by pipeline before drawable identity, while views can explicitly select draw-order preservation.

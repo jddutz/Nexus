@@ -1,6 +1,4 @@
-﻿using Microsoft.Extensions.Options;
-using Silk.NET.Core;
-using Silk.NET.Core.Native;
+﻿using Silk.NET.Core;
 using Silk.NET.Vulkan.Extensions.EXT;
 
 namespace Nexus.Graphics.Vulkan;

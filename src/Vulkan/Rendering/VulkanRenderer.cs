@@ -61,7 +61,11 @@ public unsafe class VulkanRenderer(
         ArgumentNullException.ThrowIfNull(frameSync);
 
         if (!CanRender())
-            return null;
+        {
+            _swapChain.Recreate();
+            if (!CanRender())
+                return null;
+        }
 
         if (!AcquireFrame(frameSync))
             return null;
@@ -454,15 +458,9 @@ public unsafe class VulkanRenderer(
         if (_imageSync == null)
             return;
 
-        try
-        {
-            _swapChain.Present(_imageIndex, _imageSync.RenderFinished);
-        }
-        catch (Exception ex)
-            when (ex.Message.Contains("out of date") || ex.Message.Contains("suboptimal"))
-        {
+        var result = _swapChain.Present(_imageIndex, _imageSync.RenderFinished);
+        if (result is Result.ErrorOutOfDateKhr or Result.SuboptimalKhr)
             _swapChain.Recreate();
-        }
     }
 
     /// <inheritdoc />

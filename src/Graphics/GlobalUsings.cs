@@ -1,12 +1,9 @@
-global using System.Collections.Immutable;
 global using System.Linq;
 global using System.Runtime.InteropServices;
-global using System.Text;
 global using Microsoft.Extensions.Logging;
 global using Microsoft.Extensions.Options;
 global using Nexus.Assets.Fonts;
 global using Nexus.Core;
-global using Nexus.Graphics;
 global using Nexus.Graphics.Cameras;
 global using Nexus.Graphics.Drawables;
 global using Nexus.Graphics.Geometry;

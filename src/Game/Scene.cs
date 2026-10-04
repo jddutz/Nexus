@@ -41,16 +41,6 @@ public partial class Scene : IScene
         _allNodes.Add(Id, this);
 
         RenderLayers.Create("GUI", RenderPasses.Main);
-
-        var viewComponent = new ViewRenderer
-        {
-            Camera = StaticCamera,
-            LayerMask = 1,
-            PreserveDrawOrder = true,
-            BlendMode = BlendMode.Alpha,
-        };
-        var defaultView = new GameObject2D([StaticCamera, viewComponent]);
-        Children.Add(defaultView);
     }
 
     /// <summary>

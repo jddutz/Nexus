@@ -1,7 +1,6 @@
 namespace Nexus.Graphics.Vulkan.Commands;
 
 using Nexus.Graphics.Components;
-using Nexus.Graphics.Text;
 
 /// <summary>
 /// Creates the Vulkan commands required to render a drawable.

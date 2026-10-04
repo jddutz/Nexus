@@ -1,7 +1,6 @@
 namespace Tests;
 
 using Nexus.Core;
-using Nexus.Graphics;
 using Nexus.Graphics.Shaders;
 
 /// <summary>Reads drawable data through the public rendering contracts for tests.</summary>
@@ -48,5 +47,6 @@ internal static class DrawableTestData
     /// <summary>Gets the number of glyph instances rendered for an element.</summary>
     /// <param name="element">The element whose text drawable is inspected.</param>
     /// <returns>The rendered glyph count.</returns>
-    public static ulong TextInstanceCount(IGameObject element) => TextDrawable(element).InstanceCount;
+    public static ulong TextInstanceCount(IGameObject element) =>
+        TextDrawable(element).InstanceCount;
 }

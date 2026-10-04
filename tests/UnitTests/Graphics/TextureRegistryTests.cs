@@ -1,8 +1,7 @@
 using Microsoft.Extensions.Configuration;
-using Nexus.Graphics;
-using Nexus.Graphics.Textures;
 using Microsoft.Extensions.Logging.Abstractions;
 using Nexus.Core;
+using Nexus.Graphics.Textures;
 
 namespace Nexus.UnitTests.Graphics;
 
@@ -42,10 +41,7 @@ public sealed class TextureRegistryTests
 
     private static TextureRegistry CreateRegistry()
     {
-        var manifest = new ContentManifest(
-            string.Empty,
-            new ConfigurationBuilder().Build()
-        );
+        var manifest = new ContentManifest(string.Empty, new ConfigurationBuilder().Build());
         return new TextureRegistry(manifest, NullLogger<TextureRegistry>.Instance);
     }
 }

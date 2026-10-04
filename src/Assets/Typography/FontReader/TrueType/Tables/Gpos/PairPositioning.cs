@@ -1,5 +1,3 @@
-using Nexus.Assets.Typography.FontReader.TrueType;
-
 namespace Nexus.Assets.Typography.FontReader.TrueType.Tables.Gpos;
 
 /// <summary>

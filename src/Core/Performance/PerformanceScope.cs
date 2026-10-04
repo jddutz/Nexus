@@ -1,6 +1,3 @@
-using System.Diagnostics;
-using System.Runtime.CompilerServices;
-
 namespace Nexus.Core.Performance;
 
 /// <summary>

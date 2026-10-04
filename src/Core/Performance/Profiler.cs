@@ -1,5 +1,3 @@
-using System.Diagnostics;
-
 namespace Nexus.Core.Performance;
 
 /// <summary>

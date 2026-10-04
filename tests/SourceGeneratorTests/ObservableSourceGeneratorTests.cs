@@ -1,10 +1,8 @@
 using System.Collections.Immutable;
-using System.Reflection;
 using System.Runtime.Loader;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
-using Nexus.SourceGenerators;
 
 namespace Nexus.SourceGenerators.Tests;
 
@@ -125,26 +123,30 @@ public sealed class ObservableSourceGeneratorTests
             result.Compilation.GetDiagnostics(),
             diagnostic => diagnostic.Severity == DiagnosticSeverity.Error
         );
-        var baseGenerated = Assert.Single(
-            result.GeneratedSources,
-            generated =>
-                generated
-                    .SourceText.ToString()
-                    .Contains("partial class EventOwner", StringComparison.Ordinal)
-        ).SourceText.ToString();
+        var baseGenerated = Assert
+            .Single(
+                result.GeneratedSources,
+                generated =>
+                    generated
+                        .SourceText.ToString()
+                        .Contains("partial class EventOwner", StringComparison.Ordinal)
+            )
+            .SourceText.ToString();
         Assert.Contains(
             "protected void NotifyPropertyChanged(string propertyName)",
             baseGenerated,
             StringComparison.Ordinal
         );
         Assert.DoesNotContain("public int Value", baseGenerated, StringComparison.Ordinal);
-        var standaloneGenerated = Assert.Single(
-            result.GeneratedSources,
-            generated =>
-                generated
-                    .SourceText.ToString()
-                    .Contains("partial class StandaloneEventOwner", StringComparison.Ordinal)
-        ).SourceText.ToString();
+        var standaloneGenerated = Assert
+            .Single(
+                result.GeneratedSources,
+                generated =>
+                    generated
+                        .SourceText.ToString()
+                        .Contains("partial class StandaloneEventOwner", StringComparison.Ordinal)
+            )
+            .SourceText.ToString();
         Assert.Contains(
             "protected void NotifyPropertyChanged(string propertyName)",
             standaloneGenerated,
@@ -319,15 +321,25 @@ public sealed class ObservableSourceGeneratorTests
             output
         );
 
-        var observableSource = Assert.Single(
-            result.GeneratedSources,
-            generated =>
-                generated
-                    .SourceText.ToString()
-                    .Contains("class ObservableTarget", StringComparison.Ordinal)
-        ).SourceText.ToString();
-        Assert.Contains("private void __SetCount(int value)", observableSource, StringComparison.Ordinal);
-        Assert.Contains("protected virtual void SetCount(int value)", observableSource, StringComparison.Ordinal);
+        var observableSource = Assert
+            .Single(
+                result.GeneratedSources,
+                generated =>
+                    generated
+                        .SourceText.ToString()
+                        .Contains("class ObservableTarget", StringComparison.Ordinal)
+            )
+            .SourceText.ToString();
+        Assert.Contains(
+            "private void __SetCount(int value)",
+            observableSource,
+            StringComparison.Ordinal
+        );
+        Assert.Contains(
+            "protected virtual void SetCount(int value)",
+            observableSource,
+            StringComparison.Ordinal
+        );
         Assert.DoesNotContain(
             "event global::System.Action<string> PropertyChanged",
             observableSource,

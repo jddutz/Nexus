@@ -1,8 +1,6 @@
 using System.Runtime.InteropServices;
 using Nexus.Assets.Fonts;
 using Nexus.Graphics;
-using Nexus.Graphics.Components;
-using Nexus.Graphics.Drawables;
 using Nexus.Graphics.Shaders;
 using Nexus.Graphics.Text;
 using Nexus.Graphics.Textures;

@@ -5,7 +5,6 @@ using Nexus.Graphics;
 using Nexus.Graphics.Geometry;
 using Nexus.Graphics.Shaders;
 using Nexus.Graphics.Textures;
-using Nexus.Graphics.Vulkan;
 using Nexus.Graphics.Vulkan.Commands;
 using Nexus.Graphics.Vulkan.Pipelines;
 using Nexus.Graphics.Vulkan.Rendering;

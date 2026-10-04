@@ -3,7 +3,6 @@ using Nexus.Core;
 using Nexus.Core.Events;
 using Nexus.Game;
 using Nexus.Graphics;
-using Nexus.Graphics.Components;
 using Nexus.Graphics.Text;
 using Nexus.Graphics.Textures;
 using Nexus.GUI;

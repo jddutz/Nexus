@@ -1,7 +1,6 @@
 using System.Runtime.InteropServices;
 using Nexus.Core;
 using Nexus.Graphics;
-using Nexus.Graphics.Drawables;
 using Nexus.Graphics.Shaders;
 using Silk.NET.Maths;
 

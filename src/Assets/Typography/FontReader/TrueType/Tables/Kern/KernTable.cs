@@ -1,6 +1,3 @@
-using Nexus.Assets.Typography.FontReader;
-using Nexus.Assets.Typography.FontReader.TrueType;
-
 namespace Nexus.Assets.Typography.FontReader.TrueType.Tables.Kern;
 
 /// <summary>

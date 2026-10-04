@@ -1,4 +1,3 @@
-using Nexus.AssetPipeline;
 using Nexus.Assets.Fonts;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;

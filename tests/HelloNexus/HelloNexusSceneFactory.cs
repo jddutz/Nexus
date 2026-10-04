@@ -3,8 +3,6 @@ namespace HelloNexus;
 using Nexus.Core;
 using Nexus.Game;
 using Nexus.Graphics;
-using Nexus.Graphics.Cameras;
-using Nexus.Graphics.Components;
 using Nexus.Graphics.Text;
 using Nexus.Graphics.Textures;
 using Nexus.GUI;
@@ -12,7 +10,6 @@ using Nexus.GUI.Elements;
 using Nexus.Input;
 using Nexus.Input.Devices;
 using Silk.NET.Maths;
-using GuiView = Nexus.GUI.Elements.View;
 
 /// <summary>
 /// Creates the HelloNexus welcome scene and its application-specific content.
@@ -38,8 +35,7 @@ internal sealed class HelloNexusSceneFactory(
         var scene = new Scene(nodeId);
         scene.InputMap = inputMap;
 
-        var sceneView = scene.Children.OfType<IGameObject>().Single();
-        var camera = sceneView.Components.OfType<StaticCamera>().Single();
+        var camera = scene.StaticCamera;
         camera.SetViewportSize(mainWindow.Size.X, mainWindow.Size.Y);
 
         var guiLayerDefinition =
@@ -48,24 +44,26 @@ internal sealed class HelloNexusSceneFactory(
         var guiLayer = 1UL << guiLayerDefinition.Index;
         var backgroundLayer =
             1UL << scene.RenderLayers.Create("Background", RenderPasses.Main).Index;
-        var backgroundView = sceneView.Components.OfType<ViewRenderer>().Single();
-        backgroundView.Name = "Background";
-        backgroundView.LayerMask = backgroundLayer;
 
-        var guiView = scene.CreateChild<GuiView>();
-        guiView.ViewComponent.Name = "GUI";
-        guiView.Camera = camera;
-        guiView.LayerMask = guiLayer;
-        guiView.RenderOrder = 1;
+        scene.Children.Add(
+            new View()
+            {
+                Camera = scene.StaticCamera,
+                LayerMask = guiLayer | backgroundLayer,
+                PreserveDrawOrder = true,
+            }
+        );
 
-        var backgroundTexture = new TextureRenderer
-        {
-            Texture = textureRegistry.GetOrCreate((ContentId)"hello_nexus_background_image"),
-            Destination = new Rectangle<float>(0f, 0f, mainWindow.Size.X, mainWindow.Size.Y),
-            RenderLayerMask = backgroundLayer,
-        };
-        var backgroundElement = new BackgroundElement(backgroundTexture);
-        scene.Children.Add(backgroundElement);
+        scene.Children.Add(
+            new ImageElement
+            {
+                Texture = textureRegistry.GetOrCreate((ContentId)"hello_nexus_background_image"),
+                SizingMode = ImageSizingMode.Fill,
+                Margins = default,
+                SortOrder = -32768,
+                RenderLayerMask = backgroundLayer,
+            }
+        );
 
         var textStyle = textStyleRegistry.GetOrCreate(
             new TextStyleDescription("Roboto", (ContentId)"ui.default", 16)
@@ -156,43 +154,5 @@ internal sealed class HelloNexusSceneFactory(
         scene.Children.Add(grid);
 
         return scene;
-    }
-
-    /// <summary>
-    /// Covers the available bounds with a centered aspect-preserving background texture.
-    /// </summary>
-    private sealed class BackgroundElement : Element
-    {
-        private readonly TextureRenderer _texture;
-
-        /// <summary>
-        /// Initializes the background element with its texture component.
-        /// </summary>
-        /// <param name="texture">The background texture component.</param>
-        public BackgroundElement(TextureRenderer texture)
-            : base(components: [texture])
-        {
-            _texture = texture;
-        }
-
-        /// <inheritdoc />
-        public override void Arrange(Rectangle<float> bounds)
-        {
-            base.Arrange(bounds);
-            var texture = _texture.Texture!;
-            var boundsAspectRatio = Bounds.Size.X / Bounds.Size.Y;
-            var textureAspectRatio = (float)texture.Width / texture.Height;
-            var imageSize =
-                boundsAspectRatio > textureAspectRatio
-                    ? new Vector2D<float>(Bounds.Size.X, Bounds.Size.X / textureAspectRatio)
-                    : new Vector2D<float>(Bounds.Size.Y * textureAspectRatio, Bounds.Size.Y);
-
-            _texture.Destination = new Rectangle<float>(
-                Bounds.Origin.X + (Bounds.Size.X - imageSize.X) / 2f,
-                Bounds.Origin.Y + (Bounds.Size.Y - imageSize.Y) / 2f,
-                imageSize.X,
-                imageSize.Y
-            );
-        }
     }
 }

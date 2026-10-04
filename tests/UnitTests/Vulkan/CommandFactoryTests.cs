@@ -1,6 +1,5 @@
 namespace Tests;
 
-using Microsoft.Extensions.Logging;
 using Nexus.Core;
 using Nexus.Graphics;
 using Nexus.Graphics.Components;
@@ -452,7 +451,7 @@ public class CommandFactoryTests
             return 0;
         }
 
-        public void Present(uint imageIndex, Semaphore renderFinishedSemaphore) { }
+        public Result Present(uint imageIndex, Semaphore renderFinishedSemaphore) => Result.Success;
 
         public void Dispose() { }
     }

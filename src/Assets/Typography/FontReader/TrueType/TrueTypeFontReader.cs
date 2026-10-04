@@ -1,5 +1,4 @@
 using Nexus.Assets.Fonts;
-using Nexus.Assets.Typography.FontReader;
 using Nexus.Assets.Typography.FontReader.TrueType.Tables;
 using Nexus.Assets.Typography.FontReader.TrueType.Tables.Gpos;
 using Nexus.Assets.Typography.FontReader.TrueType.Tables.Kern;

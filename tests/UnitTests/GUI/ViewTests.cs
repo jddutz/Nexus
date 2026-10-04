@@ -1,6 +1,5 @@
 using Nexus.Graphics;
 using Nexus.Graphics.Cameras;
-using Nexus.Graphics.Components;
 using Nexus.GUI.Elements;
 using Silk.NET.Maths;
 

@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using VkFence = Silk.NET.Vulkan.Fence;
 using VkSemaphore = Silk.NET.Vulkan.Semaphore;
 
@@ -30,6 +29,9 @@ public sealed class SyncManager : ISyncManager
 
     /// <inheritdoc/>
     public event EventHandler<FrameCompletedEventArgs>? FrameCompleted;
+
+    /// <inheritdoc/>
+    public event EventHandler<FrameSubmittedEventArgs>? FrameSubmitted;
 
     /// <summary>
     /// Creates a new synchronization manager with the specified number of frames in flight.
@@ -310,9 +312,11 @@ public sealed class SyncManager : ISyncManager
     /// </summary>
     public void IncrementFrameCounter()
     {
+        var submittedFrameIndex = CurrentFrameIndex;
         _totalFramesRendered++;
-        _submitted[CurrentFrameIndex] = true;
-        CurrentFrameIndex = (CurrentFrameIndex + 1) % MaxFramesInFlight;
+        _submitted[submittedFrameIndex] = true;
+        CurrentFrameIndex = (submittedFrameIndex + 1) % MaxFramesInFlight;
+        FrameSubmitted?.Invoke(this, new FrameSubmittedEventArgs(submittedFrameIndex));
     }
 
     private ImageSync CreateImageSync(uint imageIndex)

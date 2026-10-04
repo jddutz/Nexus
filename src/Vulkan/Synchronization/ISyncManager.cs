@@ -72,6 +72,11 @@ public interface ISyncManager : IDisposable
     event EventHandler<FrameCompletedEventArgs>? FrameCompleted;
 
     /// <summary>
+    /// Occurs after a frame has been submitted successfully to the graphics queue.
+    /// </summary>
+    event EventHandler<FrameSubmittedEventArgs>? FrameSubmitted;
+
+    /// <summary>
     /// Gets synchronization primitives for the specified frame index.
     /// Frame index must be in range [0, MaxFramesInFlight).
     /// </summary>

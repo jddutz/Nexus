@@ -14,6 +14,7 @@ public unsafe class ImageRegistry : IImageRegistry
 
     private readonly Dictionary<VkBuffer, DeviceMemory> _stagingMemory = [];
     private readonly Queue<VkBuffer>[] _stagedBuffers;
+    private readonly Queue<VkBuffer> _pendingStagedBuffers = [];
 
     private readonly Dictionary<ulong, VkImageView> _views = [];
     private readonly Dictionary<VkImage, List<ulong>> _imageViews = [];
@@ -69,6 +70,7 @@ public unsafe class ImageRegistry : IImageRegistry
         }
 
         _syncManager.FrameCompleted += OnFrameCompleted;
+        _syncManager.FrameSubmitted += OnFrameSubmitted;
     }
 
     private VkImage CreateImage(uint width, uint height, ColorFormatEnum format)
@@ -334,8 +336,6 @@ public unsafe class ImageRegistry : IImageRegistry
         texture.WriteTo(0, texture.Count, format, data);
 
         var stagingBuffer = CreateStagingBuffer(data);
-        var stagingFrameIndex = _syncManager.CurrentFrameIndex;
-
         try
         {
             image = CreateImage(texture.Width, texture.Height, format);
@@ -381,7 +381,7 @@ public unsafe class ImageRegistry : IImageRegistry
                 _refs.Add(image, 1);
                 referenceRegistered = true;
 
-                QueueStagedBuffer(stagingBuffer, stagingFrameIndex);
+                QueueStagedBuffer(stagingBuffer);
             }
             catch
             {
@@ -478,7 +478,7 @@ public unsafe class ImageRegistry : IImageRegistry
             ImageExtent = new Extent3D(texture.Width, texture.Height, 1),
         };
 
-        QueueStagedBuffer(stagingBuffer, _syncManager.CurrentFrameIndex);
+        QueueStagedBuffer(stagingBuffer);
         return
         [
             new UploadImageCommand(stagingBuffer, image, region, ImageLayout.ShaderReadOnlyOptimal),
@@ -557,21 +557,22 @@ public unsafe class ImageRegistry : IImageRegistry
         _released[releaseFrameIndex].Enqueue(image);
     }
 
-    /// <summary>
-    /// Associates a staging buffer with the frame slot that submits its upload command.
-    /// </summary>
+    /// <summary>Defers a staging buffer until its upload command is submitted.</summary>
     /// <param name="buffer">The staging buffer used by the upload command.</param>
-    /// <param name="frameIndex">The frame slot that owns the upload.</param>
-    private void QueueStagedBuffer(VkBuffer buffer, uint frameIndex)
-    {
-        if (frameIndex >= _syncManager.MaxFramesInFlight)
-            throw new ArgumentOutOfRangeException(
-                nameof(frameIndex),
-                frameIndex,
-                "Invalid frame index."
-            );
+    private void QueueStagedBuffer(VkBuffer buffer) => _pendingStagedBuffers.Enqueue(buffer);
 
-        _stagedBuffers[checked((int)frameIndex)].Enqueue(buffer);
+    /// <summary>Associates pending staging buffers with the frame that submitted their uploads.</summary>
+    /// <param name="sender">The synchronization manager.</param>
+    /// <param name="e">The submitted frame event data.</param>
+    private void OnFrameSubmitted(object? sender, FrameSubmittedEventArgs e)
+    {
+        var frameIndex = checked((int)e.FrameIndex);
+        if (frameIndex >= _stagedBuffers.Length)
+            throw new ArgumentOutOfRangeException(nameof(e), e.FrameIndex, "Invalid frame index.");
+
+        var stagingBuffers = _stagedBuffers[frameIndex];
+        while (_pendingStagedBuffers.TryDequeue(out var buffer))
+            stagingBuffers.Enqueue(buffer);
     }
 
     /// <summary>
@@ -617,12 +618,14 @@ public unsafe class ImageRegistry : IImageRegistry
 
         foreach (var queue in _stagedBuffers)
             queue.Clear();
+        _pendingStagedBuffers.Clear();
     }
 
     /// <inheritdoc/>
     public void Dispose()
     {
         _syncManager.FrameCompleted -= OnFrameCompleted;
+        _syncManager.FrameSubmitted -= OnFrameSubmitted;
 
         Reset();
 

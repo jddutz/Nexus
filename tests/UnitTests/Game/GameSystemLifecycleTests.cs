@@ -198,14 +198,12 @@ public class GameSystemLifecycleTests
     public void InitializeAndResize_updatesCurrentSceneStaticCameraFromMainWindow()
     {
         var scene = new Scene();
-        var defaultView = Assert.Single(scene.Children.OfType<IGameObject>());
-        var viewComponent = Assert.Single(defaultView.Components.OfType<ViewRenderer>());
         var windowService = new TestWindowService(new(800, 600));
         var eventHub = new EventHub();
         var gameSystem = CreateGameSystem(scene, windowService, eventHub);
         gameSystem.Initialize();
 
-        Assert.Same(scene.StaticCamera, viewComponent.Camera);
+        Assert.Empty(scene.Children);
         var initialProjection = scene.StaticCamera.ProjectionMatrix;
         Assert.Equal(
             Matrix4X4.CreateOrthographicOffCenter(

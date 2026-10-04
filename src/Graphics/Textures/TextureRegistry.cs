@@ -1,5 +1,3 @@
-using StbImageSharp;
-
 namespace Nexus.Graphics.Textures;
 
 /// <summary>

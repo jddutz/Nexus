@@ -111,7 +111,7 @@ public sealed class TextStyleRegistry(
         );
     }
 
-    /// <summary>Creates and registers a texture from generated RGB atlas data.</summary>
+    /// <summary>Creates and registers an RGBA texture from generated RGB atlas data.</summary>
     /// <param name="raster">The generated font raster.</param>
     /// <returns>The registered atlas texture.</returns>
     private ITexture CreateAtlasTexture(CachedRaster raster)
@@ -145,7 +145,7 @@ public sealed class TextStyleRegistry(
             (uint)atlas.Width,
             (uint)atlas.Height,
             colors,
-            ColorFormatEnum.RGB8UNorm
+            ColorFormatEnum.RGBA8UNorm
         );
         _atlasTextures.Add(contentId, texture);
         return texture;

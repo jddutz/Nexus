@@ -1,8 +1,5 @@
 using Nexus.Core;
 using Nexus.Game;
-using Nexus.Graphics;
-using Nexus.Graphics.Cameras;
-using Nexus.Graphics.Components;
 using Silk.NET.Maths;
 
 namespace Tests;
@@ -20,28 +17,12 @@ public class GameObjectTests
     {
         var nodeId = new NodeId(1);
         var scene = new Scene(nodeId);
-        var defaultView = Assert.IsType<GameObject2D>(Assert.Single(scene.Children));
-        var defaultCamera = Assert.IsType<StaticCamera>(
-            Assert.Single(defaultView.Components.OfType<StaticCamera>())
-        );
-        var viewComponent = Assert.Single(defaultView.Components.OfType<ViewRenderer>());
 
         Assert.Equal(nodeId, scene.Id);
-        Assert.Same(scene, defaultView.Parent);
-        Assert.Same(scene, defaultView.Root);
         Assert.Same(scene, scene.GetSceneNode(scene.Id));
-        Assert.Same(defaultView, scene.GetSceneNode(defaultView.Id));
-        Assert.Contains(defaultView, scene.Children);
-        Assert.Contains(
-            defaultView.Components,
-            component => ReferenceEquals(component, defaultCamera)
-        );
-        Assert.Same(defaultCamera, viewComponent.Camera);
+        Assert.Empty(scene.Children);
+        Assert.Null(scene.StaticCamera.Owner);
         Assert.IsNotAssignableFrom<IGameObject>(scene);
-        var view = new View();
-        Assert.Equal(nameof(ViewRenderer), (string)view.ViewComponent.Name);
-        Assert.Equal(RenderPasses.Main, (uint)view.ViewComponent.RenderPassMask);
-        Assert.Contains(view.ViewComponent, view.Components);
     }
 
     /// <summary>Verifies components are exposed as a read-only observable collection.</summary>
@@ -148,15 +129,12 @@ public class GameObjectTests
     }
 
     /// <summary>
-    /// Verifies scene activation raises notifications without activating its default view and camera.
+    /// Verifies scene activation raises notifications without activating its unowned static camera.
     /// </summary>
     [Fact]
     public void Scene_activationChangesOnlySceneState()
     {
         var scene = new Scene();
-        var defaultView = Assert.IsType<GameObject2D>(Assert.Single(scene.Children));
-        var defaultCamera = Assert.Single(defaultView.Components.OfType<StaticCamera>());
-        var viewComponent = Assert.Single(defaultView.Components.OfType<ViewRenderer>());
         var activationNotifications = 0;
         scene.PropertyChanged += propertyName =>
         {
@@ -165,12 +143,11 @@ public class GameObjectTests
         };
 
         scene.Activate();
-
         Assert.True(scene.IsActive);
         Assert.Equal(1, activationNotifications);
-        Assert.False(defaultView.IsActivated);
-        Assert.False(defaultCamera.IsActivated);
-        Assert.False(viewComponent.IsActivated);
+        Assert.Equal(1, activationNotifications);
+        Assert.Empty(scene.Children);
+        Assert.False(scene.StaticCamera.IsActivated);
 
         scene.Deactivate();
 

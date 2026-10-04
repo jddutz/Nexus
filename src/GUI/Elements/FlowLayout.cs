@@ -1,5 +1,3 @@
-using Nexus.Core;
-
 namespace Nexus.GUI.Elements;
 
 /// <summary>Arranges child elements sequentially into rows or columns.</summary>
@@ -154,10 +152,7 @@ public partial class FlowLayout : Element
         );
         var destination = GetAlignedContentBounds(bounds, desired);
         SetBounds(destination);
-        var content = new Rectangle<float>(
-            destination.Origin,
-            destination.Size
-        );
+        var content = new Rectangle<float>(destination.Origin, destination.Size);
         var plan = BuildPlan(content.Size);
         ArrangePlan(plan, content);
     }
@@ -200,12 +195,10 @@ public partial class FlowLayout : Element
     {
         var primaryCapacity = Priority == LayoutPriority.Horizontal ? available.X : available.Y;
         var crossCapacity = Priority == LayoutPriority.Horizontal ? available.Y : available.X;
-        var primaryGap = Priority == LayoutPriority.Horizontal
-            ? ItemSpacing.Horizontal
-            : ItemSpacing.Vertical;
-        var crossGap = Priority == LayoutPriority.Horizontal
-            ? ItemSpacing.Vertical
-            : ItemSpacing.Horizontal;
+        var primaryGap =
+            Priority == LayoutPriority.Horizontal ? ItemSpacing.Horizontal : ItemSpacing.Vertical;
+        var crossGap =
+            Priority == LayoutPriority.Horizontal ? ItemSpacing.Vertical : ItemSpacing.Horizontal;
         var items = new List<Item>();
 
         foreach (var child in Children)
@@ -233,9 +226,13 @@ public partial class FlowLayout : Element
             {
                 var candidate = items[index];
                 var previousExtent = line.Extent;
-                var proposedExtent = LayoutMode == LayoutSizingMode.Dynamic
-                    ? MathF.Min(remainingCross, MathF.Max(line.Extent, CrossDimension(candidate)))
-                    : line.Extent;
+                var proposedExtent =
+                    LayoutMode == LayoutSizingMode.Dynamic
+                        ? MathF.Min(
+                            remainingCross,
+                            MathF.Max(line.Extent, CrossDimension(candidate))
+                        )
+                        : line.Extent;
                 line.Extent = proposedExtent;
                 line.Items.Add(candidate);
                 Recalculate(line, null, proposedExtent, primaryCapacity, primaryGap);
@@ -276,9 +273,10 @@ public partial class FlowLayout : Element
         }
 
         var crossExtent = lines.Count == 0 ? 0f : MathF.Min(crossCapacity, crossOffset - crossGap);
-        var primaryExtent = lines.Count == 0
-            ? 0f
-            : lines.Max(line => MathF.Min(primaryCapacity, PrimaryTotal(line, primaryGap)));
+        var primaryExtent =
+            lines.Count == 0
+                ? 0f
+                : lines.Max(line => MathF.Min(primaryCapacity, PrimaryTotal(line, primaryGap)));
         return new LayoutPlan(
             lines,
             primaryCapacity,
@@ -300,18 +298,23 @@ public partial class FlowLayout : Element
             var primaryOffset = 0f;
             foreach (var item in line.Items)
             {
-                var primary = MathF.Min(item.Primary, MathF.Max(0f, plan.PrimaryCapacity - primaryOffset));
+                var primary = MathF.Min(
+                    item.Primary,
+                    MathF.Max(0f, plan.PrimaryCapacity - primaryOffset)
+                );
                 var cross = MathF.Min(item.Cross, line.Extent);
                 var width = Priority == LayoutPriority.Horizontal ? primary : cross;
                 var height = Priority == LayoutPriority.Horizontal ? cross : primary;
                 var u = Priority == LayoutPriority.Horizontal ? primaryOffset : crossOffset;
                 var v = Priority == LayoutPriority.Horizontal ? crossOffset : primaryOffset;
-                var x = HorizontalDirection == DirectionHorizontal.LeftToRight
-                    ? bounds.Origin.X + u
-                    : bounds.Max.X - u - width;
-                var y = VerticalDirection == DirectionVertical.Down
-                    ? bounds.Origin.Y + v
-                    : bounds.Max.Y - v - height;
+                var x =
+                    HorizontalDirection == DirectionHorizontal.LeftToRight
+                        ? bounds.Origin.X + u
+                        : bounds.Max.X - u - width;
+                var y =
+                    VerticalDirection == DirectionVertical.Down
+                        ? bounds.Origin.Y + v
+                        : bounds.Max.Y - v - height;
                 item.Element.Arrange(new Rectangle<float>(x, y, width, height));
                 primaryOffset += primary + plan.PrimaryGap;
             }
@@ -353,9 +356,10 @@ public partial class FlowLayout : Element
                     ItemSize.MaximumWidth / item.Width,
                     ItemSize.MaximumHeight / item.Height
                 );
-                var scale = Priority == LayoutPriority.Horizontal
-                    ? crossExtent / item.Height
-                    : crossExtent / item.Width;
+                var scale =
+                    Priority == LayoutPriority.Horizontal
+                        ? crossExtent / item.Height
+                        : crossExtent / item.Width;
                 if (minimumScale <= maximumScale)
                 {
                     scale = Math.Clamp(scale, minimumScale, maximumScale);
@@ -385,10 +389,7 @@ public partial class FlowLayout : Element
         return LayoutMode switch
         {
             LayoutSizingMode.Fixed => MathF.Min(Size, remainingCross),
-            LayoutSizingMode.Fit => MathF.Max(
-                0f,
-                (totalCross - gap * (Size - 1)) / Size
-            ),
+            LayoutSizingMode.Fit => MathF.Max(0f, (totalCross - gap * (Size - 1)) / Size),
             LayoutSizingMode.Dynamic => 0f,
             _ => throw new InvalidOperationException("The layout sizing mode is invalid."),
         };
@@ -399,7 +400,10 @@ public partial class FlowLayout : Element
     /// <param name="gap">The gap between items.</param>
     /// <returns>The occupied primary-axis extent.</returns>
     private static float PrimaryTotal(Line line, float gap) =>
-        MathF.Max(0f, line.Items.Sum(item => item.Primary) + gap * Math.Max(0, line.Items.Count - 1));
+        MathF.Max(
+            0f,
+            line.Items.Sum(item => item.Primary) + gap * Math.Max(0, line.Items.Count - 1)
+        );
 
     /// <summary>Gets an item's requested cross-axis dimension.</summary>
     /// <param name="item">The item to inspect.</param>

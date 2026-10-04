@@ -1,8 +1,5 @@
 namespace Nexus.Graphics.Drawables;
 
-using System.Runtime.Versioning;
-using Nexus.Assets.Fonts;
-
 /// <summary>
 /// Renders prepared glyph instances that share one atlas and MSDF configuration. Instance
 /// positions are baseline origins in GUI coordinates, where +X points right and +Y points down.

@@ -88,12 +88,11 @@ public interface ISwapChain : IDisposable
     /// <returns>The index of the acquired swapchain image.</returns>
     uint AcquireNextImage(Semaphore imageAvailableSemaphore, out Result result);
 
-    /// <summary>
-    /// Presents the rendered image to the screen.
-    /// </summary>
+    /// <summary>Presents the rendered image and returns the Vulkan presentation result.</summary>
     /// <param name="imageIndex">The index of the image to present, as returned by <see cref="AcquireNextImage"/>.</param>
     /// <param name="renderFinishedSemaphore">The semaphore to wait on before presenting the image.</param>
-    void Present(uint imageIndex, Semaphore renderFinishedSemaphore);
+    /// <returns>The Vulkan presentation result.</returns>
+    Result Present(uint imageIndex, Semaphore renderFinishedSemaphore);
 
     /// <summary>
     /// Event raised before presenting an image to the screen.
