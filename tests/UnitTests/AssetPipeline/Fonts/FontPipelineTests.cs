@@ -72,8 +72,6 @@ public sealed class FontPipelineTests : IDisposable
                 "..",
                 "..",
                 "..",
-                "..",
-                "..",
                 ".assets",
                 "Fonts",
                 "Roboto-Regular.ttf"

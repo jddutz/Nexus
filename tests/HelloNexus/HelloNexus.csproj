@@ -18,17 +18,5 @@
     <None Include=".\.content\**">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="..\..\.assets\Textures\button_texture.png">
-      <Link>.content\Textures\button_texture.png</Link>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
   </ItemGroup>
-
-  <Target
-    Name="BuildHelloNexusContent"
-    AfterTargets="Build"
-    Condition="'$(DesignTimeBuild)' != 'true'"
-  >
-    <Exec Command="dotnet run --project &quot;$(MSBuildThisFileDirectory)..\..\src\AssetPipeline\Nexus.AssetPipeline.csproj&quot; --configuration &quot;$(Configuration)&quot; -- --output &quot;$(TargetDir).content&quot; build --input &quot;$(MSBuildThisFileDirectory)..\..\.assets\nap.yaml&quot;" />
-  </Target>
 </Project>
