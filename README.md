@@ -40,27 +40,26 @@ Replace `Program.cs` with:
 
 ```csharp
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Nexus.Runtime;
 
-namespace HelloNexus;
-
-internal static class Program
+try
 {
-    private static void Main(string[] args)
-    {
-        var configuration = new ConfigurationBuilder()
-            .SetBasePath(AppContext.BaseDirectory)
-            .AddJsonFile("appsettings.json")
-            .AddJsonFile(".content/content-manifest.json")
-            .AddCommandLine(args)
-            .Build();
+    var configuration = new ConfigurationBuilder()
+        .SetBasePath(AppContext.BaseDirectory)
+        .AddJsonFile("appsettings.json")
+        .AddJsonFile(".content/content-manifest.json")
+        .AddCommandLine(args)
+        .Build();
 
-        var services = new ServiceCollection();
+    using var application = new Application(configuration);
+    application.Run();
 
-        using var application = new Application(configuration, services);
-        application.Run();
-    }
+    return 0;
+}
+catch (Exception ex)
+{
+    Console.Error.WriteLine(ex);
+    return 1;
 }
 ```
 
@@ -103,26 +102,11 @@ Build your content with NAP:
 nap build
 ```
 
-Define a concrete scene named `WelcomeScreen` in the application project. Nexus discovers scene classes in the entry assembly, and `Game:StartSceneId` selects the scene that `GameSystem` activates. No manual scene-factory registration is required.
-
-To discover scenes in another assembly, configure the registry before constructing `Application`:
-
-```csharp
-services.AddSceneRegistry(settings =>
-{
-    settings.AddAssemblyContaining<OtherScene>();
-});
-```
-
-Set `settings.ScanEntryAssembly = false` to discover scenes only in explicitly selected assemblies.
-
 Run the project from VS Code with **F5** after configuring a .NET launch profile, or from the terminal:
 
 ```bash
 dotnet run
 ```
-
-*Scene discovery and the registration API above describe the phase-one behavior being implemented. The concrete `WelcomeScreen` example still needs to be filled in against the current `Scene` construction and authoring API.*
 
 ## Repository structure
 
