@@ -24,22 +24,19 @@ public enum ItemStatusFlags
 }
 
 /// <summary>Represents an item displayed in an inventory grid.</summary>
-public class InventoryItem : ImageElement
+public class InventoryItem : Element
 {
     [Observable(Public = true)]
     private ContentId? _imageId = null;
 
     [Observable(Public = true)]
-    private string _label = string.Empty;
+    private string _itemName = string.Empty;
 
     [Observable(Public = true)]
     private ItemStatusFlags _statusFlags;
 
     /// <summary>Initializes the inventory item.</summary>
-    public override void Initialize()
-    {
-        base.Initialize();
-    }
+    public override void Initialize() { }
 }
 
 /// <summary>Describes the content and initial status of an inventory item.</summary>
@@ -74,6 +71,30 @@ internal sealed class InventoryGridExample(ITextStyleRegistry textStyles, ITextu
 
         var camera = new StaticCamera();
 
+        var inventoryItem = new Element
+        {
+            Children =
+            {
+                new ImageElement
+                {
+                    Texture = textures.GetOrCreate(ImageId),
+                    SizingMode = ImageSizingMode.Stretch,
+                },
+                new TextElement
+                {
+                    Text = "Press ESC to quit",
+                    Style = textStyles.GetOrCreate((ContentId)"ui.default", 16),
+                    Binding = new Binding<string>(nameof(ItemName)),
+                },
+                new ImageElement
+                {
+                    Texture = textures.GetOrCreate(ImageId),
+                    SizingMode = ImageSizingMode.Stretch,
+                    // Bind status flags
+                },
+            },
+        };
+
         var scene = new Scene(nodeId)
         {
             MainCamera = camera,
@@ -100,24 +121,8 @@ internal sealed class InventoryGridExample(ITextStyleRegistry textStyles, ITextu
                         GridSize.Absolute(80f),
                         GridSize.Absolute(80f),
                     ],
-                    [0, 0] = new ImageElement
-                    {
-                        Texture = audioTexture,
-                        SizingMode = ImageSizingMode.Fit,
-                        HorizontalAlignment = AlignHorizontal.Left,
-                        VerticalAlignment = AlignVertical.Top,
-                        Margins = new Margins(10f, 0f, 10f, 0f),
-                    },
-                    [0, 1] = new TextElement
-                    {
-                        Text = "Press ESC to quit",
-                        Style = textStyleNormal,
-                        Color = Colors.WhiteSmoke,
-                        Margins = new Margins(0f, 0f, 18f, 0f),
-                        MaximumLines = 1,
-                        HorizontalAlignment = AlignHorizontal.Center,
-                        VerticalAlignment = AlignVertical.Top,
-                    },
+                    [0, 0] = inventoryItem.Clone(inventorySlot[2]),
+                    [0, 1] = inventoryItem.Clone(inventorySlot[1]),
                     // ...
                 },
             },
