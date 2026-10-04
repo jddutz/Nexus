@@ -39,19 +39,19 @@ public class InventoryItem : Element
     public override void Initialize() { }
 }
 
-/// <summary>Describes the content and initial status of an inventory item.</summary>
-/// <param name="TextureId">The texture content identifier for the item.</param>
-/// <param name="StatusFlags">The status flags initially applied to the item.</param>
-public record struct InventoryItemTemplate(
-    ContentId TextureId,
-    ItemStatusFlags StatusFlags = ItemStatusFlags.None
-) : ITemplate<InventoryItem>;
-
 /// <summary>Contains reusable inventory item templates.</summary>
 public static partial class Templates
 {
     /// <summary>Gets the example zweihander inventory item template.</summary>
-    public static readonly InventoryItemTemplate MyTemplate = new((ContentId)"sword.zweihander");
+    public static readonly ITemplate<InventoryItem> MyTemplate = new Template<InventoryItem>
+    {
+        Children =
+        [
+            new Template<ImageElement>(),
+            new Template<TextElement>(),
+            new Template<ImageElement>(),
+        ],
+    };
 }
 
 /// <summary>Creates the inventory grid example scene.</summary>
