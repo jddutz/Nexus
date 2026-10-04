@@ -66,7 +66,7 @@ The following names match the supplied repository view. Folder names describe ph
 | --- | --- |
 | `src/Core` | Shared foundational contracts and utilities. |
 | `src/Runtime` | Application composition and runtime orchestration; exact ownership boundaries require confirmation. |
-| `src/Game` | Scene, game object, component, and managed lifecycle concepts; conceptually the GameModel discussed in design. Exact project mapping requires confirmation. |
+| `src/Game` | Scenes, templates, and managed lifecycle concepts; conceptually the GameModel discussed in design. Exact project mapping requires confirmation. |
 | `src/Graphics` | Graphics contracts, drawable data, views, and graphics components. |
 | `src/Vulkan` | Vulkan implementation of graphics functionality. |
 | `src/OpenGL` | OpenGL backend area; implementation status unverified. |

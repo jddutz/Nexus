@@ -14,7 +14,7 @@ public partial class Element : GameObject, IElement
     [Observable]
     private float? _width = null;
 
-    [Observable(PublicSetter = true)]
+    [Observable(Public = true)]
     private Rectangle<float> _bounds = default;
 
     [Observable]
@@ -48,13 +48,13 @@ public partial class Element : GameObject, IElement
     [Observable]
     private AlignVertical _verticalAlignment = AlignVertical.Center;
 
-    [Observable(PublicSetter = true)]
+    [Observable(Public = true)]
     private bool _isVisible = true;
 
-    [Observable(PublicSetter = true)]
+    [Observable(Public = true)]
     private bool _isEnabled = true;
 
-    [Observable(PublicSetter = true)]
+    [Observable(Public = true)]
     private int _sortOrder;
 
     /// <summary>Clamps the sort order to the supported rendering range.</summary>
@@ -62,10 +62,10 @@ public partial class Element : GameObject, IElement
     protected virtual void SetSortOrder(int value) =>
         _sortOrder = Math.Clamp(value, MinimumSortOrder, MaximumSortOrder);
 
-    [Observable(PublicSetter = true)]
+    [Observable(Public = true)]
     private bool _canFocus;
 
-    [Observable(PublicSetter = true)]
+    [Observable(Public = true)]
     private bool _isFocused;
     private InputMap? _inputMap;
 

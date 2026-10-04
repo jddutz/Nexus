@@ -57,7 +57,7 @@ public partial class ImageElement : Element
     /// <summary>Occurs when the source region changes.</summary>
     public event Action<Rectangle<int>?, Rectangle<int>?>? SourceRegionChanged;
 
-    [Observable(PublicSetter = true)]
+    [Observable(Public = true)]
     private ImageSizingMode _sizingMode = ImageSizingMode.Original;
 
     private Vector2D<float>? _customSize;

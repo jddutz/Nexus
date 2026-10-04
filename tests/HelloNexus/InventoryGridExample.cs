@@ -1,7 +1,69 @@
 namespace HelloNexus;
 
+/// <summary>Describes the independent status effects that can apply to an inventory item.</summary>
+[Flags]
+public enum ItemStatusFlags
+{
+    /// <summary>Indicates that the item has no status flags.</summary>
+    None = 0,
+
+    /// <summary>Indicates that the item is damaged.</summary>
+    Damaged = 1 << 0,
+
+    /// <summary>Indicates that the item is dull.</summary>
+    Dull = 1 << 1,
+
+    /// <summary>Indicates that the item is sharp.</summary>
+    Sharp = 1 << 2,
+
+    /// <summary>Indicates that the item is heavy.</summary>
+    Heavy = 1 << 3,
+
+    /// <summary>Indicates that the item is poisonous.</summary>
+    Poison = 1 << 4,
+}
+
+/// <summary>Represents an item displayed in an inventory grid.</summary>
+public class InventoryItem : ImageElement
+{
+    [Observable(Public = true)]
+    private ContentId? _imageId = null;
+
+    [Observable(Public = true)]
+    private string _label = string.Empty;
+
+    [Observable(Public = true)]
+    private ItemStatusFlags _statusFlags;
+
+    /// <summary>Initializes the inventory item.</summary>
+    public override void Initialize()
+    {
+        base.Initialize();
+    }
+}
+
+/// <summary>Describes the content and initial status of an inventory item.</summary>
+/// <param name="TextureId">The texture content identifier for the item.</param>
+/// <param name="StatusFlags">The status flags initially applied to the item.</param>
+public record struct InventoryItemTemplate(
+    ContentId TextureId,
+    ItemStatusFlags StatusFlags = ItemStatusFlags.None
+) : ITemplate<InventoryItem>;
+
+/// <summary>Contains reusable inventory item templates.</summary>
+public static partial class Templates
+{
+    /// <summary>Gets the example zweihander inventory item template.</summary>
+    public static readonly InventoryItemTemplate MyTemplate = new((ContentId)"sword.zweihander");
+}
+
+/// <summary>Creates the inventory grid example scene.</summary>
 internal sealed class InventoryGridExample(ITextStyleRegistry textStyles, ITextureRegistry textures)
 {
+    /// <summary>Creates the inventory grid scene.</summary>
+    /// <param name="nodeId">The identifier assigned to the scene root.</param>
+    /// <param name="inputMap">The input map used by the scene.</param>
+    /// <returns>The configured inventory grid scene.</returns>
     public Scene Create(NodeId nodeId, InputMap inputMap)
     {
         var background = textures.GetOrCreate((ContentId)"hello_nexus_background_image");

@@ -15,7 +15,7 @@ public sealed class ObservableAttribute(string? propertyName = null) : Attribute
     /// <summary>
     /// Gets or sets whether the generated property setter is public.
     /// </summary>
-    public bool PublicSetter { get; set; } = true;
+    public bool Public { get; set; } = true;
 
     /// <summary>
     /// Gets or sets whether a typed property-changed event is generated.

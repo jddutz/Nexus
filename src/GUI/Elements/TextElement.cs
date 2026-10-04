@@ -20,11 +20,11 @@ public partial class TextElement : Element
     private TextRenderer? _textComponent;
 
     /// <summary>Gets or sets the color applied to the text glyphs.</summary>
-    [Observable(PublicSetter = true)]
+    [Observable(Public = true)]
     private Color _color = Colors.White;
 
     /// <summary>Gets or sets the font and visual style used by the text element.</summary>
-    [Observable(PublicSetter = true)]
+    [Observable(Public = true)]
     private ITextStyle? _style;
 
     /// <summary>Updates the component's line limit after it changes.</summary>

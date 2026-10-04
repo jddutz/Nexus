@@ -15,7 +15,7 @@ public partial class TextureRenderer : Component, IGraphicsComponent
     /// <inheritdoc />
     public IReadOnlyList<IDrawable> Drawables => _drawables;
 
-    [Observable(PublicSetter = true)]
+    [Observable(Public = true)]
     private ulong _renderLayerMask = RenderLayers.All;
 
     /// <inheritdoc />
@@ -23,56 +23,56 @@ public partial class TextureRenderer : Component, IGraphicsComponent
         UpdateDrawable(drawable => drawable.RenderLayerMask = RenderLayerMask);
 
     /// <summary>Gets or sets the render order assigned to the drawable.</summary>
-    [Observable(PublicSetter = true)]
+    [Observable(Public = true)]
     private int _drawOrder;
 
     /// <inheritdoc />
     protected virtual partial void AfterDrawOrderChanges(int previousValue) =>
         UpdateDrawable(drawable => drawable.DrawOrder = DrawOrder);
 
-    [Observable(PublicSetter = true)]
+    [Observable(Public = true)]
     private ITexture? _texture = null;
 
     /// <inheritdoc />
     protected virtual partial void AfterTextureChanges() =>
         UpdateDrawable(drawable => drawable.Texture = Texture!);
 
-    [Observable(PublicSetter = true)]
+    [Observable(Public = true)]
     private ISamplingBehavior? _samplingBehavior = SamplingBehaviors.Smooth;
 
     /// <inheritdoc />
     protected virtual partial void AfterSamplingBehaviorChanges() =>
         UpdateDrawable(drawable => drawable.SamplingBehavior = SamplingBehavior!);
 
-    [Observable(PublicSetter = true)]
+    [Observable(Public = true)]
     private VertexShader? _vertexShader = BuiltInShaders.TexturedQuadVertexShader;
 
     /// <inheritdoc />
     protected virtual partial void AfterVertexShaderChanges(VertexShader? previousValue) =>
         UpdateDrawable(drawable => drawable.VertexShader = VertexShader);
 
-    [Observable(PublicSetter = true)]
+    [Observable(Public = true)]
     private FragmentShader? _fragmentShader = BuiltInShaders.TexturedQuadFragmentShader;
 
     /// <inheritdoc />
     protected virtual partial void AfterFragmentShaderChanges(FragmentShader? previousValue) =>
         UpdateDrawable(drawable => drawable.FragmentShader = FragmentShader);
 
-    [Observable(PublicSetter = true)]
+    [Observable(Public = true)]
     private Rectangle<float> _destination = new(0f, 0f, 1f, 1f);
 
     /// <inheritdoc />
     protected virtual partial void AfterDestinationChanges() =>
         UpdateDrawable(drawable => drawable.Destination = Destination);
 
-    [Observable(PublicSetter = true)]
+    [Observable(Public = true)]
     private Vector4D<float> _texCoord = new(0f, 0f, 1f, 1f);
 
     /// <inheritdoc />
     protected virtual partial void AfterTexCoordChanges() =>
         UpdateDrawable(drawable => drawable.TexCoord = TexCoord);
 
-    [Observable(PublicSetter = true)]
+    [Observable(Public = true)]
     private Color _color = Colors.White;
 
     /// <inheritdoc />

@@ -17,13 +17,13 @@ public partial class Scene : IScene
     );
     private readonly Dictionary<NodeId, ISceneNode> _allNodes = [];
 
-    [Observable(PublicSetter = true)]
+    [Observable(Public = true)]
     private RenderLayerCollection _renderLayers = new();
 
-    [Observable(PublicSetter = true)]
+    [Observable(Public = true)]
     private InputMap? _inputMap;
 
-    [Observable(PublicSetter = true, Required = true)]
+    [Observable(Public = true, Required = true)]
     private ICamera _mainCamera = null!;
 
     /// <summary>
@@ -143,7 +143,7 @@ public partial class Scene : IScene
         return true;
     }
 
-    [Observable(PublicSetter = false)]
+    [Observable(Public = false)]
     private bool _isInitialized = false;
 
     /// <inheritdoc />
@@ -155,7 +155,7 @@ public partial class Scene : IScene
         IsInitialized = true;
     }
 
-    [Observable(PublicSetter = false)]
+    [Observable(Public = false)]
     private bool _isActivated = false;
 
     /// <inheritdoc />

@@ -15,37 +15,37 @@ public partial class TextButton : Element
     private TextRenderer? _text;
 
     /// <summary>Gets or sets the optional texture used by the button background.</summary>
-    [Observable(PublicSetter = true)]
+    [Observable(Public = true)]
     private ITexture? _texture;
 
     /// <summary>Gets or sets the optional style used by the button label.</summary>
-    [Observable(PublicSetter = true)]
+    [Observable(Public = true)]
     private ITextStyle? _style;
 
     /// <summary>Gets or sets the source texture border widths.</summary>
-    [Observable(PublicSetter = true)]
+    [Observable(Public = true)]
     private Vector4D<float> _sourceBorders = new(12f, 12f, 12f, 12f);
 
     /// <summary>Gets or sets the background texture sampling behavior.</summary>
-    [Observable(PublicSetter = true)]
+    [Observable(Public = true)]
     private ISamplingBehavior _samplingBehavior = SamplingBehaviors.PixelPerfect;
 
     /// <summary>Gets or sets the render-layer mask shared by the button visuals.</summary>
-    [Observable(PublicSetter = true)]
+    [Observable(Public = true)]
     private ulong _renderLayerMask = RenderLayers.All;
 
-    [Observable(PublicSetter = true)]
+    [Observable(Public = true)]
     private string _label = string.Empty;
 
     /// <summary>Gets or sets the color applied to the button label.</summary>
-    [Observable(PublicSetter = true)]
+    [Observable(Public = true)]
     private Color _textColor = Colors.White;
 
-    [Observable(PublicSetter = true)]
+    [Observable(Public = true)]
     private Margins _padding = new(16f, 10f);
 
     /// <summary>Gets or sets the action invoked for a click, receiving this button instance.</summary>
-    [Observable(PublicSetter = true)]
+    [Observable(Public = true)]
     private Action<TextButton>? _action;
 
     /// <summary>Rejects a null label value.</summary>
@@ -104,9 +104,7 @@ public partial class TextButton : Element
 
     /// <summary>Updates the background renderer when its sampling behavior changes.</summary>
     /// <param name="previousValue">The previous sampling behavior.</param>
-    protected virtual partial void AfterSamplingBehaviorChanges(
-        ISamplingBehavior previousValue
-    )
+    protected virtual partial void AfterSamplingBehaviorChanges(ISamplingBehavior previousValue)
     {
         if (_background is not null)
             _background.SamplingBehavior = SamplingBehavior;
@@ -282,8 +280,7 @@ public partial class TextButton : Element
             MathF.Max(0f, contentConstraint.X - Padding.Left - Padding.Right),
             MathF.Max(0f, contentConstraint.Y - Padding.Top - Padding.Bottom)
         );
-        var labelSize =
-            Style is null ? Vector2D<float>.Zero : _text!.Measure(textConstraint);
+        var labelSize = Style is null ? Vector2D<float>.Zero : _text!.Measure(textConstraint);
         return new Vector2D<float>(
                 Width is null
                     ? MathF.Min(labelSize.X + Padding.Left + Padding.Right, contentConstraint.X)

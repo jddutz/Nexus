@@ -83,7 +83,7 @@ public partial class GameSystem(
     /// </summary>
     public IScene? InitialScene { get; private set; }
 
-    [Observable(PublicSetter = false)]
+    [Observable(Public = false)]
     private IScene? _currentScene = null;
 
     /// <summary>

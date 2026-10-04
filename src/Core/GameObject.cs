@@ -10,13 +10,13 @@ public partial class GameObject : IGameObject
         ReferenceEqualityComparer.Instance
     );
 
-    [Observable(PublicSetter = true)]
+    [Observable(Public = true)]
     private ISceneNode? _root;
 
-    [Observable(PublicSetter = false)]
+    [Observable(Public = false)]
     private bool _isInitialized;
 
-    [Observable(PublicSetter = false)]
+    [Observable(Public = false)]
     private bool _isActivated;
 
     /// <summary>

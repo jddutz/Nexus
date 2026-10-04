@@ -9,11 +9,11 @@ public partial class TextSpan : IDrawable
     private const int InstanceDataSize = 100;
     private readonly List<GlyphInstance> _instances = [];
 
-    [Observable(PublicSetter = true)]
+    [Observable(Public = true)]
     private ulong _renderLayerMask = RenderLayers.All;
 
     /// <summary>Gets or sets the drawable's position in render order.</summary>
-    [Observable(PublicSetter = true)]
+    [Observable(Public = true)]
     private int _drawOrder;
 
     /// <summary>Replaces one prepared glyph instance and notifies instance-data observers.</summary>
@@ -84,15 +84,15 @@ public partial class TextSpan : IDrawable
     public Mesh Mesh { get; } = BuiltInGeometry.TexturedQuadOffset;
 
     /// <summary>Gets or sets the atlas texture containing the glyph images.</summary>
-    [Observable(PublicSetter = true)]
+    [Observable(Public = true)]
     private ITexture _texture = BuiltInTextures.Invalid;
 
     /// <summary>Gets or sets the scale converting glyph plane bounds into rendering units.</summary>
-    [Observable(PublicSetter = true)]
+    [Observable(Public = true)]
     private float _glyphScale = 1f;
 
     /// <summary>Gets or sets the MSDF distance range encoded in atlas pixels.</summary>
-    [Observable(PublicSetter = true)]
+    [Observable(Public = true)]
     private float _distanceRange = 4f;
 
     /// <inheritdoc />

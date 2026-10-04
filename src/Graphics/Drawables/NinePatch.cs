@@ -8,38 +8,38 @@ public partial class NinePatch : IDrawable
     /// <inheritdoc />
     public DrawableId Id { get; } = DrawableId.New();
 
-    [Observable(PublicSetter = true)]
+    [Observable(Public = true)]
     private ulong _renderLayerMask = RenderLayers.All;
 
     /// <summary>Gets or sets the drawable's position in render order.</summary>
-    [Observable(PublicSetter = true)]
+    [Observable(Public = true)]
     private int _drawOrder;
 
     /// <inheritdoc />
     public Mesh Mesh { get; } = BuiltInGeometry.TexturedQuadOffset;
 
-    [Observable(PublicSetter = true)]
+    [Observable(Public = true)]
     private ITexture _texture = BuiltInTextures.Invalid;
 
-    [Observable(PublicSetter = true)]
+    [Observable(Public = true)]
     private ISamplingBehavior _samplingBehavior = SamplingBehaviors.Smooth;
 
-    [Observable(PublicSetter = true)]
+    [Observable(Public = true)]
     private VertexShader? _vertexShader = BuiltInShaders.TexturedQuadVertexShader;
 
-    [Observable(PublicSetter = true)]
+    [Observable(Public = true)]
     private FragmentShader? _fragmentShader = BuiltInShaders.TexturedQuadFragmentShader;
 
-    [Observable(PublicSetter = true)]
+    [Observable(Public = true)]
     private Rectangle<float> _destination = new(0f, 0f, 1f, 1f);
 
-    [Observable(PublicSetter = true)]
+    [Observable(Public = true)]
     private Vector4D<float> _texCoord = new(0f, 0f, 1f, 1f);
 
-    [Observable(PublicSetter = true)]
+    [Observable(Public = true)]
     private Vector4D<float> _sourceBorders;
 
-    [Observable(PublicSetter = true)]
+    [Observable(Public = true)]
     private Color _color = Colors.White;
 
     /// <inheritdoc />
