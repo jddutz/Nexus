@@ -1,6 +1,7 @@
 global using Microsoft.Extensions.Configuration;
 global using Microsoft.Extensions.DependencyInjection;
 global using Nexus.Core;
+global using Nexus.Core.Events;
 global using Nexus.Game;
 global using Nexus.Graphics;
 global using Nexus.Graphics.Cameras;

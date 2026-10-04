@@ -26,37 +26,103 @@ Nexus is under active development. Current work centers on scene lifecycle, GUI 
 
 Vulkan is the active backend. The presence of folders for OpenGL, Audio, Network, and other systems does not establish their implementation completeness or supported platform coverage.
 
-## Getting started
+## Quickstart
 
-Use the repository's .NET toolchain and open `Nexus.slnx` in a compatible editor. VS Code is the current development environment.
+Create a C# console project and add the engine package:
 
-From the repository root, the standard solution commands are:
-
-```sh
-dotnet restore Nexus.slnx
-dotnet build Nexus.slnx
-dotnet test Nexus.slnx
+```bash
+dotnet new console -n HelloNexus
+cd HelloNexus
+dotnet add package Nexus.GameEngine
 ```
 
-Rendering tests serialize drawables into caller-owned buffers through `IDrawable.WriteInstanceDataTo` and `WriteUniformDataTo`. GUI text tests inspect prepared glyphs through public graphics-component contracts rather than depending on internal GUI component types or restoring Graphics-side string layout.
-Graphics components expose `DrawOrder` and propagate it to every drawable they own.
-GUI elements expose `SortOrder` and propagate it to each owned graphics component.
-Text styles are cached by font ContentId and requested size; rasterized atlases are cached
-separately and reused for compatible sizes within a 0.5x–2x range, generating a raster variant
-when no compatible one exists.
+Replace `Program.cs` with:
 
-Lifecycle state changes use generated property setters so change hooks and notifications run. Scene activation does not activate the hierarchy by itself; lifecycle tests either run `GameSystem.Update` or explicitly activate their fixture nodes. The generator and observable contracts remain unchanged.
+```csharp
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Nexus.Runtime;
 
-The solution test command has been verified against the repository. Native dependencies, launch project, shader compilation steps, and platform setup must be documented from the actual project configuration before this section is considered a complete setup guide.
+namespace HelloNexus;
 
-The Nexus Asset Pipeline (NAP) prepares runtime content:
+internal static class Program
+{
+    private static void Main(string[] args)
+    {
+        var configuration = new ConfigurationBuilder()
+            .SetBasePath(AppContext.BaseDirectory)
+            .AddJsonFile("appsettings.json")
+            .AddJsonFile(".content/content-manifest.json")
+            .AddCommandLine(args)
+            .Build();
 
-```sh
-nap clean
+        var services = new ServiceCollection();
+
+        using var application = new Application(configuration, services);
+        application.Run();
+    }
+}
+```
+
+Add `appsettings.json`:
+
+```json
+{
+  "Application": {
+    "ApplicationName": "Hello Nexus",
+    "ApplicationVersion": "1.0.0"
+  },
+  "Game": {
+    "InitialScene": "WelcomeScreen"
+  },
+  "Window": {
+    "Title": "Hello Nexus",
+    "Width": 1280,
+    "Height": 720,
+    "VSync": true,
+    "Resizable": true,
+    "Mode": "Normal"
+  }
+}
+```
+
+Configure the project to copy the settings and built content into its output directory:
+
+```xml
+<ItemGroup>
+  <None Update="appsettings.json"
+        CopyToOutputDirectory="PreserveNewest" />
+  <None Update=".content/**/*"
+        CopyToOutputDirectory="PreserveNewest" />
+</ItemGroup>
+```
+
+Build your content with NAP:
+
+```bash
 nap build
 ```
 
-The build produces `.content` assets and `content-manifest.json`. CLI installation and working-directory requirements remain to be documented. The repository also contains `CompileShaders.ps1`; its invocation requirements remain to be verified.
+Define a concrete scene named `WelcomeScreen` in the application project. Nexus discovers scene classes in the entry assembly and loads the scene named by `Game:InitialScene`. No manual scene-factory registration is required.
+
+To discover scenes in another assembly, configure the registry before constructing `Application`:
+
+```csharp
+services.AddSceneRegistry(settings =>
+{
+    settings.AddAssemblyContaining<OtherScene>();
+});
+```
+
+Set `settings.ScanEntryAssembly = false` to discover scenes only in explicitly selected assemblies.
+
+Run the project from VS Code with **F5** after configuring a .NET launch profile, or from the terminal:
+
+```bash
+dotnet run
+```
+
+*Scene discovery and the registration API above describe the phase-one behavior being implemented. The concrete `WelcomeScreen` example still needs to be filled in against the current `Scene` construction and authoring API.*
 
 ## Repository structure
 

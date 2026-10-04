@@ -48,12 +48,12 @@ public static class ServiceCollectionExtensions
             ?? new ApplicationSettings();
 
         services.AddCoreServices(configuration, applicationSettings.ContentManifestLocation);
-        services.AddGameServices(configuration);
-        services.AddNexusGui();
-        services.AddAudioServices();
+        services.AddGraphicsServices(configuration);
         services.AddInputServices();
         services.AddPhysicsServices();
-        services.AddGraphicsServices(configuration);
+        services.AddAudioServices();
+        services.AddNexusGui();
+        services.AddGameServices(configuration);
         services.AddRuntimeServices(configuration);
 
         if (!services.Any(descriptor => descriptor.ServiceType == typeof(IGraphicsSystem)))

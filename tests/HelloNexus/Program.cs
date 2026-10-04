@@ -1,12 +1,5 @@
 ﻿namespace HelloNexus;
 
-using Nexus.Core;
-using Nexus.Core.Events;
-using Nexus.Game;
-using Nexus.Graphics;
-using Nexus.Input;
-using Nexus.Input.Devices;
-
 /// <summary>
 /// Entry point for the Hello Nexus application.
 /// </summary>
