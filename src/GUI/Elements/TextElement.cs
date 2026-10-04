@@ -18,6 +18,10 @@ public partial class TextElement : Element
     private ulong _renderLayerMask = ulong.MaxValue;
     private TextComponent? _textComponent;
 
+    /// <summary>Gets or sets the color applied to the text glyphs.</summary>
+    [Observable(PublicSetter = true)]
+    private Color _color = Colors.White;
+
     /// <summary>Gets or sets the font and visual style used by the text element.</summary>
     [Observable(PublicSetter = true)]
     private ITextStyle? _style;
@@ -44,6 +48,14 @@ public partial class TextElement : Element
     {
         if (_textComponent is not null)
             _textComponent.RenderLayerMask = RenderLayerMask;
+    }
+
+    /// <summary>Updates the text component after the glyph color changes.</summary>
+    /// <param name="previousValue">The previous glyph color.</param>
+    protected virtual partial void AfterColorChanges(Color previousValue)
+    {
+        if (_textComponent is not null)
+            _textComponent.Color = Color;
     }
 
     /// <summary>Updates the graphics component when the text style changes.</summary>
@@ -153,6 +165,7 @@ public partial class TextElement : Element
         var textComponent = new TextComponent
         {
             TextStyle = Style,
+            Color = Color,
             RenderLayerMask = RenderLayerMask,
             Text = Text,
             MaximumLines = MaximumLines,

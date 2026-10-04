@@ -10,7 +10,7 @@ using Nexus.Graphics.Textures;
 public partial class TextButton : Element
 {
     private readonly List<IObservable> _visibilityAncestors = [];
-    private readonly Texture _texture;
+    private readonly ITexture _texture;
     private readonly ITextStyle _textStyle;
     private readonly Vector4D<float> _sourceBorders;
     private readonly ISamplingBehavior _samplingBehavior;
@@ -23,6 +23,10 @@ public partial class TextButton : Element
 
     [Observable(PublicSetter = true)]
     private string _label = string.Empty;
+
+    /// <summary>Gets or sets the color applied to the button label.</summary>
+    [Observable(PublicSetter = true)]
+    private Color _textColor = Colors.White;
 
     [Observable(PublicSetter = true)]
     private Margins _padding = new();
@@ -52,6 +56,14 @@ public partial class TextButton : Element
             _text.Text = Label;
     }
 
+    /// <summary>Updates the text component after the label color changes.</summary>
+    /// <param name="previousValue">The previous label color.</param>
+    protected virtual partial void AfterTextColorChanges(Color previousValue)
+    {
+        if (_text is not null)
+            _text.Color = TextColor;
+    }
+
     /// <summary>
     /// Initializes a text button and creates its owned visual components.
     /// </summary>
@@ -64,7 +76,7 @@ public partial class TextButton : Element
     /// <param name="samplingBehavior">The texture sampling behavior.</param>
     public TextButton(
         ITextStyle textStyle,
-        Texture texture,
+        ITexture texture,
         float horizontalPadding = 16f,
         float verticalPadding = 10f,
         ulong renderLayerMask = ulong.MaxValue,
@@ -96,6 +108,7 @@ public partial class TextButton : Element
         var background = new NinePatchComponent { };
         var text = new TextComponent(_textStyle)
         {
+            Color = TextColor,
             RenderLayerMask = RenderLayerMask,
             Text = Label,
             Wrap = false,

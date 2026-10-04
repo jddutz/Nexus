@@ -1,6 +1,9 @@
+using System.Runtime.InteropServices;
 using Nexus.Assets.Fonts;
 using Nexus.Graphics;
 using Nexus.Graphics.Components;
+using Nexus.Graphics.Drawables;
+using Nexus.Graphics.Shaders;
 using Nexus.Graphics.Text;
 using Nexus.Graphics.Textures;
 using Nexus.GUI;
@@ -106,6 +109,25 @@ public sealed class TextElementTests
 
         element.SortOrder = int.MaxValue;
         Assert.Equal(32768, element.SortOrder);
+    }
+
+    /// <summary>Verifies the element color is propagated to the rendered glyph instances.</summary>
+    [Fact]
+    public void Color_propagates_to_text_component_and_drawable()
+    {
+        var element = CreateTextElement("A");
+        element.Arrange(new Rectangle<float>(0f, 0f, 2f, 2f));
+        element.Color = Colors.WhiteSmoke;
+
+        var component = Assert.IsType<TextComponent>(Assert.Single(element.Components));
+        var span = Assert.IsType<TextSpan>(Assert.Single(component.Drawables));
+        var instances = DrawableTestData.ReadInstances(
+            span,
+            BuiltInShaders.MsdfTextVertexShader.InstanceLayout
+        );
+
+        Assert.Equal(Colors.WhiteSmoke, component.Color);
+        Assert.Equal(Colors.WhiteSmoke, MemoryMarshal.Read<Color>(instances.Span[80..]));
     }
 
     /// <summary>Verifies alignment affects text without replacing the assigned element bounds.</summary>
@@ -245,6 +267,9 @@ public sealed class TextElementTests
         public TestTextStyle(double lineHeight = 1) => FontMetrics = new(1, 1, 0, lineHeight);
 
         /// <inheritdoc />
+        public TextStyleId Id { get; } = new(1);
+
+        /// <inheritdoc />
         public ITexture Texture { get; } = new Texture("font", 2, 1, [Colors.White, Colors.White]);
 
         /// <inheritdoc />
@@ -267,9 +292,6 @@ public sealed class TextElementTests
             double
         > Kerning
         { get; } = new Dictionary<(int, int), double>();
-
-        /// <inheritdoc />
-        public Color Color { get; } = Colors.White;
 
         /// <inheritdoc />
         public double Size { get; } = 1;

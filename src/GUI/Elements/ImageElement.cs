@@ -4,16 +4,16 @@ namespace Nexus.GUI.Elements;
 public partial class ImageElement : Element
 {
     private readonly List<IObservable> _visibilityAncestors = [];
-    private Texture? _texture;
+    private ITexture? _texture;
     private Rectangle<int>? _sourceRegion;
 
     /// <summary>Gets or sets the texture containing the image.</summary>
-    public Texture? Texture
+    public ITexture? Texture
     {
         get => _texture;
         set
         {
-            if (EqualityComparer<Texture?>.Default.Equals(_texture, value))
+            if (EqualityComparer<ITexture?>.Default.Equals(_texture, value))
                 return;
             if (value is not null)
                 ValidateTexture(value, _sourceRegion);
@@ -29,7 +29,7 @@ public partial class ImageElement : Element
     }
 
     /// <summary>Occurs when the texture changes.</summary>
-    public event Action<Texture?, Texture?>? TextureChanged;
+    public event Action<ITexture?, ITexture?>? TextureChanged;
 
     /// <summary>Gets or sets the source pixel rectangle, or null for the full texture.</summary>
     public Rectangle<int>? SourceRegion
@@ -276,7 +276,7 @@ public partial class ImageElement : Element
     /// <param name="texCoord">The clipped normalized source rectangle.</param>
     private void SynchronizeVisualComponent(
         TextureComponent component,
-        Texture texture,
+        ITexture texture,
         Rectangle<float> destination,
         Vector4D<float> texCoord
     )
@@ -366,7 +366,7 @@ public partial class ImageElement : Element
 
     /// <summary>Gets the currently selected normalized source rectangle.</summary>
     /// <returns>The custom UV rectangle in custom mode, or the source pixel rectangle normalized.</returns>
-    private Vector4D<float> GetActiveTexCoord(Texture texture, Rectangle<int> region)
+    private Vector4D<float> GetActiveTexCoord(ITexture texture, Rectangle<int> region)
     {
         if (SizingMode == ImageSizingMode.Custom)
             return _customTexCoord!.Value;
@@ -382,13 +382,13 @@ public partial class ImageElement : Element
     /// <summary>Gets the configured source rectangle or the full texture when omitted.</summary>
     /// <param name="texture">The texture providing default dimensions.</param>
     /// <returns>The effective pixel rectangle.</returns>
-    private Rectangle<int> GetEffectiveSourceRegion(Texture texture) =>
+    private Rectangle<int> GetEffectiveSourceRegion(ITexture texture) =>
         SourceRegion ?? new Rectangle<int>(0, 0, (int)texture.Width, (int)texture.Height);
 
     /// <summary>Validates texture dimensions and that its source region fits within it.</summary>
     /// <param name="texture">The texture to validate.</param>
     /// <param name="sourceRegion">The optional source pixel rectangle.</param>
-    private static void ValidateTexture(Texture texture, Rectangle<int>? sourceRegion)
+    private static void ValidateTexture(ITexture texture, Rectangle<int>? sourceRegion)
     {
         if (
             texture.Width == 0
@@ -408,7 +408,7 @@ public partial class ImageElement : Element
     /// <summary>Validates that a source rectangle is positive and contained by its texture.</summary>
     /// <param name="sourceRegion">The proposed source rectangle.</param>
     /// <param name="texture">The texture, when available for containment validation.</param>
-    private static void ValidateSourceRegion(Rectangle<int> sourceRegion, Texture? texture)
+    private static void ValidateSourceRegion(Rectangle<int> sourceRegion, ITexture? texture)
     {
         var origin = sourceRegion.Origin;
         var size = sourceRegion.Size;

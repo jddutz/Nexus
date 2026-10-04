@@ -71,12 +71,18 @@ internal sealed class HelloNexusSceneFactory(
 
         var textStyle = CreateRobotoTextStyle();
         const string pressText = "Press ESC to quit";
-        var pressTextElement = new TextElement(pressText, textStyle, 1, guiLayer);
+        var pressTextElement = new TextElement(pressText, textStyle, 1, guiLayer)
+        {
+            Color = Colors.WhiteSmoke,
+        };
         pressTextElement.HorizontalAlignment = AlignHorizontal.Center;
         pressTextElement.VerticalAlignment = AlignVertical.Center;
 
         const string welcomeText = "Welcome to the Nexus";
-        var welcomeTextElement = new TextElement(welcomeText, textStyle, renderLayerMask: guiLayer);
+        var welcomeTextElement = new TextElement(welcomeText, textStyle, renderLayerMask: guiLayer)
+        {
+            Color = Colors.WhiteSmoke,
+        };
 
         const string buttonLabel = "Start Physics Test";
         var buttonElement = new TextButton(
@@ -89,6 +95,7 @@ internal sealed class HelloNexusSceneFactory(
         )
         {
             Label = buttonLabel,
+            TextColor = Colors.WhiteSmoke,
         };
         var buttonSize = buttonElement.Measure(
             new Vector2D<float>(mainWindow.Size.X, mainWindow.Size.Y)
@@ -230,6 +237,6 @@ internal sealed class HelloNexusSceneFactory(
             colors
         );
 
-        return new TextStyle(font, texture, 16, Colors.WhiteSmoke);
+        return new TextStyle(font, texture, 16);
     }
 }

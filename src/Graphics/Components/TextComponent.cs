@@ -65,6 +65,14 @@ public partial class TextComponent : Component, IGraphicsComponent
     [Observable(PublicSetter = true)]
     private int? _maximumLines;
 
+    /// <summary>Gets or sets the color applied to rendered glyphs.</summary>
+    [Observable(PublicSetter = true)]
+    private Color _color = Colors.White;
+
+    /// <summary>Rebuilds glyph instances after their color changes.</summary>
+    /// <param name="previousValue">The previous glyph color.</param>
+    protected virtual partial void AfterColorChanges(Color previousValue) => RebuildDrawable();
+
     /// <summary>Rebuilds glyph layout after the maximum line count changes.</summary>
     /// <param name="previousValue">The previous maximum line count.</param>
     protected virtual partial void AfterMaximumLinesChanges(int? previousValue)
@@ -135,7 +143,8 @@ public partial class TextComponent : Component, IGraphicsComponent
             MaximumLines,
             Wrap,
             Vector2D<float>.Zero,
-            Vector2D<float>.Zero
+            Vector2D<float>.Zero,
+            Color
         ).MeasuredSize;
     }
 
@@ -192,7 +201,8 @@ public partial class TextComponent : Component, IGraphicsComponent
             MaximumLines,
             Wrap,
             Destination.Origin,
-            Alignment
+            Alignment,
+            Color
         );
         _layoutBounds =
             layout.Instances.Length == 0
@@ -240,6 +250,7 @@ public partial class TextComponent : Component, IGraphicsComponent
     /// <param name="wrap">Whether to prefer word boundaries for automatic wrapping.</param>
     /// <param name="origin">The destination origin.</param>
     /// <param name="alignment">The normalized horizontal and vertical alignment.</param>
+    /// <param name="color">The color applied to each glyph instance.</param>
     /// <returns>The fitted lines, glyph instances, visible bounds, and logical size.</returns>
     private static TextLayoutResult CreateLayout(
         ITextStyle style,
@@ -249,7 +260,8 @@ public partial class TextComponent : Component, IGraphicsComponent
         int? maximumLines,
         bool wrap,
         Vector2D<float> origin,
-        Vector2D<float> alignment
+        Vector2D<float> alignment,
+        Color color
     )
     {
         ArgumentNullException.ThrowIfNull(style);
@@ -299,7 +311,14 @@ public partial class TextComponent : Component, IGraphicsComponent
                 ? (availableWidth - line.Width) * alignment.X
                 : 0f;
             var lineOffset = origin.X + horizontalSlack - line.Left;
-            foreach (var instance in CreateLineInstances(style, line.Runes, lineIndex * lineHeight))
+            foreach (
+                var instance in CreateLineInstances(
+                    style,
+                    line.Runes,
+                    lineIndex * lineHeight,
+                    color
+                )
+            )
             {
                 prepared.Add(
                     new GlyphInstance(
@@ -481,11 +500,13 @@ public partial class TextComponent : Component, IGraphicsComponent
     /// <param name="style">The style supplying glyphs and kerning.</param>
     /// <param name="runes">The source runes to prepare.</param>
     /// <param name="baselineY">The line's baseline position.</param>
+    /// <param name="color">The color assigned to each glyph instance.</param>
     /// <returns>The glyph instances in unaligned local coordinates.</returns>
     private static IEnumerable<GlyphInstance> CreateLineInstances(
         ITextStyle style,
         Rune[] runes,
-        float baselineY
+        float baselineY,
+        Color color
     )
     {
         var scale = GetScale(style);
@@ -505,7 +526,7 @@ public partial class TextComponent : Component, IGraphicsComponent
             )
                 penX += checked((float)kerning) * scale;
 
-            yield return new GlyphInstance(glyph, new Vector2D<float>(penX, baselineY), style.Color);
+            yield return new GlyphInstance(glyph, new Vector2D<float>(penX, baselineY), color);
             penX += checked((float)glyph.Advance) * scale;
             previousCodepoint = glyph.Codepoint;
         }

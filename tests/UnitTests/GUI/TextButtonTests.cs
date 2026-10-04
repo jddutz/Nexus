@@ -71,6 +71,22 @@ public sealed class TextButtonTests
         Assert.Equal(new Vector2D<float>(10f, 7f), button.Measure(new(100f, 100f)));
     }
 
+    /// <summary>Verifies label color changes propagate to the rendered text component.</summary>
+    [Fact]
+    public void TextColor_updates_text_component()
+    {
+        var button = CreateButton("A");
+        button.Arrange(new Rectangle<float>(0f, 0f, 20f, 20f));
+
+        button.TextColor = Colors.WhiteSmoke;
+
+        Assert.Equal(
+            Colors.WhiteSmoke,
+            Assert.IsType<TextComponent>(Assert.Single(button.Components.OfType<TextComponent>()))
+                .Color
+        );
+    }
+
     /// <summary>Verifies margins are excluded from a button's background and hit bounds.</summary>
     [Fact]
     public void Margins_insetBackgroundAndLabelContent()
@@ -576,6 +592,9 @@ public sealed class TextButtonTests
     private sealed class TestTextStyle : ITextStyle
     {
         /// <inheritdoc/>
+        public TextStyleId Id { get; } = new(1);
+
+        /// <inheritdoc/>
         public ITexture Texture { get; } = new Texture("font", 2, 1, [Colors.White, Colors.White]);
 
         /// <inheritdoc/>
@@ -598,9 +617,6 @@ public sealed class TextButtonTests
             double
         > Kerning
         { get; } = new Dictionary<(int, int), double>();
-
-        /// <inheritdoc/>
-        public Color Color { get; } = Colors.White;
 
         /// <inheritdoc/>
         public double Size { get; } = 1;

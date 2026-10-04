@@ -487,7 +487,7 @@ public sealed class TextSpanTests
     {
         var style = CreateStyle();
         var span = new TextSpan { Texture = style.Texture };
-        span.SetInstances([new GlyphInstance(style.Glyphs['A'], new(0.4f, 3.4f), style.Color)]);
+        span.SetInstances([new GlyphInstance(style.Glyphs['A'], new(0.4f, 3.4f), Colors.White)]);
         var transform = MemoryMarshal.Read<Matrix4X4<float>>(ReadInstances(span).Span);
 
         Assert.Equal(1f, transform.M11);
@@ -525,14 +525,52 @@ public sealed class TextSpanTests
             new MsdfMetadata(4, 48)
         );
         var texture = new Texture("Roboto", 1, 1, [Colors.White]);
-        var style = new TextStyle(font, texture, 18, Colors.WhiteSmoke);
+        var style = new TextStyle(font, texture, 18);
 
         Assert.Same(texture, style.Texture);
         Assert.Equal(glyph, style.Glyphs['A']);
         Assert.Equal(-2, style.Kerning[('A', 'V')]);
         Assert.Equal(new MsdfMetadata(4, 48), style.Msdf);
         Assert.Equal(18, style.Size);
-        Assert.Equal(Colors.WhiteSmoke, style.Color);
+    }
+
+    /// <summary>Verifies equivalent font data produces stable text style identifiers.</summary>
+    [Fact]
+    public void TextStyle_computes_id_from_font_output_and_style_settings()
+    {
+        var glyph = new FontGlyph('A', 12, new(0, 0, 10, 12), new(0, 0, 10, 12));
+        var font = new FontBuildResult(
+            new FontAtlas(1, 1, [1, 2, 3]),
+            new FontMetrics(48, 36, -12, 48),
+            [glyph],
+            [new TextKerningPair('A', 'V', -2)],
+            new MsdfMetadata(4, 48)
+        );
+        var texture = new Texture("Roboto", 1, 1, [Colors.White]);
+        var style = new TextStyle(font, texture, 18);
+        var equivalentStyle = new TextStyle(
+            new FontBuildResult(
+                new FontAtlas(1, 1, [1, 2, 3]),
+                new FontMetrics(48, 36, -12, 48),
+                [glyph],
+                [new TextKerningPair('A', 'V', -2)],
+                new MsdfMetadata(4, 48)
+            ),
+            new Texture("Roboto", 1, 1, [Colors.White]),
+            18
+        );
+        var differentFont = new FontBuildResult(
+            new FontAtlas(1, 1, [1, 2, 4]),
+            font.Metrics,
+            font.Glyphs,
+            font.Kerning,
+            font.Msdf
+        );
+
+        Assert.NotEqual(TextStyleId.Invalid, style.Id);
+        Assert.Equal(style.Id, equivalentStyle.Id);
+        Assert.NotEqual(style.Id, new TextStyle(differentFont, texture, 18).Id);
+        Assert.NotEqual(style.Id, new TextStyle(font, texture, 19).Id);
     }
 
     /// <summary>Verifies component defaults match the text layout contract.</summary>
@@ -911,6 +949,9 @@ public sealed class TextSpanTests
     ) : ITextStyle
     {
         /// <inheritdoc />
+        public TextStyleId Id { get; } = new(1);
+
+        /// <inheritdoc />
         public ITexture Texture { get; } = new Texture("atlas", 2, 1, [Colors.White, Colors.White]);
 
         /// <inheritdoc />
@@ -927,9 +968,6 @@ public sealed class TextSpanTests
             (int LeftCodepoint, int RightCodepoint),
             double
         > Kerning { get; } = kerning ?? new Dictionary<(int, int), double>();
-
-        /// <inheritdoc />
-        public Color Color { get; } = Colors.White;
 
         /// <inheritdoc />
         public double Size { get; } = size;
