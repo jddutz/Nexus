@@ -27,31 +27,8 @@ internal static class Program
             var services = new ServiceCollection();
 
             services.AddSingleton<IGameSystem>(serviceProvider =>
-            {
-                var eventHub = serviceProvider.GetRequiredService<IEventHub>();
-                var windowService = serviceProvider.GetRequiredService<IWindowService>();
-                var inputMap = new InputMap(eventHub);
-                var window = windowService.GetMainWindow();
-                inputMap.OnKeyPressed(KeyEnum.Escape).Invoke(() => window.Close());
-                inputMap
-                    .OnAnyControllerButtonPressed(ControllerSemanticNames.Back)
-                    .Invoke(() => window.Close());
-
-                var gameSystem = ActivatorUtilities.CreateInstance<GameSystem>(serviceProvider);
-
-                var sceneRegistry = serviceProvider.GetRequiredService<ISceneRegistry>();
-                const string helloNexusSceneName = "WelcomeScreen";
-                var sceneNodeId = NodeId.New();
-                var sceneFactory = ActivatorUtilities.CreateInstance<HelloNexusSceneFactory>(
-                    serviceProvider
-                );
-                sceneRegistry.Register(
-                    helloNexusSceneName,
-                    () => sceneFactory.Create(sceneNodeId, inputMap)
-                );
-
-                return gameSystem;
-            });
+                ActivatorUtilities.CreateInstance<GameSystem>(serviceProvider)
+            );
 
             using var application = new Application(configuration, services);
 
