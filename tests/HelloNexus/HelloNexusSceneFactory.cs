@@ -1,6 +1,5 @@
 namespace HelloNexus;
 
-using Nexus.Assets.Fonts;
 using Nexus.Core;
 using Nexus.Game;
 using Nexus.Graphics;
@@ -18,13 +17,11 @@ using Silk.NET.Maths;
 /// Creates the HelloNexus welcome scene and its application-specific content.
 /// </summary>
 /// <param name="windowService">Provides the main window dimensions.</param>
-/// <param name="contentManifest">Describes the content available to the application.</param>
-/// <param name="fontBuilder">Builds font data for the welcome text.</param>
+/// <param name="textStyleRegistry">Builds and caches text styles for the welcome text.</param>
 /// <param name="textureRegistry">Loads and tracks textures from the content library.</param>
 internal sealed class HelloNexusSceneFactory(
     IWindowService windowService,
-    IContentManifest contentManifest,
-    IFontBuilder fontBuilder,
+    ITextStyleRegistry textStyleRegistry,
     ITextureRegistry textureRegistry
 )
 {
@@ -69,7 +66,9 @@ internal sealed class HelloNexusSceneFactory(
         var backgroundElement = new BackgroundElement(backgroundTexture);
         scene.Children.Add(backgroundElement);
 
-        var textStyle = CreateRobotoTextStyle();
+        var textStyle = textStyleRegistry.GetOrCreate(
+            new TextStyleDescription("Roboto", (ContentId)"ui.default", 16)
+        );
         const string pressText = "Press ESC to quit";
         var pressTextElement = new TextElement(pressText, textStyle, 1, guiLayer)
         {
@@ -206,37 +205,4 @@ internal sealed class HelloNexusSceneFactory(
         }
     }
 
-    /// <summary>Builds the Roboto text style from the font registered as <c>ui.default</c>.</summary>
-    /// <returns>The generated style at size 16 with an off-white color.</returns>
-    private ITextStyle CreateRobotoTextStyle()
-    {
-        var fontId = (ContentId)"ui.default";
-        var fontPath = Path.Combine(
-            contentManifest.ContentLibraryPath,
-            contentManifest.Fonts.GetContentFilePath(fontId)
-        );
-        var codepoints = new FontGlyphRepertoire().GetCodepoints();
-        var font = fontBuilder.Build(fontPath, codepoints, new FontGenerationSettings());
-        var atlas = font.Atlas;
-        var colors = new Color[checked(atlas.Width * atlas.Height)];
-
-        for (var index = 0; index < colors.Length; index++)
-        {
-            var sourceOffset = index * 3;
-            colors[index] = new Color(
-                atlas.Pixels[sourceOffset],
-                atlas.Pixels[sourceOffset + 1],
-                atlas.Pixels[sourceOffset + 2]
-            );
-        }
-
-        var texture = new Texture(
-            (ContentId)"Roboto",
-            checked((uint)atlas.Width),
-            checked((uint)atlas.Height),
-            colors
-        );
-
-        return new TextStyle(font, texture, 16);
-    }
 }
