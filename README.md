@@ -95,6 +95,18 @@ Nexus has three relationships that must be documented independently:
 
 A scene parent does not create a module dependency. A runtime coordinator calling several systems does not make those systems depend on one another. A component consuming a view does not make its owning game object responsible for rendering.
 
+### Template and behavior terminology
+
+| Term | Meaning |
+| --- | --- |
+| **Template** | A reusable definition of an object hierarchy, its configuration, and attached behaviors. |
+| **Template instance** | A live hierarchy constructed from a template, with its own identity and mutable state. |
+| **Template parameters** | The supported choices supplied when instantiating a template. |
+| **Template variant** | A reusable specialization of another template, with changed defaults, structure, or behaviors. |
+| **Template registry** | The project's catalog of templates, retrieved by stable identifiers. |
+| **Behavior** | Reusable logic attached to an object, with configuration and per-instance runtime state. |
+| **Binding** | An explicit connection between behavior and the objects or data it operates on. |
+
 ### Established dependency boundaries
 
 | Boundary | Contract |
