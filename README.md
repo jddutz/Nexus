@@ -6,6 +6,10 @@ The vision is for game developers to exclusively use VS Code for coding and deve
 
 The current development stack uses .NET 10 and Silk.NET, with Vulkan as the active rendering backend.
 
+The samples now include Breakout alongside HelloNexus and SnakeGame. Breakout uses a fixed
+1280x720 logical playfield with a fixed-step simulation to exercise continuous movement,
+runtime scene-child removal, and clean restart without an external content manifest.
+
 > **Document status:** Initial architecture baseline, 2026-10-02. Established decisions below record prior design agreements; they do not certify that every implementation already conforms. Proposed boundaries and unresolved questions are explicitly identified. The source tree has not been audited for this draft.
 
 ## Contents
