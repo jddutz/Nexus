@@ -21,7 +21,7 @@ public interface IGeometry
     PrimitiveTopologyEnum Topology { get; }
 
     /// <summary>
-    /// Gets the number of vertices in the geometry.
+    /// Gets the number of vertices in the geometry. Indexed meshes expose their index count separately.
     /// </summary>
     ulong Count { get; }
 

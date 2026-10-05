@@ -231,6 +231,18 @@ public unsafe class CommandFactory(
         allocation.Commands.Add(bindVertexBufferCommand);
         yield return bindVertexBufferCommand;
 
+        if (drawable.Mesh is { IndexCount: > 0 } indexedMesh)
+        {
+            var bindIndexBufferCommand = new BindIndexBufferCommand(
+                renderPassMask,
+                pipelineDefinition.Id,
+                drawable,
+                vertexBufferRegistry.GetIndexBuffer(indexedMesh.Id)
+            );
+            allocation.Commands.Add(bindIndexBufferCommand);
+            yield return bindIndexBufferCommand;
+        }
+
         if (vertexShader.InstanceLayout.Length > 0)
         {
             var instanceBuffer = instanceBufferRegistry.Get(drawable.Id);
@@ -250,7 +262,8 @@ public unsafe class CommandFactory(
             pipelineDefinition.Id,
             drawable,
             checked((uint)drawable.Mesh.Count),
-            checked((uint)drawable.InstanceCount)
+            checked((uint)drawable.InstanceCount),
+            indexCount: checked((uint)drawable.Mesh.IndexCount)
         );
         allocation.Commands.Add(drawCommand);
         yield return drawCommand;
@@ -898,26 +911,16 @@ public unsafe class CommandFactory(
         var vertexFormat = vertexShader.VertexFormat;
 
         if (mesh.Id == allocation.Mesh.Id && vertexFormat.Id == allocation.VertexFormat.Id)
-            vertexBufferRegistry.Update(mesh, vertexFormat);
-        else
-        {
-            vertexBufferRegistry.Create(mesh, vertexFormat);
-            vertexBufferRegistry.Release(allocation.Mesh, allocation.VertexFormat);
-        }
+            return [];
+
+        vertexBufferRegistry.Create(mesh, vertexFormat);
+        vertexBufferRegistry.Release(allocation.Mesh, allocation.VertexFormat);
 
         allocation.Mesh = mesh;
         allocation.VertexFormat = vertexFormat;
         var updatedVertexBuffer = vertexBufferRegistry.Get(mesh.Id, vertexFormat.Id);
         RecordVertexBufferSnapshot(drawable, updatedVertexBuffer, vertexFormat);
-        var vertexBinding = new BindVertexBufferCommand(
-            RenderPasses.Main,
-            allocation.PipelineId,
-            drawable,
-            0,
-            updatedVertexBuffer
-        );
-        StoreCommand(allocation, vertexBinding);
-        return [vertexBinding];
+        return RebuildCommands(allocation);
     }
 
     /// <inheritdoc />
@@ -1072,6 +1075,16 @@ public unsafe class CommandFactory(
             ),
         };
 
+        if (allocation.Mesh is { IndexCount: > 0 } indexedMesh)
+            commands.Add(
+                new BindIndexBufferCommand(
+                    RenderPasses.Main,
+                    allocation.PipelineId,
+                    allocation.Drawable,
+                    vertexBufferRegistry.GetIndexBuffer(indexedMesh.Id)
+                )
+            );
+
         if (allocation.InstanceLayout is not null)
             commands.Add(
                 new BindVertexBufferCommand(
@@ -1099,7 +1112,8 @@ public unsafe class CommandFactory(
             allocation.PipelineId,
             allocation.Drawable,
             checked((uint)allocation.Drawable.Mesh.Count),
-            checked((uint)allocation.Drawable.InstanceCount)
+            checked((uint)allocation.Drawable.InstanceCount),
+            indexCount: checked((uint)allocation.Drawable.Mesh.IndexCount)
         );
 
     /// <summary>Replaces the retained command occupying the same drawable command slot.</summary>
@@ -1262,6 +1276,16 @@ public unsafe class CommandFactory(
             ),
         };
 
+        if (allocation.Mesh is { IndexCount: > 0 } indexedMesh)
+            commands.Add(
+                new BindIndexBufferCommand(
+                    RenderPasses.Main,
+                    variant.PipelineId,
+                    allocation.Drawable,
+                    vertexBufferRegistry.GetIndexBuffer(indexedMesh.Id)
+                )
+            );
+
         if (allocation.InstanceLayout is not null)
             commands.Add(
                 new BindVertexBufferCommand(
@@ -1279,7 +1303,8 @@ public unsafe class CommandFactory(
                 variant.PipelineId,
                 allocation.Drawable,
                 checked((uint)allocation.Drawable.Mesh.Count),
-                checked((uint)allocation.Drawable.InstanceCount)
+                checked((uint)allocation.Drawable.InstanceCount),
+                indexCount: checked((uint)allocation.Drawable.Mesh.IndexCount)
             )
         );
         return commands;

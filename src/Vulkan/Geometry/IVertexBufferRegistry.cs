@@ -30,6 +30,12 @@ public interface IVertexBufferRegistry : IDisposable
     /// </exception>
     VkBuffer Get(GeometryId meshId, VertexFormatId formatId);
 
+    /// <summary>Gets the registered Vulkan index buffer for an indexed mesh.</summary>
+    /// <param name="meshId">The geometry identifier.</param>
+    /// <returns>The registered Vulkan index buffer.</returns>
+    VkBuffer GetIndexBuffer(GeometryId meshId) =>
+        throw new NotSupportedException("This vertex-buffer registry does not provide index buffers.");
+
     /// <summary>
     /// Releases a reference to the buffer for a geometry resource in the specified vertex format.
     /// </summary>

@@ -17,6 +17,7 @@ public sealed class DrawCommand : IVulkanCommand
     /// <param name="instanceCount">The number of instances to draw.</param>
     /// <param name="firstVertex">The index of the first vertex.</param>
     /// <param name="firstInstance">The instance ID of the first instance.</param>
+    /// <param name="indexCount">The number of indices to draw, or zero for non-indexed drawing.</param>
     public DrawCommand(
         uint renderPassMask,
         PipelineId pipelineId,
@@ -24,7 +25,8 @@ public sealed class DrawCommand : IVulkanCommand
         uint vertexCount,
         uint instanceCount = 1,
         uint firstVertex = 0,
-        uint firstInstance = 0
+        uint firstInstance = 0,
+        uint indexCount = 0
     )
     {
         ArgumentNullException.ThrowIfNull(drawable);
@@ -43,6 +45,7 @@ public sealed class DrawCommand : IVulkanCommand
         InstanceCount = instanceCount;
         FirstVertex = firstVertex;
         FirstInstance = firstInstance;
+        IndexCount = indexCount;
     }
 
     /// <inheritdoc />
@@ -83,9 +86,15 @@ public sealed class DrawCommand : IVulkanCommand
     /// </summary>
     public uint FirstInstance { get; }
 
+    /// <summary>Gets the number of indices to draw, or zero when the draw is non-indexed.</summary>
+    public uint IndexCount { get; }
+
     /// <inheritdoc />
     public void Record(Vk vk, CommandBuffer commandBuffer)
     {
-        vk.CmdDraw(commandBuffer, VertexCount, InstanceCount, FirstVertex, FirstInstance);
+        if (IndexCount > 0)
+            vk.CmdDrawIndexed(commandBuffer, IndexCount, InstanceCount, 0, 0, FirstInstance);
+        else
+            vk.CmdDraw(commandBuffer, VertexCount, InstanceCount, FirstVertex, FirstInstance);
     }
 }

@@ -313,7 +313,7 @@ public unsafe class VulkanGraphicsSystem(
                 UpdateDrawable(drawable, commandFactory.UpdateDrawOrder);
                 break;
             case nameof(IDrawable.Mesh):
-                UpdateDrawable(drawable, commandFactory.UpdateMesh);
+                UpdateDrawable(drawable, commandFactory.UpdateMesh, replaceAllCommands: true);
                 break;
             case nameof(IDrawable.Texture):
             case nameof(IDrawable.SamplingBehavior):

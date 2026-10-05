@@ -14,6 +14,17 @@ public static class BuiltInShaders
             [new(InputSemantics.Transform, 64), new(InputSemantics.Color, 16)]
         );
 
+    /// <summary>Gets the vertex shader contract for indexed uniform-color triangle lists.</summary>
+    public static VertexShader UniformColorTriangleListVertexShader { get; } =
+        new(
+            nameof(UniformColorTriangleListVertexShader),
+            "uniform_color.vert",
+            PrimitiveTopologyEnum.TriangleList,
+            BuiltInVertexFormats.UniformColor,
+            [new(InputSemantics.View, 64)],
+            [new(InputSemantics.Transform, 64), new(InputSemantics.Color, 16)]
+        );
+
     /// <summary>Gets the fragment shader contract for uniform-color geometry.</summary>
     public static FragmentShader UniformColorFragmentShader { get; } =
         new(
@@ -79,6 +90,7 @@ public static class BuiltInShaders
     public static readonly IShaderContract[] All =
     [
         UniformColorVertexShader,
+        UniformColorTriangleListVertexShader,
         UniformColorFragmentShader,
         TexturedQuadVertexShader,
         TexturedQuadFragmentShader,

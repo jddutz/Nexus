@@ -14,6 +14,8 @@ public unsafe class VertexBufferRegistry : IVertexBufferRegistry
     private readonly Dictionary<ulong, VkBuffer> _buffers = [];
     private readonly Dictionary<VkBuffer, DeviceMemory> _memory = [];
     private readonly Dictionary<VkBuffer, int> _refs = [];
+    private readonly Dictionary<GeometryId, VkBuffer> _indexBuffers = [];
+    private readonly Dictionary<VkBuffer, int> _indexRefs = [];
     private readonly Queue<VkBuffer>[] _released;
 
     /// <summary>
@@ -77,6 +79,9 @@ public unsafe class VertexBufferRegistry : IVertexBufferRegistry
             );
         }
 
+        if (geometry is Mesh { IndexCount: > 0 } mesh)
+            CreateIndexBuffer(mesh);
+
         return [];
     }
 
@@ -103,6 +108,9 @@ public unsafe class VertexBufferRegistry : IVertexBufferRegistry
         _refs.Add(newBuffer, referenceCount);
         QueueRelease(oldBuffer);
 
+        if (geometry is Mesh { IndexCount: > 0 } mesh)
+            UpdateIndexBuffer(mesh);
+
         Debug.WriteLine(
             $"Updated vertex buffer. MeshId={geometry.Id}, VertexFormatId={format.Id}, OldBufferHandle={oldBuffer.Handle}, NewBufferHandle={newBuffer.Handle}, Size={data.Length}, ReferenceCount={referenceCount}"
         );
@@ -120,6 +128,9 @@ public unsafe class VertexBufferRegistry : IVertexBufferRegistry
 
         if (!_buffers.TryGetValue(key, out var buffer))
             return [];
+
+        if (geometry is Mesh { IndexCount: > 0 } mesh)
+            ReleaseIndexBuffer(mesh);
 
         var referenceCount = --_refs[buffer];
 
@@ -161,6 +172,64 @@ public unsafe class VertexBufferRegistry : IVertexBufferRegistry
         return buffer;
     }
 
+    /// <inheritdoc />
+    public VkBuffer GetIndexBuffer(GeometryId meshId)
+    {
+        if (!_indexBuffers.TryGetValue(meshId, out var buffer))
+            throw new KeyNotFoundException($"Index buffer for mesh '{meshId}' is not registered.");
+
+        return buffer;
+    }
+
+    /// <summary>Creates or references an indexed mesh's shared index buffer.</summary>
+    /// <param name="mesh">The indexed mesh.</param>
+    private void CreateIndexBuffer(Mesh mesh)
+    {
+        if (_indexBuffers.TryGetValue(mesh.Id, out var existing))
+        {
+            _indexRefs[existing]++;
+            return;
+        }
+
+        var data = MemoryMarshal.AsBytes(mesh.Indices.ToArray().AsSpan()).ToArray();
+        var buffer = CreateIndexBuffer(data);
+        _indexBuffers.Add(mesh.Id, buffer);
+        _indexRefs.Add(buffer, 1);
+    }
+
+    /// <summary>Replaces an indexed mesh's index buffer while retaining its references.</summary>
+    /// <param name="mesh">The indexed mesh.</param>
+    private void UpdateIndexBuffer(Mesh mesh)
+    {
+        if (!_indexBuffers.TryGetValue(mesh.Id, out var oldBuffer))
+        {
+            CreateIndexBuffer(mesh);
+            return;
+        }
+
+        var data = MemoryMarshal.AsBytes(mesh.Indices.ToArray().AsSpan()).ToArray();
+        var newBuffer = CreateIndexBuffer(data);
+        _indexBuffers[mesh.Id] = newBuffer;
+        _indexRefs[newBuffer] = _indexRefs[oldBuffer];
+        _indexRefs.Remove(oldBuffer);
+        QueueRelease(oldBuffer);
+    }
+
+    /// <summary>Releases one indexed mesh reference and queues destruction when unused.</summary>
+    /// <param name="mesh">The indexed mesh.</param>
+    private void ReleaseIndexBuffer(Mesh mesh)
+    {
+        if (!_indexBuffers.TryGetValue(mesh.Id, out var buffer))
+            return;
+
+        if (--_indexRefs[buffer] > 0)
+            return;
+
+        _indexRefs.Remove(buffer);
+        _indexBuffers.Remove(mesh.Id);
+        QueueRelease(buffer);
+    }
+
     /// <summary>
     /// Computes the identity of a vertex buffer from its mesh and vertex format.
     /// </summary>
@@ -169,6 +238,93 @@ public unsafe class VertexBufferRegistry : IVertexBufferRegistry
     /// <returns>The computed vertex-buffer identity.</returns>
     private static ulong ComputeVertexBufferId(GeometryId meshId, VertexFormatId formatId) =>
         new IdentityHashBuilder("VertexBufferId").Add(meshId).Add(formatId).Compute();
+
+    /// <summary>Creates a host-visible Vulkan index buffer.</summary>
+    /// <param name="data">The serialized 32-bit unsigned indices.</param>
+    /// <returns>The created Vulkan buffer.</returns>
+    private VkBuffer CreateIndexBuffer(ReadOnlyMemory<byte> data)
+    {
+        using var timing = new LoadPerformanceScope(
+            _telemetry,
+            "geometry.index-buffer.allocate-upload",
+            units: data.Length
+        );
+        if (data.IsEmpty)
+            throw new InvalidOperationException("Index data cannot be empty.");
+
+        var size = checked((ulong)data.Length);
+        var bufferInfo = new BufferCreateInfo
+        {
+            SType = StructureType.BufferCreateInfo,
+            Size = size,
+            Usage = BufferUsageFlags.IndexBufferBit,
+            SharingMode = SharingMode.Exclusive,
+        };
+
+        var result = _context.VulkanApi.CreateBuffer(
+            _context.Device,
+            in bufferInfo,
+            null,
+            out var buffer
+        );
+        if (result != Result.Success)
+            throw new InvalidOperationException($"Unable to create index buffer: {result}");
+
+        DeviceMemory memory = default;
+        try
+        {
+            _context.VulkanApi.GetBufferMemoryRequirements(
+                _context.Device,
+                buffer,
+                out var requirements
+            );
+            var allocationInfo = new MemoryAllocateInfo
+            {
+                SType = StructureType.MemoryAllocateInfo,
+                AllocationSize = requirements.Size,
+                MemoryTypeIndex = FindMemoryType(
+                    requirements.MemoryTypeBits,
+                    MemoryPropertyFlags.HostVisibleBit | MemoryPropertyFlags.HostCoherentBit
+                ),
+            };
+            result = _context.VulkanApi.AllocateMemory(
+                _context.Device,
+                in allocationInfo,
+                null,
+                out memory
+            );
+            if (result != Result.Success)
+                throw new InvalidOperationException($"Unable to allocate index memory: {result}");
+            result = _context.VulkanApi.BindBufferMemory(_context.Device, buffer, memory, 0);
+            if (result != Result.Success)
+                throw new InvalidOperationException($"Unable to bind index memory: {result}");
+
+            void* mapped = null;
+            result = _context.VulkanApi.MapMemory(_context.Device, memory, 0, size, 0, &mapped);
+            if (result != Result.Success)
+                throw new InvalidOperationException($"Unable to map index memory: {result}");
+            try
+            {
+                fixed (byte* source = data.Span)
+                    System.Buffer.MemoryCopy(source, mapped, (long)size, (long)size);
+            }
+            finally
+            {
+                _context.VulkanApi.UnmapMemory(_context.Device, memory);
+            }
+
+            _memory.Add(buffer, memory);
+            _performanceMetrics?.RecordBufferCreated();
+            return buffer;
+        }
+        catch
+        {
+            if (memory.Handle != 0)
+                _context.VulkanApi.FreeMemory(_context.Device, memory, null);
+            _context.VulkanApi.DestroyBuffer(_context.Device, buffer, null);
+            throw;
+        }
+    }
 
     /// <summary>
     /// Queues a buffer for destruction when the selected frame slot completes.
@@ -365,6 +521,8 @@ public unsafe class VertexBufferRegistry : IVertexBufferRegistry
         _buffers.Clear();
         _memory.Clear();
         _refs.Clear();
+        _indexBuffers.Clear();
+        _indexRefs.Clear();
 
         foreach (var queue in _released)
             queue.Clear();
