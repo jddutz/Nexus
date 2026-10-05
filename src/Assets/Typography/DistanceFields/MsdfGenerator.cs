@@ -47,6 +47,7 @@ public sealed class MsdfGenerator
         var height = checked((int)MathF.Ceiling(geometryHeight) + settings.Padding * 2);
         var pixels = new byte[checked(width * height * 3)];
         var masks = shape.Select(GetEdgeColorMasks).ToArray();
+        var edgeBounds = shape.Select(contour => contour.Edges.Select(GetControlBounds).ToArray()).ToArray();
         var channelDistances = new float[3];
 
         for (var y = 0; y < height; y++)
@@ -69,6 +70,20 @@ public sealed class MsdfGenerator
                     var contourEdges = shape[contourIndex].Edges;
                     for (var edgeIndex = 0; edgeIndex < contourEdges.Count; edgeIndex++)
                     {
+                        var mask = masks[contourIndex][edgeIndex];
+                        var bounds = edgeBounds[contourIndex][edgeIndex];
+                        var dx = Math.Max(0d, Math.Max(bounds.X - (double)point.X, point.X - (double)bounds.Z));
+                        var dy = Math.Max(0d, Math.Max(bounds.Y - (double)point.Y, point.Y - (double)bounds.W));
+                        var lowerSquared = dx * dx + dy * dy;
+                        if (lowerSquared > minimumDistanceSquared)
+                        {
+                            // Leave a margin for float subtraction, length and scaling rounding.
+                            var lowerPixels = Math.Sqrt(lowerSquared) * settings.PixelsPerUnit * .99999d;
+                            if (((mask & 1) == 0 || lowerPixels > channelDistances[0])
+                                && ((mask & 2) == 0 || lowerPixels > channelDistances[1])
+                                && ((mask & 4) == 0 || lowerPixels > channelDistances[2]))
+                                continue;
+                        }
                         var distance =
                             MathF.Abs(
                                 GeometryDistance.SignedDistanceToEdge(
@@ -78,7 +93,6 @@ public sealed class MsdfGenerator
                                 )
                             ) * settings.PixelsPerUnit;
                         minimumDistanceSquared = Math.Min(minimumDistanceSquared, distanceSquared);
-                        var mask = masks[contourIndex][edgeIndex];
                         for (var channel = 0; channel < 3; channel++)
                         {
                             if (
@@ -113,6 +127,25 @@ public sealed class MsdfGenerator
         }
 
         return new GlyphBitmap(width, height, pixels);
+    }
+
+    // A Bezier lies inside its control polygon, so this box provides a conservative
+    // lower distance bound. Expand it to cover float evaluation rounding.
+    private static Vector4 GetControlBounds(Edge edge)
+    {
+        if (edge is not LineSegment and not QuadraticSegment)
+            throw new NotSupportedException($"Unsupported edge type: {edge.GetType().FullName}.");
+        var minimum = Vector2.Min(edge.Start, edge.End);
+        var maximum = Vector2.Max(edge.Start, edge.End);
+        if (edge is QuadraticSegment curve)
+        {
+            minimum = Vector2.Min(minimum, curve.Control);
+            maximum = Vector2.Max(maximum, curve.Control);
+        }
+        var magnitude = MathF.Max(Vector2.Abs(minimum).X, Vector2.Abs(minimum).Y);
+        magnitude = MathF.Max(magnitude, MathF.Max(Vector2.Abs(maximum).X, Vector2.Abs(maximum).Y));
+        var margin = magnitude * 1e-6f + 1e-5f;
+        return new Vector4(minimum.X - margin, minimum.Y - margin, maximum.X + margin, maximum.Y + margin);
     }
 
     /// <summary>

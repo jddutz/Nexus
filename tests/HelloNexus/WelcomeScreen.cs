@@ -37,7 +37,7 @@ public class WelcomeScreen : Scene
         base.Initialize();
 
         var textStyleSmall = _textStyles.GetOrCreate(BuiltInFonts.Default, 10);
-        var textStyleLarge = _textStyles.GetOrCreate(BuiltInFonts.Default, 48);
+        var textStyleLarge = _textStyles.GetOrCreate(BuiltInFonts.Default, 32);
 
         Children.Add(new View { Camera = _camera, PreserveDrawOrder = true });
         Children.Add(

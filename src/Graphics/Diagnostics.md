@@ -78,3 +78,14 @@ Work units are meaningful within an operation. Do not combine byte, pixel,
 vertex, instance, edge, and glyph counts. Realization scopes include cache
 lookups; separate creation scopes isolate misses. The runtime shares one
 collector through `IGraphicsProfiler` and `IPerformanceTelemetry`.
+
+Font rasterization uses bounded parallel workers. `font.glyphs.build` is wall-clock
+time covering parallel outline preparation, bounds and rasterization. Its
+allocation total explicitly sums each glyph task's current-thread
+allocations, including tasks executed on the caller. It excludes scheduling/setup
+allocations outside those sections. `font.msdf.glyph` records on each worker and
+retains per-glyph allocations and timings. Summed glyph milliseconds represent
+overlapping work and can exceed the batch wall time; do not interpret their ratio
+as a percentage of batch duration. Other parent scopes remain current-thread
+allocation measurements and exclude worker allocations; use the glyph batch
+sample for the combined font-preparation/raster allocation measurement.

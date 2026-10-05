@@ -1,6 +1,7 @@
 namespace Nexus.Core.Performance;
 
-/// <summary>Collects load-time measurements independently of frame profiling.</summary>
+/// <summary>Collects load-time measurements independently of frame profiling.
+/// Implementations must support concurrent recording from glyph raster workers.</summary>
 public interface IPerformanceTelemetry
 {
     bool IsEnabled { get; }

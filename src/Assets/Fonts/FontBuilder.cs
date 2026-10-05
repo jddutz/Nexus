@@ -115,53 +115,83 @@ public sealed class FontBuilder : IFontBuilder
             Padding = bitmapPadding,
         };
         var msdfGenerator = new MsdfGenerator();
-        var glyphData = new List<(
-            int Codepoint,
-            double Advance,
-            FontBounds PlaneBounds,
-            GlyphBitmap Bitmap
-        )>(requestedCodepoints.Length);
-
-        using (var glyphBatchTiming = new LoadPerformanceScope(_telemetry, "font.glyphs.build", fontId.Value, settings.EmSize, units: requestedCodepoints.Length))
-            foreach (var codepoint in requestedCodepoints)
+        var glyphData = new (
+            int Codepoint, double Advance, FontBounds PlaneBounds, GlyphBitmap Bitmap
+        )[requestedCodepoints.Length];
+        var enabled = _telemetry?.IsEnabled == true;
+        var allocations = enabled ? new long[requestedCodepoints.Length] : null;
+        var batchTiming = new LoadPerformanceScope(_telemetry, "font.glyphs.build", fontId.Value,
+            settings.EmSize, units: requestedCodepoints.Length);
+        try
+        {
+            void Rasterize(int index)
             {
-                CachedSourceGlyph sourceGlyph;
-                using (var outlineTiming = new LoadPerformanceScope(_telemetry, "font.outline.glyph", fontId.Value, settings.EmSize, codepoint))
-                    sourceGlyph = resolveGlyph(codepoint);
-                var contours = sourceGlyph.Contours;
-                GeometryBounds? geometryBounds;
-                using (var boundsTiming = new LoadPerformanceScope(_telemetry, "font.bounds.glyph", fontId.Value, settings.EmSize, codepoint))
-                    geometryBounds = GeometryBoundsCalculator.GetBounds(contours);
-                GlyphBitmap bitmap;
-                using (var glyphTiming = new LoadPerformanceScope(_telemetry, "font.msdf.glyph", fontId.Value, settings.EmSize, codepoint,
-                    _telemetry?.IsEnabled == true ? contours.Sum(contour => (long)contour.Edges.Count) : 0))
-                    bitmap = msdfGenerator.Generate(contours, msdfSettings);
-                var expansion = settings.DistanceRange;
-                var planeBounds = geometryBounds is { } bounds
-                    ? new FontBounds(
-                        bounds.Left * pixelsPerFontUnit - expansion,
-                        bounds.Bottom * pixelsPerFontUnit - expansion,
-                        bounds.Right * pixelsPerFontUnit + expansion,
-                        bounds.Top * pixelsPerFontUnit + expansion
-                    )
-                    : default;
-
-                glyphData.Add(
-                    (
-                        codepoint,
-                        sourceGlyph.AdvanceWidth * (double)pixelsPerFontUnit,
-                        planeBounds,
-                        bitmap
-                    )
-                );
+                var before = enabled ? GC.GetAllocatedBytesForCurrentThread() : 0;
+                try
+                {
+                    var codepoint = requestedCodepoints[index];
+                    // Embedded reconstruction and simplification are independent. The file
+                    // resolver protects only its shared reader and decoded-outline cache.
+                    CachedSourceGlyph sourceGlyph;
+                    using (var outlineTiming = new LoadPerformanceScope(_telemetry, "font.outline.glyph",
+                        fontId.Value, settings.EmSize, codepoint))
+                        sourceGlyph = resolveGlyph(codepoint);
+                    GeometryBounds? geometryBounds;
+                    using (var boundsTiming = new LoadPerformanceScope(_telemetry, "font.bounds.glyph",
+                        fontId.Value, settings.EmSize, codepoint))
+                        geometryBounds = GeometryBoundsCalculator.GetBounds(sourceGlyph.Contours);
+                    GlyphBitmap bitmap;
+                    using (var glyphTiming = new LoadPerformanceScope(_telemetry, "font.msdf.glyph",
+                        fontId.Value, settings.EmSize, codepoint,
+                        enabled ? sourceGlyph.Contours.Sum(contour => (long)contour.Edges.Count) : 0))
+                        bitmap = msdfGenerator.Generate(sourceGlyph.Contours, msdfSettings);
+                    var expansion = settings.DistanceRange;
+                    var planeBounds = geometryBounds is { } bounds
+                        ? new FontBounds(
+                            bounds.Left * pixelsPerFontUnit - expansion,
+                            bounds.Bottom * pixelsPerFontUnit - expansion,
+                            bounds.Right * pixelsPerFontUnit + expansion,
+                            bounds.Top * pixelsPerFontUnit + expansion)
+                        : default;
+                    // Each worker owns one slot. Packing consumes the original codepoint order.
+                    glyphData[index] = (codepoint, sourceGlyph.AdvanceWidth * (double)pixelsPerFontUnit,
+                        planeBounds, bitmap);
+                }
+                finally
+                {
+                    if (allocations is not null)
+                        allocations[index] = GC.GetAllocatedBytesForCurrentThread() - before;
+                }
             }
 
+            var workers = settings.MaxDegreeOfParallelism == 0
+                ? Math.Clamp(Environment.ProcessorCount - 1, 1, 8)
+                : settings.MaxDegreeOfParallelism;
+            if (workers == 1 || requestedCodepoints.Length < 8)
+                for (var index = 0; index < requestedCodepoints.Length; index++) Rasterize(index);
+            else
+            {
+                try
+                {
+                    Parallel.For(0, requestedCodepoints.Length,
+                        new ParallelOptions { MaxDegreeOfParallelism = workers }, Rasterize);
+                }
+                catch (AggregateException exception)
+                {
+                    throw new FontBuildException("Parallel glyph generation failed.", exception);
+                }
+            }
+        }
+        finally
+        {
+            batchTiming.Dispose(allocations?.Sum() ?? 0);
+        }
         FontAtlasBuildResult atlasResult;
-        using (var atlasTiming = new LoadPerformanceScope(_telemetry, "font.atlas.pack", fontId.Value, settings.EmSize, units: glyphData.Count))
+        using (var atlasTiming = new LoadPerformanceScope(_telemetry, "font.atlas.pack", fontId.Value, settings.EmSize, units: glyphData.Length))
             atlasResult = new FontAtlasBuilder().Build(glyphData.Select(glyph => glyph.Bitmap).ToArray());
         var atlasInset = bitmapPadding - settings.DistanceRange;
-        var glyphs = new FontGlyph[glyphData.Count];
-        for (var index = 0; index < glyphData.Count; index++)
+        var glyphs = new FontGlyph[glyphData.Length];
+        for (var index = 0; index < glyphData.Length; index++)
         {
             var glyph = glyphData[index];
             var bitmapBounds = atlasResult.AtlasBounds[index];
@@ -242,7 +272,7 @@ public sealed class FontBuilder : IFontBuilder
     /// <returns>The source glyph data.</returns>
     private CachedSourceGlyph GetSourceGlyph(CachedFontSource source, int codepoint, FontGenerationSettings settings)
     {
-        lock (_cacheLock)
+        lock (source)
         {
             var key = (codepoint, settings.EmSize);
             if (source.Glyphs.TryGetValue(key, out var cached))
@@ -272,7 +302,7 @@ public sealed class FontBuilder : IFontBuilder
         IReadOnlyList<int> codepoints
     )
     {
-        lock (_cacheLock)
+        lock (source)
         {
             using var kerningTiming = new LoadPerformanceScope(_telemetry, "font.kerning", units: codepoints.Count);
             return source.Reader.GetKerningPairs(codepoints);

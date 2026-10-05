@@ -28,7 +28,14 @@ public readonly ref struct LoadPerformanceScope
     public void Dispose()
     {
         if (_telemetry is null) return;
+        Dispose(GC.GetAllocatedBytesForCurrentThread() - _allocated);
+    }
+
+    /// <summary>Records an explicitly summed allocation count for parallel work.</summary>
+    public void Dispose(long allocatedBytes)
+    {
+        if (_telemetry is null) return;
         _telemetry.RecordDuration(_operation, _resource, Stopwatch.GetElapsedTime(_start).TotalMilliseconds,
-            GC.GetAllocatedBytesForCurrentThread() - _allocated, _size, _codepoint, _units);
+            allocatedBytes, _size, _codepoint, _units);
     }
 }

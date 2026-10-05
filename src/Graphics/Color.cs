@@ -80,7 +80,7 @@ public readonly struct Color(float red, float green, float blue, float alpha = 1
     public int WriteColorData(ColorFormatEnum format, Span<byte> destination) =>
         format switch
         {
-            ColorFormatEnum.RGB8UNorm => WriteChannels(
+            ColorFormatEnum.RGB8UNorm => WriteBytes(
                 destination,
                 ToUNorm8(R),
                 ToUNorm8(G),
@@ -88,7 +88,7 @@ public readonly struct Color(float red, float green, float blue, float alpha = 1
                 default,
                 3
             ),
-            ColorFormatEnum.RGBA8UNorm or ColorFormatEnum.RGBA8Srgb => WriteChannels(
+            ColorFormatEnum.RGBA8UNorm or ColorFormatEnum.RGBA8Srgb => WriteBytes(
                 destination,
                 ToUNorm8(R),
                 ToUNorm8(G),
@@ -96,7 +96,7 @@ public readonly struct Color(float red, float green, float blue, float alpha = 1
                 ToUNorm8(A),
                 4
             ),
-            ColorFormatEnum.ARGB8UNorm => WriteChannels(
+            ColorFormatEnum.ARGB8UNorm => WriteBytes(
                 destination,
                 ToUNorm8(A),
                 ToUNorm8(R),
@@ -164,6 +164,18 @@ public readonly struct Color(float red, float green, float blue, float alpha = 1
             ColorFormatEnum.RGBA32Float => WriteChannels(destination, R, G, B, A, 4),
             _ => throw new ArgumentOutOfRangeException(nameof(format)),
         };
+
+    private static int WriteBytes(Span<byte> destination, byte first, byte second, byte third,
+        byte fourth, int channelCount)
+    {
+        if (destination.Length < channelCount)
+            throw new ArgumentException("The destination span is too small.", nameof(destination));
+        destination[0] = first;
+        destination[1] = second;
+        destination[2] = third;
+        if (channelCount == 4) destination[3] = fourth;
+        return channelCount;
+    }
 
     /// <summary>Writes up to four unmanaged channel values into the destination span.</summary>
     private static int WriteChannels<T>(

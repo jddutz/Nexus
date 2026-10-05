@@ -22,7 +22,6 @@
   <Folder Name="/tests/">
     <Project Path="tests/HelloNexus/HelloNexus.csproj" />
     <Project Path="tests/SnakeGame/SnakeGame.csproj" />
-    <Project Path="tests/SnakeGame/Tests/SnakeGame.Tests.csproj" />
     <Project Path="tests/SourceGeneratorTests/Nexus.SourceGeneratorTests.csproj" />
     <Project Path="tests/UnitTests/UnitTests.csproj" />
   </Folder>

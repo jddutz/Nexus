@@ -66,13 +66,31 @@ public sealed class Texture : ITexture
                 nameof(target)
             );
 
+        if (format is ColorFormatEnum.RGBA8UNorm or ColorFormatEnum.RGBA8Srgb)
+        {
+            var source = _colorData.AsSpan(checked((int)start), checked((int)count));
+            var output = target[..checked((int)requiredBytes)];
+            for (var index = 0; index < source.Length; index++)
+            {
+                var color = source[index];
+                var offset = index * 4;
+                output[offset] = ToUNorm8(color.R);
+                output[offset + 1] = ToUNorm8(color.G);
+                output[offset + 2] = ToUNorm8(color.B);
+                output[offset + 3] = ToUNorm8(color.A);
+            }
+            return;
+        }
+
         for (ulong index = 0; index < count; index++)
         {
             _colorData[checked((int)(start + index))]
-                .ToColorData(format)
-                .Span.CopyTo(
+                .WriteColorData(format,
                     target.Slice(checked((int)(index * (ulong)bytesPerPixel)), bytesPerPixel)
                 );
         }
     }
+
+    private static byte ToUNorm8(float value) =>
+        (byte)Math.Round(Math.Clamp(value, 0f, 1f) * byte.MaxValue);
 }

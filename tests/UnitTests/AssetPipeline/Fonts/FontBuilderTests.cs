@@ -9,6 +9,33 @@ namespace Nexus.AssetPipeline.Tests;
 /// </summary>
 public sealed class FontBuilderTests
 {
+    [Fact]
+    public void ConcurrentFileBuildsPreservePerSizeCachedOutlines()
+    {
+        var fontPath = Path.Combine(Path.GetTempPath(), $"nexus-parallel-{Guid.NewGuid():N}.ttf");
+        File.WriteAllBytes(fontPath, CreateSyntheticRectangularFont());
+        try
+        {
+            int[] codes = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+            var builder = new FontBuilder();
+            var expected = new[] { 32, 48 }.Select(em => builder.Build("parallel-font", fontPath, codes,
+                new FontGenerationSettings { EmSize = em, MaxDegreeOfParallelism = 1 })).ToArray();
+            builder = new FontBuilder(); // Exercise concurrent cold cache misses, too.
+            var actual = new FontBuildResult[8];
+            Parallel.For(0, actual.Length, index => actual[index] = builder.Build("parallel-font", fontPath, codes,
+                new FontGenerationSettings { EmSize = index % 2 == 0 ? 32 : 48, MaxDegreeOfParallelism = 4 }));
+            for (var index = 0; index < actual.Length; index++)
+            {
+                Assert.Equal(expected[index % 2].Atlas.Pixels, actual[index].Atlas.Pixels);
+                Assert.Equal(expected[index % 2].Glyphs, actual[index].Glyphs);
+            }
+        }
+        finally
+        {
+            File.Delete(fontPath);
+        }
+    }
+
     /// <summary>
     /// Builds selected glyphs and checks metrics, geometry, atlas bounds, and RGB8 data.
     /// </summary>

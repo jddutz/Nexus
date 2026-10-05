@@ -50,9 +50,14 @@ public sealed class FontGenerationSettings
     public int EmSize { get; set; } = 48;
     public double DistanceRange { get; set; } = 4;
     public int Padding { get; set; } = 2;
+    /// <summary>Maximum glyph raster workers. Zero chooses up to eight workers, leaving one CPU free;
+    /// one forces sequential generation. Outline preparation and atlas packing stay sequential.</summary>
+    public int MaxDegreeOfParallelism { get; set; }
 
     internal void Validate()
     {
+        if (MaxDegreeOfParallelism < 0)
+            throw new FontBuildException("Font raster worker count must be zero or positive.");
         if (EmSize is < 16 or > 256)
             throw new FontBuildException(
                 "Font generation emSize must be between 16 and 256 pixels."

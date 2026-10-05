@@ -141,7 +141,7 @@ public class IdentityHashBuilder : IHashBuilder
     }
 
     /// <summary>Adds a single-precision value using its IEEE 754 representation.</summary>
-    public IHashBuilder Add(float value) => AddLittleEndian(BitConverter.GetBytes(value));
+    public IHashBuilder Add(float value) => Add(BitConverter.SingleToUInt32Bits(value));
 
     /// <summary>Adds single-precision values to the fingerprint in their supplied order.</summary>
     public IHashBuilder AddRange(IEnumerable<float> values)
@@ -160,7 +160,7 @@ public class IdentityHashBuilder : IHashBuilder
     }
 
     /// <summary>Adds a double-precision value using its IEEE 754 representation.</summary>
-    public IHashBuilder Add(double value) => AddLittleEndian(BitConverter.GetBytes(value));
+    public IHashBuilder Add(double value) => Add(BitConverter.DoubleToUInt64Bits(value));
 
     /// <summary>Adds double-precision values to the fingerprint in their supplied order.</summary>
     public IHashBuilder AddRange(IEnumerable<double> values)
@@ -284,14 +284,4 @@ public class IdentityHashBuilder : IHashBuilder
     /// <summary>Returns the current FNV-1a 64-bit fingerprint.</summary>
     public ulong Compute() => _hash;
 
-    /// <summary>Adds bytes in little-endian order, reversing them on big-endian systems.</summary>
-    private IHashBuilder AddLittleEndian(byte[] value)
-    {
-        if (!BitConverter.IsLittleEndian)
-        {
-            Array.Reverse(value);
-        }
-
-        return Add(value);
-    }
 }

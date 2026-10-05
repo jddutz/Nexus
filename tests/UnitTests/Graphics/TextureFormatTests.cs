@@ -8,6 +8,35 @@ namespace Nexus.UnitTests.Graphics;
 /// <summary>Verifies texture formats preserve pixel bytes and select the intended Vulkan format.</summary>
 public sealed class TextureFormatTests
 {
+    [Fact]
+    public void LargeTextureHashAndUploadAvoidPerPixelAllocations()
+    {
+        var colors = Enumerable.Range(0, 4096)
+            .Select(index => new Color((byte)index, (byte)(index >> 4), (byte)(index >> 8))).ToArray();
+        var originalHash = new Nexus.Core.IdentityHashBuilder(nameof(Texture));
+        foreach (var color in colors)
+            originalHash.Add(BitConverter.GetBytes(color.R)).Add(BitConverter.GetBytes(color.G))
+                .Add(BitConverter.GetBytes(color.B)).Add(BitConverter.GetBytes(color.A));
+        _ = new Texture("warmup", 64, 64, colors);
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        var texture = new Texture("test", 64, 64, colors);
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.Equal((TextureId)originalHash.Compute(), texture.Id);
+        Assert.InRange(allocated, 0, 1024);
+
+        foreach (var format in Enum.GetValues<ColorFormatEnum>())
+        {
+            var expected = colors.Skip(1).Take(4094).SelectMany(color => color.ToColorData(format).ToArray()).ToArray();
+            var destination = new byte[expected.Length];
+            texture.WriteTo(1, 4094, format, destination);
+            before = GC.GetAllocatedBytesForCurrentThread();
+            texture.WriteTo(1, 4094, format, destination);
+            allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+            Assert.Equal(expected, destination);
+            Assert.Equal(0, allocated);
+        }
+    }
+
     /// <summary>Verifies RGBA sRGB texture data retains the source channel bytes.</summary>
     [Fact]
     public void Rgba8_srgb_texture_write_preserves_source_bytes()
