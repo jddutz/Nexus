@@ -172,7 +172,7 @@ public sealed class AsteroidsScene : Scene
         _lives = StartingLives;
         _score = 0;
         _finished = false;
-        RespawnShip();
+        RespawnShip(invulnerable: false);
 
         var positions = new[]
         {
@@ -184,13 +184,14 @@ public sealed class AsteroidsScene : Scene
             AddAsteroid(positions[index], 0, 68f, 55f + index * 17f, index);
     }
 
-    /// <summary>Respawns the ship at the center with a short invulnerability window.</summary>
-    private void RespawnShip()
+    /// <summary>Respawns the ship at the center, optionally granting crash protection.</summary>
+    /// <param name="invulnerable">Whether to grant the post-crash invulnerability window.</param>
+    private void RespawnShip(bool invulnerable = true)
     {
         _shipPosition = new(DesignWidth / 2f, DesignHeight / 2f);
         _shipVelocity = default;
         _shipRotation = -MathF.PI / 2f;
-        _invulnerability = 2f;
+        _invulnerability = invulnerable ? 2f : 0f;
         _shipNode.Position = _shipPosition;
         _shipNode.Rotation = _shipRotation;
     }
@@ -368,7 +369,7 @@ public sealed class AsteroidsScene : Scene
             * Matrix4X4.CreateScale(22f, 22f, 1f)
             * _shipNode.WorldTransform;
         _shipRenderer.Color = _invulnerability > 0f && (int)(_invulnerability * 12f) % 2 == 0
-            ? ShipColor.WithTransparency(0.25f)
+            ? Colors.Red
             : ShipColor;
         foreach (var body in _asteroids.Concat(_bullets))
             body.Renderer.Transform =
