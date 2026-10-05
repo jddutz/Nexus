@@ -21,6 +21,15 @@
             "env": {
                 "DOTNET_ENVIRONMENT": "Development"
             }
+        },
+        {
+            "name": "Debug:Breakout",
+            "type": "dotnet",
+            "request": "launch",
+            "projectPath": "${workspaceFolder}/tests/Breakout/Breakout.csproj",
+            "env": {
+                "DOTNET_ENVIRONMENT": "Development"
+            }
         }
     ]
 }
