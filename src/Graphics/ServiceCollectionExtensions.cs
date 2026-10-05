@@ -3,6 +3,7 @@ namespace Nexus.Graphics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Nexus.Assets.Fonts;
 
 /// <summary>
 /// Registers services owned by Nexus.Graphics.
@@ -24,7 +25,12 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(configuration);
 
         services.AddOptions<WindowSettings>().Bind(configuration.GetSection("Window"));
+        services.AddOptions<DiagnosticsSettings>().Bind(configuration.GetSection("Diagnostics"));
+        services.TryAddSingleton<IGraphicsProfiler, GraphicsProfiler>();
+        services.TryAddSingleton<Nexus.Core.Performance.IPerformanceTelemetry>(provider =>
+            provider.GetRequiredService<IGraphicsProfiler>());
         services.TryAddSingleton<ITextureRegistry, TextureRegistry>();
+        services.TryAddSingleton<IFontBuilder, FontBuilder>();
         services.TryAddSingleton<ITextStyleRegistry, TextStyleRegistry>();
         return services;
     }

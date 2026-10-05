@@ -7,6 +7,8 @@ public interface ITextStyleRegistry : IDisposable
 {
     /// <summary>
     /// Gets the style for the requested font and size, creating and registering it if needed.
+    /// Built-in identifiers resolve embedded outlines without a font file or manifest entry.
+    /// Repeated requests reuse the registered style and compatible sizes share an atlas.
     /// </summary>
     /// <param name="fontId">The content identifier of the font.</param>
     /// <param name="size">The requested text size.</param>

@@ -1,3 +1,4 @@
+using Nexus.Core.Performance;
 namespace Nexus.Graphics.Vulkan.Geometry;
 
 /// <summary>
@@ -5,6 +6,7 @@ namespace Nexus.Graphics.Vulkan.Geometry;
 /// </summary>
 public unsafe class VertexBufferRegistry : IVertexBufferRegistry
 {
+    private readonly IPerformanceTelemetry? _telemetry;
     private readonly Context _context;
     private readonly ISyncManager _syncManager;
     private readonly PerformanceMetrics? _performanceMetrics;
@@ -23,12 +25,15 @@ public unsafe class VertexBufferRegistry : IVertexBufferRegistry
     public VertexBufferRegistry(
         Context context,
         ISyncManager syncManager,
-        PerformanceMetrics? performanceMetrics = null
+        PerformanceMetrics? performanceMetrics = null,
+        IPerformanceTelemetry? telemetry = null
     )
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _syncManager = syncManager ?? throw new ArgumentNullException(nameof(syncManager));
         _performanceMetrics = performanceMetrics;
+        _telemetry = telemetry;
+        using var timing = new LoadPerformanceScope(telemetry, "Geometry.VertexBufferRegistry.initialize");
         _released = new Queue<VkBuffer>[checked((int)syncManager.MaxFramesInFlight)];
 
         for (var index = 0; index < _released.Length; index++)
@@ -43,10 +48,12 @@ public unsafe class VertexBufferRegistry : IVertexBufferRegistry
         ArgumentNullException.ThrowIfNull(geometry);
         ArgumentNullException.ThrowIfNull(format);
 
+        using var timing = new LoadPerformanceScope(_telemetry, "geometry.buffer.realize", units: checked((long)geometry.Count));
         var key = ComputeVertexBufferId(geometry.Id, format.Id);
 
         if (_buffers.TryGetValue(key, out var buffer))
         {
+            _telemetry?.RecordCache("geometry.buffer", null, true);
             var referenceCount = ++_refs[buffer];
 
             Debug.WriteLine(
@@ -55,8 +62,10 @@ public unsafe class VertexBufferRegistry : IVertexBufferRegistry
         }
         else
         {
+            _telemetry?.RecordCache("geometry.buffer", null, false);
             var data = new byte[checked((int)geometry.Count * (int)format.Stride)];
-            geometry.WriteTo(0, checked((int)geometry.Count), format, data);
+            using (var serialization = new LoadPerformanceScope(_telemetry, "geometry.serialize", units: data.Length))
+                geometry.WriteTo(0, checked((int)geometry.Count), format, data);
 
             buffer = CreateBuffer(data);
 
@@ -77,6 +86,7 @@ public unsafe class VertexBufferRegistry : IVertexBufferRegistry
         ArgumentNullException.ThrowIfNull(geometry);
         ArgumentNullException.ThrowIfNull(format);
 
+        using var timing = new LoadPerformanceScope(_telemetry, "geometry.buffer.update", units: checked((long)geometry.Count));
         var key = ComputeVertexBufferId(geometry.Id, format.Id);
 
         if (!_buffers.TryGetValue(key, out var oldBuffer))
@@ -237,6 +247,7 @@ public unsafe class VertexBufferRegistry : IVertexBufferRegistry
     /// <returns>The created Vulkan buffer.</returns>
     private VkBuffer CreateBuffer(ReadOnlyMemory<byte> data)
     {
+        using var timing = new LoadPerformanceScope(_telemetry, "geometry.buffer.allocate.upload", units: data.Length);
         if (data.IsEmpty)
             throw new InvalidOperationException("Vertex data cannot be empty.");
 

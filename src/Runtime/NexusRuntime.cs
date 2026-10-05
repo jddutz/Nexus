@@ -1,3 +1,4 @@
+using Nexus.Core.Performance;
 namespace Nexus.Runtime;
 
 /// <summary>
@@ -13,7 +14,8 @@ public sealed class NexusRuntime(
     IGraphicsSystem graphics,
     IGraphicalUserInterface gui,
     IWindow? window = null,
-    IOptions<ApplicationSettings>? applicationSettings = null
+    IOptions<ApplicationSettings>? applicationSettings = null,
+    IPerformanceTelemetry? telemetry = null
 ) : INexusRuntime
 {
     private bool _initialized = false;
@@ -33,18 +35,25 @@ public sealed class NexusRuntime(
         if (_initialized)
             return;
 
+        using var startupTiming = new LoadPerformanceScope(telemetry, "startup.runtime.initialize");
         if (window is not null)
         {
             window.Update += OnUpdate;
             window.Render += OnRender;
         }
 
-        physics.Initialize();
-        audio.Initialize();
-        input.Initialize();
-        gameSystem.Initialize();
-        graphics.Initialize();
-        gui.Initialize();
+        using (var timing = new LoadPerformanceScope(telemetry, "startup.system.initialize", "physics"))
+            physics.Initialize();
+        using (var timing = new LoadPerformanceScope(telemetry, "startup.system.initialize", "audio"))
+            audio.Initialize();
+        using (var timing = new LoadPerformanceScope(telemetry, "startup.system.initialize", "input"))
+            input.Initialize();
+        using (var timing = new LoadPerformanceScope(telemetry, "startup.system.initialize", "gameSystem"))
+            gameSystem.Initialize();
+        using (var timing = new LoadPerformanceScope(telemetry, "startup.system.initialize", "graphics"))
+            graphics.Initialize();
+        using (var timing = new LoadPerformanceScope(telemetry, "startup.system.initialize", "gui"))
+            gui.Initialize();
 
         _runtimeStopwatch.Start();
         _initialized = true;

@@ -2,8 +2,9 @@ namespace Tests;
 
 using Microsoft.Extensions.DependencyInjection;
 using Nexus.Graphics.Vulkan;
+using Nexus.Core;
 
-/// <summary>Verifies that Vulkan performance and diagnostic collection use independent settings.</summary>
+/// <summary>Verifies that Vulkan collectors follow application-wide diagnostics settings.</summary>
 public sealed class PerformanceCollectorOptionsTests
 {
     /// <summary>Verifies that expensive validation defaults are development-only and printf is opt-in.</summary>
@@ -23,19 +24,21 @@ public sealed class PerformanceCollectorOptionsTests
         Assert.False(settings.EnableShaderDebugPrintf);
     }
 
-    /// <summary>Verifies that each collector follows only its corresponding Vulkan setting.</summary>
+    /// <summary>Verifies that performance and diagnostic collectors follow their respective flags.</summary>
     [Theory]
-    [InlineData(true, false)]
-    [InlineData(false, true)]
-    [InlineData(true, true)]
-    [InlineData(false, false)]
-    public void Collectors_follow_independent_settings(bool enableMetrics, bool enableDiagnostics)
+    [InlineData(true, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(true, true, false)]
+    [InlineData(false, false, false)]
+    [InlineData(false, false, true)]
+    public void Collectors_follow_independent_settings(bool enableMetrics, bool enableDiagnostics, bool debugging)
     {
         var services = new ServiceCollection();
-        services.Configure<VulkanSettings>(settings =>
+        services.Configure<DiagnosticsSettings>(settings =>
         {
             settings.EnablePerformanceMetrics = enableMetrics;
             settings.EnableDiagnostics = enableDiagnostics;
+            settings.Debugging = debugging;
         });
         services.AddVkGraphicsServices();
 
@@ -43,7 +46,7 @@ public sealed class PerformanceCollectorOptionsTests
         var metrics = provider.GetRequiredService<PerformanceMetrics>();
         var diagnostics = provider.GetRequiredService<PerformanceDiagnostics>();
 
-        Assert.Equal(enableMetrics, metrics.IsEnabled);
-        Assert.Equal(enableDiagnostics, diagnostics.IsEnabled);
+        Assert.Equal(enableMetrics || debugging, metrics.IsEnabled);
+        Assert.Equal(enableMetrics || enableDiagnostics || debugging, diagnostics.IsEnabled);
     }
 }

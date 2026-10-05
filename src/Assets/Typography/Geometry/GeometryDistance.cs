@@ -17,8 +17,16 @@ public static class GeometryDistance
     public static float SignedDistanceToEdge(Vector2 point, Edge edge)
     {
         ArgumentNullException.ThrowIfNull(edge);
+        return SignedDistanceToEdge(point, edge, out _);
+    }
 
+    // Shares the closest-point solve with the rasterizer's shape-distance calculation.
+    internal static float SignedDistanceToEdge(Vector2 point, Edge edge, out double distanceSquared)
+    {
         var (closestPoint, parameter) = FindClosestPoint(point, edge);
+        var dx = (double)point.X - closestPoint.X;
+        var dy = (double)point.Y - closestPoint.Y;
+        distanceSquared = dx * dx + dy * dy;
         var tangent = GetTangent(edge, parameter);
         if (tangent.LengthSquared() <= 1e-20f)
             tangent = edge.End - edge.Start;
@@ -116,19 +124,23 @@ public static class GeometryDistance
         var cx = (double)quadratic.Start.X - point.X;
         var cy = (double)quadratic.Start.Y - point.Y;
 
-        var coefficients = new[]
+        ReadOnlySpan<double> coefficients = stackalloc double[]
         {
             2d * (ax * ax + ay * ay),
             3d * (ax * bx + ay * by),
             bx * bx + by * by + 2d * (ax * cx + ay * cy),
             bx * cx + by * cy,
         };
-        var candidates = new List<double> { 0d, 1d };
-        candidates.AddRange(FindCubicRootsInUnitInterval(coefficients));
+        // Four boundaries and three intervals can emit at most seven candidates,
+        // plus the two endpoints. Keep the original tolerance and evaluation order.
+        Span<double> candidates = stackalloc double[9];
+        candidates[0] = 0d;
+        candidates[1] = 1d;
+        var candidateCount = 2 + FindCubicRootsInUnitInterval(coefficients, candidates[2..]);
 
         var bestParameter = 0d;
         var bestDistanceSquared = double.PositiveInfinity;
-        foreach (var candidate in candidates)
+        foreach (var candidate in candidates[..candidateCount])
         {
             var candidatePoint = EvaluateQuadratic(quadratic, candidate);
             var dx = (double)point.X - candidatePoint.X;
@@ -219,11 +231,12 @@ public static class GeometryDistance
     /// <param name="point">The query point.</param>
     /// <param name="contour">The contour to classify.</param>
     /// <returns>The signed winding number.</returns>
-    private static int GetWindingNumber(Vector2 point, Contour contour)
+    internal static int GetWindingNumber(Vector2 point, Contour contour)
     {
         var windingNumber = 0;
-        foreach (var edge in contour.Edges)
+        for (var edgeIndex = 0; edgeIndex < contour.Edges.Count; edgeIndex++)
         {
+            var edge = contour.Edges[edgeIndex];
             if (edge is LineSegment)
             {
                 windingNumber += GetLineCrossing(point, edge.Start, edge.End);
@@ -287,7 +300,9 @@ public static class GeometryDistance
         var c = (double)edge.Start.Y - point.Y;
         var crossings = 0;
 
-        foreach (var parameter in SolveQuadratic(a, b, c))
+        Span<double> parameters = stackalloc double[2];
+        var parameterCount = SolveQuadratic(a, b, c, parameters);
+        foreach (var parameter in parameters[..parameterCount])
         {
             if (parameter < 0d || parameter > 1d)
                 continue;
@@ -340,32 +355,33 @@ public static class GeometryDistance
     /// </summary>
     /// <param name="coefficients">Cubic coefficients ordered from degree three to zero.</param>
     /// <returns>The distinct roots in the unit interval.</returns>
-    private static IEnumerable<double> FindCubicRootsInUnitInterval(double[] coefficients)
+    private static int FindCubicRootsInUnitInterval(ReadOnlySpan<double> coefficients, Span<double> roots)
     {
-        var scale = coefficients.Max(Math.Abs);
+        var scale = 0d;
+        foreach (var coefficient in coefficients)
+            scale = Math.Max(scale, Math.Abs(coefficient));
         if (scale == 0d)
-            return [];
+            return 0;
 
         var tolerance = scale * 1e-12d;
-        var criticalPoints = SolveQuadratic(
-                3d * coefficients[0],
-                2d * coefficients[1],
-                coefficients[2]
-            )
-            .Where(value => value > 0d && value < 1d);
-        var boundaries = new[] { 0d }
-            .Concat(criticalPoints)
-            .Append(1d)
-            .Distinct()
-            .Order()
-            .ToArray();
-        var roots = new List<double>();
-
+        Span<double> criticalPoints = stackalloc double[2];
+        var criticalCount = SolveQuadratic(
+            3d * coefficients[0], 2d * coefficients[1], coefficients[2], criticalPoints);
+        Span<double> boundaryBuffer = stackalloc double[4];
+        var boundaryCount = 1;
+        boundaryBuffer[0] = 0d;
+        foreach (var value in criticalPoints[..criticalCount])
+            if (value > 0d && value < 1d && (boundaryCount == 1 || value != boundaryBuffer[1]))
+                boundaryBuffer[boundaryCount++] = value;
+        boundaryBuffer[boundaryCount++] = 1d;
+        var boundaries = boundaryBuffer[..boundaryCount];
+        boundaries.Sort();
+        var rootCount = 0;
         for (var index = 0; index < boundaries.Length; index++)
         {
             var value = EvaluateCubic(coefficients, boundaries[index]);
             if (Math.Abs(value) <= tolerance)
-                AddDistinctRoot(roots, boundaries[index]);
+                AddDistinctRoot(roots, ref rootCount, boundaries[index]);
 
             if (index + 1 >= boundaries.Length)
                 continue;
@@ -403,10 +419,10 @@ public static class GeometryDistance
                 }
             }
 
-            AddDistinctRoot(roots, (left + right) / 2d);
+            AddDistinctRoot(roots, ref rootCount, (left + right) / 2d);
         }
 
-        return roots;
+        return rootCount;
     }
 
     /// <summary>
@@ -415,7 +431,7 @@ public static class GeometryDistance
     /// <param name="coefficients">Cubic coefficients ordered from degree three to zero.</param>
     /// <param name="parameter">The polynomial input.</param>
     /// <returns>The polynomial value.</returns>
-    private static double EvaluateCubic(double[] coefficients, double parameter) =>
+    private static double EvaluateCubic(ReadOnlySpan<double> coefficients, double parameter) =>
         ((coefficients[0] * parameter + coefficients[1]) * parameter + coefficients[2]) * parameter
         + coefficients[3];
 
@@ -426,34 +442,43 @@ public static class GeometryDistance
     /// <param name="b">The linear coefficient.</param>
     /// <param name="c">The constant coefficient.</param>
     /// <returns>The real roots.</returns>
-    private static IEnumerable<double> SolveQuadratic(double a, double b, double c)
+    private static int SolveQuadratic(double a, double b, double c, Span<double> roots)
     {
         if (a == 0d)
         {
             if (b == 0d)
-                return [];
-            return [-c / b];
+                return 0;
+            roots[0] = -c / b;
+            return 1;
         }
 
         var discriminant = b * b - 4d * a * c;
         if (discriminant < 0d)
-            return [];
+            return 0;
         if (discriminant == 0d)
-            return [-b / (2d * a)];
+        {
+            roots[0] = -b / (2d * a);
+            return 1;
+        }
 
         var squareRoot = Math.Sqrt(discriminant);
         var q = -0.5d * (b + Math.CopySign(squareRoot, b));
-        return q == 0d ? [-b / (2d * a)] : [q / a, c / q];
+        if (q == 0d)
+        {
+            roots[0] = -b / (2d * a);
+            return 1;
+        }
+        roots[0] = q / a;
+        roots[1] = c / q;
+        return 2;
     }
 
-    /// <summary>
-    /// Adds a root unless an equivalent root is already present.
-    /// </summary>
-    /// <param name="roots">The roots collected so far.</param>
-    /// <param name="root">The root to add.</param>
-    private static void AddDistinctRoot(List<double> roots, double root)
+    /// <summary>Adds a root unless an equivalent root is already present.</summary>
+    private static void AddDistinctRoot(Span<double> roots, ref int count, double root)
     {
-        if (roots.All(existing => Math.Abs(existing - root) > 1e-10d))
-            roots.Add(root);
+        foreach (var existing in roots[..count])
+            if (!(Math.Abs(existing - root) > 1e-10d))
+                return;
+        roots[count++] = root;
     }
 }

@@ -23,6 +23,7 @@ public static class ServiceCollectionExtensions
         if (configuration is not null)
         {
             services.AddOptions<VulkanSettings>().Bind(configuration.GetSection("Vulkan"));
+            services.AddOptions<DiagnosticsSettings>().Bind(configuration.GetSection("Diagnostics"));
         }
 
         services.TryAddSingleton<IWindowService, VulkanWindowService>();

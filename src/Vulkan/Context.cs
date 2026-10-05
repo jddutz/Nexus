@@ -1,4 +1,5 @@
-﻿using Silk.NET.Core;
+using Nexus.Core.Performance;
+using Silk.NET.Core;
 using Silk.NET.Vulkan.Extensions.EXT;
 
 namespace Nexus.Graphics.Vulkan;
@@ -37,11 +38,15 @@ public unsafe class Context
     public Context(
         IWindow window,
         IOptions<VulkanSettings> options,
-        IValidation? validationLayers = null
+        IValidation? validationLayers = null,
+        IOptions<DiagnosticsSettings>? diagnostics = null,
+        IPerformanceTelemetry? telemetry = null
     )
     {
+        using var timing = new LoadPerformanceScope(telemetry, "startup.vulkan.context");
         _validationLayers = validationLayers;
         Settings = options.Value;
+        var enableDiagnostics = (diagnostics?.Value ?? new DiagnosticsSettings()).GraphicsInstrumentationEnabled;
         Window = window;
 
         // Step 2: Load Vulkan API - provides access to all Vulkan functions
@@ -75,7 +80,7 @@ public unsafe class Context
             _validationLayers?.AreEnabled == true ? _validationLayers.LayerNames : [];
         var validationFeatureNames = GetValidationFeatureNames();
         var layerSettingsLayer =
-            (validationFeatureNames.Length == 0 && Settings.EnableDiagnostics)
+            (validationFeatureNames.Length == 0 && enableDiagnostics)
                 ? null
                 : FindInstanceExtensionLayer(validationLayerNames, "VK_EXT_layer_settings");
         var validationFeaturesLayer =
@@ -157,7 +162,7 @@ public unsafe class Context
                 validationFeatureNames,
                 layerSettingsLayer,
                 validationFeaturesLayer,
-                Settings.EnableDiagnostics,
+                enableDiagnostics,
                 out _instance
             );
 

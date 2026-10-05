@@ -1,16 +1,22 @@
+using Nexus.Core.Performance;
 namespace Nexus.Graphics.Vulkan;
 
-public unsafe class ShaderFactory(Context context) : IShaderFactory
+public unsafe class ShaderFactory(Context context, IPerformanceTelemetry? telemetry = null) : IShaderFactory
 {
     private readonly Context _context = context;
     private readonly Dictionary<DrawableId, ShaderModule> _modules = [];
 
     public DrawableId Create(IShaderContract description)
     {
+        using var timing = new LoadPerformanceScope(telemetry, "shader.realize", description.SourceFileName);
         var id = description.Id;
 
         if (_modules.ContainsKey(id))
+        {
+            telemetry?.RecordCache("shader.registry", description.SourceFileName, true);
             return id;
+        }
+        telemetry?.RecordCache("shader.registry", description.SourceFileName, false);
 
         var module = CreateModule(description);
 
@@ -55,7 +61,10 @@ public unsafe class ShaderFactory(Context context) : IShaderFactory
             "Shaders",
             shader.SourceFileName + ".spv"
         );
-        var code = File.ReadAllBytes(shaderPath);
+        byte[] code;
+        using (var timing = new LoadPerformanceScope(telemetry, "shader.file.read", shader.SourceFileName))
+            code = File.ReadAllBytes(shaderPath);
+        using var creation = new LoadPerformanceScope(telemetry, "shader.module.create", shader.SourceFileName, units: code.Length);
 
         if (code.Length == 0)
             throw new InvalidOperationException($"Shader '{shader.Name}' contains no SPIR-V data.");

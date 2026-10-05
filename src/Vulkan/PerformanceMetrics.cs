@@ -5,16 +5,18 @@ public class PerformanceMetrics
 {
     private readonly bool _enabled;
 
-    /// <summary>Creates a metrics collector configured by the Vulkan options.</summary>
-    /// <param name="options">The Vulkan settings; a directly constructed collector is enabled by default.</param>
-    public PerformanceMetrics(IOptions<VulkanSettings>? options = null)
+    /// <summary>Creates a metrics collector configured by application-wide diagnostics options.</summary>
+    /// <param name="options">Core diagnostics settings; collection is disabled by default.</param>
+    public PerformanceMetrics(IOptions<DiagnosticsSettings>? options = null)
     {
-        _enabled = options?.Value.EnablePerformanceMetrics ?? true;
+        _enabled = (options?.Value ?? new DiagnosticsSettings()).PerformanceInstrumentationEnabled;
+        _startTimestamp = _enabled ? Stopwatch.GetTimestamp() : 0;
+        StartTime = _enabled ? DateTime.Now : default;
     }
 
     /// <summary>Gets whether this collector is enabled.</summary>
     public bool IsEnabled => _enabled;
-    private readonly long _startTimestamp = Stopwatch.GetTimestamp();
+    private readonly long _startTimestamp;
     private TimeSpan _totalFrameTime;
     private TimeSpan? _timeToFirstFrame;
     private TimeSpan? _firstFrameDuration;
@@ -24,10 +26,10 @@ public class PerformanceMetrics
     private int _maximumBuffersStored;
 
     /// <summary>Gets the time at which metric collection began.</summary>
-    public DateTime StartTime { get; } = DateTime.Now;
+    public DateTime StartTime { get; }
 
     /// <summary>Gets the elapsed time since metric collection began.</summary>
-    public TimeSpan ElapsedTime => Stopwatch.GetElapsedTime(_startTimestamp);
+    public TimeSpan ElapsedTime => _enabled ? Stopwatch.GetElapsedTime(_startTimestamp) : TimeSpan.Zero;
 
     /// <summary>Gets the total number of successfully recorded Vulkan commands.</summary>
     public long Commands { get; private set; }

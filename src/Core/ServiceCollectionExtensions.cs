@@ -28,8 +28,10 @@ public static class ServiceCollectionExtensions
         services.AddOptions<DiagnosticsSettings>().Bind(configuration.GetSection("Diagnostics"));
         services.AddOptions<ContentSettings>().Bind(configuration.GetSection("Content"));
         services.AddEventHub(configuration);
-        services.TryAddSingleton<IContentManifest>(_ =>
+        services.TryAddSingleton<IContentManifest>(provider =>
         {
+            using var timing = new Nexus.Core.Performance.LoadPerformanceScope(
+                provider.GetService<Nexus.Core.Performance.IPerformanceTelemetry>(), "registry.content.load");
             var manifestPath = Path.IsPathRooted(contentManifestLocation)
                 ? contentManifestLocation
                 : Path.Combine(AppContext.BaseDirectory, contentManifestLocation);

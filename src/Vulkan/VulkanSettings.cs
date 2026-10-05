@@ -78,26 +78,6 @@ public sealed record VulkanSettings
 #endif
 
     /// <summary>
-    /// Whether to collect frame, command, and live-buffer performance counters.
-    /// Default: false, so normal rendering does not collect performance statistics.
-    /// </summary>
-#if DEBUG
-    public bool EnablePerformanceMetrics { get; set; } = true;
-#else
-    public bool EnablePerformanceMetrics { get; set; } = false;
-#endif
-
-    /// <summary>
-    /// Whether to retain detailed Vulkan resource snapshots and the first drawn-frame command trace.
-    /// Default: false, because diagnostic byte snapshots can consume significant memory.
-    /// </summary>
-#if DEBUG
-    public bool EnableDiagnostics { get; set; } = true;
-#else
-    public bool EnableDiagnostics { get; set; } = false;
-#endif
-
-    /// <summary>
     /// Whether to enable Vulkan validation layers in debug builds.
     /// Default: true (catch errors early during development).
     /// Set to false if validation layers cause performance issues during profiling.

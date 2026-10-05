@@ -1,3 +1,4 @@
+using Nexus.Core.Performance;
 namespace Nexus.Runtime;
 
 /// <summary>
@@ -41,16 +42,25 @@ public sealed class Application : IApplication, IDisposable
 
         try
         {
-            var windowService = Services.GetRequiredService<IWindowService>();
+            var telemetry = Services.GetService<IPerformanceTelemetry>();
+            IWindow window;
+            using (var startupTiming = new LoadPerformanceScope(telemetry, "startup.application"))
+            {
+                var windowService = Services.GetRequiredService<IWindowService>();
 
-            var windowSettings = Services.GetRequiredService<IOptions<WindowSettings>>().Value;
-            windowService.CreateWindow(windowSettings);
+                var windowSettings = Services.GetRequiredService<IOptions<WindowSettings>>().Value;
+                using (var timing = new LoadPerformanceScope(telemetry, "startup.window.create"))
+                    windowService.CreateWindow(windowSettings);
 
-            var window = windowService.GetMainWindow();
-            window.Initialize();
+                window = windowService.GetMainWindow();
+                using (var timing = new LoadPerformanceScope(telemetry, "startup.window.initialize"))
+                    window.Initialize();
 
-            var runtime = Services.GetRequiredService<INexusRuntime>();
-            runtime.Initialize();
+                INexusRuntime runtime;
+                using (var timing = new LoadPerformanceScope(telemetry, "startup.services.resolve"))
+                    runtime = Services.GetRequiredService<INexusRuntime>();
+                runtime.Initialize();
+            }
 
             window.Run();
         }

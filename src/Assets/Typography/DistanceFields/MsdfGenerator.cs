@@ -60,9 +60,12 @@ public sealed class MsdfGenerator
                     geometryY
                 );
                 Array.Fill(channelDistances, float.PositiveInfinity);
+                var minimumDistanceSquared = double.PositiveInfinity;
+                var windingNumber = 0;
 
                 for (var contourIndex = 0; contourIndex < shape.Length; contourIndex++)
                 {
+                    windingNumber += GeometryDistance.GetWindingNumber(point, shape[contourIndex]);
                     var contourEdges = shape[contourIndex].Edges;
                     for (var edgeIndex = 0; edgeIndex < contourEdges.Count; edgeIndex++)
                     {
@@ -70,9 +73,11 @@ public sealed class MsdfGenerator
                             MathF.Abs(
                                 GeometryDistance.SignedDistanceToEdge(
                                     point,
-                                    contourEdges[edgeIndex]
+                                    contourEdges[edgeIndex],
+                                    out var distanceSquared
                                 )
                             ) * settings.PixelsPerUnit;
+                        minimumDistanceSquared = Math.Min(minimumDistanceSquared, distanceSquared);
                         var mask = masks[contourIndex][edgeIndex];
                         for (var channel = 0; channel < 3; channel++)
                         {
@@ -86,7 +91,10 @@ public sealed class MsdfGenerator
                 }
 
                 var signedShapeDistance =
-                    GeometryDistance.SignedDistanceToShape(point, shape) * settings.PixelsPerUnit;
+                    (float)Math.Sqrt(minimumDistanceSquared);
+                if (signedShapeDistance != 0f && windingNumber != 0)
+                    signedShapeDistance = -signedShapeDistance;
+                signedShapeDistance *= settings.PixelsPerUnit;
                 var sign = signedShapeDistance < 0f ? -1f : 1f;
                 var pixelOffset = (y * width + x) * 3;
                 for (var channel = 0; channel < 3; channel++)

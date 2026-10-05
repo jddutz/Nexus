@@ -9,6 +9,12 @@
             "type": "dotnet",
             "request": "launch",
             "projectPath": "${workspaceFolder}/tests/HelloNexus/HelloNexus.csproj"
+        },
+        {
+            "name": "Debug:SnakeGame",
+            "type": "dotnet",
+            "request": "launch",
+            "projectPath": "${workspaceFolder}/tests/SnakeGame/SnakeGame.csproj"
         }
     ]
 }

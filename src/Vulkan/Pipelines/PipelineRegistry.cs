@@ -1,3 +1,4 @@
+using Nexus.Core.Performance;
 namespace Nexus.Graphics.Vulkan.Pipelines;
 
 /// <summary>
@@ -16,7 +17,7 @@ internal sealed record PipelineEntry(
 /// <summary>
 /// Provides identifier-based access to Vulkan graphics pipelines and layouts.
 /// </summary>
-public unsafe class PipelineRegistry(Context context, IPipelineFactory pipelineFactory)
+public unsafe class PipelineRegistry(Context context, IPipelineFactory pipelineFactory, IPerformanceTelemetry? telemetry = null)
     : IPipelineRegistry
 {
     private readonly Context _context = context;
@@ -27,8 +28,10 @@ public unsafe class PipelineRegistry(Context context, IPipelineFactory pipelineF
     /// <inheritdoc />
     public (Pipeline pipeline, PipelineLayout layout) GetOrCreate(PipelineDefinition description)
     {
+        using var timing = new LoadPerformanceScope(telemetry, "pipeline.realize");
         if (_pipelines.TryGetValue(description.Id, out var existing))
         {
+            telemetry?.RecordCache("pipeline.registry", null, true);
             _pipelines[description.Id] = existing with
             {
                 References = checked(existing.References + 1),
@@ -36,6 +39,8 @@ public unsafe class PipelineRegistry(Context context, IPipelineFactory pipelineF
             return (existing.Pipeline, existing.Layout);
         }
 
+        telemetry?.RecordCache("pipeline.registry", null, false);
+        using var creation = new LoadPerformanceScope(telemetry, "pipeline.create");
         var (pipeline, layout, descriptorSetLayouts) = _pipelineFactory.Create(description);
         var entry = new PipelineEntry(pipeline, layout, descriptorSetLayouts, 1);
 

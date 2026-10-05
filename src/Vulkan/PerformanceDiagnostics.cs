@@ -13,11 +13,11 @@ public sealed class PerformanceDiagnostics
     private ImmutableArray<string> _firstDrawnFrameCommands = [];
     private bool _pendingFrameHasDraw;
 
-    /// <summary>Creates a diagnostics collector configured by the Vulkan options.</summary>
-    /// <param name="options">The Vulkan settings; a directly constructed collector is enabled by default.</param>
-    public PerformanceDiagnostics(IOptions<VulkanSettings>? options = null)
+    /// <summary>Creates a collector configured by application-wide diagnostics options.</summary>
+    /// <param name="options">Core diagnostics settings; collection is disabled by default.</param>
+    public PerformanceDiagnostics(IOptions<DiagnosticsSettings>? options = null)
     {
-        _enabled = options?.Value.EnableDiagnostics ?? true;
+        _enabled = (options?.Value ?? new DiagnosticsSettings()).GraphicsInstrumentationEnabled;
     }
 
     /// <summary>Gets whether diagnostic collection is enabled.</summary>

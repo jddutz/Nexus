@@ -1,3 +1,4 @@
 namespace Nexus.Graphics;
 
-public interface IGraphicsProfiler { }
+/// <summary>Provides graphics load timings, allocation totals, and registry cache telemetry.</summary>
+public interface IGraphicsProfiler : Nexus.Core.Performance.IPerformanceTelemetry { }

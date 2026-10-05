@@ -1,3 +1,4 @@
+using Nexus.Core.Performance;
 namespace Nexus.Graphics.Vulkan.Geometry;
 
 /// <summary>
@@ -5,6 +6,7 @@ namespace Nexus.Graphics.Vulkan.Geometry;
 /// </summary>
 public unsafe class InstanceBufferRegistry : IInstanceBufferRegistry
 {
+    private readonly IPerformanceTelemetry? _telemetry;
     private readonly Context _context;
     private readonly ISyncManager _syncManager;
     private readonly PerformanceMetrics? _performanceMetrics;
@@ -21,12 +23,14 @@ public unsafe class InstanceBufferRegistry : IInstanceBufferRegistry
     public InstanceBufferRegistry(
         Context context,
         ISyncManager syncManager,
-        PerformanceMetrics? performanceMetrics = null
+        PerformanceMetrics? performanceMetrics = null,
+        IPerformanceTelemetry? telemetry = null
     )
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _syncManager = syncManager ?? throw new ArgumentNullException(nameof(syncManager));
         _performanceMetrics = performanceMetrics;
+        _telemetry = telemetry;
         _released = new Queue<VkBuffer>[checked((int)syncManager.MaxFramesInFlight)];
 
         for (var index = 0; index < _released.Length; index++)
@@ -41,9 +45,11 @@ public unsafe class InstanceBufferRegistry : IInstanceBufferRegistry
         ArgumentNullException.ThrowIfNull(drawable);
         ArgumentNullException.ThrowIfNull(layout);
 
+        using var timing = new LoadPerformanceScope(_telemetry, "geometry.instances.realize", units: checked((long)drawable.InstanceCount));
         var stride = checked((ulong)layout.Sum(input => input.Size));
         var data = new byte[checked((int)(drawable.InstanceCount * stride))];
-        drawable.WriteInstanceDataTo(0, drawable.InstanceCount, layout, data);
+        using (var serialization = new LoadPerformanceScope(_telemetry, "geometry.instances.serialize", units: data.Length))
+            drawable.WriteInstanceDataTo(0, drawable.InstanceCount, layout, data);
         if (data.Length == 0)
             throw new InvalidOperationException("Instance data cannot be empty.");
 

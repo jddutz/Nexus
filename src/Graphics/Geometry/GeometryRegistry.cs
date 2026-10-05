@@ -1,3 +1,4 @@
+using Nexus.Core.Performance;
 namespace Nexus.Graphics.Geometry;
 
 /// <summary>
@@ -5,6 +6,7 @@ namespace Nexus.Graphics.Geometry;
 /// </summary>
 public sealed class GeometryRegistry : IGeometryRegistry
 {
+    private readonly IGraphicsProfiler? _profiler;
     private readonly Dictionary<GeometryId, IGeometry> _geometries = [];
 
     /// <summary>
@@ -19,8 +21,10 @@ public sealed class GeometryRegistry : IGeometryRegistry
     /// <param name="contentManifest">
     /// The optional manifest configuration reserved for content-backed geometry loading.
     /// </param>
-    public GeometryRegistry(IOptions<IContentManifest>? contentManifest)
+    public GeometryRegistry(IOptions<IContentManifest>? contentManifest, IGraphicsProfiler? profiler = null)
     {
+        _profiler = profiler;
+        using var timing = new LoadPerformanceScope(profiler, "geometry.registry.initialize", units: 6);
         _ = contentManifest;
         Register(BuiltInGeometry.Empty);
         Register(BuiltInGeometry.FullScreenTriangle);
@@ -39,10 +43,12 @@ public sealed class GeometryRegistry : IGeometryRegistry
     /// <inheritdoc/>
     public IGeometry Get(GeometryId geometry)
     {
-        if (!_geometries.TryGetValue(geometry, out var value))
+        var found = _geometries.TryGetValue(geometry, out var value);
+        _profiler?.RecordCache("geometry.registry", null, found);
+        if (!found)
             throw new KeyNotFoundException($"Geometry '{geometry}' is not registered.");
 
-        return value;
+        return value!;
     }
 
     /// <inheritdoc/>

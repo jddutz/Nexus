@@ -4,6 +4,7 @@ using Nexus.Assets.Typography.FontReader.OpenType;
 using Nexus.Assets.Typography.Geometry;
 using System.Numerics;
 using Nexus.Core;
+using Nexus.Core.Performance;
 
 namespace Nexus.Assets.Fonts;
 
@@ -12,6 +13,11 @@ namespace Nexus.Assets.Fonts;
 /// </summary>
 public sealed class FontBuilder : IFontBuilder
 {
+    private readonly IPerformanceTelemetry? _telemetry;
+
+    /// <summary>Creates a builder with optional, diagnostics-gated load telemetry.</summary>
+    public FontBuilder(IPerformanceTelemetry? telemetry = null) => _telemetry = telemetry;
+
     private readonly object _cacheLock = new();
     private readonly Dictionary<string, CachedFontSource> _fontSources = new(
         StringComparer.OrdinalIgnoreCase
@@ -38,6 +44,7 @@ public sealed class FontBuilder : IFontBuilder
         ArgumentNullException.ThrowIfNull(codepoints);
         ArgumentNullException.ThrowIfNull(settings);
         settings.Validate();
+        using var buildTiming = new LoadPerformanceScope(_telemetry, "font.build.file", fontId.Value, settings.EmSize, units: codepoints.Count);
         if (codepoints.Count == 0)
             throw new FontBuildException("At least one glyph codepoint is required.");
 
@@ -64,6 +71,7 @@ public sealed class FontBuilder : IFontBuilder
             Padding = input.GenerationSettings.Padding,
         };
         settings.Validate();
+        using var buildTiming = new LoadPerformanceScope(_telemetry, "font.build.embedded", fontId.Value, settings.EmSize, units: codepoints.Count);
         if (codepoints.Count == 0) throw new FontBuildException("At least one glyph codepoint is required.");
         if (input.Metrics.UnitsPerEm == 0) throw new FontBuildException("Font units per em must be positive.");
         var requested = codepoints.Distinct().ToArray();
@@ -88,7 +96,7 @@ public sealed class FontBuilder : IFontBuilder
 
     private static Vector2 Point(FontRasterizerPoint point) => new(point.X, point.Y);
 
-    private static FontBuildResult BuildCore(ContentId fontId, int[] requestedCodepoints,
+    private FontBuildResult BuildCore(ContentId fontId, int[] requestedCodepoints,
         FontGenerationSettings settings, ushort unitsPerEm, short ascender, short descender, short lineGap,
         Func<int, CachedSourceGlyph> resolveGlyph, IReadOnlyList<TextKerningPair> kerning)
     {
@@ -109,35 +117,43 @@ public sealed class FontBuilder : IFontBuilder
             GlyphBitmap Bitmap
         )>(requestedCodepoints.Length);
 
-        foreach (var codepoint in requestedCodepoints)
-        {
-            var sourceGlyph = resolveGlyph(codepoint);
-            var contours = sourceGlyph.Contours;
-            var geometryBounds = GeometryBoundsCalculator.GetBounds(contours);
-            var bitmap = msdfGenerator.Generate(contours, msdfSettings);
-            var expansion = settings.DistanceRange;
-            var planeBounds = geometryBounds is { } bounds
-                ? new FontBounds(
-                    bounds.Left * pixelsPerFontUnit - expansion,
-                    bounds.Bottom * pixelsPerFontUnit - expansion,
-                    bounds.Right * pixelsPerFontUnit + expansion,
-                    bounds.Top * pixelsPerFontUnit + expansion
-                )
-                : default;
+        using (var glyphBatchTiming = new LoadPerformanceScope(_telemetry, "font.glyphs.build", fontId.Value, settings.EmSize, units: requestedCodepoints.Length))
+            foreach (var codepoint in requestedCodepoints)
+            {
+                CachedSourceGlyph sourceGlyph;
+                using (var outlineTiming = new LoadPerformanceScope(_telemetry, "font.outline.glyph", fontId.Value, settings.EmSize, codepoint))
+                    sourceGlyph = resolveGlyph(codepoint);
+                var contours = sourceGlyph.Contours;
+                GeometryBounds? geometryBounds;
+                using (var boundsTiming = new LoadPerformanceScope(_telemetry, "font.bounds.glyph", fontId.Value, settings.EmSize, codepoint))
+                    geometryBounds = GeometryBoundsCalculator.GetBounds(contours);
+                GlyphBitmap bitmap;
+                using (var glyphTiming = new LoadPerformanceScope(_telemetry, "font.msdf.glyph", fontId.Value, settings.EmSize, codepoint,
+                    _telemetry?.IsEnabled == true ? contours.Sum(contour => (long)contour.Edges.Count) : 0))
+                    bitmap = msdfGenerator.Generate(contours, msdfSettings);
+                var expansion = settings.DistanceRange;
+                var planeBounds = geometryBounds is { } bounds
+                    ? new FontBounds(
+                        bounds.Left * pixelsPerFontUnit - expansion,
+                        bounds.Bottom * pixelsPerFontUnit - expansion,
+                        bounds.Right * pixelsPerFontUnit + expansion,
+                        bounds.Top * pixelsPerFontUnit + expansion
+                    )
+                    : default;
 
-            glyphData.Add(
-                (
-                    codepoint,
-                    sourceGlyph.AdvanceWidth * (double)pixelsPerFontUnit,
-                    planeBounds,
-                    bitmap
-                )
-            );
-        }
+                glyphData.Add(
+                    (
+                        codepoint,
+                        sourceGlyph.AdvanceWidth * (double)pixelsPerFontUnit,
+                        planeBounds,
+                        bitmap
+                    )
+                );
+            }
 
-        var atlasResult = new FontAtlasBuilder().Build(
-            glyphData.Select(glyph => glyph.Bitmap).ToArray()
-        );
+        FontAtlasBuildResult atlasResult;
+        using (var atlasTiming = new LoadPerformanceScope(_telemetry, "font.atlas.pack", fontId.Value, settings.EmSize, units: glyphData.Count))
+            atlasResult = new FontAtlasBuilder().Build(glyphData.Select(glyph => glyph.Bitmap).ToArray());
         var atlasInset = bitmapPadding - settings.DistanceRange;
         var glyphs = new FontGlyph[glyphData.Count];
         for (var index = 0; index < glyphData.Count; index++)
@@ -181,6 +197,7 @@ public sealed class FontBuilder : IFontBuilder
     /// <returns>The cached source font.</returns>
     private CachedFontSource GetFontSource(string sourcePath)
     {
+        using var sourceTiming = new LoadPerformanceScope(_telemetry, "font.source.load", sourcePath);
         lock (_cacheLock)
         {
             var fileInfo = new FileInfo(sourcePath);
@@ -193,9 +210,16 @@ public sealed class FontBuilder : IFontBuilder
                 && cached.Length == fileInfo.Length
                 && cached.LastWriteTimeUtc == lastWriteTimeUtc
             )
+            {
+                _telemetry?.RecordCache("font.source", sourcePath, true);
                 return cached;
+            }
 
-            var data = File.ReadAllBytes(sourcePath);
+            _telemetry?.RecordCache("font.source", sourcePath, false);
+            byte[] data;
+            using (var readTiming = new LoadPerformanceScope(_telemetry, "font.file.read", sourcePath, units: fileInfo.Length))
+                data = File.ReadAllBytes(sourcePath);
+            using var parseTiming = new LoadPerformanceScope(_telemetry, "font.source.parse", sourcePath, units: data.Length);
             var source = new CachedFontSource(
                 new OpenTypeFontReader(data),
                 data.LongLength,
@@ -215,7 +239,11 @@ public sealed class FontBuilder : IFontBuilder
         lock (_cacheLock)
         {
             if (source.Glyphs.TryGetValue(codepoint, out var cached))
+            {
+                _telemetry?.RecordCache("font.outline", null, true);
                 return cached;
+            }
+            _telemetry?.RecordCache("font.outline", null, false);
 
             var glyphIndex = source.Reader.GetGlyphIndex(codepoint);
             var metrics = source.Reader.GetHorizontalMetrics(glyphIndex);
@@ -238,7 +266,10 @@ public sealed class FontBuilder : IFontBuilder
     )
     {
         lock (_cacheLock)
+        {
+            using var kerningTiming = new LoadPerformanceScope(_telemetry, "font.kerning", units: codepoints.Count);
             return source.Reader.GetKerningPairs(codepoints);
+        }
     }
 
     /// <summary>Stores parsed source data and the file metadata used for invalidation.</summary>

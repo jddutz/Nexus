@@ -1,3 +1,4 @@
+using Nexus.Core.Performance;
 namespace Nexus.Graphics.Vulkan.Textures;
 
 /// <summary>
@@ -5,6 +6,7 @@ namespace Nexus.Graphics.Vulkan.Textures;
 /// </summary>
 public unsafe class SamplerRegistry : ISamplerRegistry
 {
+    private readonly IPerformanceTelemetry? _telemetry;
     private readonly Context _context;
     private readonly ISyncManager _syncManager;
 
@@ -17,8 +19,9 @@ public unsafe class SamplerRegistry : ISamplerRegistry
     /// </summary>
     /// <param name="context">The Vulkan context that owns the samplers.</param>
     /// <param name="syncManager">The synchronization manager used to defer sampler destruction.</param>
-    public SamplerRegistry(Context context, ISyncManager syncManager)
+    public SamplerRegistry(Context context, ISyncManager syncManager, IPerformanceTelemetry? telemetry = null)
     {
+        _telemetry = telemetry;
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _syncManager = syncManager ?? throw new ArgumentNullException(nameof(syncManager));
         _released = new Queue<VkSampler>[checked((int)syncManager.MaxFramesInFlight)];
@@ -34,12 +37,15 @@ public unsafe class SamplerRegistry : ISamplerRegistry
     {
         ArgumentNullException.ThrowIfNull(behavior);
 
+        using var timing = new LoadPerformanceScope(_telemetry, "sampler.realize");
         if (_samplers.ContainsKey(behavior.Id))
         {
+            _telemetry?.RecordCache("sampler.registry", null, true);
             _refs[behavior.Id]++;
             return;
         }
 
+        _telemetry?.RecordCache("sampler.registry", null, false);
         var sampler = CreateSampler(behavior);
 
         _samplers.Add(behavior.Id, sampler);

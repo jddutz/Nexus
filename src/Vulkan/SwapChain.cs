@@ -1,3 +1,4 @@
+using Nexus.Core.Performance;
 using Semaphore = Silk.NET.Vulkan.Semaphore;
 
 namespace Nexus.Graphics.Vulkan;
@@ -78,8 +79,9 @@ public unsafe class SwapChain : ISwapChain
     /// </summary>
     /// <param name="context">The Vulkan context used to create and manage resources.</param>
     /// <param name="renderPassConfigurations">The configurations used to create render passes and framebuffers.</param>
-    public SwapChain(Context context, RenderPassConfigurations renderPassConfigurations)
+    public SwapChain(Context context, RenderPassConfigurations renderPassConfigurations, IPerformanceTelemetry? telemetry = null)
     {
+        using var timing = new LoadPerformanceScope(telemetry, "startup.vulkan.swapchain");
         _context = context;
         _renderPassConfigurations = renderPassConfigurations;
 
@@ -96,10 +98,14 @@ public unsafe class SwapChain : ISwapChain
         }
 
         // Create the swap chain and presentation resources
-        CreateSwapchain();
-        CreateRenderPasses();
-        CreateDepthResources(); // Create depth buffer if any render pass needs it
-        CreateAllFramebuffers();
+        using (var stage = new LoadPerformanceScope(telemetry, "startup.vulkan.CreateSwapchain"))
+            CreateSwapchain();
+        using (var stage = new LoadPerformanceScope(telemetry, "startup.vulkan.CreateRenderPasses"))
+            CreateRenderPasses();
+        using (var stage = new LoadPerformanceScope(telemetry, "startup.vulkan.CreateDepthResources"))
+            CreateDepthResources(); // Create depth buffer if any render pass needs it
+        using (var stage = new LoadPerformanceScope(telemetry, "startup.vulkan.CreateAllFramebuffers"))
+            CreateAllFramebuffers();
     }
 
     /// <summary>

@@ -1,3 +1,4 @@
+using Nexus.Core.Performance;
 namespace Nexus.Graphics.Vulkan.Textures;
 
 /// <summary>
@@ -5,6 +6,7 @@ namespace Nexus.Graphics.Vulkan.Textures;
 /// </summary>
 public unsafe class ImageRegistry : IImageRegistry
 {
+    private readonly IPerformanceTelemetry? _telemetry;
     private readonly Context _context;
     private readonly ISyncManager _syncManager;
     private readonly PerformanceMetrics? _performanceMetrics;
@@ -54,12 +56,15 @@ public unsafe class ImageRegistry : IImageRegistry
     public ImageRegistry(
         Context context,
         ISyncManager syncManager,
-        PerformanceMetrics? performanceMetrics = null
+        PerformanceMetrics? performanceMetrics = null,
+        IPerformanceTelemetry? telemetry = null
     )
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
         _syncManager = syncManager ?? throw new ArgumentNullException(nameof(syncManager));
         _performanceMetrics = performanceMetrics;
+        _telemetry = telemetry;
+        using var timing = new LoadPerformanceScope(telemetry, "Textures.ImageRegistry.initialize");
         _released = new Queue<VkImage>[checked((int)syncManager.MaxFramesInFlight)];
         _stagedBuffers = new Queue<VkBuffer>[checked((int)syncManager.MaxFramesInFlight)];
 
@@ -75,6 +80,7 @@ public unsafe class ImageRegistry : IImageRegistry
 
     private VkImage CreateImage(uint width, uint height, ColorFormatEnum format)
     {
+        using var timing = new LoadPerformanceScope(_telemetry, "texture.image.allocate", units: (long)width * height);
         var createInfo = new ImageCreateInfo
         {
             SType = StructureType.ImageCreateInfo,
@@ -158,6 +164,7 @@ public unsafe class ImageRegistry : IImageRegistry
 
     private VkImageView CreateImageView(VkImage image, ColorFormatEnum format)
     {
+        using var timing = new LoadPerformanceScope(_telemetry, "texture.image.view.create");
         var createInfo = new ImageViewCreateInfo
         {
             SType = StructureType.ImageViewCreateInfo,
@@ -213,6 +220,7 @@ public unsafe class ImageRegistry : IImageRegistry
 
     private VkBuffer CreateStagingBuffer(ReadOnlySpan<byte> data)
     {
+        using var timing = new LoadPerformanceScope(_telemetry, "texture.staging.allocate.upload", units: data.Length);
         var createInfo = new BufferCreateInfo
         {
             SType = StructureType.BufferCreateInfo,
@@ -322,18 +330,22 @@ public unsafe class ImageRegistry : IImageRegistry
     {
         ArgumentNullException.ThrowIfNull(texture);
 
+        using var timing = new LoadPerformanceScope(_telemetry, "texture.image.realize", units: checked((long)texture.Count));
         var format = texture.TextureFormat;
         var id = ComputeImageId(texture.Id, format);
 
         if (_images.TryGetValue(id, out var image))
         {
+            _telemetry?.RecordCache("texture.image", null, true);
             _refs[image]++;
             return [];
         }
 
+        _telemetry?.RecordCache("texture.image", null, false);
         var data = new byte[checked((int)(texture.Count * (ulong)format.GetBytesPerPixel()))];
 
-        texture.WriteTo(0, texture.Count, format, data);
+        using (var serialization = new LoadPerformanceScope(_telemetry, "texture.serialize", units: data.Length))
+            texture.WriteTo(0, texture.Count, format, data);
 
         var stagingBuffer = CreateStagingBuffer(data);
         try
@@ -451,6 +463,7 @@ public unsafe class ImageRegistry : IImageRegistry
     /// <inheritdoc/>
     public IEnumerable<IVulkanCommand> Update(ITexture texture)
     {
+        using var timing = new LoadPerformanceScope(_telemetry, "texture.image.update");
         ArgumentNullException.ThrowIfNull(texture);
 
         var format = texture.TextureFormat;
@@ -459,7 +472,8 @@ public unsafe class ImageRegistry : IImageRegistry
             return Create(texture);
 
         var data = new byte[checked((int)(texture.Count * (ulong)format.GetBytesPerPixel()))];
-        texture.WriteTo(0, texture.Count, format, data);
+        using (var serialization = new LoadPerformanceScope(_telemetry, "texture.serialize", units: data.Length))
+            texture.WriteTo(0, texture.Count, format, data);
 
         var stagingBuffer = CreateStagingBuffer(data);
         var region = new BufferImageCopy

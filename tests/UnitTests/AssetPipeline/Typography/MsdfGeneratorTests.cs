@@ -9,6 +9,29 @@ namespace Nexus.AssetPipeline.Tests;
 /// </summary>
 public sealed class MsdfGeneratorTests
 {
+    /// <summary>Prevents temporary allocations from scaling with pixel/curve evaluations.</summary>
+    [Fact]
+    public void Generate_quadraticPixelLoopsAllocateOnlyBitmapAndSetup()
+    {
+        Contour[] contours = [new Contour([
+            new QuadraticSegment(new(0, 0), new(1, 2), new(2, 0)),
+            new LineSegment(new(2, 0), new(0, 0)),
+        ])];
+        var settings = new MsdfGenerationSettings
+        {
+            PixelsPerUnit = 48f,
+            DistanceRange = 4f,
+            Padding = 6,
+        };
+        var generator = new MsdfGenerator();
+        generator.Generate(contours, settings);
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        var bitmap = generator.Generate(contours, settings);
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        Assert.InRange(allocated, bitmap.Pixels.LongLength, bitmap.Pixels.LongLength + 4096);
+    }
+
     /// <summary>
     /// Generates a synthetic capital A, checks its RGB channels, and writes a PPM proof image.
     /// </summary>

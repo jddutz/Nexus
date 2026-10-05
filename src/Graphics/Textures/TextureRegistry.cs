@@ -1,11 +1,13 @@
 namespace Nexus.Graphics.Textures;
 
+using Nexus.Core.Performance;
+
 /// <summary>
 /// Loads and caches textures for the lifetime of the registry.
 /// </summary>
 /// <param name="manifest">Provides the configured content root and texture file mappings.</param>
 /// <param name="logger">Records texture loading diagnostics.</param>
-public sealed class TextureRegistry(IContentManifest manifest, ILogger<TextureRegistry> logger)
+public sealed class TextureRegistry(IContentManifest manifest, ILogger<TextureRegistry> logger, IGraphicsProfiler? profiler = null)
     : ITextureRegistry
 {
     private readonly IContentManifest _manifest =
@@ -13,14 +15,20 @@ public sealed class TextureRegistry(IContentManifest manifest, ILogger<TextureRe
     private readonly ILogger<TextureRegistry> _logger =
         logger ?? throw new ArgumentNullException(nameof(logger));
     private readonly Dictionary<ContentId, TextureId> _contentTextures = [];
+    private readonly IGraphicsProfiler? _profiler = profiler;
     private readonly Dictionary<TextureId, ITexture> _textures = [];
 
     /// <inheritdoc/>
     public ITexture GetOrCreate(ContentId contentId)
     {
         if (_contentTextures.TryGetValue(contentId, out var textureId))
+        {
+            _profiler?.RecordCache("texture.registry", contentId.Value, true);
             return _textures[textureId];
+        }
 
+        _profiler?.RecordCache("texture.registry", contentId.Value, false);
+        using var requestTiming = new LoadPerformanceScope(_profiler, "texture.registry.create", contentId.Value);
         if (contentId == ContentId.Invalid)
         {
             var result = new Texture(contentId, 1, 1, [Colors.Magenta]);
@@ -56,8 +64,13 @@ public sealed class TextureRegistry(IContentManifest manifest, ILogger<TextureRe
 
         var contentId = ContentId.FromFilePath(filepath);
         if (_contentTextures.TryGetValue(contentId, out var textureId))
+        {
+            _profiler?.RecordCache("texture.registry", contentId.Value, true);
             return (Texture)_textures[textureId];
+        }
 
+        _profiler?.RecordCache("texture.registry", contentId.Value, false);
+        using var requestTiming = new LoadPerformanceScope(_profiler, "texture.registry.create", contentId.Value);
         var texture = LoadTextureFile(contentId, filepath);
         Register(contentId, texture);
         return texture;
@@ -71,10 +84,14 @@ public sealed class TextureRegistry(IContentManifest manifest, ILogger<TextureRe
     /// <returns>The loaded texture or an invalid fallback texture.</returns>
     private Texture LoadTextureFile(ContentId contentId, string filepath)
     {
+        using var loadTiming = new LoadPerformanceScope(_profiler, "texture.file.load", contentId.Value);
         try
         {
             using var stream = File.OpenRead(Path.GetFullPath(filepath));
-            var image = ImageResult.FromStream(stream, ColorComponents.RedGreenBlueAlpha);
+            ImageResult image;
+            using (var decodeTiming = new LoadPerformanceScope(_profiler, "texture.image.decode", contentId.Value))
+                image = ImageResult.FromStream(stream, ColorComponents.RedGreenBlueAlpha);
+            using var conversion = new LoadPerformanceScope(_profiler, "texture.rgba.realize", contentId.Value, units: (long)image.Width * image.Height);
             var colors = new Color[image.Width * image.Height];
 
             for (var index = 0; index < colors.Length; index++)
@@ -96,7 +113,7 @@ public sealed class TextureRegistry(IContentManifest manifest, ILogger<TextureRe
                 ColorFormatEnum.RGBA8Srgb
             );
 
-            if (_logger.IsEnabled(LogLevel.Information))
+            if (_profiler?.IsEnabled == true && _logger.IsEnabled(LogLevel.Information))
                 _logger.LogInformation(
                     "Texture loaded: Id={Id}, Width={Width}, Height={Height}",
                     Path.GetFileNameWithoutExtension(filepath),
@@ -142,6 +159,7 @@ public sealed class TextureRegistry(IContentManifest manifest, ILogger<TextureRe
     /// <inheritdoc/>
     public void Reset()
     {
+        using var resetTiming = new LoadPerformanceScope(_profiler, "texture.registry.reset", units: _textures.Count);
         _contentTextures.Clear();
         _textures.Clear();
     }
