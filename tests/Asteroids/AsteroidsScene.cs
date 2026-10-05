@@ -4,8 +4,6 @@ namespace Nexus.Samples.Asteroids;
 [Scene("Asteroids")]
 public sealed class AsteroidsScene : Scene
 {
-    private const float DesignWidth = 1280f;
-    private const float DesignHeight = 720f;
     private const float ShipRadius = 18f;
     private const float BulletLifetime = 1.2f;
     private const float FireCooldown = 0.18f;
@@ -40,31 +38,17 @@ public sealed class AsteroidsScene : Scene
     );
     private static readonly Mesh[] AsteroidMeshes = CreateAsteroidMeshes();
 
-    private readonly IInputSystem _input;
     private readonly IWindowService _windowService;
     private readonly StaticCamera _camera = new();
-    private readonly List<Body> _asteroids = [];
-    private readonly List<Body> _bullets = [];
+    private readonly ShipInput _shipInput = new();
+    private readonly List<Asteroid> _asteroids = [];
+    private readonly List<Bullet> _bullets = [];
     private readonly HashSet<KeyEnum> _pressedKeys = [];
     private readonly TextElement _scoreText;
     private readonly TextElement _livesText;
     private readonly TextElement _statusText;
-    private readonly GameObject2D _shipNode = new();
-    private readonly GameObject2D _muzzleNode = new() { Position = new(24f, 0f) };
-    private readonly UniformColorMeshRenderer _shipRenderer = new()
-    {
-        Mesh = ShipMesh,
-        Color = ShipColor,
-        DrawOrder = 100,
-    };
+    private readonly Ship _ship;
     private Vector2D<int> _lastWindowSize;
-    private float _fieldScaleX = 1f;
-    private float _fieldScaleY = 1f;
-    private Vector2D<float> _shipPosition;
-    private Vector2D<float> _shipVelocity;
-    private float _shipRotation;
-    private float _fireTimer;
-    private float _invulnerability;
     private int _lives;
     private int _score;
     private bool _finished;
@@ -72,7 +56,7 @@ public sealed class AsteroidsScene : Scene
     /// <summary>Creates the scene and its input, camera, and HUD services.</summary>
     /// <param name="textStyles">Provides built-in font styles.</param>
     /// <param name="eventHub">Dispatches key transitions.</param>
-    /// <param name="input">Provides held keyboard state.</param>
+    /// <param name="input">Provides keyboard state.</param>
     /// <param name="windowService">Provides the current window size.</param>
     public AsteroidsScene(
         ITextStyleRegistry textStyles,
@@ -81,7 +65,6 @@ public sealed class AsteroidsScene : Scene
         IWindowService windowService
     )
     {
-        _input = input;
         _windowService = windowService;
         MainCamera = _camera;
         _scoreText = CreateText(textStyles, 24);
@@ -90,29 +73,28 @@ public sealed class AsteroidsScene : Scene
         _statusText.MaximumLines = 2;
         _lastWindowSize = windowService.GetMainWindow().Size;
         InputMap = CreateInputMap(eventHub);
+        _ship = new Ship(_shipInput, ShipMesh, ShipColor);
+        _ship.Fired += OnShipFired;
         UpdateLayout(_lastWindowSize);
     }
 
-    /// <summary>Initializes the full-window view, HUD, ship, and initial asteroid family.</summary>
+    /// <summary>Initializes the view, HUD, ship, and initial asteroid family.</summary>
     public override void Initialize()
     {
         base.Initialize();
         Children.Add(new View { Camera = _camera, PreserveDrawOrder = true });
-        _shipNode.Children.Add(_muzzleNode);
-        _shipNode.AddComponent(_shipRenderer);
-        Children.Add(_shipNode);
+        Children.Add(_ship);
         Children.Add(_scoreText);
         Children.Add(_livesText);
         Children.Add(_statusText);
         ResetRound();
     }
 
-    /// <summary>Advances movement, firing, collisions, wrapping, and responsive layout.</summary>
+    /// <summary>Resolves collisions, updates HUD state, and handles responsive layout.</summary>
     /// <param name="deltaTime">Elapsed frame time in seconds.</param>
     public override void Update(double deltaTime)
     {
         base.Update(deltaTime);
-        var elapsed = Math.Clamp((float)deltaTime, 0f, 0.1f);
         var size = _windowService.GetMainWindow().Size;
         if (size != _lastWindowSize)
         {
@@ -120,19 +102,23 @@ public sealed class AsteroidsScene : Scene
             UpdateLayout(size);
         }
 
-        if (_finished)
-        {
-            RenderState();
-            return;
-        }
+        var bounds = new Vector2D<float>(MathF.Max(1f, size.X), MathF.Max(1f, size.Y));
+        _ship.Bounds = bounds;
+        foreach (var asteroid in _asteroids)
+            asteroid.Bounds = bounds;
+        foreach (var bullet in _bullets)
+            bullet.Bounds = bounds;
 
-        UpdateShip(elapsed);
-        UpdateBullets(elapsed);
-        UpdateAsteroids(elapsed);
-        CheckCollisions();
-        _fireTimer = MathF.Max(0f, _fireTimer - elapsed);
-        _invulnerability = MathF.Max(0f, _invulnerability - elapsed);
-        RenderState();
+        if (!_finished)
+            CheckCollisions();
+
+        _statusText.Text = _finished
+            ? (_lives == 0
+                ? "Game Over - Press R to restart"
+                : "Field Cleared - Press R to restart")
+            : string.Empty;
+        _scoreText.Text = $"Score: {_score}";
+        _livesText.Text = $"Lives: {_lives}";
     }
 
     /// <summary>Creates restart and quit bindings.</summary>
@@ -141,6 +127,13 @@ public sealed class AsteroidsScene : Scene
     private InputMap CreateInputMap(IEventHub eventHub)
     {
         var map = new InputMap(eventHub);
+        BindHeld(map, KeyEnum.Left, () => _shipInput.RotateLeft = true, () => _shipInput.RotateLeft = false);
+        BindHeld(map, KeyEnum.Right, () => _shipInput.RotateRight = true, () => _shipInput.RotateRight = false);
+        BindHeld(map, KeyEnum.A, () => _shipInput.RotateLeft = true, () => _shipInput.RotateLeft = false);
+        BindHeld(map, KeyEnum.D, () => _shipInput.RotateRight = true, () => _shipInput.RotateRight = false);
+        BindHeld(map, KeyEnum.Up, () => _shipInput.Thrust = true, () => _shipInput.Thrust = false);
+        BindHeld(map, KeyEnum.W, () => _shipInput.Thrust = true, () => _shipInput.Thrust = false);
+        BindHeld(map, KeyEnum.Space, () => _shipInput.Fire = true, () => _shipInput.Fire = false);
         map.OnKeyPressed(KeyEnum.R).Invoke(() => HandlePressed(KeyEnum.R));
         map.OnKeyPressed(KeyEnum.Escape).Invoke(() => HandlePressed(KeyEnum.Escape));
         map.OnKeyReleased(KeyEnum.R).Invoke(() => _pressedKeys.Remove(KeyEnum.R));
@@ -148,7 +141,18 @@ public sealed class AsteroidsScene : Scene
         return map;
     }
 
-    /// <summary>Handles one-shot restart and quit keys.</summary>
+    /// <summary>Registers pressed and released actions for a held control.</summary>
+    /// <param name="map">The input map receiving the bindings.</param>
+    /// <param name="key">The bound key.</param>
+    /// <param name="pressed">The pressed action.</param>
+    /// <param name="released">The released action.</param>
+    private static void BindHeld(InputMap map, KeyEnum key, Action pressed, Action released)
+    {
+        map.OnKeyPressed(key).Invoke(pressed);
+        map.OnKeyReleased(key).Invoke(released);
+    }
+
+    /// <summary>Handles restart and quit controls.</summary>
     /// <param name="key">The newly pressed key.</param>
     private void HandlePressed(KeyEnum key)
     {
@@ -160,110 +164,53 @@ public sealed class AsteroidsScene : Scene
             _windowService.GetMainWindow().Close();
     }
 
-    /// <summary>Resets every gameplay object and counter without retaining old drawables.</summary>
+    /// <summary>Resets every gameplay object and counter.</summary>
     private void ResetRound()
     {
-        foreach (var body in _asteroids.Concat(_bullets).ToArray())
-            Children.Remove(body.Node);
-        _asteroids.Clear();
-        _bullets.Clear();
+        foreach (var asteroid in _asteroids.ToArray())
+            RemoveAsteroid(asteroid);
+        foreach (var bullet in _bullets.ToArray())
+            RemoveBullet(bullet);
+
         _lives = StartingLives;
         _score = 0;
         _finished = false;
-        RespawnShip(invulnerable: false);
+        _ship.Reset(new(_lastWindowSize.X / 2f, _lastWindowSize.Y / 2f), invulnerable: false);
 
-        var positions = new[]
+        var width = MathF.Max(1f, _lastWindowSize.X);
+        var height = MathF.Max(1f, _lastWindowSize.Y);
+        AddAsteroid(new(0.12f * width, 0.18f * height), 0, 68f, 55f, 0);
+        AddAsteroid(new(0.88f * width, 0.22f * height), 0, 68f, 72f, 1);
+        AddAsteroid(new(0.5f * width, 0.82f * height), 0, 68f, 89f, 2);
+    }
+
+    /// <summary>Receives a firing request after the ship has updated its transform.</summary>
+    /// <param name="spawn">The transformed muzzle state.</param>
+    private void OnShipFired(ShipSpawn spawn)
+    {
+        var bullet = new Bullet(BulletMesh, BulletColor, spawn.Position, spawn.Rotation, spawn.Velocity)
         {
-            new Vector2D<float>(150f, 130f),
-            new Vector2D<float>(DesignWidth - 150f, 160f),
-            new Vector2D<float>(DesignWidth / 2f, DesignHeight - 130f),
+            Bounds = _ship.Bounds,
         };
-        for (var index = 0; index < positions.Length; index++)
-            AddAsteroid(positions[index], 0, 68f, 55f + index * 17f, index);
+        bullet.Expired += RemoveBullet;
+        _bullets.Add(bullet);
+        Children.Add(bullet);
     }
 
-    /// <summary>Respawns the ship at the center, optionally granting crash protection.</summary>
-    /// <param name="invulnerable">Whether to grant the post-crash invulnerability window.</param>
-    private void RespawnShip(bool invulnerable = true)
-    {
-        _shipPosition = new(DesignWidth / 2f, DesignHeight / 2f);
-        _shipVelocity = default;
-        _shipRotation = -MathF.PI / 2f;
-        _invulnerability = invulnerable ? 2f : 0f;
-        _shipNode.Position = _shipPosition;
-        _shipNode.Rotation = _shipRotation;
-    }
-
-    /// <summary>Applies rotation, thrust, coasting, and held-fire input.</summary>
-    /// <param name="elapsed">Elapsed seconds.</param>
-    private void UpdateShip(float elapsed)
-    {
-        if (_input.Keyboard.IsKeyDown(KeyEnum.Left) || _input.Keyboard.IsKeyDown(KeyEnum.A))
-            _shipRotation -= 3.8f * elapsed;
-        if (_input.Keyboard.IsKeyDown(KeyEnum.Right) || _input.Keyboard.IsKeyDown(KeyEnum.D))
-            _shipRotation += 3.8f * elapsed;
-        if (_input.Keyboard.IsKeyDown(KeyEnum.Up) || _input.Keyboard.IsKeyDown(KeyEnum.W))
-        {
-            var forward = Forward();
-            _shipVelocity += forward * (260f * elapsed);
-            var speed = Length(_shipVelocity);
-            if (speed > 300f)
-                _shipVelocity *= 300f / speed;
-        }
-
-        _shipPosition += _shipVelocity * elapsed;
-        Wrap(ref _shipPosition);
-        if ((_input.Keyboard.IsKeyDown(KeyEnum.Space)) && _fireTimer <= 0f)
-        {
-            AddBullet();
-            _fireTimer = FireCooldown;
-        }
-    }
-
-    /// <summary>Moves and expires bullets.</summary>
-    /// <param name="elapsed">Elapsed seconds.</param>
-    private void UpdateBullets(float elapsed)
-    {
-        foreach (var bullet in _bullets.ToArray())
-        {
-            bullet.Position += bullet.Velocity * elapsed;
-            bullet.Lifetime -= elapsed;
-            var position = bullet.Position;
-            Wrap(ref position);
-            bullet.Position = position;
-            if (bullet.Lifetime <= 0f)
-                RemoveBody(_bullets, bullet);
-        }
-    }
-
-    /// <summary>Moves and rotates every asteroid.</summary>
-    /// <param name="elapsed">Elapsed seconds.</param>
-    private void UpdateAsteroids(float elapsed)
-    {
-        foreach (var asteroid in _asteroids)
-        {
-            asteroid.Position += asteroid.Velocity * elapsed;
-            asteroid.Rotation += asteroid.Spin * elapsed;
-            var position = asteroid.Position;
-            Wrap(ref position);
-            asteroid.Position = position;
-        }
-    }
-
-    /// <summary>Resolves bullet impacts, recursive splitting, and ship contact.</summary>
+    /// <summary>Checks bullet impacts and ship contact using circular bounds.</summary>
     private void CheckCollisions()
     {
         foreach (var bullet in _bullets.ToArray())
         {
             var target = _asteroids.FirstOrDefault(asteroid =>
                 DistanceSquared(bullet.Position, asteroid.Position)
-                <= MathF.Pow(bullet.Radius + asteroid.Radius, 2f)
+                    <= MathF.Pow(bullet.CollisionRadius + asteroid.CollisionRadius, 2f)
             );
             if (target is null)
                 continue;
 
-            RemoveBody(_bullets, bullet);
-            RemoveBody(_asteroids, target);
+            RemoveBullet(bullet);
+            RemoveAsteroid(target);
             _score += 100;
             if (target.Generation < 4)
             {
@@ -288,11 +235,11 @@ public sealed class AsteroidsScene : Scene
             }
         }
 
-        if (_invulnerability <= 0f)
+        if (!_ship.IsInvulnerable)
         {
             var hit = _asteroids.Any(asteroid =>
-                DistanceSquared(_shipPosition, asteroid.Position)
-                <= MathF.Pow(ShipRadius + asteroid.Radius, 2f)
+                DistanceSquared(_ship.Position, asteroid.Position)
+                    <= MathF.Pow(ShipRadius + asteroid.CollisionRadius, 2f)
             );
             if (hit)
             {
@@ -300,7 +247,7 @@ public sealed class AsteroidsScene : Scene
                 if (_lives == 0)
                     _finished = true;
                 else
-                    RespawnShip();
+                    _ship.Reset(new(_lastWindowSize.X / 2f, _lastWindowSize.Y / 2f), invulnerable: true);
             }
         }
 
@@ -308,28 +255,7 @@ public sealed class AsteroidsScene : Scene
             _finished = true;
     }
 
-    /// <summary>Adds a bullet at the ship's transformed muzzle with inherited velocity.</summary>
-    private void AddBullet()
-    {
-        var forward = Forward();
-        var muzzleTransform = _muzzleNode.WorldTransform;
-        var position = new Vector2D<float>(muzzleTransform.M41, muzzleTransform.M42);
-        var bullet = new Body(
-            position,
-            _shipVelocity + forward * 560f,
-            6f,
-            0f,
-            1f,
-            BulletMesh,
-            BulletColor
-        )
-        {
-            Lifetime = BulletLifetime,
-        };
-        AddBody(_bullets, bullet);
-    }
-
-    /// <summary>Adds one asteroid fragment with a shared mesh variant.</summary>
+    /// <summary>Adds an asteroid game object to the scene hierarchy.</summary>
     private void AddAsteroid(
         Vector2D<float> position,
         int generation,
@@ -340,75 +266,43 @@ public sealed class AsteroidsScene : Scene
     )
     {
         var angle = (variant * 1.71f) % (MathF.PI * 2f);
-        var body = new Body(
-            position,
-            velocity ?? new Vector2D<float>(MathF.Cos(angle), MathF.Sin(angle)) * speed,
-            radius,
-            angle,
-            0.3f + variant * 0.07f,
+        var asteroid = new Asteroid(
             AsteroidMeshes[variant % AsteroidMeshes.Length],
-            AsteroidColor
+            AsteroidColor,
+            position,
+            radius,
+            velocity ?? new Vector2D<float>(MathF.Cos(angle), MathF.Sin(angle)) * speed,
+            angle,
+            generation,
+            variant
         )
         {
-            Generation = generation,
-            Variant = variant,
+            Bounds = _ship.Bounds,
         };
-        AddBody(_asteroids, body);
+        _asteroids.Add(asteroid);
+        Children.Add(asteroid);
     }
 
-    /// <summary>Adds a body node and its drawable to the scene hierarchy.</summary>
-    private void AddBody(List<Body> collection, Body body)
+    /// <summary>Removes an asteroid game object and its drawable.</summary>
+    /// <param name="asteroid">The asteroid to remove.</param>
+    private void RemoveAsteroid(Asteroid asteroid)
     {
-        body.Node.AddComponent(body.Renderer);
-        Children.Add(body.Node);
-        collection.Add(body);
+        _asteroids.Remove(asteroid);
+        Children.Remove(asteroid);
     }
 
-    /// <summary>Removes a body and its associated renderer without leaving a stale drawable.</summary>
-    private void RemoveBody(List<Body> collection, Body body)
+    /// <summary>Removes a bullet game object and its drawable.</summary>
+    /// <param name="bullet">The bullet to remove.</param>
+    private void RemoveBullet(Bullet bullet)
     {
-        collection.Remove(body);
-        Children.Remove(body.Node);
+        _bullets.Remove(bullet);
+        Children.Remove(bullet);
     }
 
-    /// <summary>Updates all transforms, HUD text, and terminal status.</summary>
-    private void RenderState()
-    {
-        _shipNode.Position = _shipPosition;
-        _shipNode.Rotation = _shipRotation;
-        _shipRenderer.Transform =
-            Matrix4X4.CreateScale(_fieldScaleX, _fieldScaleY, 1f)
-            * Matrix4X4.CreateScale(22f, 22f, 1f)
-            * _shipNode.WorldTransform;
-        _shipRenderer.Color =
-            _invulnerability > 0f && (int)(_invulnerability * 12f) % 2 == 0
-                ? Colors.Red
-                : ShipColor;
-        foreach (var body in _asteroids.Concat(_bullets))
-            body.Renderer.Transform =
-                Matrix4X4.CreateScale(_fieldScaleX, _fieldScaleY, 1f)
-                * Transform(
-                    body.Position,
-                    body.Rotation,
-                    body.Mesh == BulletMesh ? 1f : body.Radius
-                );
-        _scoreText.Text = $"Score: {_score}";
-        _livesText.Text = $"Lives: {_lives}";
-        _statusText.Text = _finished
-            ? (
-                _lives == 0
-                    ? "Game Over - Press R to restart"
-                    : "Field Cleared - Press R to restart"
-            )
-            : string.Empty;
-    }
-
-    /// <summary>Updates the camera, background, and HUD placement for the current window.</summary>
+    /// <summary>Updates the full-window camera and HUD layout.</summary>
     /// <param name="windowSize">The current window size.</param>
     private void UpdateLayout(Vector2D<int> windowSize)
     {
-        _fieldScaleX = MathF.Max(1f, windowSize.X) / DesignWidth;
-        _fieldScaleY = MathF.Max(1f, windowSize.Y) / DesignHeight;
         _camera.SetViewportSize(MathF.Max(1f, windowSize.X), MathF.Max(1f, windowSize.Y));
         _scoreText.Width = windowSize.X;
         _scoreText.Height = 48f;
@@ -419,13 +313,15 @@ public sealed class AsteroidsScene : Scene
         _livesText.Margins = new Margins(0f, 20f, 14f, 0f);
         _statusText.Width = windowSize.X;
         _statusText.Height = 100f;
-        _statusText.Color = Colors.AliceBlue;
         _statusText.HorizontalAlignment = AlignHorizontal.Center;
         _statusText.VerticalAlignment = AlignVertical.Center;
         _statusText.Margins = default;
     }
 
     /// <summary>Creates a built-in-font HUD element.</summary>
+    /// <param name="styles">The text style registry.</param>
+    /// <param name="size">The font size.</param>
+    /// <returns>A configured text element.</returns>
     private static TextElement CreateText(ITextStyleRegistry styles, float size) =>
         new()
         {
@@ -449,52 +345,17 @@ public sealed class AsteroidsScene : Scene
             {
                 var angle = index * MathF.PI * 2f / 12f;
                 var radius = 0.78f + (float)random.NextDouble() * 0.42f;
-                vertices[index + 1] = new(
-                    new(MathF.Cos(angle) * radius, MathF.Sin(angle) * radius, 0f)
-                );
+                vertices[index + 1] = new(new(MathF.Cos(angle) * radius, MathF.Sin(angle) * radius, 0f));
                 indices[index * 3] = 0;
                 indices[index * 3 + 1] = (uint)(index + 1);
                 indices[index * 3 + 2] = (uint)(index == 11 ? 1 : index + 2);
             }
-            meshes[variant] = new Mesh(
-                $"Asteroid{variant}",
-                PrimitiveTopologyEnum.TriangleList,
-                vertices,
-                indices
-            );
+            meshes[variant] = new Mesh($"Asteroid{variant}", PrimitiveTopologyEnum.TriangleList, vertices, indices);
         }
         return meshes;
     }
 
-    /// <summary>Builds a local-to-world transform for a custom mesh.</summary>
-    private static Matrix4X4<float> Transform(
-        Vector2D<float> position,
-        float rotation,
-        float scale
-    ) =>
-        Matrix4X4.CreateScale(scale, scale, 1f)
-        * Matrix4X4.CreateRotationZ(rotation)
-        * Matrix4X4.CreateTranslation(position.X, position.Y, 0f);
-
-    /// <summary>Gets the ship's forward unit vector.</summary>
-    private Vector2D<float> Forward() => new(MathF.Cos(_shipRotation), MathF.Sin(_shipRotation));
-
-    /// <summary>Wraps a center point across the design playfield.</summary>
-    private static void Wrap(ref Vector2D<float> position)
-    {
-        if (position.X < 0f)
-            position.X += DesignWidth;
-        if (position.X >= DesignWidth)
-            position.X -= DesignWidth;
-        if (position.Y < 0f)
-            position.Y += DesignHeight;
-        if (position.Y >= DesignHeight)
-            position.Y -= DesignHeight;
-    }
-
-    private static float Length(Vector2D<float> value) =>
-        MathF.Sqrt(value.X * value.X + value.Y * value.Y);
-
+    /// <summary>Calculates squared distance between two positions.</summary>
     private static float DistanceSquared(Vector2D<float> left, Vector2D<float> right)
     {
         var x = left.X - right.X;
@@ -502,50 +363,218 @@ public sealed class AsteroidsScene : Scene
         return x * x + y * y;
     }
 
+    /// <summary>Normalizes a vector, using a default direction for zero length.</summary>
     private static Vector2D<float> Normalize(Vector2D<float> value)
     {
-        var length = Length(value);
+        var length = MathF.Sqrt(value.X * value.X + value.Y * value.Y);
         return length < 0.001f ? new(1f, 0f) : value * (1f / length);
     }
 
-    /// <summary>Stores gameplay and rendering state for one dynamic object.</summary>
-    private sealed class Body
+    /// <summary>Stores mapped ship controls.</summary>
+    private sealed class ShipInput
     {
-        public Body(
-            Vector2D<float> position,
-            Vector2D<float> velocity,
-            float radius,
-            float rotation,
-            float spin,
-            Mesh mesh,
-            Color color
-        )
+        /// <summary>Gets or sets whether counterclockwise rotation is held.</summary>
+        public bool RotateLeft { get; set; }
+        /// <summary>Gets or sets whether clockwise rotation is held.</summary>
+        public bool RotateRight { get; set; }
+        /// <summary>Gets or sets whether thrust is held.</summary>
+        public bool Thrust { get; set; }
+        /// <summary>Gets or sets whether firing is held.</summary>
+        public bool Fire { get; set; }
+    }
+
+    /// <summary>Represents the transformed state emitted when the ship fires.</summary>
+    private readonly record struct ShipSpawn(
+        Vector2D<float> Position,
+        Vector2D<float> Velocity,
+        float Rotation
+    );
+
+    /// <summary>Owns the ship transform, muzzle, movement, and firing behavior.</summary>
+    private sealed class Ship : GameObject2D
+    {
+        private const float ShipScale = 22f;
+        private readonly ShipInput _input;
+        private readonly GameObject2D _muzzle = new() { Position = new(24f / ShipScale, 0f) };
+        private readonly UniformColorMeshRenderer _renderer;
+        private float _fireTimer;
+        private float _invulnerability;
+        private Vector2D<float> _velocity;
+
+        /// <summary>Creates a ship with its renderer and inherited-transform muzzle.</summary>
+        /// <param name="input">The mapped control state.</param>
+        /// <param name="mesh">The ship mesh.</param>
+        /// <param name="color">The ship color.</param>
+        public Ship(ShipInput input, Mesh mesh, Color color)
         {
-            Position = position;
-            Velocity = velocity;
-            Radius = radius;
-            Rotation = rotation;
-            Spin = spin;
-            Mesh = mesh;
-            Node = new GameObject2D();
-            Renderer = new UniformColorMeshRenderer
-            {
-                Mesh = mesh,
-                Color = color,
-                DrawOrder = 110,
-            };
+            _input = input;
+            _renderer = new UniformColorMeshRenderer { Mesh = mesh, Color = color, DrawOrder = 100 };
+            AddComponent(_renderer);
+            Scale = new(ShipScale, ShipScale);
+            Children.Add(_muzzle);
         }
 
-        public GameObject2D Node { get; }
-        public UniformColorMeshRenderer Renderer { get; }
-        public Mesh Mesh { get; }
-        public Vector2D<float> Position { get; set; }
+        /// <summary>Gets or sets the current movement bounds.</summary>
+        public Vector2D<float> Bounds { get; set; }
+        /// <summary>Gets whether the ship is currently crash-invulnerable.</summary>
+        public bool IsInvulnerable => _invulnerability > 0f;
+        /// <summary>Raised after the muzzle transform is current and a shot is fired.</summary>
+        public event Action<ShipSpawn>? Fired;
+
+        /// <inheritdoc />
+        public override void Update(double deltaTime)
+        {
+            var elapsed = Math.Clamp((float)deltaTime, 0f, 0.1f);
+            if (_input.RotateLeft)
+                Rotation -= 3.8f * elapsed;
+            if (_input.RotateRight)
+                Rotation += 3.8f * elapsed;
+            if (_input.Thrust)
+            {
+                var forward = new Vector2D<float>(MathF.Cos(Rotation), MathF.Sin(Rotation));
+                _velocity += forward * (260f * elapsed);
+                var speed = MathF.Sqrt(_velocity.X * _velocity.X + _velocity.Y * _velocity.Y);
+                if (speed > 300f)
+                    _velocity *= 300f / speed;
+            }
+
+            var position = Position + _velocity * elapsed;
+            Wrap(ref position, Bounds);
+            Position = position;
+            _fireTimer = MathF.Max(0f, _fireTimer - elapsed);
+            _invulnerability = MathF.Max(0f, _invulnerability - elapsed);
+            _renderer.Color = IsInvulnerable && (int)(_invulnerability * 12f) % 2 == 0
+                ? Colors.Red
+                : ShipColor;
+
+            if (_input.Fire && _fireTimer <= 0f)
+            {
+                var forward = new Vector2D<float>(MathF.Cos(Rotation), MathF.Sin(Rotation));
+                var muzzlePosition = new Vector2D<float>(_muzzle.WorldTransform.M41, _muzzle.WorldTransform.M42);
+                Fired?.Invoke(new(muzzlePosition, _velocity + forward * 560f, Rotation));
+                _fireTimer = FireCooldown;
+            }
+        }
+
+        /// <summary>Resets position, velocity, orientation, and crash protection.</summary>
+        /// <param name="position">The new position.</param>
+        /// <param name="invulnerable">Whether to grant crash protection.</param>
+        public void Reset(Vector2D<float> position, bool invulnerable)
+        {
+            Position = position;
+            Rotation = -MathF.PI / 2f;
+            _velocity = default;
+            _fireTimer = 0f;
+            _invulnerability = invulnerable ? 2f : 0f;
+        }
+    }
+
+    /// <summary>Owns asteroid movement, spin, scale, and collision state.</summary>
+    private sealed class Asteroid : GameObject2D
+    {
+        private readonly UniformColorMeshRenderer _renderer;
+
+        /// <summary>Creates an asteroid node with its shared mesh.</summary>
+        public Asteroid(
+            Mesh mesh,
+            Color color,
+            Vector2D<float> position,
+            float radius,
+            Vector2D<float> velocity,
+            float rotation,
+            int generation,
+            int variant
+        )
+        {
+            _renderer = new UniformColorMeshRenderer { Mesh = mesh, Color = color, DrawOrder = 5 };
+            AddComponent(_renderer);
+            Position = position;
+            Rotation = rotation;
+            Scale = new(radius, radius);
+            Velocity = velocity;
+            Radius = radius;
+            Generation = generation;
+            Variant = variant;
+        }
+
+        /// <summary>Gets or sets the current movement bounds.</summary>
+        public Vector2D<float> Bounds { get; set; }
+        /// <summary>Gets the current velocity.</summary>
         public Vector2D<float> Velocity { get; }
+        /// <summary>Gets the visual and collision radius.</summary>
         public float Radius { get; }
-        public float Rotation { get; set; }
-        public float Spin { get; }
-        public float Lifetime { get; set; } = float.PositiveInfinity;
-        public int Generation { get; set; }
-        public int Variant { get; set; }
+        /// <summary>Gets the collision radius.</summary>
+        public float CollisionRadius => Radius;
+        /// <summary>Gets the splitting generation.</summary>
+        public int Generation { get; }
+        /// <summary>Gets the mesh variant identifier.</summary>
+        public int Variant { get; }
+
+        /// <inheritdoc />
+        public override void Update(double deltaTime)
+        {
+            var elapsed = Math.Clamp((float)deltaTime, 0f, 0.1f);
+            var position = Position + Velocity * elapsed;
+            Rotation += (0.3f + Variant * 0.07f) * elapsed;
+            Wrap(ref position, Bounds);
+            Position = position;
+        }
+    }
+
+    /// <summary>Owns bullet movement, rotation, lifetime, and collision state.</summary>
+    private sealed class Bullet : GameObject2D
+    {
+        private readonly UniformColorMeshRenderer _renderer;
+
+        /// <summary>Creates a bullet aligned with its firing direction.</summary>
+        public Bullet(
+            Mesh mesh,
+            Color color,
+            Vector2D<float> position,
+            float rotation,
+            Vector2D<float> velocity
+        )
+        {
+            _renderer = new UniformColorMeshRenderer { Mesh = mesh, Color = color, DrawOrder = 110 };
+            AddComponent(_renderer);
+            Position = position;
+            Rotation = rotation;
+            Velocity = velocity;
+            Lifetime = BulletLifetime;
+        }
+
+        /// <summary>Gets or sets the current movement bounds.</summary>
+        public Vector2D<float> Bounds { get; set; }
+        /// <summary>Gets the bullet velocity.</summary>
+        public Vector2D<float> Velocity { get; }
+        /// <summary>Gets the circular collision radius.</summary>
+        public float CollisionRadius => 6f;
+        /// <summary>Gets the remaining lifetime.</summary>
+        public float Lifetime { get; private set; }
+        /// <summary>Raised when the bullet reaches the end of its lifetime.</summary>
+        public event Action<Bullet>? Expired;
+
+        /// <inheritdoc />
+        public override void Update(double deltaTime)
+        {
+            var elapsed = Math.Clamp((float)deltaTime, 0f, 0.1f);
+            var position = Position + Velocity * elapsed;
+            Lifetime -= elapsed;
+            Wrap(ref position, Bounds);
+            Position = position;
+            if (Lifetime <= 0f)
+                Expired?.Invoke(this);
+        }
+    }
+
+    /// <summary>Wraps a position across the current screen bounds.</summary>
+    /// <param name="position">The position to wrap.</param>
+    /// <param name="bounds">The screen bounds.</param>
+    private static void Wrap(ref Vector2D<float> position, Vector2D<float> bounds)
+    {
+        if (position.X < 0f) position.X += bounds.X;
+        if (position.X >= bounds.X) position.X -= bounds.X;
+        if (position.Y < 0f) position.Y += bounds.Y;
+        if (position.Y >= bounds.Y) position.Y -= bounds.Y;
     }
 }

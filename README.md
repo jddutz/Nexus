@@ -8,9 +8,10 @@ The current development stack uses .NET 10 and Silk.NET, with Vulkan as the acti
 
 The samples now include Breakout, SnakeGame, and Asteroids alongside HelloNexus. Asteroids
 adds indexed 32-bit custom meshes, a uniform-color triangle-list pipeline, transformable
-mesh drawables, continuous movement, and runtime drawable removal. Breakout uses a fixed
-1280x720 logical playfield with a fixed-step simulation to exercise continuous movement,
-runtime scene-child removal, and clean restart without an external content manifest.
+mesh drawables, continuous movement, and runtime drawable removal. Breakout uses
+GameObject2D-owned transforms for its paddle, ball, and bricks, with a fixed-step simulation
+and runtime scene-child removal to exercise the engine lifecycle without an external content
+manifest.
 
 > **Document status:** Initial architecture baseline, 2026-10-02. Established decisions below record prior design agreements; they do not certify that every implementation already conforms. Proposed boundaries and unresolved questions are explicitly identified. The source tree has not been audited for this draft.
 
