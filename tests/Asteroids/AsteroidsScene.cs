@@ -25,7 +25,7 @@ public sealed class AsteroidsScene : Scene
             new(new(-0.3f, 0f, 0f)),
             new(new(-0.7f, 0.65f, 0f)),
         ],
-        [0, 1, 2, 0, 2, 3]
+        [0, 2, 1, 0, 3, 2]
     );
     private static readonly Mesh BulletMesh = new(
         "AsteroidsBullet",
@@ -38,7 +38,7 @@ public sealed class AsteroidsScene : Scene
             new(new(-4f, 3f, 0f)),
             new(new(3f, 3f, 0f)),
         ],
-        [0, 1, 2, 0, 2, 3, 0, 3, 4, 0, 4, 5]
+        [0, 2, 1, 0, 3, 2, 0, 4, 3, 0, 5, 4]
     );
     private static readonly Mesh[] AsteroidMeshes = CreateAsteroidMeshes();
 
@@ -51,20 +51,13 @@ public sealed class AsteroidsScene : Scene
     private readonly TextElement _scoreText;
     private readonly TextElement _livesText;
     private readonly TextElement _statusText;
-    private readonly ImageElement _background = new()
-    {
-        Texture = BuiltInTextures.Uniform,
-        SizingMode = ImageSizingMode.Stretch,
-        Color = Colors.Black,
-        SortOrder = -32768,
-    };
     private readonly GameObject2D _shipNode = new();
     private readonly GameObject2D _muzzleNode = new() { Position = new(24f, 0f) };
     private readonly UniformColorMeshRenderer _shipRenderer = new()
     {
         Mesh = ShipMesh,
         Color = ShipColor,
-        DrawOrder = 10,
+        DrawOrder = 100,
     };
     private Vector2D<int> _lastWindowSize;
     private float _fieldScaleX = 1f;
@@ -107,7 +100,6 @@ public sealed class AsteroidsScene : Scene
     {
         base.Initialize();
         Children.Add(new View { Camera = _camera, PreserveDrawOrder = true });
-        Children.Add(_background);
         _shipNode.Children.Add(_muzzleNode);
         _shipNode.AddComponent(_shipRenderer);
         Children.Add(_shipNode);
@@ -400,8 +392,6 @@ public sealed class AsteroidsScene : Scene
         _fieldScaleX = MathF.Max(1f, windowSize.X) / DesignWidth;
         _fieldScaleY = MathF.Max(1f, windowSize.Y) / DesignHeight;
         _camera.SetViewportSize(MathF.Max(1f, windowSize.X), MathF.Max(1f, windowSize.Y));
-        _background.Width = windowSize.X;
-        _background.Height = windowSize.Y;
         _scoreText.Width = windowSize.X;
         _scoreText.Height = 48f;
         _scoreText.Margins = new Margins(20f, 0f, 14f, 0f);
@@ -501,7 +491,7 @@ public sealed class AsteroidsScene : Scene
             Spin = spin;
             Mesh = mesh;
             Node = new GameObject2D();
-            Renderer = new UniformColorMeshRenderer { Mesh = mesh, Color = color, DrawOrder = 5 };
+            Renderer = new UniformColorMeshRenderer { Mesh = mesh, Color = color, DrawOrder = 110 };
         }
 
         public GameObject2D Node { get; }
