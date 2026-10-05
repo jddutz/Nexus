@@ -56,6 +56,15 @@ cleanCommand.SetAction(parseResult =>
 
 var rootCommand = new RootCommand("Nexus Asset Pipeline") { outputOption };
 
+var manifestOption = new Option<string>("--manifest") { Required = true };
+var generateFontsCommand = new Command("generate-fonts", "Generate embedded C# font records from decoded manifest data") { manifestOption };
+generateFontsCommand.SetAction(parseResult =>
+{
+    BuiltInFontGenerator.Generate(parseResult.GetValue(manifestOption)!, parseResult.GetValue(outputOption)!);
+    return 0;
+});
+rootCommand.Subcommands.Add(generateFontsCommand);
+
 rootCommand.Subcommands.Add(buildCommand);
 rootCommand.Subcommands.Add(cleanCommand);
 

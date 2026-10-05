@@ -1,7 +1,8 @@
 using Nexus.Assets.Typography.Atlas;
 using Nexus.Assets.Typography.DistanceFields;
-using Nexus.Assets.Typography.FontReader.TrueType;
+using Nexus.Assets.Typography.FontReader.OpenType;
 using Nexus.Assets.Typography.Geometry;
+using System.Numerics;
 using Nexus.Core;
 
 namespace Nexus.Assets.Fonts;
@@ -44,7 +45,54 @@ public sealed class FontBuilder : IFontBuilder
         var fontPath = Path.GetFullPath(sourcePath);
         var source = GetFontSource(fontPath);
         var face = source.Reader.FontFace;
-        var pixelsPerFontUnit = settings.EmSize / (float)face.UnitsPerEm;
+        return BuildCore(fontId, requestedCodepoints, settings, face.UnitsPerEm,
+            face.Ascender, face.Descender, face.LineGap,
+            codepoint => GetSourceGlyph(source, codepoint), GetKerningPairs(source, requestedCodepoints));
+    }
+
+    /// <summary>Rasterizes decoded outlines without accessing a font file. Settings override exported defaults.</summary>
+    public FontBuildResult Build(
+        ContentId fontId, FontRasterizerInput input, IReadOnlyList<int> codepoints,
+        FontGenerationSettings? settings = null)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        ArgumentNullException.ThrowIfNull(codepoints);
+        settings ??= new FontGenerationSettings
+        {
+            EmSize = input.GenerationSettings.EmSize,
+            DistanceRange = input.GenerationSettings.DistanceRange,
+            Padding = input.GenerationSettings.Padding,
+        };
+        settings.Validate();
+        if (codepoints.Count == 0) throw new FontBuildException("At least one glyph codepoint is required.");
+        if (input.Metrics.UnitsPerEm == 0) throw new FontBuildException("Font units per em must be positive.");
+        var requested = codepoints.Distinct().ToArray();
+        var glyphs = input.Glyphs.ToDictionary(glyph => glyph.Codepoint);
+        CachedSourceGlyph Resolve(int codepoint)
+        {
+            if (!glyphs.TryGetValue(codepoint, out var glyph))
+                throw new FontBuildException($"Decoded font '{fontId}' has no codepoint U+{codepoint:X}.");
+            return new CachedSourceGlyph(glyph.AdvanceWidth, glyph.Contours.Select(contour =>
+                new Contour(contour.Segments.Select(segment => segment.Kind switch
+                {
+                    "line" when segment.Control is null => (Edge)new LineSegment(Point(segment.Start), Point(segment.End)),
+                    "quadratic" when segment.Control is { } control => new QuadraticSegment(Point(segment.Start), Point(control), Point(segment.End)),
+                    _ => throw new FontBuildException($"Invalid decoded font segment kind '{segment.Kind}'."),
+                }))).ToArray());
+        }
+        var selected = requested.ToHashSet();
+        return BuildCore(fontId, requested, settings, input.Metrics.UnitsPerEm,
+            input.Metrics.Ascender, input.Metrics.Descender, input.Metrics.LineGap, Resolve,
+            input.Kerning.Where(pair => selected.Contains(pair.LeftCodepoint) && selected.Contains(pair.RightCodepoint)).ToArray());
+    }
+
+    private static Vector2 Point(FontRasterizerPoint point) => new(point.X, point.Y);
+
+    private static FontBuildResult BuildCore(ContentId fontId, int[] requestedCodepoints,
+        FontGenerationSettings settings, ushort unitsPerEm, short ascender, short descender, short lineGap,
+        Func<int, CachedSourceGlyph> resolveGlyph, IReadOnlyList<TextKerningPair> kerning)
+    {
+        var pixelsPerFontUnit = settings.EmSize / (float)unitsPerEm;
         var distanceRange = (float)settings.DistanceRange;
         var bitmapPadding = checked(settings.Padding + (int)Math.Ceiling(settings.DistanceRange));
         var msdfSettings = new MsdfGenerationSettings
@@ -63,7 +111,7 @@ public sealed class FontBuilder : IFontBuilder
 
         foreach (var codepoint in requestedCodepoints)
         {
-            var sourceGlyph = GetSourceGlyph(source, codepoint);
+            var sourceGlyph = resolveGlyph(codepoint);
             var contours = sourceGlyph.Contours;
             var geometryBounds = GeometryBoundsCalculator.GetBounds(contours);
             var bitmap = msdfGenerator.Generate(contours, msdfSettings);
@@ -108,19 +156,19 @@ public sealed class FontBuilder : IFontBuilder
             );
         }
 
-        var emScale = settings.EmSize / (double)face.UnitsPerEm;
+        var emScale = settings.EmSize / (double)unitsPerEm;
         var metrics = new FontMetrics(
             settings.EmSize,
-            face.Ascender * emScale,
-            face.Descender * emScale,
-            (face.Ascender - face.Descender + face.LineGap) * emScale
+            ascender * emScale,
+            descender * emScale,
+            (ascender - descender + lineGap) * emScale
         );
         var result = new FontBuildResult(
             fontId,
             atlasResult.Atlas,
             metrics,
             glyphs,
-            GetKerningPairs(source, requestedCodepoints),
+            kerning,
             new MsdfMetadata(settings.DistanceRange, settings.EmSize)
         );
         return result;
@@ -149,7 +197,7 @@ public sealed class FontBuilder : IFontBuilder
 
             var data = File.ReadAllBytes(sourcePath);
             var source = new CachedFontSource(
-                new TrueTypeFontReader(data),
+                new OpenTypeFontReader(data),
                 data.LongLength,
                 lastWriteTimeUtc
             );
@@ -172,8 +220,7 @@ public sealed class FontBuilder : IFontBuilder
             var glyphIndex = source.Reader.GetGlyphIndex(codepoint);
             var metrics = source.Reader.GetHorizontalMetrics(glyphIndex);
             var contours = source.Reader
-                .GetGlyphOutline(glyphIndex)
-                .Contours.Select(FontContourConverter.Convert)
+                .GetGlyphContours(glyphIndex)
                 .ToArray();
             cached = new CachedSourceGlyph(metrics.AdvanceWidth, contours);
             source.Glyphs.Add(codepoint, cached);
@@ -199,13 +246,13 @@ public sealed class FontBuilder : IFontBuilder
     /// <param name="Length">The source file length.</param>
     /// <param name="LastWriteTimeUtc">The source file's last-write timestamp.</param>
     private sealed class CachedFontSource(
-        TrueTypeFontReader Reader,
+        OpenTypeFontReader Reader,
         long Length,
         DateTime LastWriteTimeUtc
     )
     {
         /// <summary>Gets the parsed font reader.</summary>
-        public TrueTypeFontReader Reader { get; } = Reader;
+        public OpenTypeFontReader Reader { get; } = Reader;
 
         /// <summary>Gets the source file length.</summary>
         public long Length { get; } = Length;

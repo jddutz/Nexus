@@ -17,5 +17,7 @@ public sealed class BuiltInFontsTests
         Assert.Equal(BuiltInFonts.All.Count, BuiltInFonts.All.Distinct().Count());
         Assert.Contains(BuiltInFonts.Regular, BuiltInFonts.All);
         Assert.Contains(BuiltInFonts.UltraLightItalic, BuiltInFonts.All);
+        Assert.Equal(BuiltInFonts.Regular, BuiltInFonts.Default);
+        Assert.False(string.IsNullOrWhiteSpace(BuiltInFonts.Default.Value));
     }
 }

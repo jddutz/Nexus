@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 try
 {
     var configuration = new ConfigurationBuilder()
@@ -14,6 +16,8 @@ try
 }
 catch (Exception ex)
 {
-    Console.Error.WriteLine(ex);
+    var error = ex.ToString();
+    Console.Error.WriteLine(error);
+    Debug.WriteLine(error);
     return 1;
 }

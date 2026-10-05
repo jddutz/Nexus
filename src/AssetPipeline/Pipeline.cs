@@ -1,7 +1,7 @@
 namespace Nexus.AssetPipeline;
 
 using System.Text.Json;
-using Nexus.Assets.Typography.FontReader.TrueType;
+using Nexus.Assets.Typography.FontReader.OpenType;
 using Nexus.Assets.Typography.Geometry;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
@@ -211,7 +211,7 @@ public sealed class Pipeline
     /// <returns>The rasterizer input for the default NAP glyph repertoire.</returns>
     private static FontRasterizerInput ReadRasterizerInput(string sourcePath)
     {
-        var reader = TrueTypeFontReader.Open(sourcePath);
+        var reader = OpenTypeFontReader.Open(sourcePath);
         var face = reader.FontFace;
         var codepoints = new FontGlyphRepertoire().GetCodepoints();
         var glyphs = codepoints
@@ -220,8 +220,7 @@ public sealed class Pipeline
                 var glyphIndex = reader.GetGlyphIndex(codepoint);
                 var metrics = reader.GetHorizontalMetrics(glyphIndex);
                 var contours = reader
-                    .GetGlyphOutline(glyphIndex)
-                    .Contours.Select(FontContourConverter.Convert)
+                    .GetGlyphContours(glyphIndex)
                     .ToArray();
                 var bounds = GeometryBoundsCalculator.GetBounds(contours);
 

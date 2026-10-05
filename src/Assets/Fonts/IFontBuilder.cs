@@ -7,6 +7,11 @@ using Nexus.Core;
 /// </summary>
 public interface IFontBuilder
 {
+    /// <summary>Builds an atlas from decoded outlines without a source file.</summary>
+    FontBuildResult Build(ContentId fontId, FontRasterizerInput input,
+        IReadOnlyList<int> codepoints, FontGenerationSettings? settings = null) =>
+        new FontBuilder().Build(fontId, input, codepoints, settings);
+
     /// <summary>
     /// Builds the requested glyphs and packages the generated atlas and metadata.
     /// </summary>

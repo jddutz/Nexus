@@ -1,12 +1,12 @@
 namespace Nexus.Graphics.Text;
 
 /// <summary>
-/// Defines the content identifiers reserved for fonts built into Nexus.
+/// Defines built-in font identifiers and provides their embedded decoded outlines.
 /// </summary>
-public static class BuiltInFonts
+public static partial class BuiltInFonts
 {
     /// <summary>Gets the default font content identifier.</summary>
-    public static readonly ContentId Default = Regular;
+    public static ContentId Default => Regular;
 
     /// <summary>Gets the Aileron Black font content identifier.</summary>
     public static readonly ContentId Black = "nexus.default.black";

@@ -118,6 +118,16 @@ public sealed class TextStyleRegistry(IContentManifest manifest, IFontBuilder fo
     /// <returns>The generated font data.</returns>
     private FontBuildResult BuildFont(ContentId fontResourceId, int emSize)
     {
+        if (BuiltInFonts.TryGetRasterizerInput(fontResourceId, out var input))
+        {
+            return _fontBuilder.Build(fontResourceId, input!,
+                new FontGlyphRepertoire().GetCodepoints(), new FontGenerationSettings
+                {
+                    EmSize = emSize,
+                    DistanceRange = input!.GenerationSettings.DistanceRange,
+                    Padding = input.GenerationSettings.Padding,
+                });
+        }
         var filepath = Path.Combine(
             _manifest.ContentLibraryPath,
             _manifest.Fonts.GetContentFilePath(fontResourceId)
