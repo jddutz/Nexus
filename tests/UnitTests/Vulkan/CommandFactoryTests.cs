@@ -222,7 +222,7 @@ public class CommandFactoryTests
     }
 
     [Fact]
-    public void UpdateMesh_updates_vertex_buffer_and_refreshes_its_binding()
+    public void UpdateMesh_skips_immutable_mesh_replacement_when_identity_is_unchanged()
     {
         var dependencies = new TestDependencies();
         var factory = CreateFactory(dependencies);
@@ -231,8 +231,8 @@ public class CommandFactoryTests
 
         var commands = factory.UpdateMesh(drawable).ToArray();
 
-        Assert.Equal(1, dependencies.Geometry.UpdateCount);
-        Assert.Contains(commands, command => command is BindVertexBufferCommand { Binding: 0 });
+        Assert.Empty(commands);
+        Assert.Equal(0, dependencies.Geometry.UpdateCount);
         Assert.Equal(1, dependencies.Pipelines.GetOrCreateCount);
     }
 

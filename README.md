@@ -6,7 +6,9 @@ The vision is for game developers to exclusively use VS Code for coding and deve
 
 The current development stack uses .NET 10 and Silk.NET, with Vulkan as the active rendering backend.
 
-The samples now include Breakout alongside HelloNexus and SnakeGame. Breakout uses a fixed
+The samples now include Breakout, SnakeGame, and Asteroids alongside HelloNexus. Asteroids
+adds indexed 32-bit custom meshes, a uniform-color triangle-list pipeline, transformable
+mesh drawables, continuous movement, and runtime drawable removal. Breakout uses a fixed
 1280x720 logical playfield with a fixed-step simulation to exercise continuous movement,
 runtime scene-child removal, and clean restart without an external content manifest.
 
