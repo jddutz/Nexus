@@ -88,29 +88,22 @@ public sealed class TextStyleRegistry(IContentManifest manifest, IFontBuilder fo
     }
 
     /// <summary>
-    /// Gets a compatible raster or builds one when the requested size is outside every
-    /// cached raster's reusable range.
+    /// Gets or builds the deterministic resolution bucket for the requested layout size.
     /// </summary>
     /// <param name="fontId">The requested font content identifier.</param>
     /// <param name="size">The requested text size.</param>
     /// <returns>The selected or newly generated raster.</returns>
     private CachedRaster GetOrCreateRaster(ContentId fontId, float size)
     {
-        var compatible = _rasters
-            .Values.Where(raster =>
-                raster.FontResourceId == fontId
-                && size >= raster.EmSize * 0.5f
-                && size <= raster.EmSize * 2f
-            )
-            .OrderBy(raster => Math.Abs(raster.EmSize - size))
-            .FirstOrDefault();
-        if (compatible is not null)
-        {
-            _profiler?.RecordCache("text.raster", fontId.Value, true);
-            return compatible;
-        }
-
-        var emSize = (int)Math.Clamp(MathF.Round(size), 16f, 256f);
+        // Pick independently of request order. Small text downsamples a 32-em atlas;
+        // requests through 256 em never upscale a lower-resolution atlas.
+        var emSize = size <= 32f ? 32
+            : size <= 48f ? 48
+            : size <= 64f ? 64
+            : size <= 96f ? 96
+            : size <= 128f ? 128
+            : size <= 192f ? 192
+            : 256;
         var key = new RasterKey(fontId, emSize);
         if (_rasters.TryGetValue(key, out var cached))
         {

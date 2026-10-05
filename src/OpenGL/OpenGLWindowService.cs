@@ -50,6 +50,7 @@ public sealed class OpenGLWindowService : IWindowService, IDisposable
         windowOptions.Title = settings.Title;
         windowOptions.Size = new Vector2D<int>(settings.Width, settings.Height);
         windowOptions.VSync = settings.VSync;
+        windowOptions.IsVisible = false;
         windowOptions.UpdatesPerSecond = 60;
         var window = Window.Create(windowOptions);
         var windowId = new WindowId(_nextWindowId++);

@@ -17,7 +17,8 @@ void main()
 {
     vec3 msd = texture(texSampler, fragTexCoord).rgb;
     float sd = median(msd.r, msd.g, msd.b) - 0.5;
-    vec2 unitRange = vec2(fragMsdfDistanceRange) / vec2(textureSize(texSampler, 0));
+    // The generator encodes 0.5 - distance / (2 * DistanceRange).
+    vec2 unitRange = vec2(2.0 * fragMsdfDistanceRange) / vec2(textureSize(texSampler, 0));
     vec2 screenTexSize = 1.0 / max(fwidth(fragTexCoord), vec2(1e-6));
     float screenPxRange = max(0.5 * dot(unitRange, screenTexSize), 1.0);
     float opacity = clamp(screenPxRange * sd + 0.5, 0.0, 1.0);

@@ -85,6 +85,42 @@ public sealed class OpenTypeFontReaderTests
         Assert.InRange(MathF.Abs(GeometryDistance.SignedDistanceToContour(new Vector2(50, 75), contour)), 0, .01f);
     }
 
+    [Theory]
+    [InlineData(.01f)]
+    [InlineData(.1f)]
+    [InlineData(.25f)]
+    public void CubicToleranceBoundsApproximationError(float tolerance)
+    {
+        var program = Join(N(0, 0), [21], N(0, 100, 100, 0, 0, -100), [8, 14]);
+        var reader = new OpenTypeFontReader(Font(Cff(program)));
+        var precise = Assert.Single(reader.GetGlyphContours(1));
+        var contour = Assert.Single(reader.GetGlyphContours(1, tolerance));
+        Assert.True(contour.Edges.Count <= precise.Edges.Count);
+        if (tolerance > .01f) Assert.True(contour.Edges.Count < precise.Edges.Count);
+        Assert.Equal(contour.Edges[0].Start, contour.Edges[^1].End);
+        var curves = contour.Edges.OfType<QuadraticSegment>().ToArray();
+        for (var index = 0; index <= 1000; index++)
+        {
+            var t = index / 1000f;
+            var inverse = 1f - t;
+            var point = new Vector2(300f * inverse * t * t + 100f * t * t * t,
+                300f * inverse * inverse * t + 300f * inverse * t * t);
+            var distance = curves.Min(edge => MathF.Abs(GeometryDistance.SignedDistanceToEdge(point, edge)));
+            Assert.InRange(distance, 0f, tolerance + .0001f);
+        }
+    }
+
+    [Theory]
+    [InlineData(0f)]
+    [InlineData(-1f)]
+    [InlineData(float.NaN)]
+    [InlineData(float.PositiveInfinity)]
+    public void RejectsInvalidCubicTolerance(float tolerance)
+    {
+        var reader = new OpenTypeFontReader(Font(Cff(Rectangle())));
+        Assert.Throws<ArgumentOutOfRangeException>(() => reader.GetGlyphContours(1, tolerance));
+    }
+
     [Fact]
     public void PreservesFractionalFixedPointCoordinates()
     {

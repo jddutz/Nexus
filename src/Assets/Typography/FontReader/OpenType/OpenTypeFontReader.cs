@@ -39,9 +39,15 @@ public sealed class OpenTypeFontReader
     ) => _sfnt.GetKerningPairs(codepoints, scriptTag, languageTag);
 
     /// <summary>Decodes a glyph into geometry accepted by the distance-field generator.</summary>
-    /// <remarks>CFF cubic curves are subdivided into quadratics with at most 0.01 font units of error.</remarks>
-    public IReadOnlyList<Contour> GetGlyphContours(ushort glyphIndex)
+    /// <param name="glyphIndex">The glyph to decode.</param>
+    /// <param name="cubicApproximationTolerance">Positive, finite CFF approximation error bound in font units.
+    /// The default preserves the original precision; TrueType outlines are unchanged.</param>
+    /// <remarks>The bound excludes floating-point rounding. Exported outlines retain this approximation
+    /// at all raster sizes, so choose a tolerance for the largest intended em size.</remarks>
+    public IReadOnlyList<Contour> GetGlyphContours(ushort glyphIndex, float cubicApproximationTolerance = .01f)
     {
+        if (!float.IsFinite(cubicApproximationTolerance) || cubicApproximationTolerance <= 0f)
+            throw new ArgumentOutOfRangeException(nameof(cubicApproximationTolerance));
         if (glyphIndex >= FontFace.GlyphCount)
             throw new ArgumentOutOfRangeException(nameof(glyphIndex));
         if (TableDirectory.TryGetTable("CFF2", out _))
@@ -49,7 +55,7 @@ public sealed class OpenTypeFontReader
         if (TableDirectory.TryGetTable("CFF ", out _))
         {
             _cff ??= new CffFont(_sfnt.GetTable("CFF "), FontFace.GlyphCount);
-            return _cff.GetGlyphContours(glyphIndex);
+            return _cff.GetGlyphContours(glyphIndex, cubicApproximationTolerance);
         }
         if (!TableDirectory.TryGetTable("glyf", out _))
             throw new InvalidDataException("The OpenType font has no supported outline table (glyf or CFF).");

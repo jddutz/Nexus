@@ -81,12 +81,19 @@ public sealed class TextStyleRegistryTests
         Assert.Equal(1, builder.BuildCount);
         Assert.Same(style16, registry.Get(style16.Id));
         Assert.Same(style18, registry.Get(style18.Id));
+        Assert.Equal([32], builder.EmSizes);
+        registry.GetOrCreate("test-font", 48);
+        registry.Reset();
+        registry.GetOrCreate("test-font", 48);
+        registry.GetOrCreate("test-font", 16);
+        Assert.Equal([32, 48, 48, 32], builder.EmSizes);
     }
 
     /// <summary>Provides one fixed font result to the text-style registry test.</summary>
     private sealed class StubFontBuilder(FontBuildResult result) : IFontBuilder
     {
         public int BuildCount { get; private set; }
+        public List<int> EmSizes { get; } = [];
 
         /// <inheritdoc />
         public FontBuildResult Build(
@@ -97,6 +104,7 @@ public sealed class TextStyleRegistryTests
         )
         {
             BuildCount++;
+            EmSizes.Add(settings.EmSize);
             return result with { FontId = fontId };
         }
     }

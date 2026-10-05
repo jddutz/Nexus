@@ -2,12 +2,16 @@ using System.Diagnostics;
 
 try
 {
-    var configuration = new ConfigurationBuilder()
+    var configurationBuilder = new ConfigurationBuilder()
         .SetBasePath(AppContext.BaseDirectory)
         .AddJsonFile("appsettings.json")
-        .AddJsonFile(".content/content-manifest.json")
-        .AddCommandLine(args)
-        .Build();
+        .AddJsonFile(".content/content-manifest.json");
+
+    var environment = Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT");
+    if (!string.IsNullOrWhiteSpace(environment))
+        configurationBuilder.AddJsonFile($"appsettings.{environment}.json", optional: true);
+
+    var configuration = configurationBuilder.AddCommandLine(args).Build();
 
     using var application = new Application(configuration);
     application.Run();

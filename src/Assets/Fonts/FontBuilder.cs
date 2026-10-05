@@ -54,7 +54,7 @@ public sealed class FontBuilder : IFontBuilder
         var face = source.Reader.FontFace;
         return BuildCore(fontId, requestedCodepoints, settings, face.UnitsPerEm,
             face.Ascender, face.Descender, face.LineGap,
-            codepoint => GetSourceGlyph(source, codepoint), GetKerningPairs(source, requestedCodepoints));
+            codepoint => GetSourceGlyph(source, codepoint, settings), GetKerningPairs(source, requestedCodepoints));
     }
 
     /// <summary>Rasterizes decoded outlines without accessing a font file. Settings override exported defaults.</summary>
@@ -80,13 +80,18 @@ public sealed class FontBuilder : IFontBuilder
         {
             if (!glyphs.TryGetValue(codepoint, out var glyph))
                 throw new FontBuildException($"Decoded font '{fontId}' has no codepoint U+{codepoint:X}.");
-            return new CachedSourceGlyph(glyph.AdvanceWidth, glyph.Contours.Select(contour =>
+            var contours = glyph.Contours.Select(contour =>
                 new Contour(contour.Segments.Select(segment => segment.Kind switch
                 {
                     "line" when segment.Control is null => (Edge)new LineSegment(Point(segment.Start), Point(segment.End)),
                     "quadratic" when segment.Control is { } control => new QuadraticSegment(Point(segment.Start), Point(control), Point(segment.End)),
                     _ => throw new FontBuildException($"Invalid decoded font segment kind '{segment.Kind}'."),
-                }))).ToArray());
+                }))).ToArray();
+            var tolerance = settings.GetOutlineTolerance(input.Metrics.UnitsPerEm);
+            using var simplifyTiming = new LoadPerformanceScope(_telemetry, "font.outline.simplify", fontId.Value,
+                settings.EmSize, codepoint);
+            return new CachedSourceGlyph(glyph.AdvanceWidth,
+                contours.Select(contour => QuadraticContourSimplifier.Simplify(contour, tolerance)).ToArray());
         }
         var selected = requested.ToHashSet();
         return BuildCore(fontId, requested, settings, input.Metrics.UnitsPerEm,
@@ -230,15 +235,17 @@ public sealed class FontBuilder : IFontBuilder
         }
     }
 
-    /// <summary>Gets and caches one converted glyph outline from a source font.</summary>
+    /// <summary>Gets and caches one converted glyph outline at the requested raster resolution.</summary>
     /// <param name="source">The cached source font.</param>
     /// <param name="codepoint">The Unicode codepoint to extract.</param>
+    /// <param name="settings">Raster size used to bound the approximation error.</param>
     /// <returns>The source glyph data.</returns>
-    private CachedSourceGlyph GetSourceGlyph(CachedFontSource source, int codepoint)
+    private CachedSourceGlyph GetSourceGlyph(CachedFontSource source, int codepoint, FontGenerationSettings settings)
     {
         lock (_cacheLock)
         {
-            if (source.Glyphs.TryGetValue(codepoint, out var cached))
+            var key = (codepoint, settings.EmSize);
+            if (source.Glyphs.TryGetValue(key, out var cached))
             {
                 _telemetry?.RecordCache("font.outline", null, true);
                 return cached;
@@ -248,10 +255,10 @@ public sealed class FontBuilder : IFontBuilder
             var glyphIndex = source.Reader.GetGlyphIndex(codepoint);
             var metrics = source.Reader.GetHorizontalMetrics(glyphIndex);
             var contours = source.Reader
-                .GetGlyphContours(glyphIndex)
+                .GetGlyphContours(glyphIndex, settings.GetOutlineTolerance(source.Reader.FontFace.UnitsPerEm))
                 .ToArray();
             cached = new CachedSourceGlyph(metrics.AdvanceWidth, contours);
-            source.Glyphs.Add(codepoint, cached);
+            source.Glyphs.Add(key, cached);
             return cached;
         }
     }
@@ -292,7 +299,7 @@ public sealed class FontBuilder : IFontBuilder
         public DateTime LastWriteTimeUtc { get; } = LastWriteTimeUtc;
 
         /// <summary>Gets the converted glyph outlines cached by Unicode codepoint.</summary>
-        public Dictionary<int, CachedSourceGlyph> Glyphs { get; } = [];
+        public Dictionary<(int Codepoint, int EmSize), CachedSourceGlyph> Glyphs { get; } = [];
     }
 
     /// <summary>Stores source metrics and converted geometry for one glyph.</summary>

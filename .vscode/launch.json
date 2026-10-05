@@ -8,13 +8,19 @@
             "name": "Debug:HelloNexus",
             "type": "dotnet",
             "request": "launch",
-            "projectPath": "${workspaceFolder}/tests/HelloNexus/HelloNexus.csproj"
+            "projectPath": "${workspaceFolder}/tests/HelloNexus/HelloNexus.csproj",
+            "env": {
+                "DOTNET_ENVIRONMENT": "Development"
+            }
         },
         {
             "name": "Debug:SnakeGame",
             "type": "dotnet",
             "request": "launch",
-            "projectPath": "${workspaceFolder}/tests/SnakeGame/SnakeGame.csproj"
+            "projectPath": "${workspaceFolder}/tests/SnakeGame/SnakeGame.csproj",
+            "env": {
+                "DOTNET_ENVIRONMENT": "Development"
+            }
         }
     ]
 }

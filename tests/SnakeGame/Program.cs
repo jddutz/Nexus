@@ -4,11 +4,15 @@ using Nexus.Runtime;
 
 try
 {
-    var configuration = new ConfigurationBuilder()
+    var configurationBuilder = new ConfigurationBuilder()
         .SetBasePath(AppContext.BaseDirectory)
-        .AddJsonFile("appsettings.json")
-        .AddCommandLine(args)
-        .Build();
+        .AddJsonFile("appsettings.json");
+
+    var environment = Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT");
+    if (!string.IsNullOrWhiteSpace(environment))
+        configurationBuilder.AddJsonFile($"appsettings.{environment}.json", optional: true);
+
+    var configuration = configurationBuilder.AddCommandLine(args).Build();
 
     using var application = new Application(configuration);
     application.Run();

@@ -37,10 +37,33 @@ public sealed class SnakeGameScene : Scene
     private readonly IWindowService _windowService;
     private readonly StaticCamera _camera = new();
     private readonly SnakeGameState _game = new();
+    private readonly ImageElement _background = new()
+    {
+        Texture = BuiltInTextures.Uniform,
+        SizingMode = ImageSizingMode.Stretch,
+        Color = Colors.MidnightBlue,
+        SortOrder = -32768,
+        HorizontalAlignment = AlignHorizontal.Center,
+        VerticalAlignment = AlignVertical.Center,
+    };
+    private readonly ImageElement _boardField = new()
+    {
+        Texture = BuiltInTextures.Uniform,
+        SizingMode = ImageSizingMode.Stretch,
+        Color = Colors.Black,
+        SortOrder = -32767,
+        HorizontalAlignment = AlignHorizontal.Center,
+        VerticalAlignment = AlignVertical.Center,
+    };
     private readonly GridLayout _board = new()
     {
         Rows = Enumerable.Repeat(GridSize.Relative(), SnakeGameState.BoardSize).ToArray(),
         Columns = Enumerable.Repeat(GridSize.Relative(), SnakeGameState.BoardSize).ToArray(),
+        HorizontalAlignment = AlignHorizontal.Center,
+        VerticalAlignment = AlignVertical.Center,
+    };
+    private readonly Element _boardLayer = new()
+    {
         HorizontalAlignment = AlignHorizontal.Center,
         VerticalAlignment = AlignVertical.Center,
     };
@@ -93,6 +116,7 @@ public sealed class SnakeGameScene : Scene
     public override void Initialize()
     {
         base.Initialize();
+        Children.Add(_background);
         Children.Add(new View { Camera = _camera, PreserveDrawOrder = true });
 
         var screenLayout = new GridLayout
@@ -105,8 +129,10 @@ public sealed class SnakeGameScene : Scene
             ],
             Columns = [GridSize.Relative()],
         };
+        _boardLayer.Children.Add(_boardField);
+        _boardLayer.Children.Add(_board);
         screenLayout.SetCell(0, 0, _scoreText);
-        screenLayout.SetCell(1, 0, _board);
+        screenLayout.SetCell(1, 0, _boardLayer);
         screenLayout.SetCell(2, 0, _promptText);
         Children.Add(screenLayout);
         RenderGameState();
@@ -338,5 +364,11 @@ public sealed class SnakeGameScene : Scene
         var side = Math.Max(0, Math.Min(windowSize.X, windowSize.Y - HeaderHeight - FooterHeight));
         _board.Width = side;
         _board.Height = side;
+        _boardLayer.Width = side;
+        _boardLayer.Height = side;
+        _boardField.Width = side;
+        _boardField.Height = side;
+        _background.Width = Math.Max(0, windowSize.X);
+        _background.Height = Math.Max(0, windowSize.Y);
     }
 }

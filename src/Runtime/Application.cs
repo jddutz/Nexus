@@ -60,6 +60,8 @@ public sealed class Application : IApplication, IDisposable
                 using (var timing = new LoadPerformanceScope(telemetry, "startup.services.resolve"))
                     runtime = Services.GetRequiredService<INexusRuntime>();
                 runtime.Initialize();
+
+                window.IsVisible = true;
             }
 
             window.Run();

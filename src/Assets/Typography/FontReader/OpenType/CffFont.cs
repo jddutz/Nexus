@@ -40,8 +40,8 @@ internal sealed class CffFont
         else _localSubrs = [ReadPrivate(data, top)];
     }
 
-    internal IReadOnlyList<Contour> GetGlyphContours(ushort glyphIndex) =>
-        new Type2CharString(_globalSubrs, _localSubrs[_fontIndices[glyphIndex]])
+    internal IReadOnlyList<Contour> GetGlyphContours(ushort glyphIndex, float cubicApproximationTolerance) =>
+        new Type2CharString(_globalSubrs, _localSubrs[_fontIndices[glyphIndex]], cubicApproximationTolerance)
             .Decode(_charStrings[glyphIndex]);
 
     private static int Offset(Dictionary<int, double[]> dict, int op)

@@ -36,6 +36,17 @@ public sealed class FontGlyphRepertoire
 
 public sealed class FontGenerationSettings
 {
+    /// <summary>Maximum outline approximation error in raster pixels, excluding rounding.</summary>
+    public const float OutlinePixelTolerance = .006f;
+
+    /// <summary>Converts the raster-space budget to source font units.</summary>
+    public float GetOutlineTolerance(ushort unitsPerEm)
+    {
+        Validate();
+        if (unitsPerEm == 0) throw new ArgumentOutOfRangeException(nameof(unitsPerEm));
+        return OutlinePixelTolerance * unitsPerEm / EmSize;
+    }
+
     public int EmSize { get; set; } = 48;
     public double DistanceRange { get; set; } = 4;
     public int Padding { get; set; } = 2;

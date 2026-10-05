@@ -44,13 +44,16 @@ using Nexus.Runtime;
 
 try
 {
-    var configuration = new ConfigurationBuilder()
+    var configurationBuilder = new ConfigurationBuilder()
         .SetBasePath(AppContext.BaseDirectory)
         .AddJsonFile("appsettings.json")
-        .AddJsonFile(".content/content-manifest.json")
-        .AddCommandLine(args)
-        .Build();
+        .AddJsonFile(".content/content-manifest.json");
 
+    var environment = Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT");
+    if (!string.IsNullOrWhiteSpace(environment))
+        configurationBuilder.AddJsonFile($"appsettings.{environment}.json", optional: true);
+
+    var configuration = configurationBuilder.AddCommandLine(args).Build();
     using var application = new Application(configuration);
     application.Run();
 
@@ -91,12 +94,16 @@ Configure the project to copy the settings and built content into its output dir
 
 ```xml
 <ItemGroup>
-  <None Update="appsettings.json"
+  <None Update="appsettings*.json"
         CopyToOutputDirectory="PreserveNewest" />
   <None Update=".content/**/*"
         CopyToOutputDirectory="PreserveNewest" />
 </ItemGroup>
 ```
+
+Set `DOTNET_ENVIRONMENT=Development` to load optional `appsettings.Development.json`
+overrides after the base settings. Keep development-only diagnostics and logging
+levels in that file; the VS Code sample debug profiles set this environment automatically.
 
 Build your content with NAP:
 

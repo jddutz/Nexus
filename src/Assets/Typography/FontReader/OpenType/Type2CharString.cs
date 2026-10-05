@@ -4,7 +4,8 @@ using Nexus.Assets.Typography.Geometry;
 namespace Nexus.Assets.Typography.FontReader.OpenType;
 
 /// <summary>Interprets bounded Type 2 programs and converts cubic paths to quadratic geometry.</summary>
-internal sealed class Type2CharString(ReadOnlyMemory<byte>[] globalSubrs, ReadOnlyMemory<byte>[] localSubrs)
+internal sealed class Type2CharString(ReadOnlyMemory<byte>[] globalSubrs, ReadOnlyMemory<byte>[] localSubrs,
+    float cubicApproximationTolerance = .01f)
 {
     private readonly List<double> _stack = [];
     private readonly List<Contour> _contours = [];
@@ -271,7 +272,7 @@ internal sealed class Type2CharString(ReadOnlyMemory<byte>[] globalSubrs, ReadOn
     {
         // Degree reduction: the two implied quadratic controls converge under subdivision.
         var q1 = (3 * p1 - p0) / 2; var q2 = (3 * p2 - p3) / 2;
-        if (Vector2.Distance(q1, q2) <= .04f)
+        if (Vector2.Distance(q1, q2) <= 4f * cubicApproximationTolerance)
         {
             AddEdge(new QuadraticSegment(p0, (q1 + q2) / 2, p3));
             return;
