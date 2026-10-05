@@ -1,4 +1,4 @@
-namespace HelloNexus;
+namespace Nexus.Samples.HelloNexus;
 
 /// <summary>
 /// Builds the HelloNexus welcome screen and its application-specific content.

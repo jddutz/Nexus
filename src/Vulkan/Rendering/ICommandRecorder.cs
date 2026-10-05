@@ -3,7 +3,7 @@ namespace Nexus.Graphics.Vulkan.Rendering;
 /// <summary>
 /// Defines the contract for a renderer that records and submits Vulkan workloads.
 /// </summary>
-public interface IVulkanRenderer : IDisposable
+public interface ICommandRecorder : IDisposable
 {
     /// <summary>
     /// Prepares the renderer to record a new frame using an available frame synchronization slot.

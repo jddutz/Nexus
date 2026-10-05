@@ -1,3 +1,5 @@
+global using System.Diagnostics;
+global using Microsoft.Extensions.Configuration;
 global using Nexus.Core;
 global using Nexus.Core.Events;
 global using Nexus.Game;
@@ -9,3 +11,6 @@ global using Nexus.GUI;
 global using Nexus.GUI.Elements;
 global using Nexus.Input;
 global using Nexus.Input.Devices;
+global using Nexus.Input.Events;
+global using Nexus.Runtime;
+global using Silk.NET.Maths;

@@ -65,8 +65,12 @@ public sealed class TextElementTests
     public void Parameterless_construction_defers_drawables_until_style_is_assigned()
     {
         var element = new TextElement { Text = "A" };
+        var renderer = Assert.IsType<TextRenderer>(
+            Assert.Single(element.Components.OfType<TextRenderer>())
+        );
+        Assert.False(renderer.IsVisible);
         element.Arrange(new Rectangle<float>(0f, 0f, 2f, 2f));
-        var graphics = Assert.Single(element.Components.OfType<IGraphicsComponent>());
+        var graphics = Assert.Single(element.Components.OfType<IRenderer>());
 
         Assert.Equal("A", element.Text);
         Assert.Empty(graphics.Drawables);
@@ -170,13 +174,14 @@ public sealed class TextElementTests
         element.Arrange(new Rectangle<float>(0f, 0f, measuredSize.X, measuredSize.Y));
 
         Assert.Equal(Vector2D<float>.Zero, measuredSize);
-        Assert.Empty(element.Components.OfType<IGraphicsComponent>().Single().Drawables);
+        Assert.Empty(element.Components.OfType<IRenderer>().Single().Drawables);
         Assert.Equal(Vector2D<float>.Zero, element.Bounds.Size);
+        Assert.False(Assert.Single(element.Components.OfType<TextRenderer>()).IsVisible);
     }
 
-    /// <summary>Verifies hiding removes visuals while text and layout survive recreation.</summary>
+    /// <summary>Verifies ancestor visibility toggles the retained text renderer.</summary>
     [Fact]
-    public void AncestorVisibility_recreatesTextComponentFromRetainedState()
+    public void AncestorVisibility_togglesRendererAndRetainsComponent()
     {
         var parent = new Element();
         var element = CreateTextElement("AB");
@@ -186,7 +191,8 @@ public sealed class TextElementTests
         parent.AddChild(element);
 
         parent.IsVisible = false;
-        Assert.Empty(element.Components);
+        Assert.Same(original, Assert.Single(element.Components.OfType<TextRenderer>()));
+        Assert.False(original.IsVisible);
         Assert.Equal(Vector2D<float>.Zero, element.Bounds.Size);
         Assert.Equal(Vector2D<float>.Zero, element.Measure(new(20f, 20f)));
         element.Text = "BA";
@@ -196,7 +202,8 @@ public sealed class TextElementTests
 
         var recreated = DrawableTestData.TextGraphics(element);
         Assert.NotNull(recreated);
-        Assert.NotSame(original, recreated);
+        Assert.Same(original, recreated);
+        Assert.True(recreated.IsVisible);
         Assert.Equal(2UL, DrawableTestData.TextInstanceCount(element));
         Assert.Equal(new Vector2D<float>(2f, 1f), element.Measure(new(20f, 20f)));
         var text = Assert.IsType<TextRenderer>(Assert.Single(element.Components));
@@ -250,7 +257,7 @@ public sealed class TextElementTests
         Assert.Equal(Vector2D<float>.Zero, element.Bounds.Size);
         parent.IsVisible = true;
 
-        Assert.Empty(element.Components);
+        Assert.False(Assert.Single(element.Components.OfType<TextRenderer>()).IsVisible);
         element.Arrange(hiddenBounds);
         Assert.Equal(1UL, DrawableTestData.TextInstanceCount(element));
         var text = Assert.IsType<TextRenderer>(Assert.Single(element.Components));

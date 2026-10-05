@@ -4,7 +4,7 @@ namespace Nexus.Graphics.Components;
 /// A component that exposes drawables to the graphics system and reports
 /// when drawables are added or removed.
 /// </summary>
-public interface IGraphicsComponent : IComponent
+public interface IRenderer : IComponent
 {
     /// <summary>Occurs when a drawable is added to this component.</summary>
     event EventHandler<DrawableEventArgs>? DrawableAdded;
@@ -14,6 +14,12 @@ public interface IGraphicsComponent : IComponent
 
     /// <summary>Gets the drawables currently exposed by this component.</summary>
     IReadOnlyList<IDrawable> Drawables { get; }
+
+    /// <summary>Gets or sets whether this renderer submits its drawables for rendering.</summary>
+    bool IsVisible { get; set; }
+
+    /// <summary>Occurs when the renderer's visibility changes.</summary>
+    event Action<bool, bool>? IsVisibleChanged;
 
     /// <summary>Gets or sets the render order assigned to every drawable exposed by this component.</summary>
     int DrawOrder { get; set; }

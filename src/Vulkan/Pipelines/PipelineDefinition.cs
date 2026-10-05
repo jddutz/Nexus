@@ -66,7 +66,7 @@ public sealed record PipelineDefinition
         BlendFactor dstBlendFactor = BlendFactor.OneMinusSrcAlpha,
         BlendOp blendOp = BlendOp.Add,
         PolygonMode polygonMode = PolygonMode.Fill,
-        CullModeFlags cullMode = CullModeFlags.BackBit,
+        CullModeFlags cullMode = CullModeFlags.None,
         FrontFace frontFace = FrontFace.Clockwise,
         float lineWidth = 1.0f,
         IEnumerable<PushConstantRange>? pushConstantRanges = null,

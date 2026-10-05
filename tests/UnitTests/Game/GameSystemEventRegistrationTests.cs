@@ -111,12 +111,17 @@ public class GameSystemEventRegistrationTests
         gameSystem.Update(0);
         Assert.True(root.IsActivated);
         Assert.True(rootComponent.IsActivated);
+        eventHub.Drain();
 
         var childComponent = new EventHandlingComponent();
         var child = new EventHandlingGameObject([childComponent]);
         root.AddChild(child);
 
-        Assert.False(child.IsActivated);
+        Assert.True(child.IsActivated);
+        Assert.True(childComponent.IsActivated);
+        Assert.Equal(0, child.GameObjectActivationCount);
+        eventHub.Drain();
+        Assert.Equal(1, child.GameObjectActivationCount);
         gameSystem.Update(0);
         Assert.True(child.IsActivated);
         Assert.True(childComponent.IsActivated);

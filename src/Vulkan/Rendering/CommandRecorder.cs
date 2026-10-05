@@ -10,14 +10,14 @@ namespace Nexus.Graphics.Vulkan.Rendering;
 /// <param name="renderPasses">The configured render passes.</param>
 /// <param name="performanceMetrics">Optional performance counter collector.</param>
 /// <param name="diagnostics">Optional immutable Vulkan diagnostic collector.</param>
-public unsafe class VulkanRenderer(
+public unsafe class CommandRecorder(
     Context context,
     ISwapChain swapChain,
     ISyncManager syncManager,
     RenderPassConfigurations renderPasses,
     PerformanceMetrics? performanceMetrics = null,
     PerformanceDiagnostics? diagnostics = null
-) : IVulkanRenderer, IDisposable
+) : ICommandRecorder, IDisposable
 {
     private readonly Context _context = context;
     private readonly ISwapChain _swapChain = swapChain;

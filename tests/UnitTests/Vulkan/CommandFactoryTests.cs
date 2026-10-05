@@ -163,7 +163,8 @@ public class CommandFactoryTests
 
         var commands = factory.UpdateInstanceData(drawable).ToArray();
 
-        Assert.Equal(2, dependencies.Geometry.InstanceCreateCount);
+        Assert.Equal(1, dependencies.Geometry.InstanceCreateCount);
+        Assert.Equal(1, dependencies.Geometry.InstanceUpdateCount);
         Assert.Equal(1, dependencies.Geometry.CreateCount);
         Assert.Equal(1, dependencies.Texture.CreateCount);
         Assert.Equal(1, dependencies.Pipelines.GetOrCreateCount);
@@ -460,6 +461,7 @@ public class CommandFactoryTests
     {
         public int CreateCount { get; private set; }
         public int InstanceCreateCount { get; private set; }
+        public int InstanceUpdateCount { get; private set; }
         public int UpdateCount { get; private set; }
         public int GeometryReleaseCount { get; private set; }
         public int InstanceReleaseCount { get; private set; }
@@ -467,6 +469,15 @@ public class CommandFactoryTests
         public IEnumerable<IVulkanCommand> Create(IDrawable drawable, ShaderInput[] layout)
         {
             InstanceCreateCount++;
+            return [];
+        }
+
+        public IEnumerable<IVulkanCommand> Update(
+            IDrawable drawable,
+            ShaderInput[] layout
+        )
+        {
+            InstanceUpdateCount++;
             return [];
         }
 

@@ -71,7 +71,14 @@ public partial class ImageElement : Element
 
     [Observable]
     private ulong _renderLayerMask = RenderLayers.All;
-    private TextureRenderer? _imageComponent;
+    private readonly TextureRenderer _imageComponent;
+
+    /// <summary>Initializes an image element with an inactive owned texture renderer.</summary>
+    public ImageElement()
+    {
+        _imageComponent = new TextureRenderer { IsVisible = false };
+        AddComponent(_imageComponent);
+    }
 
     /// <summary>Validates the proposed sizing mode and custom-size configuration.</summary>
     /// <param name="value">The proposed sizing mode.</param>
@@ -94,24 +101,21 @@ public partial class ImageElement : Element
     /// <param name="previousValue">The previous sampling behavior.</param>
     protected virtual partial void AfterSamplingBehaviorChanges(ISamplingBehavior previousValue)
     {
-        if (_imageComponent is not null)
-            _imageComponent.SamplingBehavior = SamplingBehavior;
+        _imageComponent.SamplingBehavior = SamplingBehavior;
     }
 
     /// <summary>Updates the image component after its color changes.</summary>
     /// <param name="previousValue">The previous color.</param>
     protected virtual partial void AfterColorChanges(Color previousValue)
     {
-        if (_imageComponent is not null)
-            _imageComponent.Color = Color;
+        _imageComponent.Color = Color;
     }
 
     /// <summary>Updates the image component after its render-layer mask changes.</summary>
     /// <param name="previousValue">The previous render-layer mask.</param>
     protected virtual partial void AfterRenderLayerMaskChanges(ulong previousValue)
     {
-        if (_imageComponent is not null)
-            _imageComponent.RenderLayerMask = RenderLayerMask;
+        _imageComponent.RenderLayerMask = RenderLayerMask;
     }
 
     /// <summary>Gets the custom image size, when configured through <see cref="SetCustomSizingMode" />.</summary>
@@ -189,14 +193,14 @@ public partial class ImageElement : Element
         var texture = Texture;
         if (!IsEffectivelyVisible || texture is null)
         {
-            RemoveVisualComponent();
+            _imageComponent.IsVisible = false;
             SetBounds(new Rectangle<float>(bounds.Origin, Vector2D<float>.Zero));
             return;
         }
 
         if (bounds.Size.X <= 0f || bounds.Size.Y <= 0f)
         {
-            RemoveVisualComponent();
+            _imageComponent.IsVisible = false;
             SetBounds(EmptyBounds);
             return;
         }
@@ -211,7 +215,7 @@ public partial class ImageElement : Element
         var bottom = MathF.Min(bounds.Size.Y, imageY + imageSize.Y);
         if (right <= left || bottom <= top)
         {
-            RemoveVisualComponent();
+            _imageComponent.IsVisible = false;
             SetBounds(EmptyBounds);
             return;
         }
@@ -236,12 +240,6 @@ public partial class ImageElement : Element
                 bottom - top
             )
         );
-        if (_imageComponent is null)
-        {
-            _imageComponent = new TextureRenderer();
-            AddComponent(_imageComponent);
-        }
-
         SynchronizeVisualComponent(
             _imageComponent,
             texture,
@@ -253,17 +251,16 @@ public partial class ImageElement : Element
             ),
             texCoord
         );
+        UpdateRendererVisibility();
     }
 
     /// <summary>Updates the active drawable's texture and source coordinates without relayout.</summary>
     private void UpdateTextureSource()
     {
-        if (_imageComponent is null)
-            return;
-
         if (Texture is not { } texture)
         {
-            RemoveVisualComponent();
+            _imageComponent.Texture = null;
+            _imageComponent.IsVisible = false;
             SetBounds(new Rectangle<float>(Bounds.Origin, Vector2D<float>.Zero));
             return;
         }
@@ -289,15 +286,6 @@ public partial class ImageElement : Element
         component.Color = Color;
         component.SamplingBehavior = SamplingBehavior;
         component.RenderLayerMask = RenderLayerMask;
-    }
-
-    /// <summary>Removes the current visual component while retaining image configuration.</summary>
-    private void RemoveVisualComponent()
-    {
-        var component = _imageComponent;
-        _imageComponent = null;
-        if (component is not null)
-            RemoveComponent(component);
     }
 
     /// <summary>Calculates the uncapped image size for the selected sizing mode.</summary>
@@ -450,7 +438,7 @@ public partial class ImageElement : Element
         }
     }
 
-    /// <summary>Recreates the image visual when an ancestor's visibility changes.</summary>
+    /// <summary>Updates the image renderer when an ancestor's visibility changes.</summary>
     /// <param name="propertyName">The name of the changed property.</param>
     private void OnAncestorPropertyChanged(string propertyName)
     {
@@ -473,15 +461,34 @@ public partial class ImageElement : Element
         ClearVisualWhenHidden();
     }
 
-    /// <summary>Removes image visuals and clears hit bounds when this element is hidden.</summary>
+    /// <summary>Hides image visuals and clears hit bounds when this element is hidden.</summary>
     private void ClearVisualWhenHidden()
     {
         if (IsEffectivelyVisible)
             return;
 
-        RemoveVisualComponent();
+        _imageComponent.IsVisible = false;
         SetBounds(new Rectangle<float>(Bounds.Origin, Vector2D<float>.Zero));
     }
+
+    /// <summary>Shows the image renderer only when it exposes a drawable with valid geometry.</summary>
+    private void UpdateRendererVisibility() =>
+        _imageComponent.IsVisible =
+            IsEffectivelyVisible
+            && Texture is not null
+            && HasRenderableGeometry(Bounds)
+            && _imageComponent.Drawables.Count > 0;
+
+    /// <summary>Checks whether a rectangle has finite, positive dimensions.</summary>
+    /// <param name="bounds">The rectangle to validate.</param>
+    /// <returns>True when the rectangle can be rendered.</returns>
+    private static bool HasRenderableGeometry(Rectangle<float> bounds) =>
+        float.IsFinite(bounds.Origin.X)
+        && float.IsFinite(bounds.Origin.Y)
+        && float.IsFinite(bounds.Size.X)
+        && float.IsFinite(bounds.Size.Y)
+        && bounds.Size.X > 0f
+        && bounds.Size.Y > 0f;
 
     /// <summary>Validates a positive finite logical size.</summary>
     /// <param name="size">The proposed size.</param>

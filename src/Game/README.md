@@ -9,7 +9,7 @@ Game owns concrete scenes, scene registration, and the game-system lifecycle coo
 - `IGameSystem` and `GameSystem` manage the current scene and object/component activation and deactivation.
 - `GameSettings` accepts an optional initial scene name through the `Game` configuration section.
 
-`GameSystem.Initialize` loads the configured scene when `Game:StartSceneId` is supplied. Otherwise it uses the only registered scene, fails when none are registered, or requires configuration and lists available names when multiple scenes are registered. It does not fall back if the selected scene fails to construct. Updates use a parent-first lifecycle snapshot, check captured ownership before processing an entry, and initialize/activate eligible entities before updating them. Activation events and event-handler registration connect objects and components to other systems. Changes during traversal require careful ownership checks.
+`GameSystem.Initialize` loads the configured scene when `Game:StartSceneId` is supplied. Otherwise it uses the only registered scene, fails when none are registered, or requires configuration and lists available names when multiple scenes are registered. It does not fall back if the selected scene fails to construct. GameSystem subscribes to each node's child collections before publishing its activation event; children added beneath active parents are initialized and activated immediately, then updated in the next parent-first lifecycle traversal. Captured-ownership checks prevent changes during traversal from causing duplicate updates or activations.
 
 ## Dependencies and boundaries
 

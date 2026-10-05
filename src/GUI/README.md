@@ -14,6 +14,8 @@ Layout work is driven by invalidation. `GraphicalUserInterface.Update` skips lay
 
 The rectangle passed to `Arrange` is an allocation; `Bounds` is the hit-test rectangle. Text elements use rendered glyph bounds, images use their clipped image rectangle, and text buttons use their full button rectangle. Hidden elements have zero-size hit-test bounds while retaining their allocation for restoration.
 
+Drawable elements create their renderer components with the element and retain them while hidden or unrenderable. Each renderer's `IsVisible` reflects effective element visibility and valid drawable geometry.
+
 ## Dependencies and boundaries
 
 The .NET 10 project references [Core](../Core/README.md), [Graphics](../Graphics/README.md), [Input](../Input/README.md), and the source-generator analyzer. `AddNexusGui` registers GUI services.

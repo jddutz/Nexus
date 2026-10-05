@@ -17,7 +17,7 @@ public partial class TextElement : Element
 
     [Observable]
     private ulong _renderLayerMask = RenderLayers.All;
-    private TextRenderer? _textComponent;
+    private readonly TextRenderer _textComponent;
 
     /// <summary>Gets or sets the color applied to the text glyphs.</summary>
     [Observable(Public = true)]
@@ -31,47 +31,45 @@ public partial class TextElement : Element
     /// <param name="previousValue">The previous line limit.</param>
     protected virtual partial void AfterMaximumLinesChanges(int? previousValue)
     {
-        if (_textComponent is not null)
-            _textComponent.MaximumLines = MaximumLines;
+        _textComponent.MaximumLines = MaximumLines;
+        UpdateRendererVisibility();
     }
 
     /// <summary>Updates the component source after the authored text changes.</summary>
     /// <param name="previousValue">The previous source text.</param>
     protected virtual partial void AfterTextChanges(string previousValue)
     {
-        if (_textComponent is not null)
-            _textComponent.Text = Text;
+        _textComponent.Text = Text;
+        UpdateRendererVisibility();
     }
 
     /// <summary>Updates the text drawable after the render-layer mask changes.</summary>
     /// <param name="previousValue">The previous render-layer mask.</param>
     protected virtual partial void AfterRenderLayerMaskChanges(ulong previousValue)
     {
-        if (_textComponent is not null)
-            _textComponent.RenderLayerMask = RenderLayerMask;
+        _textComponent.RenderLayerMask = RenderLayerMask;
     }
 
     /// <summary>Updates the text component after the glyph color changes.</summary>
     /// <param name="previousValue">The previous glyph color.</param>
     protected virtual partial void AfterColorChanges(Color previousValue)
     {
-        if (_textComponent is not null)
-            _textComponent.Color = Color;
+        _textComponent.Color = Color;
     }
 
     /// <summary>Updates the graphics component when the text style changes.</summary>
     /// <param name="previousValue">The previous text style.</param>
     protected virtual partial void AfterStyleChanges(ITextStyle? previousValue)
     {
-        if (_textComponent is not null)
-            _textComponent.TextStyle = Style;
+        _textComponent.TextStyle = Style;
+        UpdateRendererVisibility();
     }
 
     /// <summary>Initializes an empty text element.</summary>
     public TextElement()
     {
-        if (IsEffectivelyVisible)
-            EnsureVisualComponent();
+        _textComponent = new TextRenderer { IsVisible = false };
+        AddComponent(_textComponent);
     }
 
     /// <summary>Initializes a text element with initial text and optional style data.</summary>
@@ -91,19 +89,16 @@ public partial class TextElement : Element
         if (!IsEffectivelyVisible || Style is null)
             return Vector2D<float>.Zero;
 
-        EnsureVisualComponent();
         var contentConstraint = new Vector2D<float>(
             MathF.Max(0f, constraint.X - Margins.Left - Margins.Right),
             MathF.Max(0f, constraint.Y - Margins.Top - Margins.Bottom)
         );
-        var measuredSize =
-            _textComponent?.Measure(
-                new(
-                    MathF.Min(contentConstraint.X, Width ?? contentConstraint.X),
-                    MathF.Min(contentConstraint.Y, Height ?? contentConstraint.Y)
-                )
+        var measuredSize = _textComponent.Measure(
+            new(
+                MathF.Min(contentConstraint.X, Width ?? contentConstraint.X),
+                MathF.Min(contentConstraint.Y, Height ?? contentConstraint.Y)
             )
-            ?? Vector2D<float>.Zero;
+        );
         return new Vector2D<float>(
                 Width is null ? measuredSize.X : MathF.Min(Width.Value, contentConstraint.X),
                 Height is null ? measuredSize.Y : MathF.Min(Height.Value, contentConstraint.Y)
@@ -115,14 +110,10 @@ public partial class TextElement : Element
     {
         if (!IsEffectivelyVisible)
         {
-            RemoveVisualComponent();
             base.Arrange(bounds);
+            UpdateVisualComponent();
             return;
         }
-
-        EnsureVisualComponent();
-        if (_textComponent is null)
-            return;
 
         var contentBounds = bounds - Margins;
         _textComponent.Text = Text;
@@ -138,29 +129,11 @@ public partial class TextElement : Element
             GetVerticalAlignment()
         );
         SetBounds(_textComponent.LayoutBounds);
+        UpdateRendererVisibility();
 
         foreach (var child in Children)
             if (child is IElement element)
                 element.Arrange(Bounds);
-    }
-
-    /// <summary>Creates a text component when measurement or arrangement requires one.</summary>
-    private void EnsureVisualComponent()
-    {
-        if (_textComponent is not null)
-            return;
-
-        var textComponent = new TextRenderer
-        {
-            TextStyle = Style,
-            Color = Color,
-            RenderLayerMask = RenderLayerMask,
-            Text = Text,
-            MaximumLines = MaximumLines,
-            Wrap = true,
-        };
-        _textComponent = textComponent;
-        AddComponent(textComponent);
     }
 
     /// <summary>Gets the normalized horizontal alignment value for the text component.</summary>
@@ -185,24 +158,34 @@ public partial class TextElement : Element
             _ => throw new InvalidOperationException(),
         };
 
-    /// <summary>Removes the current text component and releases the element's reference.</summary>
-    private void RemoveVisualComponent()
-    {
-        var textComponent = _textComponent;
-        _textComponent = null;
-        if (textComponent is not null)
-            RemoveComponent(textComponent);
-    }
-
-    /// <summary>Synchronizes text component ownership with effective visibility.</summary>
+    /// <summary>Synchronizes text renderer visibility with the element's renderable geometry.</summary>
     private void UpdateVisualComponent()
     {
         if (!IsEffectivelyVisible)
         {
-            RemoveVisualComponent();
             SetBounds(new Rectangle<float>(Bounds.Origin, Vector2D<float>.Zero));
         }
+
+        UpdateRendererVisibility();
     }
+
+    /// <summary>Shows text only when it has visible glyphs inside valid element bounds.</summary>
+    private void UpdateRendererVisibility() =>
+        _textComponent!.IsVisible =
+            IsEffectivelyVisible
+            && HasRenderableGeometry(Bounds)
+            && _textComponent.Drawables.Count > 0;
+
+    /// <summary>Checks whether a rectangle has finite, positive dimensions.</summary>
+    /// <param name="bounds">The rectangle to validate.</param>
+    /// <returns>True when the rectangle can be rendered.</returns>
+    private static bool HasRenderableGeometry(Rectangle<float> bounds) =>
+        float.IsFinite(bounds.Origin.X)
+        && float.IsFinite(bounds.Origin.Y)
+        && float.IsFinite(bounds.Size.X)
+        && float.IsFinite(bounds.Size.Y)
+        && bounds.Size.X > 0f
+        && bounds.Size.Y > 0f;
 
     /// <summary>Subscribes to visibility changes on the current ancestor chain.</summary>
     private void UpdateVisibilityAncestorSubscriptions()

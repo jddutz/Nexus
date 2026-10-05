@@ -13,6 +13,13 @@ float median(float red, float green, float blue)
     return max(min(red, green), min(max(red, green), blue));
 }
 
+float srgbToLinear(float channel)
+{
+    return channel <= 0.04045
+        ? channel / 12.92
+        : pow((channel + 0.055) / 1.055, 2.4);
+}
+
 void main()
 {
     vec3 msd = texture(texSampler, fragTexCoord).rgb;
@@ -22,5 +29,10 @@ void main()
     vec2 screenTexSize = 1.0 / max(fwidth(fragTexCoord), vec2(1e-6));
     float screenPxRange = max(0.5 * dot(unitRange, screenTexSize), 1.0);
     float opacity = clamp(screenPxRange * sd + 0.5, 0.0, 1.0);
-    outColor = vec4(fragTintColor.rgb, fragTintColor.a * opacity);
+    outColor = vec4(
+        srgbToLinear(fragTintColor.r),
+        srgbToLinear(fragTintColor.g),
+        srgbToLinear(fragTintColor.b),
+        fragTintColor.a * opacity
+    );
 }

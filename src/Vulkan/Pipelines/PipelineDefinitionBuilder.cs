@@ -24,8 +24,8 @@ public sealed unsafe class PipelineDefinitionBuilder : IPipelineDefinitionBuilde
     private BlendFactor _dstBlendFactor = BlendFactor.OneMinusSrcAlpha;
     private BlendOp _blendOp = BlendOp.Add;
     private PolygonMode _polygonMode = PolygonMode.Fill;
-    private CullModeFlags _cullMode = CullModeFlags.BackBit;
     private FrontFace _frontFace = FrontFace.Clockwise;
+    private CullModeFlags _cullMode = CullModeFlags.None;
     private float _lineWidth = 1.0f;
 
     /// <summary>Sets the pipeline name.</summary>

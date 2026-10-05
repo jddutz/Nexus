@@ -43,7 +43,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<ICommandFactory, CommandFactory>();
         services.TryAddSingleton<IBufferManager, BufferManager>();
         services.TryAddSingleton<IDescriptorSetPool, DescriptorSetPool>();
-        services.TryAddSingleton<IVulkanRenderer, VulkanRenderer>();
+        services.TryAddSingleton<ICommandRecorder, CommandRecorder>();
         services.TryAddSingleton<ISwapChain, SwapChain>();
         services.TryAddSingleton<IGraphicsSystem, VulkanGraphicsSystem>();
         services.TryAddSingleton<IImageRegistry, ImageRegistry>();

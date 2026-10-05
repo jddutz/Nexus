@@ -92,7 +92,7 @@ public class GameSystemLifecycleTests
     }
 
     /// <summary>
-    /// Verifies a removed and re-added entity is not revisited in the same traversal.
+    /// Verifies a removed and re-added entity reactivates immediately but skips the current traversal.
     /// </summary>
     [Fact]
     public void Update_skipsRemovedAndReaddedSubtreeUntilNextFrame()
@@ -120,8 +120,8 @@ public class GameSystemLifecycleTests
 
         gameSystem.Update(0.25);
 
-        Assert.False(child.IsActivated);
-        Assert.False(component.IsActivated);
+        Assert.True(child.IsActivated);
+        Assert.True(component.IsActivated);
         Assert.Equal(1, child.UpdateCount);
         Assert.Equal(1, component.UpdateCount);
         Assert.Equal(1, child.InitializeCount);
@@ -138,10 +138,10 @@ public class GameSystemLifecycleTests
     }
 
     /// <summary>
-    /// Verifies additions made during an update are processed on the following frame.
+    /// Verifies additions under active parents activate immediately and update on the next frame.
     /// </summary>
     [Fact]
-    public void Update_defersAddedChildUntilNextFrame()
+    public void Update_activatesAddedChildImmediatelyAndUpdatesNextFrame()
     {
         var calls = new List<string>();
         var scene = new LifecycleScene(calls)
@@ -161,14 +161,54 @@ public class GameSystemLifecycleTests
 
         gameSystem.Update(0.25);
 
-        Assert.False(child.IsInitialized);
-        Assert.False(child.IsActivated);
+        Assert.True(child.IsInitialized);
+        Assert.True(child.IsActivated);
         Assert.Equal(0, child.UpdateCount);
+        Assert.Equal(1, child.ActivationCount);
 
         gameSystem.Update(0.25);
 
         Assert.True(child.IsInitialized);
         Assert.True(child.IsActivated);
+        Assert.Equal(1, child.UpdateCount);
+        Assert.Equal(1, child.ActivationCount);
+    }
+
+    /// <summary>Verifies child activation subscriptions are installed before parent activation.</summary>
+    [Fact]
+    public void ActivateGameObject_subscribesBeforeActivationAndPublishesEachNodeOnce()
+    {
+        var calls = new List<string>();
+        var scene = new LifecycleScene(calls)
+        {
+            MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
+        };
+        var eventHub = new EventHub();
+        var root = new LifecycleGameObject("root", calls);
+        var child = new LifecycleGameObject("child", calls);
+        root.OnActivation = () => root.Children.Add(child);
+        scene.Children.Add(root);
+        var gameSystem = CreateGameSystem(scene, eventHub: eventHub);
+        gameSystem.Initialize();
+
+        gameSystem.Update(0);
+
+        Assert.True(root.IsActivated);
+        Assert.True(child.IsActivated);
+        Assert.Equal(1, root.ActivationCount);
+        Assert.Equal(1, child.ActivationCount);
+        Assert.Equal(0, child.UpdateCount);
+
+        eventHub.Drain();
+
+        Assert.Equal(
+            ["root.activated-event", "child.activated-event"],
+            calls.Where(call => call.EndsWith(".activated-event", StringComparison.Ordinal))
+        );
+
+        gameSystem.Update(0.25);
+
+        Assert.Equal(1, child.ActivationCount);
         Assert.Equal(1, child.UpdateCount);
     }
 
@@ -391,6 +431,9 @@ public class GameSystemLifecycleTests
         /// <summary>Gets or sets a callback invoked during this object's update.</summary>
         public Action? OnUpdate { get; set; }
 
+        /// <summary>Gets or sets a callback invoked during activation.</summary>
+        public Action? OnActivation { get; set; }
+
         /// <summary>Gets the number of initialization calls.</summary>
         public int InitializeCount { get; private set; }
 
@@ -420,6 +463,17 @@ public class GameSystemLifecycleTests
             ActivationCount++;
             calls.Add($"{name}.activate");
             base.Activate();
+        }
+
+        /// <inheritdoc />
+        protected override void OnActivated() => OnActivation?.Invoke();
+
+        /// <summary>Records a game-object activation event targeted at this object.</summary>
+        /// <param name="message">The game-object activation event.</param>
+        public void Handle(GameObjectActivatedEvent message)
+        {
+            if (ReferenceEquals(message.GameObject, this))
+                calls.Add($"{name}.activated-event");
         }
 
         /// <inheritdoc />

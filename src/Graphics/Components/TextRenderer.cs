@@ -3,11 +3,15 @@ namespace Nexus.Graphics.Components;
 using System.Text;
 
 /// <summary>Layouts styled text and exposes its prepared glyph drawable.</summary>
-public partial class TextRenderer : Component, IGraphicsComponent
+public partial class TextRenderer : Component, IRenderer
 {
     private List<TextSpan> _spans = [];
     private IReadOnlyList<IDrawable> _drawables = Array.Empty<IDrawable>();
     private Rectangle<float> _layoutBounds;
+
+    /// <summary>Gets or sets whether this renderer submits its drawables for rendering.</summary>
+    [Observable(Public = true)]
+    private bool _isVisible = true;
 
     /// <summary>Initializes an empty text component that can receive its style later.</summary>
     public TextRenderer() { }

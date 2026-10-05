@@ -11,6 +11,8 @@ public sealed class PerformanceDiagnostics
     > _snapshots = [];
     private readonly List<string> _pendingCommands = [];
     private ImmutableArray<string> _firstDrawnFrameCommands = [];
+    private long _frameCount;
+    private long _firstDrawnFrameCount;
     private bool _pendingFrameHasDraw;
 
     /// <summary>Creates a collector configured by application-wide diagnostics options.</summary>
@@ -22,6 +24,29 @@ public sealed class PerformanceDiagnostics
 
     /// <summary>Gets whether diagnostic collection is enabled.</summary>
     public bool IsEnabled => _enabled;
+
+    /// <summary>Gets the number of successfully submitted frames observed while diagnostics are enabled.</summary>
+    public long FrameCount
+    {
+        get
+        {
+            lock (_lock)
+                return _frameCount;
+        }
+    }
+
+    /// <summary>Gets the current frame number as a log suffix when diagnostics are enabled.</summary>
+    internal string FrameCountLogSuffix
+    {
+        get
+        {
+            if (!_enabled)
+                return string.Empty;
+
+            lock (_lock)
+                return $", FrameCount={_frameCount}";
+        }
+    }
 
     /// <summary>Gets the immutable drawable snapshots captured so far.</summary>
     public ImmutableArray<PerformanceDiagnosticSnapshot> Snapshots
@@ -97,14 +122,21 @@ public sealed class PerformanceDiagnostics
 
         lock (_lock)
         {
+            _frameCount++;
             if (_firstDrawnFrameCommands.IsDefaultOrEmpty && _pendingFrameHasDraw)
+            {
+                _firstDrawnFrameCount = _frameCount;
                 _firstDrawnFrameCommands = [.. _pendingCommands];
+            }
             _pendingCommands.Clear();
             _pendingFrameHasDraw = false;
         }
     }
 
-    /// <summary>Writes the retained resource snapshots and representative command sequence to debug output.</summary>
+    /// <summary>
+    /// Writes a compact summary of retained snapshots and the representative command sequence.
+    /// Detailed snapshots remain available through <see cref="Snapshots"/>.
+    /// </summary>
     public void Output()
     {
         if (!_enabled)
@@ -112,44 +144,66 @@ public sealed class PerformanceDiagnostics
 
         PerformanceDiagnosticSnapshot[] snapshots;
         ImmutableArray<string> commandSequence;
+        long frameCount;
+        long firstDrawnFrameCount;
         lock (_lock)
         {
             snapshots = [.. _snapshots.Values];
             commandSequence = _firstDrawnFrameCommands;
+            frameCount = _frameCount;
+            firstDrawnFrameCount = _firstDrawnFrameCount;
         }
 
-        if (snapshots.Length == 0 && commandSequence.IsDefaultOrEmpty)
+        if (
+            frameCount == 0
+            && snapshots.Length == 0
+            && commandSequence.IsDefaultOrEmpty
+        )
             return;
 
-        Debug.WriteLine("Vulkan Diagnostic Snapshot:");
-        foreach (var group in snapshots.GroupBy(snapshot => snapshot.DrawableId))
+        var categorySummary = string.Join(
+            ", ",
+            snapshots
+                .GroupBy(snapshot => snapshot.Category)
+                .OrderBy(group => group.Key)
+                .Select(group => $"{group.Key}={group.Count()}")
+        );
+        Debug.WriteLine(
+            $"Vulkan Diagnostic Summary: FrameCount={frameCount}, Snapshots={snapshots.Length}, "
+                + $"Drawables={snapshots.Select(snapshot => snapshot.DrawableId).Distinct().Count()}, "
+                + $"Categories=[{categorySummary}]"
+        );
+
+        foreach (var snapshot in snapshots.Where(snapshot => snapshot.Category == "View"))
         {
-            Debug.WriteLine($"Drawable {group.Key}:");
-            foreach (
-                var snapshot in group
-                    .OrderBy(snapshot => snapshot.Category)
-                    .ThenBy(snapshot => snapshot.Label)
-            )
-            {
-                Debug.WriteLine($"  {snapshot.Category} / {snapshot.Label}:");
-                foreach (var value in snapshot.Values)
-                    Debug.WriteLine($"    {value.Key}: {value.Value}");
-                if (!snapshot.RawBytes.IsDefaultOrEmpty)
-                    Debug.WriteLine(
-                        $"    Bytes: {Convert.ToHexString(snapshot.RawBytes.AsSpan())}"
-                    );
-                foreach (var decodedValue in snapshot.DecodedValues)
-                    Debug.WriteLine($"    {decodedValue}");
-            }
+            Debug.WriteLine(
+                $"  View {snapshot.Label}: "
+                    + $"Clip={GetSnapshotValue(snapshot, "EffectiveClippingRegion")}, "
+                    + $"Selected={GetSnapshotValue(snapshot, "SelectedDrawableCount")}, "
+                    + $"Batches={GetSnapshotValue(snapshot, "PreparedBatchCount")}, "
+                    + $"Commands={GetSnapshotValue(snapshot, "PreparedCommandCount")}, "
+                    + $"Skipped={GetSnapshotValue(snapshot, "RenderingSkipped")}"
+            );
         }
 
         if (!commandSequence.IsDefaultOrEmpty)
         {
-            Debug.WriteLine("First successfully submitted frame containing a draw:");
-            foreach (var command in commandSequence)
-                Debug.WriteLine($"  {command}");
+            Debug.WriteLine(
+                $"  First submitted draw frame: FrameCount={firstDrawnFrameCount}, "
+                    + $"Commands={commandSequence.Length}, "
+                    + $"DrawCommands={commandSequence.Count(command => command.StartsWith("Draw ", StringComparison.Ordinal))}"
+            );
         }
     }
+
+    /// <summary>Gets a scalar value from a snapshot or reports it as unavailable.</summary>
+    /// <param name="snapshot">The snapshot containing the value.</param>
+    /// <param name="key">The value key to retrieve.</param>
+    /// <returns>The stored value or <c>n/a</c>.</returns>
+    private static string GetSnapshotValue(
+        PerformanceDiagnosticSnapshot snapshot,
+        string key
+    ) => snapshot.Values.TryGetValue(key, out var value) ? value : "n/a";
 
     /// <summary>Formats a Vulkan command using values copied from its command data.</summary>
     /// <param name="command">The command that was recorded.</param>

@@ -9,9 +9,10 @@ The current development stack uses .NET 10 and Silk.NET, with Vulkan as the acti
 The samples now include Breakout, SnakeGame, and Asteroids alongside HelloNexus. Asteroids
 adds indexed 32-bit custom meshes, a uniform-color triangle-list pipeline, transformable
 mesh drawables, continuous movement, and runtime drawable removal. Breakout uses
-GameObject2D-owned transforms for its paddle, ball, and bricks, with a fixed-step simulation
-and runtime scene-child removal to exercise the engine lifecycle without an external content
-manifest.
+GameObject2D-owned transforms and a scene-owned physics world for ball integration and
+rectangle overlap and swept-contact detection, while keeping bounce and round rules in the
+scene. The Physics module provides CPU-only 2D body integration, contact correction, and
+collision events, which both samples use while retaining their own gameplay responses.
 
 > **Document status:** Initial architecture baseline, 2026-10-02. Established decisions below record prior design agreements; they do not certify that every implementation already conforms. Proposed boundaries and unresolved questions are explicitly identified. The source tree has not been audited for this draft.
 
@@ -139,7 +140,7 @@ The following names match the supplied repository view. Folder names describe ph
 | `src/GUI` | Elements, layout, interaction, and GUI-facing presentation semantics. |
 | `src/Input` | Device input and input event production. |
 | `src/Platform` | Platform services, including window services. |
-| `src/Physics` | Physics system area; detailed contracts not yet captured here. |
+| `src/Physics` | PhysicsSystem integration layer and isolated 2D simulation context. |
 | `src/Audio` | Audio system area; detailed contracts not yet captured here. |
 | `src/Network` | Networking system area; detailed contracts not yet captured here. |
 | `src/AssetPipeline` | Offline content processing, including font generation. |
@@ -221,7 +222,7 @@ An element supplies the arranged visual placement to its graphics component. A d
 - A game object **has** components; it is not itself a component collection.
 - Game objects and scenes support the engine's observable contract. Components use their own modification notifications; changes do not automatically propagate upward.
 - Scene and game object lifecycle methods are virtual. Their default behavior delegates to children.
-- GameSystem ensures that objects created during an active scene are initialized and activated before their first update. A per-frame traversal is acceptable.
+- GameSystem subscribes to scene-node child collections before publishing activation events. Game objects added beneath active parents are initialized and activated immediately, then updated in the next parent-first traversal without duplicate activation.
 - Components added to active game objects are observed by GameSystem and queued through EventHub for activation at the next frame boundary.
 - The scheduler and default lifecycle delegation must compose without updating a node twice. The implementation must make traversal ownership explicit.
 - Duplicate children are disallowed. Transfer between scenes requires detachment before attaching to the destination.
@@ -238,10 +239,11 @@ An element supplies the arranged visual placement to its graphics component. A d
 
 ### Graphics and rendering
 
-- Graphics components include TextComponent, TextureComponent, NinePatchComponent, and ViewComponent.
-- The agreed simple image model is one ImageElement owning one TextureComponent, owning one TexturedQuad with one instance.
+- Graphics components include TextRenderer, TextureRenderer, NinePatchRenderer, TileMapRenderer, and ViewRenderer. TileMapRenderer owns a separate batched path for sparse tile-map data; it does not derive from TextureRenderer.
+- The agreed simple image model is one ImageElement owning one TextureRenderer, owning one TexturedQuad with one instance.
 - Nine-patch rendering uses nine quad instances and reuses geometry.
-- Hidden visuals are removed or deactivated through component lifetime behavior. A drawable visibility flag was not chosen as the hiding mechanism.
+- Tile maps use bounded sparse data and one persistent textured-quad drawable, independent of GUI and game-specific rules.
+- Drawable GUI renderers remain attached to their elements; `IsVisible` gates submission when elements are hidden or their geometry is unrenderable.
 - Views own the render policy (draw-order preservation, blending, and depth state) for contents selected by their layer mask; render layers only classify contents and render-pass membership. `RenderLayers` centralizes the common `DefaultUI` and `All` masks, and view/drawable masks default to `All`.
 - Scenes do not create a default render view. Scene composition creates views and attaches the scene's static camera to the chosen view owner; view masks can narrow the default all-layer selection. `GameSystem` forwards main-window size changes to that camera.
 - Vulkan rendering follows `PrepareFrame`, per-view `Begin`, per-pass `Record`, per-view `Finalize`, then `Submit`.
@@ -260,10 +262,16 @@ An element supplies the arranged visual placement to its graphics component. A d
 
 The revised TextComponent specification must define the exact source API, output replacement behavior, and acceptance criteria. This README records the ownership decisions without inventing those contracts.
 
+### Physics
+
+- PhysicsSystem owns simulation-world membership and timing. Game code configures lifecycle-managed physics components and never registers bodies or calls integration directly.
+- Physics components carry an explicit PhysicsWorldId. PhysicsSystem creates and owns isolated PhysicsWorld2D contexts; activation rejects invalid or unknown world IDs rather than routing them to a default.
+- PhysicsWorld2D advances active bodies, filters collider pairs by reciprocal category masks, resolves the earliest translating axis-aligned rectangle sweep against unchanged bodyless targets, detects overlaps, and returns results to PhysicsSystem. Equal-time contact ties use target then moving collider ID; unsupported sweeps remain overlap notifications. PhysicsSystem queues collision events for the next EventHub drain.
+
 ### Input
 
 - Input wraps Silk.NET.Input and exposes device state and input events.
-- Input events are drained through EventHub at the start of update. Input's own update occurs at the end.
+- Input events and deferred system feedback are drained through EventHub at the start of update. GameSystem updates first, followed by Physics, GUI, Audio, and Input. Physics collision results and gameplay feedback are intentionally delivered by the next update's drain; rendering consumes the latest completed update state.
 - GUI routing proceeds from root to leaf; invisible or disabled branches are pruned. Composite elements can suppress child input.
 - GUI owns focus and mouse-over gating. Input remains independent of GUI geometry.
 

@@ -76,6 +76,52 @@ public class BasicRuntimeTests
     }
 
     [Fact]
+    public void InitializeAndUpdate_orderServicesAroundSceneAndPhysicsLifecycle()
+    {
+        var calls = new List<string>();
+        var runtime = new NexusRuntime(
+            CreateRecordingProxy<IEventHub>("events", calls),
+            CreateRecordingProxy<IGameSystem>("game", calls),
+            CreateRecordingProxy<IPhysicsSystem>("physics", calls),
+            CreateRecordingProxy<IAudioSystem>("audio", calls),
+            CreateRecordingProxy<IInputSystem>("input", calls),
+            CreateRecordingProxy<IGraphicsSystem>("graphics", calls),
+            CreateRecordingProxy<IGraphicalUserInterface>("gui", calls)
+        );
+
+        runtime.Initialize();
+
+        Assert.Equal(
+            new[]
+            {
+                "input.Initialize",
+                "physics.Initialize",
+                "audio.Initialize",
+                "graphics.Initialize",
+                "gui.Initialize",
+                "game.Initialize",
+            },
+            calls
+        );
+
+        calls.Clear();
+        runtime.OnUpdate(1d / 60d);
+
+        Assert.Equal(
+            new[]
+            {
+                "events.Drain",
+                "game.Update",
+                "physics.Update",
+                "gui.Update",
+                "audio.Update",
+                "input.Update",
+            },
+            calls
+        );
+    }
+
+    [Fact]
     public void Render_requestsWindowClose_afterConfiguredFrameCount()
     {
         var window = DispatchProxy.Create<IWindow, CloseTrackingWindow>();
@@ -189,7 +235,50 @@ public class BasicRuntimeTests
         services.AddSingleton<IAudioSystem, NoOpAudioSystem>();
     }
 
+    /// <summary>Creates a proxy that records calls for runtime scheduling tests.</summary>
+    /// <typeparam name="T">The service contract to proxy.</typeparam>
+    /// <param name="name">The service name recorded with each call.</param>
+    /// <param name="calls">The shared call log.</param>
+    /// <returns>A configured proxy for <typeparamref name="T"/>.</returns>
+    private static T CreateRecordingProxy<T>(string name, IList<string> calls)
+        where T : class
+    {
+        var proxy = DispatchProxy.Create<T, CallRecordingProxy>();
+        ((CallRecordingProxy)(object)proxy).Configure(name, calls);
+        return proxy;
+    }
+
     private sealed class ExplicitService;
+
+    /// <summary>Records invoked service methods without executing system behavior.</summary>
+    public class CallRecordingProxy : DispatchProxy
+    {
+        private string _name = string.Empty;
+        private IList<string> _calls = [];
+
+        /// <summary>Configures the service name and destination call log.</summary>
+        /// <param name="name">The service name recorded with each call.</param>
+        /// <param name="calls">The shared call log.</param>
+        public void Configure(string name, IList<string> calls)
+        {
+            _name = name;
+            _calls = calls;
+        }
+
+        /// <inheritdoc />
+        protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
+        {
+            if (targetMethod is null)
+                throw new InvalidOperationException("A proxied method was not provided.");
+
+            _calls.Add($"{_name}.{targetMethod.Name}");
+
+            var returnType = targetMethod.ReturnType;
+            return returnType == typeof(void) || !returnType.IsValueType
+                ? null
+                : Activator.CreateInstance(returnType);
+        }
+    }
 
     /// <summary>
     /// Tracks close requests made through a proxied window without creating a native window.
@@ -248,9 +337,15 @@ public class BasicRuntimeTests
 
     private sealed class NoOpPhysicsSystem : IPhysicsSystem
     {
+        public IReadOnlyCollection<PhysicsWorld2D> Worlds { get; } = [];
+
         public void Initialize() { }
 
         public void Update(double deltaTime) { }
+
+        public PhysicsWorld2D CreateWorld2D() => new();
+
+        public bool RemoveWorld(PhysicsWorld2D world) => false;
 
         public bool CanActivate<TComponent>(TComponent component)
             where TComponent : class, IComponent => false;
@@ -271,13 +366,13 @@ public class BasicRuntimeTests
         public void Render() { }
 
         public bool CanActivate<TComponent>(TComponent component)
-            where TComponent : class, IGraphicsComponent => false;
+            where TComponent : class, IRenderer => false;
 
         public bool Activate<TComponent>(TComponent component)
-            where TComponent : class, IGraphicsComponent => false;
+            where TComponent : class, IRenderer => false;
 
         public void Deactivate<TComponent>(TComponent component)
-            where TComponent : class, IGraphicsComponent { }
+            where TComponent : class, IRenderer { }
     }
 
     private sealed class NoOpAudioSystem : IAudioSystem

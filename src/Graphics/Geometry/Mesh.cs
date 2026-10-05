@@ -16,6 +16,8 @@ public class Mesh : IGeometry
     public ulong Count => VertexCount;
     /// <summary>Gets the number of vertices stored by this mesh.</summary>
     public ulong VertexCount => (ulong)_vertices.Length;
+    /// <summary>Gets the CPU-side vertices stored by this mesh.</summary>
+    public IReadOnlyList<Vertex> Vertices => _vertices;
     /// <summary>Gets the number of indices used by this mesh, or zero for non-indexed geometry.</summary>
     public ulong IndexCount => (ulong)_indices.Length;
     /// <summary>Gets the validated 32-bit indices used by this mesh.</summary>

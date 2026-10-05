@@ -67,7 +67,10 @@ public partial class TextButton : Element
     protected virtual partial void AfterLabelChanges(string previousValue)
     {
         if (_text is not null)
+        {
             _text.Text = Label;
+            UpdateRendererVisibility();
+        }
     }
 
     /// <summary>Updates the text component after the label color changes.</summary>
@@ -83,7 +86,10 @@ public partial class TextButton : Element
     protected virtual partial void AfterStyleChanges(ITextStyle? previousValue)
     {
         if (_text is not null)
+        {
             _text.TextStyle = Style;
+            UpdateRendererVisibility();
+        }
     }
 
     /// <summary>Updates the background renderer when its optional texture changes.</summary>
@@ -91,7 +97,10 @@ public partial class TextButton : Element
     protected virtual partial void AfterTextureChanges(ITexture? previousValue)
     {
         if (_background is not null)
+        {
             _background.Texture = Texture;
+            UpdateRendererVisibility();
+        }
     }
 
     /// <summary>Updates the background renderer when its source borders change.</summary>
@@ -158,11 +167,12 @@ public partial class TextButton : Element
     /// <summary>Invokes the action assigned to this button, if any.</summary>
     private void InvokeAction() => Action?.Invoke(this);
 
-    /// <summary>Creates fresh visual components from the button's retained configuration.</summary>
+    /// <summary>Creates and attaches the button's owned renderer components.</summary>
     private void CreateVisualComponents()
     {
         var background = new NinePatchRenderer
         {
+            IsVisible = false,
             Texture = Texture,
             RenderLayerMask = RenderLayerMask,
             SamplingBehavior = SamplingBehavior,
@@ -170,6 +180,7 @@ public partial class TextButton : Element
         };
         var text = new TextRenderer
         {
+            IsVisible = false,
             TextStyle = Style,
             Color = TextColor,
             RenderLayerMask = RenderLayerMask,
@@ -183,33 +194,40 @@ public partial class TextButton : Element
         AddComponent(text);
     }
 
-    /// <summary>Removes the current visual components and releases their references.</summary>
-    private void RemoveVisualComponents()
-    {
-        var background = _background;
-        var text = _text;
-        _background = null;
-        _text = null;
-
-        if (text is not null)
-            RemoveComponent(text);
-        if (background is not null)
-            RemoveComponent(background);
-    }
-
-    /// <summary>Synchronizes component ownership with effective visibility.</summary>
+    /// <summary>Synchronizes renderer visibility with effective visibility and drawable geometry.</summary>
     private void UpdateVisualComponents()
     {
-        if (IsEffectivelyVisible)
-            return;
-        else
-        {
-            if (_background is not null || _text is not null)
-                RemoveVisualComponents();
-
+        if (!IsEffectivelyVisible)
             SetBounds(new Rectangle<float>(Bounds.Origin, Vector2D<float>.Zero));
-        }
+
+        UpdateRendererVisibility();
     }
+
+    /// <summary>Shows each button renderer only when its drawable geometry is renderable.</summary>
+    private void UpdateRendererVisibility()
+    {
+        if (_background is null || _text is null)
+            return;
+
+        var canRender = IsEffectivelyVisible && HasRenderableGeometry(Bounds);
+        _background.IsVisible =
+            canRender && Texture is not null && _background.Drawables.Count > 0;
+        _text.IsVisible =
+            canRender
+            && HasRenderableGeometry((Rectangle<float>)_text.Destination)
+            && _text.Drawables.Count > 0;
+    }
+
+    /// <summary>Checks whether a rectangle has finite, positive dimensions.</summary>
+    /// <param name="bounds">The rectangle to validate.</param>
+    /// <returns>True when the rectangle can be rendered.</returns>
+    private static bool HasRenderableGeometry(Rectangle<float> bounds) =>
+        float.IsFinite(bounds.Origin.X)
+        && float.IsFinite(bounds.Origin.Y)
+        && float.IsFinite(bounds.Size.X)
+        && float.IsFinite(bounds.Size.Y)
+        && bounds.Size.X > 0f
+        && bounds.Size.Y > 0f;
 
     /// <summary>Subscribes to visibility changes on the current ancestor chain.</summary>
     private void UpdateVisibilityAncestorSubscriptions()
@@ -257,9 +275,6 @@ public partial class TextButton : Element
         if (!IsEffectivelyVisible)
             return Vector2D<float>.Zero;
 
-        if (_text is null || _background is null)
-            CreateVisualComponents();
-
         if (
             float.IsNaN(constraint.X)
             || constraint.X < 0f
@@ -296,13 +311,11 @@ public partial class TextButton : Element
     {
         if (!IsEffectivelyVisible)
         {
-            RemoveVisualComponents();
             SetBounds(new Rectangle<float>(bounds.Origin, Vector2D<float>.Zero));
+            UpdateRendererVisibility();
             return;
         }
 
-        if (_text is null || _background is null)
-            CreateVisualComponents();
         if (_text is null || _background is null)
             return;
 
@@ -324,5 +337,6 @@ public partial class TextButton : Element
         );
         _text.Alignment = new Vector2D<float>(0.5f, 0.5f);
         _background.Destination = contentBounds;
+        UpdateRendererVisibility();
     }
 }

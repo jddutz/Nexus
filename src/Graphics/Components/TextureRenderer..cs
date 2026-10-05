@@ -1,10 +1,14 @@
 namespace Nexus.Graphics.Components;
 
 /// <summary>Draws a texture using one <see cref="TexturedQuad"/> drawable.</summary>
-public partial class TextureRenderer : Component, IGraphicsComponent
+public partial class TextureRenderer : Component, IRenderer
 {
     private TexturedQuad? _drawable;
     private IReadOnlyList<IDrawable> _drawables = Array.Empty<IDrawable>();
+
+    /// <summary>Gets or sets whether this renderer submits its drawable for rendering.</summary>
+    [Observable(Public = true)]
+    private bool _isVisible = true;
 
     /// <inheritdoc />
     public event EventHandler<DrawableEventArgs>? DrawableAdded;

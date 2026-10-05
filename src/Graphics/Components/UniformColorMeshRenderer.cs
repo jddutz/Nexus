@@ -1,12 +1,13 @@
 namespace Nexus.Graphics.Components;
 
 /// <summary>Exposes one custom uniform-color mesh drawable to the graphics system.</summary>
-public sealed class UniformColorMeshRenderer : Component, IGraphicsComponent
+public sealed partial class UniformColorMeshRenderer : Component, IRenderer
 {
     private UniformColorMesh? _drawable;
     private Mesh? _mesh;
     private Matrix4X4<float> _transform = Matrix4X4<float>.Identity;
     private Color _color = Colors.White;
+    private bool _isVisible = true;
     private ISpatialObject? _spatialOwner;
 
     /// <inheritdoc />
@@ -18,6 +19,25 @@ public sealed class UniformColorMeshRenderer : Component, IGraphicsComponent
     /// <inheritdoc />
     public IReadOnlyList<IDrawable> Drawables =>
         _drawable is null ? Array.Empty<IDrawable>() : [_drawable];
+
+    /// <inheritdoc />
+    public bool IsVisible
+    {
+        get => _isVisible;
+        set
+        {
+            if (_isVisible == value)
+                return;
+
+            var previousValue = _isVisible;
+            _isVisible = value;
+            OnPropertyChanged(nameof(IsVisible));
+            IsVisibleChanged?.Invoke(previousValue, value);
+        }
+    }
+
+    /// <inheritdoc />
+    public event Action<bool, bool>? IsVisibleChanged;
 
     /// <summary>Gets or sets the mesh exposed by this renderer.</summary>
     public Mesh? Mesh

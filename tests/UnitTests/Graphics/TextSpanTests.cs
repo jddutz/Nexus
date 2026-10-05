@@ -267,7 +267,7 @@ public sealed class TextSpanTests
     {
         var element = new TextElement(text, CreateStyle());
         element.Arrange(new Rectangle<float>(0f, 0f, 2f, 1f));
-        var graphics = Assert.Single(element.Components.OfType<IGraphicsComponent>());
+        var graphics = Assert.Single(element.Components.OfType<IRenderer>());
 
         Assert.Empty(graphics.Drawables);
     }
@@ -278,7 +278,7 @@ public sealed class TextSpanTests
     {
         var element = new TextElement(string.Empty, CreateStyle());
 
-        Assert.Empty(Assert.Single(element.Components.OfType<IGraphicsComponent>()).Drawables);
+        Assert.Empty(Assert.Single(element.Components.OfType<IRenderer>()).Drawables);
     }
 
     /// <summary>Verifies visible text can be replaced by empty text and then prepared again.</summary>
@@ -288,7 +288,7 @@ public sealed class TextSpanTests
         var element = new TextElement("A", CreateStyle());
         element.Arrange(new Rectangle<float>(0f, 0f, 1f, 1f));
         var original = DrawableTestData.TextDrawable(element);
-        var graphics = Assert.Single(element.Components.OfType<IGraphicsComponent>());
+        var graphics = Assert.Single(element.Components.OfType<IRenderer>());
 
         element.Text = string.Empty;
         Assert.Empty(graphics.Drawables);

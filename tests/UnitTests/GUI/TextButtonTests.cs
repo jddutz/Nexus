@@ -33,6 +33,8 @@ public sealed class TextButtonTests
             Assert.Single(button.Components.OfType<TextRenderer>())
         );
         Assert.Empty(text.Drawables);
+        Assert.False(text.IsVisible);
+        Assert.False(button.GetComponent<NinePatchRenderer>()!.IsVisible);
 
         button.Style = new TestTextStyle();
         button.Arrange(bounds);
@@ -158,16 +160,18 @@ public sealed class TextButtonTests
         Assert.Equal(new Rectangle<float>(16f, 30f, 1f, 1f), text.Destination);
     }
 
-    /// <summary>Verifies hiding removes visuals while retaining layout state for fresh components.</summary>
+    /// <summary>Verifies hiding toggles renderer visibility while retaining owned components.</summary>
     [Fact]
-    public void Visibility_removesAndRecreatesVisualComponents()
+    public void Visibility_togglesAndRetainsVisualComponents()
     {
         var scene = new Scene() { MainCamera = new Nexus.Graphics.Cameras.StaticCamera() };
         var parent = new Element();
         var button = CreateButton("AB");
         var bounds = new Rectangle<float>(4f, 5f, 60f, 24f);
         button.Arrange(bounds);
-        var originalBackground = button.GetComponent<NinePatchRenderer>();
+        var originalBackground = Assert.IsType<NinePatchRenderer>(
+            button.GetComponent<NinePatchRenderer>()
+        );
         var originalText = DrawableTestData.TextGraphics(button);
         var addedComponents = new List<IComponent>();
         var removedComponents = new List<IComponent>();
@@ -179,8 +183,9 @@ public sealed class TextButtonTests
 
         button.IsVisible = false;
 
-        Assert.Empty(button.Components);
-        Assert.Equal(2, removedComponents.Count);
+        Assert.Equal(2, button.Components.Count());
+        Assert.All(button.Components.OfType<IRenderer>(), renderer => Assert.False(renderer.IsVisible));
+        Assert.Empty(removedComponents);
         Assert.Equal(Vector2D<float>.Zero, button.Measure(new(100f, 100f)));
         var hiddenBounds = new Rectangle<float>(0f, 0f, 40f, 30f);
         button.Arrange(hiddenBounds);
@@ -192,15 +197,15 @@ public sealed class TextButtonTests
         button.IsVisible = true;
         button.Arrange(hiddenBounds);
 
-        var recreatedBackground = button.GetComponent<NinePatchRenderer>();
+        var recreatedBackground = Assert.IsType<NinePatchRenderer>(
+            button.GetComponent<NinePatchRenderer>()
+        );
         var recreatedText = DrawableTestData.TextGraphics(button);
-        Assert.NotNull(recreatedBackground);
-        Assert.NotNull(recreatedText);
-        Assert.NotSame(originalBackground, recreatedBackground);
-        Assert.NotSame(originalText, recreatedText);
+        Assert.Same(originalBackground, recreatedBackground);
+        Assert.Same(originalText, recreatedText);
         Assert.Equal(2UL, DrawableTestData.TextInstanceCount(button));
-        Assert.Equal(2, addedComponents.Count);
-        Assert.Equal(2, removedComponents.Count);
+        Assert.Empty(addedComponents);
+        Assert.Empty(removedComponents);
         Assert.Equal(hiddenBounds, button.Bounds);
         Assert.Equal(hiddenBounds, recreatedBackground.Destination);
         Assert.Equal(
@@ -213,7 +218,7 @@ public sealed class TextButtonTests
         Assert.Equal(new Vector2D<float>(14f, 11f), button.Measure(new(100f, 100f)));
     }
 
-    /// <summary>Verifies ancestor visibility removes and restores descendant button visuals.</summary>
+    /// <summary>Verifies ancestor visibility toggles retained descendant renderer components.</summary>
     [Fact]
     public void AncestorVisibility_updatesDescendantVisualComponents()
     {
@@ -222,11 +227,14 @@ public sealed class TextButtonTests
 
         parent.AddChild(button);
 
-        Assert.Empty(button.Components);
+        Assert.Equal(2, button.Components.Count());
+        Assert.All(button.Components.OfType<IRenderer>(), renderer => Assert.False(renderer.IsVisible));
         Assert.Equal(Vector2D<float>.Zero, button.Bounds.Size);
         parent.IsVisible = true;
+        Assert.All(button.Components.OfType<IRenderer>(), renderer => Assert.False(renderer.IsVisible));
         button.Arrange(new Rectangle<float>(0f, 0f, 20f, 20f));
         Assert.Equal(2, button.Components.Count());
+        Assert.All(button.Components.OfType<IRenderer>(), renderer => Assert.True(renderer.IsVisible));
     }
 
     /// <summary>
@@ -270,6 +278,23 @@ public sealed class TextButtonTests
         Assert.Equal(0x2UL, label.RenderLayerMask);
         Assert.All(background.Drawables, drawable => Assert.Equal(0x2UL, drawable.RenderLayerMask));
         Assert.All(label.Drawables, drawable => Assert.Equal(0x2UL, drawable.RenderLayerMask));
+    }
+
+    /// <summary>Verifies zero-sized geometry hides both retained button renderers.</summary>
+    [Fact]
+    public void Arrange_withZeroGeometryHidesRenderersWithoutRemovingComponents()
+    {
+        var button = CreateButton("A");
+        var background = Assert.IsType<NinePatchRenderer>(
+            button.GetComponent<NinePatchRenderer>()
+        );
+        var text = Assert.Single(button.Components.OfType<TextRenderer>());
+
+        button.Arrange(new Rectangle<float>(0f, 0f, 0f, 20f));
+
+        Assert.Equal(2, button.Components.Count());
+        Assert.False(background.IsVisible);
+        Assert.False(text.IsVisible);
     }
 
     /// <summary>

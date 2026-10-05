@@ -88,14 +88,14 @@ public partial class Element : GameObject, IElement
     /// <param name="component">The component added to this element.</param>
     private void OnComponentAdded(Nexus.Core.IComponent component)
     {
-        if (component is IGraphicsComponent graphicsComponent)
+        if (component is IRenderer graphicsComponent)
             graphicsComponent.DrawOrder = SortOrder;
     }
 
     /// <summary>Applies the current sort order to every owned graphics component.</summary>
     private void ApplySortOrder()
     {
-        foreach (var graphicsComponent in Components.OfType<IGraphicsComponent>())
+        foreach (var graphicsComponent in Components.OfType<IRenderer>())
             graphicsComponent.DrawOrder = SortOrder;
     }
 

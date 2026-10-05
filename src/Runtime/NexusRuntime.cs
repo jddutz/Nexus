@@ -25,6 +25,7 @@ public sealed class NexusRuntime(
     private long _renderedFrameCount;
     private bool _runTimeLimitReached;
 
+    /// <summary>Gets whether the runtime and its configured services are initialized.</summary>
     public bool IsInitialized => _initialized;
 
     /// <summary>
@@ -42,18 +43,18 @@ public sealed class NexusRuntime(
             window.Render += OnRender;
         }
 
+        using (var timing = new LoadPerformanceScope(telemetry, "startup.system.initialize", "input"))
+            input.Initialize();
         using (var timing = new LoadPerformanceScope(telemetry, "startup.system.initialize", "physics"))
             physics.Initialize();
         using (var timing = new LoadPerformanceScope(telemetry, "startup.system.initialize", "audio"))
             audio.Initialize();
-        using (var timing = new LoadPerformanceScope(telemetry, "startup.system.initialize", "input"))
-            input.Initialize();
-        using (var timing = new LoadPerformanceScope(telemetry, "startup.system.initialize", "gameSystem"))
-            gameSystem.Initialize();
         using (var timing = new LoadPerformanceScope(telemetry, "startup.system.initialize", "graphics"))
             graphics.Initialize();
         using (var timing = new LoadPerformanceScope(telemetry, "startup.system.initialize", "gui"))
             gui.Initialize();
+        using (var timing = new LoadPerformanceScope(telemetry, "startup.system.initialize", "gameSystem"))
+            gameSystem.Initialize();
 
         _runtimeStopwatch.Start();
         _initialized = true;
@@ -73,10 +74,9 @@ public sealed class NexusRuntime(
 
         gameSystem.Update(deltaTime);
         physics.Update(deltaTime);
+        gui.Update(deltaTime);
         audio.Update(deltaTime);
         input.Update(deltaTime);
-        //graphics.Update(deltaTime);
-        gui.Update(deltaTime);
     }
 
     /// <summary>

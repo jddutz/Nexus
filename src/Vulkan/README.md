@@ -14,6 +14,8 @@ Vulkan is the active graphics backend. It implements graphics-system and window 
 
 The architecture baseline defines frame work as `PrepareFrame`, per-view `Begin`, per-pass `Record`, per-view `Finalize`, then `Submit`. Uploads occur before rendering passes; draw commands execute inside their pass. Changes must preserve resource lifetime and synchronization requirements.
 
+Built-in color shaders convert normalized vertex colors from display sRGB space to linear space before writing to the sRGB swapchain.
+
 ## Dependencies and integration
 
 The .NET 10 project references [Core](../Core/README.md) and [Graphics](../Graphics/README.md). Packages include Silk.NET Vulkan and EXT/KHR extensions, Maths, Windowing, and Microsoft configuration/DI/options. `AddVkGraphicsServices` registers backend services; `AddVkValidation` registers validation services. Runtime selects Vulkan by default when no graphics system was supplied.

@@ -32,9 +32,9 @@ internal static class DrawableTestData
     /// <summary>Finds the graphics component owning an element's text drawable.</summary>
     /// <param name="element">The element whose visual components are inspected.</param>
     /// <returns>The unique text graphics component.</returns>
-    public static IGraphicsComponent TextGraphics(IGameObject element) =>
+    public static IRenderer TextGraphics(IGameObject element) =>
         Assert.Single(
-            element.Components.OfType<IGraphicsComponent>(),
+            element.Components.OfType<IRenderer>(),
             component => component.Drawables.OfType<TextSpan>().Any()
         );
 

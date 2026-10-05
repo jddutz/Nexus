@@ -1,7 +1,3 @@
-using System.Diagnostics;
-using Microsoft.Extensions.Configuration;
-using Nexus.Runtime;
-
 try
 {
     var configurationBuilder = new ConfigurationBuilder()

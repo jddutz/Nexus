@@ -12,7 +12,7 @@ Runtime composes engine services and coordinates application startup, update, re
 
 ## Current orchestration
 
-Initialization runs Physics, Audio, Input, Game, Graphics, then GUI. On update, EventHub drains first, followed by Game, Physics, Audio, Input, and GUI. Graphics update is currently commented out. Rendering calls `graphics.Render`; configured frame-count or elapsed-time limits can close the window.
+Initialization runs Input, Physics, Audio, Graphics, GUI, then GameSystem so services register before scene lifecycle traversal starts. On update, the runtime drains queued events once, then updates GameSystem, Physics, GUI, Audio, and Input. Physics collision results and gameplay feedback are delivered by the next update's drain. Graphics has no update phase; `graphics.Render` consumes the latest completed update state. Configured frame-count or elapsed-time limits can close the window.
 
 Default composition registers Vulkan when an `IGraphicsSystem` has not already been supplied. `RuntimeBuilder.UseVulkan` currently returns the builder without additional configuration; `UseOpenGL` throws `NotImplementedException`.
 

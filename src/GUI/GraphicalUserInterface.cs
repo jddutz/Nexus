@@ -1,3 +1,6 @@
+using System.Diagnostics;
+using Microsoft.Extensions.Options;
+
 namespace Nexus.GUI;
 
 /// <summary>
@@ -5,11 +8,17 @@ namespace Nexus.GUI;
 /// </summary>
 /// <param name="eventHub">The event hub used to receive game lifecycle events.</param>
 /// <param name="windowService">The service used to read the main window size, or <see langword="null"/> in a headless runtime.</param>
-public sealed class GraphicalUserInterface(IEventHub eventHub, IWindowService? windowService = null)
-    : IGraphicalUserInterface
+/// <param name="diagnostics">Optional diagnostics settings used to enable layout logging.</param>
+public sealed class GraphicalUserInterface(
+    IEventHub eventHub,
+    IWindowService? windowService = null,
+    IOptions<DiagnosticsSettings>? diagnostics = null
+) : IGraphicalUserInterface
 {
     private readonly IEventHub _eventHub = eventHub;
     private readonly IWindowService? _windowService = windowService;
+    private readonly bool _diagnosticsEnabled = (diagnostics?.Value ?? new DiagnosticsSettings())
+        .GraphicsInstrumentationEnabled;
     private readonly HashSet<Element> _subscribedElements = [];
     private readonly Dictionary<Element, Action<string>> _propertyChangedHandlers = [];
     private IScene? _scene;
@@ -270,14 +279,22 @@ public sealed class GraphicalUserInterface(IEventHub eventHub, IWindowService? w
     /// <param name="element">The root element to lay out.</param>
     /// <param name="screenSize">The current screen size.</param>
     /// <param name="screenBounds">The current screen bounds.</param>
-    private static void MeasureAndArrange(
+    private void MeasureAndArrange(
         Element element,
         Vector2D<float> screenSize,
         Rectangle<float> screenBounds
     )
     {
-        element.Measure(screenSize);
+        var measuredSize = element.Measure(screenSize);
         element.Arrange(screenBounds);
+
+        if (_diagnosticsEnabled)
+        {
+            Debug.WriteLine(
+                $"GUI Arrange: Element={element.GetType().Name}, MeasuredSize={measuredSize}, "
+                    + $"Allocation={screenBounds}, Bounds={element.Bounds}"
+            );
+        }
     }
 
     /// <summary>

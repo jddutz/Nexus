@@ -1,10 +1,14 @@
 namespace Nexus.Graphics.Components;
 
 /// <summary>Draws a resizable texture region as four corners, four edges, and a center.</summary>
-public partial class NinePatchRenderer : Component, IGraphicsComponent
+public partial class NinePatchRenderer : Component, IRenderer
 {
     private NinePatch? _drawable;
     private IReadOnlyList<IDrawable> _drawables = Array.Empty<IDrawable>();
+
+    /// <summary>Gets or sets whether this renderer submits its drawables for rendering.</summary>
+    [Observable(Public = true)]
+    private bool _isVisible = true;
 
     /// <inheritdoc />
     public IReadOnlyList<IDrawable> Drawables => _drawables;

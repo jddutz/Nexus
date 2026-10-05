@@ -23,6 +23,7 @@ namespace Nexus.Graphics.Vulkan.Descriptors;
 /// Creates a fixed-capacity descriptor-set pool.
 /// </remarks>
 /// <param name="context">Graphics context providing Vulkan device access.</param>
+/// <param name="syncManager">Synchronization manager used to defer descriptor-set release.</param>
 /// <param name="maxSets">Maximum number of descriptor sets the native pool can allocate.</param>
 /// <param name="uniformBufferCount">
 /// Number of uniform-buffer descriptors the native pool can allocate.
@@ -33,12 +34,7 @@ namespace Nexus.Graphics.Vulkan.Descriptors;
 /// <exception cref="InvalidOperationException">
 /// Thrown when Vulkan cannot create the descriptor pool.
 /// </exception>
-public unsafe class DescriptorSetPool(
-    Context context,
-    uint maxSets = DescriptorSetPool.DefaultMaxSets,
-    uint uniformBufferCount = DescriptorSetPool.DefaultUniformBufferCount,
-    uint combinedImageSamplerCount = DescriptorSetPool.DefaultCombinedImageSamplerCount
-) : IDescriptorSetPool
+public unsafe class DescriptorSetPool : IDescriptorSetPool
 {
     /// <summary>Default maximum number of descriptor sets the native pool can allocate.</summary>
     public const uint DefaultMaxSets = 512;
@@ -51,14 +47,53 @@ public unsafe class DescriptorSetPool(
     /// </summary>
     public const uint DefaultCombinedImageSamplerCount = 256;
 
-    private readonly Context _context = context;
-    private VkDescriptorPool _vkDescriptorPool = CreateNativePool(
-        context,
-        maxSets,
-        uniformBufferCount,
-        combinedImageSamplerCount
-    );
+    private readonly Context _context;
+    private readonly ISyncManager _syncManager;
+    private readonly Queue<DescriptorSet>[] _released;
+    private VkDescriptorPool _vkDescriptorPool;
     private bool _disposed;
+
+    /// <summary>Creates a descriptor pool with deferred frame-safe release.</summary>
+    /// <param name="context">Graphics context providing Vulkan device access.</param>
+    /// <param name="syncManager">Synchronization manager used to defer releases.</param>
+    /// <param name="maxSets">Maximum number of descriptor sets.</param>
+    /// <param name="uniformBufferCount">Number of uniform-buffer descriptors.</param>
+    /// <param name="combinedImageSamplerCount">Number of image-sampler descriptors.</param>
+    public DescriptorSetPool(
+        Context context,
+        ISyncManager syncManager,
+        uint maxSets = DefaultMaxSets,
+        uint uniformBufferCount = DefaultUniformBufferCount,
+        uint combinedImageSamplerCount = DefaultCombinedImageSamplerCount
+    )
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        ArgumentNullException.ThrowIfNull(syncManager);
+        _context = context;
+        _syncManager = syncManager;
+        _released = CreateReleaseQueues(syncManager);
+        _vkDescriptorPool = CreateNativePool(
+            context,
+            maxSets,
+            uniformBufferCount,
+            combinedImageSamplerCount
+        );
+        _syncManager.FrameCompleted += OnFrameCompleted;
+    }
+
+    /// <summary>
+    /// Creates one descriptor-set retirement queue for each frame slot.
+    /// </summary>
+    /// <param name="syncManager">The synchronization manager that defines the frame slots.</param>
+    /// <returns>The initialized retirement queues.</returns>
+    private static Queue<DescriptorSet>[] CreateReleaseQueues(ISyncManager syncManager)
+    {
+        ArgumentNullException.ThrowIfNull(syncManager);
+        var queues = new Queue<DescriptorSet>[checked((int)syncManager.MaxFramesInFlight)];
+        for (var index = 0; index < queues.Length; index++)
+            queues[index] = new Queue<DescriptorSet>();
+        return queues;
+    }
 
     /// <summary>
     /// Creates the native Vulkan descriptor pool with the requested fixed capacities.
@@ -218,16 +253,38 @@ public unsafe class DescriptorSetPool(
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        var result = _context.VulkanApi.FreeDescriptorSets(
-            _context.Device,
-            _vkDescriptorPool,
-            1,
-            &descriptorSet
+        var releaseFrameIndex = checked(
+            (int)(
+                (_syncManager.CurrentFrameIndex + _syncManager.MaxFramesInFlight - 1)
+                % _syncManager.MaxFramesInFlight
+            )
         );
+        _released[releaseFrameIndex].Enqueue(descriptorSet);
+    }
 
-        if (result != Result.Success)
+    /// <summary>
+    /// Frees descriptor sets whose submitted frame has completed.
+    /// </summary>
+    /// <param name="sender">The synchronization manager.</param>
+    /// <param name="e">The completed frame event data.</param>
+    private void OnFrameCompleted(object? sender, FrameCompletedEventArgs e)
+    {
+        var releaseFrameIndex = checked((int)e.FrameIndex);
+        if (releaseFrameIndex >= _released.Length)
+            throw new ArgumentOutOfRangeException(nameof(e), e.FrameIndex, "Invalid frame index.");
+
+        var queue = _released[releaseFrameIndex];
+        while (queue.TryDequeue(out var descriptorSet))
         {
-            throw new InvalidOperationException($"Failed to release descriptor set: {result}");
+            var result = _context.VulkanApi.FreeDescriptorSets(
+                _context.Device,
+                _vkDescriptorPool,
+                1,
+                &descriptorSet
+            );
+
+            if (result != Result.Success)
+                throw new InvalidOperationException($"Failed to release descriptor set: {result}");
         }
     }
 
@@ -241,6 +298,7 @@ public unsafe class DescriptorSetPool(
             return;
 
         _disposed = true;
+        _syncManager.FrameCompleted -= OnFrameCompleted;
 
         if (_vkDescriptorPool.Handle != 0)
         {

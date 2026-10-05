@@ -24,6 +24,12 @@ public partial class GameSystem(
     private readonly GameSettings _settings = gameSettings.Value;
     private readonly IWindowService? _windowService = windowService;
     private readonly HashSet<ISceneNode> _subscribedSceneNodes = [];
+    private readonly HashSet<IGameObject> _publishedGameObjectActivations = new(
+        ReferenceEqualityComparer.Instance
+    );
+    private readonly HashSet<IGameObject> _activatingGameObjects = new(
+        ReferenceEqualityComparer.Instance
+    );
     private readonly HashSet<object> _removedDuringTraversal = new(
         ReferenceEqualityComparer.Instance
     );
@@ -177,17 +183,39 @@ public partial class GameSystem(
     /// <param name="gameObject">The game object to activate.</param>
     public void ActivateGameObject(IGameObject gameObject)
     {
-        if (!TryActivate(gameObject))
+        SubscribeSceneNode(gameObject);
+        if (!_activatingGameObjects.Add(gameObject))
             return;
 
-        PublishActivatedSubtree(gameObject);
+        try
+        {
+            if (!TryActivate(gameObject))
+                return;
+
+            if (
+                gameObject.Parent is IGameObject parent
+                && _activatingGameObjects.Contains(parent)
+            )
+                return;
+
+            PublishActivatedSubtree(gameObject);
+        }
+        finally
+        {
+            _activatingGameObjects.Remove(gameObject);
+        }
     }
 
     /// <summary>Publishes a game-object deactivation event.</summary>
     /// <param name="gameObject">The game object to deactivate.</param>
     public void DeactivateGameObject(IGameObject gameObject)
     {
+        var activationIsPending = _activatingGameObjects.Contains(gameObject);
+        _publishedGameObjectActivations.Remove(gameObject);
         UnregisterEventHandlers(gameObject);
+        if (CurrentScene is not { } currentScene || !ReferenceEquals(gameObject.Root, currentScene))
+            UnsubscribeSceneNode(gameObject);
+
         if (!gameObject.IsActivated)
             return;
 
@@ -199,7 +227,8 @@ public partial class GameSystem(
             gameObject.Components.Count()
         );
 
-        _eventHub.Publish(new GameObjectDeactivatedEvent(gameObject));
+        if (!activationIsPending)
+            _eventHub.Publish(new GameObjectDeactivatedEvent(gameObject));
     }
 
     /// <summary>
@@ -225,6 +254,10 @@ public partial class GameSystem(
     /// <param name="gameObject">The root of the activated subtree.</param>
     private void PublishActivatedSubtree(IGameObject gameObject)
     {
+        if (!_publishedGameObjectActivations.Add(gameObject))
+            return;
+
+        SubscribeSceneNode(gameObject);
         RegisterEventHandlers(gameObject);
 
         _logger.LogTrace(
@@ -588,6 +621,9 @@ public partial class GameSystem(
     private void OnSceneChildAdded(ISceneNode child)
     {
         SubscribeSceneNode(child);
+
+        if (child.Parent is IManagedEntity { IsActivated: true } && child is IGameObject gameObject)
+            ActivateGameObject(gameObject);
     }
 
     /// <summary>

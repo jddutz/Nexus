@@ -10,9 +10,9 @@ public unsafe class InstanceBufferRegistry : IInstanceBufferRegistry
     private readonly Context _context;
     private readonly ISyncManager _syncManager;
     private readonly PerformanceMetrics? _performanceMetrics;
+    private readonly FrameRetirementQueue<VkBuffer> _retiredBuffers;
     private readonly Dictionary<DrawableId, VkBuffer> _buffers = [];
     private readonly Dictionary<VkBuffer, DeviceMemory> _memory = [];
-    private readonly Queue<VkBuffer>[] _released;
 
     /// <summary>
     /// Creates an instance-buffer registry with frame-slot deferred-release queues.
@@ -31,12 +31,13 @@ public unsafe class InstanceBufferRegistry : IInstanceBufferRegistry
         _syncManager = syncManager ?? throw new ArgumentNullException(nameof(syncManager));
         _performanceMetrics = performanceMetrics;
         _telemetry = telemetry;
-        _released = new Queue<VkBuffer>[checked((int)syncManager.MaxFramesInFlight)];
-
-        for (var index = 0; index < _released.Length; index++)
-            _released[index] = new Queue<VkBuffer>();
+        _retiredBuffers = new FrameRetirementQueue<VkBuffer>(
+            syncManager.MaxFramesInFlight,
+            DestroyBuffer
+        );
 
         _syncManager.FrameCompleted += OnFrameCompleted;
+        _syncManager.FrameSubmitted += OnFrameSubmitted;
     }
 
     /// <inheritdoc/>
@@ -47,11 +48,10 @@ public unsafe class InstanceBufferRegistry : IInstanceBufferRegistry
 
         using var timing = new LoadPerformanceScope(_telemetry, "geometry.instances.realize", units: checked((long)drawable.InstanceCount));
         var stride = checked((ulong)layout.Sum(input => input.Size));
-        var data = new byte[checked((int)(drawable.InstanceCount * stride))];
+        var dataLength = checked((int)(drawable.InstanceCount * stride));
+        var data = new byte[dataLength == 0 ? checked((int)Math.Max(stride, 1UL)) : dataLength];
         using (var serialization = new LoadPerformanceScope(_telemetry, "geometry.instances.serialize", units: data.Length))
             drawable.WriteInstanceDataTo(0, drawable.InstanceCount, layout, data);
-        if (data.Length == 0)
-            throw new InvalidOperationException("Instance data cannot be empty.");
 
         var newBuffer = CreateBuffer(data);
 
@@ -79,6 +79,30 @@ public unsafe class InstanceBufferRegistry : IInstanceBufferRegistry
     }
 
     /// <inheritdoc/>
+    public IEnumerable<IVulkanCommand> Update(IDrawable drawable, ShaderInput[] layout)
+    {
+        ArgumentNullException.ThrowIfNull(drawable);
+        ArgumentNullException.ThrowIfNull(layout);
+
+        if (!_buffers.TryGetValue(drawable.Id, out var buffer))
+            throw new KeyNotFoundException(
+                $"Instance buffer for drawable '{drawable.Id}' is not registered."
+            );
+
+        var stride = checked((ulong)layout.Sum(input => input.Size));
+        var data = new byte[checked((int)(drawable.InstanceCount * stride))];
+        if (data.Length == 0)
+            return [];
+
+        drawable.WriteInstanceDataTo(0, drawable.InstanceCount, layout, data);
+        var replacement = CreateBuffer(data);
+        _buffers[drawable.Id] = replacement;
+        QueueRelease(buffer);
+
+        return [];
+    }
+
+    /// <inheritdoc/>
     public IEnumerable<IVulkanCommand> Release(DrawableId drawableId)
     {
         if (!_buffers.Remove(drawableId, out var buffer))
@@ -93,45 +117,33 @@ public unsafe class InstanceBufferRegistry : IInstanceBufferRegistry
         return [];
     }
 
-    /// <summary>
-    /// Queues a buffer for destruction when the selected frame slot completes.
-    /// </summary>
+    /// <summary>Defers destruction until every submitted frame that may use the buffer completes.</summary>
     /// <param name="buffer">The buffer to release.</param>
-    private void QueueRelease(VkBuffer buffer)
-    {
-        var releaseFrameIndex = checked(
-            (int)(
-                (_syncManager.CurrentFrameIndex + _syncManager.MaxFramesInFlight - 1)
-                % _syncManager.MaxFramesInFlight
-            )
-        );
+    private void QueueRelease(VkBuffer buffer) => _retiredBuffers.Retire(buffer);
 
-        _released[releaseFrameIndex].Enqueue(buffer);
+    /// <summary>Destroys a retired buffer after all referencing frame slots complete.</summary>
+    /// <param name="buffer">The buffer whose final GPU use has completed.</param>
+    private void DestroyBuffer(VkBuffer buffer)
+    {
+        _context.VulkanApi.DestroyBuffer(_context.Device, buffer, null);
+        if (_memory.Remove(buffer, out var memory))
+        {
+            _context.VulkanApi.FreeMemory(_context.Device, memory, null);
+            _performanceMetrics?.RecordBufferDestroyed();
+        }
     }
 
-    /// <summary>
-    /// Destroys buffers queued for the completed frame slot.
-    /// </summary>
+    /// <summary>Records a completed frame slot for deferred buffer retirement.</summary>
     /// <param name="sender">The synchronization manager.</param>
     /// <param name="e">The completed frame event data.</param>
     private void OnFrameCompleted(object? sender, FrameCompletedEventArgs e)
-    {
-        var releaseFrameIndex = checked((int)e.FrameIndex);
-        if (releaseFrameIndex >= _released.Length)
-            throw new ArgumentOutOfRangeException(nameof(e), e.FrameIndex, "Invalid frame index.");
+        => _retiredBuffers.OnFrameCompleted(e.FrameIndex);
 
-        var queue = _released[releaseFrameIndex];
-        while (queue.TryDequeue(out var buffer))
-        {
-            _context.VulkanApi.DestroyBuffer(_context.Device, buffer, null);
-
-            if (_memory.Remove(buffer, out var memory))
-            {
-                _context.VulkanApi.FreeMemory(_context.Device, memory, null);
-                _performanceMetrics?.RecordBufferDestroyed();
-            }
-        }
-    }
+    /// <summary>Records a submitted frame slot that may reference active instance buffers.</summary>
+    /// <param name="sender">The synchronization manager.</param>
+    /// <param name="e">The submitted frame event data.</param>
+    private void OnFrameSubmitted(object? sender, FrameSubmittedEventArgs e) =>
+        _retiredBuffers.OnFrameSubmitted(e.FrameIndex);
 
     /// <summary>
     /// Finds a physical-device memory type that satisfies the requested properties.
@@ -266,14 +278,14 @@ public unsafe class InstanceBufferRegistry : IInstanceBufferRegistry
 
         _buffers.Clear();
         _memory.Clear();
-        foreach (var queue in _released)
-            queue.Clear();
+        _retiredBuffers.Reset();
     }
 
     /// <inheritdoc/>
     public void Dispose()
     {
         _syncManager.FrameCompleted -= OnFrameCompleted;
+        _syncManager.FrameSubmitted -= OnFrameSubmitted;
         Reset();
         GC.SuppressFinalize(this);
     }

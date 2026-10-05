@@ -1,7 +1,7 @@
-namespace Nexus.Samples.SnakeGame;
+namespace Nexus.Samples.Snake;
 
-using Silk.NET.Maths;
-using Nexus.Input.Events;
+using Microsoft.Extensions.Options;
+using Nexus.Graphics.Components;
 
 /// <summary>Composes the Snake sample's board, score, prompts, and input mappings.</summary>
 [Scene("SnakeGame")]
@@ -11,7 +11,10 @@ public sealed class SnakeGameScene : Scene
     private const int FooterHeight = 76;
     private const int ControllerInputBindingLimit = 32;
 
-    private static readonly (string SemanticName, SnakeDirection Direction)[] ControllerDirections =
+    private static readonly (
+        string SemanticName,
+        SnakeDirection Direction
+    )[] ControllerDirections =
     [
         (ControllerSemanticNames.DPadUp, SnakeDirection.Up),
         (ControllerSemanticNames.DPadDown, SnakeDirection.Down),
@@ -35,6 +38,7 @@ public sealed class SnakeGameScene : Scene
     ];
 
     private readonly IWindowService _windowService;
+    private readonly bool _diagnosticsEnabled;
     private readonly StaticCamera _camera = new();
     private readonly SnakeGameState _game = new();
     private readonly ImageElement _background = new()
@@ -55,33 +59,37 @@ public sealed class SnakeGameScene : Scene
         HorizontalAlignment = AlignHorizontal.Center,
         VerticalAlignment = AlignVertical.Center,
     };
-    private readonly GridLayout _board = new()
-    {
-        Rows = Enumerable.Repeat(GridSize.Relative(), SnakeGameState.BoardSize).ToArray(),
-        Columns = Enumerable.Repeat(GridSize.Relative(), SnakeGameState.BoardSize).ToArray(),
-        HorizontalAlignment = AlignHorizontal.Center,
-        VerticalAlignment = AlignVertical.Center,
-    };
     private readonly Element _boardLayer = new()
     {
         HorizontalAlignment = AlignHorizontal.Center,
         VerticalAlignment = AlignVertical.Center,
     };
+    private readonly TileMapData _boardData = new(
+        new Rectangle<int>(0, 0, SnakeGameState.BoardSize, SnakeGameState.BoardSize)
+    );
+    private readonly TileMapRenderer _boardRenderer = new()
+    {
+        Texture = BuiltInTextures.Uniform,
+    };
+    private readonly GameObject2D _boardObject;
     private readonly TextElement _scoreText;
     private readonly TextElement _promptText;
     private readonly HashSet<KeyEnum> _pressedKeys = [];
     private Vector2D<int> _lastWindowSize;
     private SnakeDirection? _lastStickDirection;
     private bool _stickArmed = true;
+    private long _advanceCount;
 
     /// <summary>Creates the scene and configures its one-time input bindings.</summary>
     /// <param name="textStyles">Provides cached styles for the built-in font.</param>
     /// <param name="eventHub">Dispatches scene input events.</param>
     /// <param name="windowService">Provides the main window size for responsive layout.</param>
+    /// <param name="diagnostics">Optional diagnostics settings used to enable game logging.</param>
     public SnakeGameScene(
         ITextStyleRegistry textStyles,
         IEventHub eventHub,
-        IWindowService windowService
+        IWindowService windowService,
+        IOptions<DiagnosticsSettings>? diagnostics = null
     )
     {
         ArgumentNullException.ThrowIfNull(textStyles);
@@ -89,6 +97,10 @@ public sealed class SnakeGameScene : Scene
         ArgumentNullException.ThrowIfNull(windowService);
 
         _windowService = windowService;
+        _diagnosticsEnabled = (diagnostics?.Value ?? new DiagnosticsSettings())
+            .GraphicsInstrumentationEnabled;
+        _boardRenderer.Map = _boardData;
+        _boardObject = new GameObject2D([_boardRenderer]);
         MainCamera = _camera;
         _scoreText = new TextElement
         {
@@ -118,6 +130,7 @@ public sealed class SnakeGameScene : Scene
         base.Initialize();
         Children.Add(_background);
         Children.Add(new View { Camera = _camera, PreserveDrawOrder = true });
+        Children.Add(_boardObject);
 
         var screenLayout = new GridLayout
         {
@@ -130,7 +143,6 @@ public sealed class SnakeGameScene : Scene
             Columns = [GridSize.Relative()],
         };
         _boardLayer.Children.Add(_boardField);
-        _boardLayer.Children.Add(_board);
         screenLayout.SetCell(0, 0, _scoreText);
         screenLayout.SetCell(1, 0, _boardLayer);
         screenLayout.SetCell(2, 0, _promptText);
@@ -143,6 +155,14 @@ public sealed class SnakeGameScene : Scene
     public override void Update(double deltaTime)
     {
         base.Update(deltaTime);
+        if (_diagnosticsEnabled)
+        {
+            _advanceCount++;
+            Debug.WriteLine(
+                $"Snake Advance: AdvanceCount={_advanceCount}, DeltaTime={deltaTime}, "
+                    + $"Status={_game.Status}, Direction={_game.Direction}, Score={_game.Score}"
+            );
+        }
         _game.Advance(deltaTime);
 
         var windowSize = _windowService.GetMainWindow().Size;
@@ -278,11 +298,12 @@ public sealed class SnakeGameScene : Scene
         float absoluteX,
         float absoluteY
     ) =>
-        absoluteX == absoluteY
-            ? null
-            : absoluteX > absoluteY
-                ? position.X < 0f ? SnakeDirection.Left : SnakeDirection.Right
-                : position.Y > 0f ? SnakeDirection.Up : SnakeDirection.Down;
+        absoluteX == absoluteY ? null
+        : absoluteX > absoluteY
+            ? position.X < 0f ? SnakeDirection.Left
+                : SnakeDirection.Right
+        : position.Y > 0f ? SnakeDirection.Up
+        : SnakeDirection.Down;
 
     /// <summary>Maps supported keyboard keys to their cardinal direction.</summary>
     /// <param name="key">The pressed key.</param>
@@ -298,15 +319,15 @@ public sealed class SnakeGameScene : Scene
             KeyEnum.D or KeyEnum.Right => SnakeDirection.Right,
             _ => default,
         };
-        return key is
-            KeyEnum.W
-            or KeyEnum.Up
-            or KeyEnum.S
-            or KeyEnum.Down
-            or KeyEnum.A
-            or KeyEnum.Left
-            or KeyEnum.D
-            or KeyEnum.Right;
+        return key
+            is KeyEnum.W
+                or KeyEnum.Up
+                or KeyEnum.S
+                or KeyEnum.Down
+                or KeyEnum.A
+                or KeyEnum.Left
+                or KeyEnum.D
+                or KeyEnum.Right;
     }
 
     /// <summary>Refreshes the board tiles, score, and prompt from the game state.</summary>
@@ -315,25 +336,30 @@ public sealed class SnakeGameScene : Scene
         if (!IsInitialized)
             return;
 
-        for (var row = 0; row < SnakeGameState.BoardSize; row++)
-        for (var column = 0; column < SnakeGameState.BoardSize; column++)
+        var desiredTiles = new Dictionary<SnakeTile, Color>(
+            _game.Snake.Count + (_game.Target is null ? 0 : 1)
+        );
+        for (var index = 0; index < _game.Snake.Count; index++)
         {
-            var tile = new SnakeTile(column, row);
-            var color = GetTileColor(tile);
-            var image = color is null
-                ? null
-                : new ImageElement
-                {
-                    Texture = BuiltInTextures.Uniform,
-                    SizingMode = ImageSizingMode.Stretch,
-                    Color = color.Value,
-                };
-            _board.SetCell(row, column, image);
+            desiredTiles[_game.Snake[index]] =
+                index == 0 ? Colors.BrightGreen : Colors.DarkGreen;
         }
 
-        _scoreText.Text = _game.Status == SnakeGameStatus.Playing
-            ? $"Score: {_game.Score}"
-            : string.Empty;
+        if (_game.Target is { } target)
+            desiredTiles[target] = Colors.Red;
+
+        _boardData.Clear();
+        foreach (var (tile, color) in desiredTiles)
+        {
+            _boardData.SetCell(
+                tile.X,
+                tile.Y,
+                new TileMapCell(new Vector4D<float>(0f, 0f, 1f, 1f), color)
+            );
+        }
+
+        _scoreText.Text =
+            _game.Status == SnakeGameStatus.Playing ? $"Score: {_game.Score}" : string.Empty;
         _promptText.Text = _game.Status switch
         {
             SnakeGameStatus.Waiting => "Press any key or button to begin",
@@ -343,32 +369,25 @@ public sealed class SnakeGameScene : Scene
         };
     }
 
-    /// <summary>Gets the color for the head, body, target, or empty board tile.</summary>
-    /// <param name="tile">The board tile to inspect.</param>
-    /// <returns>The display color, or null when the tile is empty.</returns>
-    private Color? GetTileColor(SnakeTile tile)
-    {
-        if (_game.Snake.Count > 0 && _game.Snake[0] == tile)
-            return Colors.BrightGreen;
-        if (_game.Snake.Skip(1).Contains(tile))
-            return Colors.DarkGreen;
-        if (_game.Target == tile)
-            return Colors.Red;
-        return null;
-    }
-
     /// <summary>Updates the board size to the largest square that leaves room for text.</summary>
     /// <param name="windowSize">The current logical window size.</param>
     private void UpdateBoardSize(Vector2D<int> windowSize)
     {
         var side = Math.Max(0, Math.Min(windowSize.X, windowSize.Y - HeaderHeight - FooterHeight));
-        _board.Width = side;
-        _board.Height = side;
         _boardLayer.Width = side;
         _boardLayer.Height = side;
         _boardField.Width = side;
         _boardField.Height = side;
         _background.Width = Math.Max(0, windowSize.X);
         _background.Height = Math.Max(0, windowSize.Y);
+
+        var availableHeight = Math.Max(0, windowSize.Y - HeaderHeight - FooterHeight);
+        var top = HeaderHeight + Math.Max(0, (availableHeight - side) / 2f);
+        var left = Math.Max(0, (windowSize.X - side) / 2f);
+        _boardObject.Position = new Vector2D<float>(left, top);
+        _boardRenderer.CellSize = new Vector2D<float>(
+            Math.Max(side / (float)SnakeGameState.BoardSize, 0.001f),
+            Math.Max(side / (float)SnakeGameState.BoardSize, 0.001f)
+        );
     }
 }

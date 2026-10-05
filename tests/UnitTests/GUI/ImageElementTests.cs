@@ -138,9 +138,9 @@ public sealed class ImageElementTests
         Assert.Equal(new Rectangle<int>(0, 0, 5, 3), element.SourceRegion);
     }
 
-    /// <summary>Verifies zero-sized arrangement and ancestor visibility control drawable ownership.</summary>
+    /// <summary>Verifies zero-sized arrangement and ancestor visibility toggle the retained renderer.</summary>
     [Fact]
-    public void VisibilityAndZeroSize_removeAndRecreateVisualComponent()
+    public void VisibilityAndZeroSize_toggleRendererVisibility()
     {
         var parent = new Element();
         var element = CreateImageElement(4, 2);
@@ -149,7 +149,8 @@ public sealed class ImageElementTests
         parent.AddChild(element);
 
         parent.IsVisible = false;
-        Assert.Empty(element.Components);
+        Assert.Same(original, Assert.Single(element.Components.OfType<TextureRenderer>()));
+        Assert.False(original!.IsVisible);
         Assert.Equal(Vector2D<float>.Zero, element.Bounds.Size);
         element.Texture = CreateTexture(6, 3);
         parent.IsVisible = true;
@@ -157,29 +158,36 @@ public sealed class ImageElementTests
 
         var recreated = element.GetComponent<TextureRenderer>();
         Assert.NotNull(recreated);
-        Assert.NotSame(original, recreated);
+        Assert.Same(original, recreated);
+        Assert.True(recreated.IsVisible);
         AssertBounds(new Rectangle<float>(3f, 3.5f, 6f, 3f), element.Bounds);
 
         element.Arrange(new Rectangle<float>(0f, 0f, 0f, 4f));
-        Assert.Empty(element.Components);
+        Assert.Same(original, Assert.Single(element.Components.OfType<TextureRenderer>()));
+        Assert.False(original.IsVisible);
         AssertBounds(new Rectangle<float>(0f, 0f, 0f, 0f), element.Bounds);
     }
 
-    /// <summary>Verifies an image without a source remains empty until one is assigned.</summary>
+    /// <summary>Verifies an image renderer stays hidden until a source and valid geometry exist.</summary>
     [Fact]
     public void MissingTexture_keepsImageElementEmptyUntilAssigned()
     {
         var element = new ImageElement();
+        var renderer = Assert.IsType<TextureRenderer>(
+            Assert.Single(element.Components.OfType<TextureRenderer>())
+        );
 
+        Assert.False(renderer.IsVisible);
         Assert.Equal(Vector2D<float>.Zero, element.Measure(new(10f, 10f)));
         element.Arrange(new Rectangle<float>(0f, 0f, 10f, 10f));
-        Assert.Empty(element.Components);
+        Assert.False(renderer.IsVisible);
         AssertBounds(new Rectangle<float>(0f, 0f, 0f, 0f), element.Bounds);
 
         element.Texture = CreateTexture(4, 2);
         element.Arrange(new Rectangle<float>(0f, 0f, 10f, 10f));
 
-        Assert.NotNull(element.GetComponent<TextureRenderer>());
+        Assert.Same(renderer, element.GetComponent<TextureRenderer>());
+        Assert.True(renderer.IsVisible);
     }
 
     /// <summary>Creates an image element backed by deterministic texture dimensions.</summary>

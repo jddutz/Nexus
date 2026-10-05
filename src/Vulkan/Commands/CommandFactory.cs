@@ -109,7 +109,7 @@ public unsafe class CommandFactory(
         );
 
         Debug.WriteLine(
-            $"Prepared Vulkan drawable resources. DrawableId={drawable.Id}, PipelineId={pipelineDefinition.Id}"
+            $"Prepared Vulkan drawable resources. DrawableId={drawable.Id}, PipelineId={pipelineDefinition.Id}{_diagnostics?.FrameCountLogSuffix}"
         );
 
         var vertexBuffer = vertexBufferRegistry.Get(drawable.Mesh.Id, vertexShader.VertexFormat.Id);
@@ -141,7 +141,7 @@ public unsafe class CommandFactory(
             allocation.DescriptorSets.Add(descriptorSet);
 
             Debug.WriteLine(
-                $"Allocated descriptor set. DrawableId={drawable.Id}, PipelineId={pipelineDefinition.Id}, Set={setSchema.Set}"
+                $"Allocated descriptor set. DrawableId={drawable.Id}, PipelineId={pipelineDefinition.Id}, Set={setSchema.Set}{_diagnostics?.FrameCountLogSuffix}"
             );
 
             foreach (var binding in setSchema.Bindings)
@@ -269,7 +269,7 @@ public unsafe class CommandFactory(
         yield return drawCommand;
 
         Debug.WriteLine(
-            $"Created Vulkan commands. DrawableId={drawable.Id}, PipelineId={pipelineDefinition.Id}, VertexCount={drawable.Mesh.Count}"
+            $"Created Vulkan commands. DrawableId={drawable.Id}, PipelineId={pipelineDefinition.Id}, VertexCount={drawable.Mesh.Count}{_diagnostics?.FrameCountLogSuffix}"
         );
     }
 
@@ -320,7 +320,7 @@ public unsafe class CommandFactory(
     {
         var allocation = GetAllocation(drawable);
         if (allocation.InstanceLayout is not null)
-            instanceBufferRegistry.Create(drawable, allocation.InstanceLayout);
+            instanceBufferRegistry.Update(drawable, allocation.InstanceLayout);
 
         var updatedCommands = new List<IVulkanCommand>();
         if (allocation.InstanceLayout is not null)

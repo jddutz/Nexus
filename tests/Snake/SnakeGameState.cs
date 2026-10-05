@@ -1,4 +1,4 @@
-namespace Nexus.Samples.SnakeGame;
+namespace Nexus.Samples.Snake;
 
 using System.Collections.ObjectModel;
 
@@ -98,13 +98,7 @@ public sealed class SnakeGameState
     public void Reset()
     {
         _snake.Clear();
-        _snake.AddRange(
-            [
-                new SnakeTile(7, 7),
-                new SnakeTile(6, 7),
-                new SnakeTile(5, 7),
-            ]
-        );
+        _snake.AddRange([new SnakeTile(7, 7), new SnakeTile(6, 7), new SnakeTile(5, 7)]);
         _direction = SnakeDirection.Right;
         _turns.Clear();
         _score = 0;
@@ -291,11 +285,15 @@ public sealed class SnakeGameState
     /// <param name="second">The second direction.</param>
     /// <returns>True when the directions point oppositely.</returns>
     private static bool IsOpposite(SnakeDirection first, SnakeDirection second) =>
-        (first, second) is
-            (SnakeDirection.Up, SnakeDirection.Down)
-            or (SnakeDirection.Down, SnakeDirection.Up)
-            or (SnakeDirection.Left, SnakeDirection.Right)
-            or (SnakeDirection.Right, SnakeDirection.Left);
+        (first, second)
+            is
+                (SnakeDirection.Up, SnakeDirection.Down)
+                or
+                (SnakeDirection.Down, SnakeDirection.Up)
+                or
+                (SnakeDirection.Left, SnakeDirection.Right)
+                or
+                (SnakeDirection.Right, SnakeDirection.Left);
 
     /// <summary>Checks whether a tile coordinate is within the board.</summary>
     /// <param name="tile">The tile to check.</param>

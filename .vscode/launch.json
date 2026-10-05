@@ -14,10 +14,10 @@
             }
         },
         {
-            "name": "Debug:SnakeGame",
+            "name": "Debug:Snake",
             "type": "dotnet",
             "request": "launch",
-            "projectPath": "${workspaceFolder}/tests/SnakeGame/SnakeGame.csproj",
+            "projectPath": "${workspaceFolder}/tests/Snake/Snake.csproj",
             "env": {
                 "DOTNET_ENVIRONMENT": "Development"
             }

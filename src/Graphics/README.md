@@ -4,8 +4,8 @@ Graphics describes visual state and rendering data independently of a concrete r
 
 ## Main areas
 
-- `Components/`: `IGraphicsComponent`, `TextureComponent`, `NinePatchComponent`, `TextComponent`, and `ViewComponent`.
-- `Drawables/`: `IDrawable`, `TexturedQuad`, `NinePatch`, and `TextSpan`. Drawables serialize instance and uniform data into caller-owned buffers through `WriteInstanceDataTo` and `WriteUniformDataTo`.
+- `Components/`: `IRenderer`, `TextureComponent`, `NinePatchComponent`, `TileMapRenderer`, `TextComponent`, and `ViewComponent`.
+- `Drawables/`: `IDrawable`, `TexturedQuad`, `NinePatch`, `TileMapDrawable`, and `TextSpan`. Drawables serialize instance and uniform data into caller-owned buffers through `WriteInstanceDataTo` and `WriteUniformDataTo`.
 - `Cameras/`: static, orthographic, and perspective camera implementations and view-frustum data.
 - `Geometry/`, `Textures/`, and `Shaders/`: resource descriptions and rendering contracts consumed by backends.
 - `Text/`: `ITextStyle` and `TextStyle`, pairing generated font metrics, glyphs, kerning, and MSDF metadata with an atlas texture and visual settings. `BuiltInFonts` provides embedded decoded outlines for all 16 Aileron faces. `TextStyleRegistry` rasterizes these at the requested generation size without a font file or font manifest entry.
@@ -20,6 +20,8 @@ GUI owns measurement, arrangement, focus, and interaction. Graphics should accep
 ## Current status
 
 The public `TextComponent` is unfinished: its drawable collection is empty, span creation returns an empty span, and drawable synchronization is not implemented. GUI's `TextElement` and `TextButton` now use this component, but text layout and rendering are not expected to work until its implementation is completed. Do not treat the intended TextComponent source/output contract as implemented.
+
+`TileMapData` stores sparse occupied cells within declared bounds. `TileMapRenderer` derives their local transforms and publishes complete instance snapshots through its own `TileMapDrawable`; it remains independent of `TextureRenderer`, GUI, and game rules.
 
 ## Development
 

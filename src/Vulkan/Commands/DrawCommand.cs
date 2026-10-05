@@ -34,9 +34,6 @@ public sealed class DrawCommand : IVulkanCommand
         if (vertexCount == 0)
             throw new ArgumentOutOfRangeException(nameof(vertexCount));
 
-        if (instanceCount == 0)
-            throw new ArgumentOutOfRangeException(nameof(instanceCount));
-
         Id = Guid.NewGuid();
         RenderPassMask = renderPassMask;
         PipelineId = pipelineId;
@@ -92,6 +89,9 @@ public sealed class DrawCommand : IVulkanCommand
     /// <inheritdoc />
     public void Record(Vk vk, CommandBuffer commandBuffer)
     {
+        if (InstanceCount == 0)
+            return;
+
         if (IndexCount > 0)
             vk.CmdDrawIndexed(commandBuffer, IndexCount, InstanceCount, 0, 0, FirstInstance);
         else

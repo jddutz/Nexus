@@ -13,6 +13,13 @@ public interface IInstanceBufferRegistry : IDisposable
     IEnumerable<IVulkanCommand> Create(IDrawable drawable, ShaderInput[] layout);
 
     /// <summary>
+    /// Uploads changed instance data to a replacement buffer so in-flight GPU reads remain valid.
+    /// </summary>
+    /// <param name="drawable">The drawable whose instance data changed.</param>
+    /// <param name="layout">The shader inputs that define the instance-buffer layout.</param>
+    IEnumerable<IVulkanCommand> Update(IDrawable drawable, ShaderInput[] layout);
+
+    /// <summary>
     /// Gets the registered per-instance vertex buffer for a drawable.
     /// </summary>
     /// <param name="drawableId">The drawable identifier.</param>
