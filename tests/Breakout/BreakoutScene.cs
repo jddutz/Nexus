@@ -191,10 +191,19 @@ public sealed class BreakoutScene : Scene
         _playfieldBackground.Height = _playfield.Height;
         _scoreText.Width = 300f * _scale;
         _scoreText.Height = 42f * _scale;
+        _scoreText.HorizontalAlignment = AlignHorizontal.Left;
+        _scoreText.VerticalAlignment = AlignVertical.Top;
+        _scoreText.Margins = new Margins(20f * _scale, 0f, 8f * _scale, 0f);
         _livesText.Width = 300f * _scale;
         _livesText.Height = 42f * _scale;
+        _livesText.HorizontalAlignment = AlignHorizontal.Right;
+        _livesText.VerticalAlignment = AlignVertical.Top;
+        _livesText.Margins = new Margins(0f, 20f * _scale, 8f * _scale, 0f);
         _statusText.Width = _playfield.Width;
         _statusText.Height = 80f * _scale;
+        _statusText.HorizontalAlignment = AlignHorizontal.Center;
+        _statusText.VerticalAlignment = AlignVertical.Top;
+        _statusText.Margins = new Margins(0f, 0f, 8f * _scale, 0f);
         RenderState();
     }
 
