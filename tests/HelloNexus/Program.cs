@@ -1,16 +1,13 @@
-using System.Diagnostics;
-
 try
 {
-    var configurationBuilder = new ConfigurationBuilder()
+    var env = Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT");
+
+    var configuration = new ConfigurationBuilder()
         .SetBasePath(AppContext.BaseDirectory)
-        .AddJsonFile("appsettings.json");
-
-    var environment = Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT");
-    if (!string.IsNullOrWhiteSpace(environment))
-        configurationBuilder.AddJsonFile($"appsettings.{environment}.json", optional: true);
-
-    var configuration = configurationBuilder.AddCommandLine(args).Build();
+        .AddJsonFile("appsettings.json")
+        .AddJsonFile($"appsettings.{env}.json", optional: true)
+        .AddCommandLine(args)
+        .Build();
 
     using var application = new Application(configuration);
     application.Run();
