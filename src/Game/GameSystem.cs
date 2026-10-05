@@ -84,6 +84,8 @@ public partial class GameSystem(
     /// </summary>
     public void Initialize()
     {
+        _eventHub.Register(this);
+
         var startSceneId = ResolveStartSceneId();
         var initialScene = _sceneRegistry.Load(startSceneId)
             ?? throw new InvalidOperationException($"Start scene '{startSceneId}' is not registered.");
@@ -448,9 +450,6 @@ public partial class GameSystem(
 
             if (previousValue is Scene previousInputScene)
             {
-                if (_windowService is not null)
-                    _eventHub.Unregister(this);
-
                 previousInputScene.InputMapChanged -= OnCurrentSceneInputMapChanged;
                 previousInputScene.InputMap?.Unregister(_eventHub);
             }
@@ -588,11 +587,7 @@ public partial class GameSystem(
     /// <param name="child">The newly added child node.</param>
     private void OnSceneChildAdded(ISceneNode child)
     {
-        if (!SubscribeSceneNode(child))
-            return;
-
-        if (CurrentScene is { } currentScene)
-            RunLifecycleTraversal(currentScene, deltaTime: 0, updateEntities: false);
+        SubscribeSceneNode(child);
     }
 
     /// <summary>
@@ -614,8 +609,17 @@ public partial class GameSystem(
     /// <param name="component">The newly added component.</param>
     private void OnSceneComponentAdded(IComponent component)
     {
-        if (CurrentScene is { } currentScene)
-            RunLifecycleTraversal(currentScene, deltaTime: 0, updateEntities: false);
+        _eventHub.Publish(new ComponentAddedEvent(component));
+    }
+
+    /// <summary>
+    /// Activates a component added to an already active game object.
+    /// </summary>
+    /// <param name="message">The queued component-added event.</param>
+    public void Handle(ComponentAddedEvent message)
+    {
+        if (message.Component.Owner is { IsActivated: true })
+            ActivateComponent(message.Component);
     }
 
     /// <summary>

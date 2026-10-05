@@ -221,6 +221,7 @@ An element supplies the arranged visual placement to its graphics component. A d
 - Game objects and scenes support the engine's observable contract. Components use their own modification notifications; changes do not automatically propagate upward.
 - Scene and game object lifecycle methods are virtual. Their default behavior delegates to children.
 - GameSystem ensures that objects created during an active scene are initialized and activated before their first update. A per-frame traversal is acceptable.
+- Components added to active game objects are observed by GameSystem and queued through EventHub for activation at the next frame boundary.
 - The scheduler and default lifecycle delegation must compose without updating a node twice. The implementation must make traversal ownership explicit.
 - Duplicate children are disallowed. Transfer between scenes requires detachment before attaching to the destination.
 - Hierarchy changes propagate down the affected subtree through `OnSceneHierarchyChanged`. Root changes alone do not describe every ancestry change.

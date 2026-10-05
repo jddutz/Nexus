@@ -191,7 +191,8 @@ public class GameSystemLifecycleTests
         source.Children.Add(movedObject);
         scene.Children.Add(source);
         scene.Children.Add(destination);
-        var gameSystem = CreateGameSystem(scene);
+        var eventHub = new EventHub();
+        var gameSystem = CreateGameSystem(scene, eventHub: eventHub);
         gameSystem.Initialize();
         gameSystem.Update(0);
 
@@ -199,6 +200,8 @@ public class GameSystemLifecycleTests
         destination.Children.Add(movedObject);
         Assert.True(movedObject.RemoveComponent(movedComponent));
         destination.AddComponent(movedComponent);
+        eventHub.Drain();
+        gameSystem.Update(0);
 
         Assert.True(movedObject.IsActivated);
         Assert.True(movedComponent.IsActivated);

@@ -99,13 +99,16 @@ public class GameSystemEventRegistrationTests
         };
         var sceneRegistry = SceneRegistryTestHelper.CreateEmptyRegistry();
         sceneRegistry.Register(sceneName, () => scene);
-        var gameSystem = CreateGameSystem(new EventHub(), sceneRegistry, sceneName);
+        var eventHub = new EventHub();
+        var gameSystem = CreateGameSystem(eventHub, sceneRegistry, sceneName);
         gameSystem.Initialize();
 
         var rootComponent = new EventHandlingComponent();
         var root = new EventHandlingGameObject([rootComponent]);
         scene.Children.Add(root);
 
+        Assert.False(root.IsActivated);
+        gameSystem.Update(0);
         Assert.True(root.IsActivated);
         Assert.True(rootComponent.IsActivated);
 
@@ -113,11 +116,15 @@ public class GameSystemEventRegistrationTests
         var child = new EventHandlingGameObject([childComponent]);
         root.AddChild(child);
 
+        Assert.False(child.IsActivated);
+        gameSystem.Update(0);
         Assert.True(child.IsActivated);
         Assert.True(childComponent.IsActivated);
 
         var addedComponent = new EventHandlingComponent();
         child.AddComponent(addedComponent);
+        Assert.False(addedComponent.IsActivated);
+        eventHub.Drain();
         Assert.True(addedComponent.IsActivated);
 
         Assert.True(child.RemoveComponent(addedComponent));

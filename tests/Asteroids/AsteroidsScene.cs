@@ -108,9 +108,9 @@ public sealed class AsteroidsScene : Scene
         base.Initialize();
         Children.Add(new View { Camera = _camera, PreserveDrawOrder = true });
         Children.Add(_background);
-        Children.Add(_shipNode);
         _shipNode.Children.Add(_muzzleNode);
         _shipNode.AddComponent(_shipRenderer);
+        Children.Add(_shipNode);
         Children.Add(_scoreText);
         Children.Add(_livesText);
         Children.Add(_statusText);
@@ -407,6 +407,7 @@ public sealed class AsteroidsScene : Scene
         _scoreText.Margins = new Margins(20f, 0f, 14f, 0f);
         _livesText.Width = windowSize.X;
         _livesText.Height = 48f;
+        _livesText.HorizontalAlignment = AlignHorizontal.Right;
         _livesText.Margins = new Margins(0f, 20f, 14f, 0f);
         _statusText.Width = windowSize.X;
         _statusText.Height = 100f;
