@@ -8,6 +8,10 @@ public sealed class AssetDefinition
 
     /// <summary>Gets or sets whether to export an MSDF atlas PNG beside the copied font.</summary>
     public bool IncludeMsdf { get; set; }
+
+    /// <summary>Gets or sets whether to include decoded rasterizer input in the font manifest entry.</summary>
+    public bool IncludeRasterizerInput { get; set; }
+
     public string Path { get; set; } = string.Empty;
     public string GroupName { get; set; } = string.Empty;
     public string[] Files { get; set; } = [];

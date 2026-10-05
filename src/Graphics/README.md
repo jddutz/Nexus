@@ -8,7 +8,7 @@ Graphics describes visual state and rendering data independently of a concrete r
 - `Drawables/`: `IDrawable`, `TexturedQuad`, `NinePatch`, and `TextSpan`. Drawables serialize instance and uniform data into caller-owned buffers through `WriteInstanceDataTo` and `WriteUniformDataTo`.
 - `Cameras/`: static, orthographic, and perspective camera implementations and view-frustum data.
 - `Geometry/`, `Textures/`, and `Shaders/`: resource descriptions and rendering contracts consumed by backends.
-- `Text/`: `ITextStyle` and `TextStyle`, pairing generated font metrics, glyphs, kerning, and MSDF metadata with an atlas texture and visual settings.
+- `Text/`: `ITextStyle` and `TextStyle`, pairing generated font metrics, glyphs, kerning, and MSDF metadata with an atlas texture and visual settings. `BuiltInFonts` reserves content identifiers for the Aileron family; loading those fonts is not wired up yet.
 - `IGraphicsSystem`, render-layer types, and `IWindowService`: system-level rendering and window abstractions.
 
 ## Dependencies and ownership

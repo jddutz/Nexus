@@ -24,7 +24,7 @@ Pack glyphs into an atlas
 Produce runtime glyph data + atlas for the realized style
 ```
 
-NAP copies the source font unchanged and records only its file path in the content manifest. At runtime, style realization supplies the requested glyphs and rasterization settings; the runtime reads the font and generates the glyph data and atlas it needs. The source font remains the asset, not a pre-generated atlas.
+NAP copies the source font unchanged and records its file path in the content manifest. By default, runtime style realization supplies the requested glyphs and rasterization settings; the runtime reads the font and generates the glyph data and atlas it needs. An opt-in NAP setting can also include the default repertoire's rasterizer input in the manifest for extraction and later use. The source font remains the asset, not a pre-generated atlas.
 
 The generated runtime data includes font metrics, glyph advances and bounds, atlas bounds, and kerning required by the `ITextStyle`/`TextSpan` path.
 

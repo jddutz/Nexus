@@ -25,7 +25,7 @@ public static class Colors
     public static Color Cornsilk => Color.FromArgb(0xFFFFF8DC);
     public static Color Crimson => Color.FromArgb(0xFFDC143C);
     public static Color Cyan => Color.FromArgb(0xFF00FFFF);
-    public static Color DarkBlue => Color.FromArgb(0xFF00008B);
+    public static Color DarkBlue => Color.FromArgb(0xFF000040);
     public static Color DarkCyan => Color.FromArgb(0xFF008B8B);
     public static Color DarkGoldenrod => Color.FromArgb(0xFFB8860B);
     public static Color DarkGray => Color.FromArgb(0xFFA9A9A9);
@@ -94,7 +94,7 @@ public static class Colors
     public static Color MediumSpringGreen => Color.FromArgb(0xFF00FA9A);
     public static Color MediumTurquoise => Color.FromArgb(0xFF48D1CC);
     public static Color MediumVioletRed => Color.FromArgb(0xFFC71585);
-    public static Color MidnightBlue => Color.FromArgb(0xFF191970);
+    public static Color MidnightBlue => Color.FromArgb(0xFF000020);
     public static Color MintCream => Color.FromArgb(0xFFF5FFFA);
     public static Color MistyRose => Color.FromArgb(0xFFFFE4E1);
     public static Color Moccasin => Color.FromArgb(0xFFFFE4B5);

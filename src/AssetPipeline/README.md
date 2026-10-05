@@ -7,7 +7,7 @@ AssetPipeline is the offline command-line entry point for preparing content and 
 `Program.cs` defines `build` and `clean`. `Pipeline` reads camel-case YAML definitions in ordinal input-file order. Each definition has a `root` resolved relative to its definition file and an `assets` array.
 
 - Texture entries use `path`, `files`, and optional `groupName`; files are copied and identified by filename without extension.
-- Font entries use `contentId` and `source`; `.ttf` or `.otf` source files are copied into `fonts/`. `includeMsdf: true` additionally generates an atlas PNG using default font settings.
+- Font entries use `contentId` and `source`; `.ttf` or `.otf` source files are copied into `fonts/`. `includeMsdf: true` additionally generates an atlas PNG using default font settings. `includeRasterizerInput: true` adds the source metrics, default repertoire's character-to-glyph mappings, glyph layout metrics and converted contours, generation settings, and supported kerning to the font's manifest entry. It is disabled by default, leaving the existing manifest output unchanged.
 - The manifest contains Texture and Font paths and currently empty Geometry and Audio content sections.
 - Unsupported asset types are logged and skipped. Build failures return exit code 1.
 

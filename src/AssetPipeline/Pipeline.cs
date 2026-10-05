@@ -1,6 +1,8 @@
 namespace Nexus.AssetPipeline;
 
 using System.Text.Json;
+using Nexus.Assets.Typography.FontReader.TrueType;
+using Nexus.Assets.Typography.Geometry;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 
@@ -31,7 +33,10 @@ public sealed class Pipeline
                 StringComparer.Ordinal
             );
             var fontEntries = new Dictionary<string, string>(StringComparer.Ordinal);
-            PipelineLog.Info("YAML deserializer created.");
+                var fontRasterizerInputs = new Dictionary<string, FontRasterizerInput>(
+                    StringComparer.Ordinal
+                );
+                PipelineLog.Info("YAML deserializer created.");
 
             foreach (var inputFile in _inputFiles.Order(StringComparer.Ordinal))
             {
@@ -78,11 +83,11 @@ public sealed class Pipeline
                         );
                         continue;
                     }
-                    ProcessFont(asset, sourceRoot, fontEntries);
+                    ProcessFont(asset, sourceRoot, fontEntries, fontRasterizerInputs);
                 }
             }
 
-            WriteManifest(textureEntries, fontEntries);
+            WriteManifest(textureEntries, fontEntries, fontRasterizerInputs);
             PipelineLog.Info("Pipeline execution completed successfully. ReturnCode=0.");
             return 0;
         }
@@ -139,10 +144,12 @@ public sealed class Pipeline
     /// <param name="asset">The font asset definition.</param>
     /// <param name="sourceRoot">The root used to resolve the source font path.</param>
     /// <param name="fontEntries">The manifest entries to update.</param>
+    /// <param name="fontRasterizerInputs">The optional rasterizer input data to update.</param>
     private void ProcessFont(
         AssetDefinition asset,
         string sourceRoot,
-        Dictionary<string, string> fontEntries
+        Dictionary<string, string> fontEntries,
+        Dictionary<string, FontRasterizerInput> fontRasterizerInputs
     )
     {
         if (string.IsNullOrWhiteSpace(asset.ContentId))
@@ -191,14 +198,120 @@ public sealed class Pipeline
 
         var manifestPath = relativeOutputPath.Replace('\\', '/');
         fontEntries[asset.ContentId] = manifestPath;
+        if (asset.IncludeRasterizerInput)
+            fontRasterizerInputs[asset.ContentId] = ReadRasterizerInput(sourcePath);
         PipelineLog.Info($"Font '{asset.ContentId}' copied. RelativePath='{manifestPath}'.");
     }
 
+    /// <summary>
+    /// Reads the font data and converts glyph outlines into the line and quadratic geometry
+    /// consumed by the font rasterizer.
+    /// </summary>
+    /// <param name="sourcePath">The source font path.</param>
+    /// <returns>The rasterizer input for the default NAP glyph repertoire.</returns>
+    private static FontRasterizerInput ReadRasterizerInput(string sourcePath)
+    {
+        var reader = TrueTypeFontReader.Open(sourcePath);
+        var face = reader.FontFace;
+        var codepoints = new FontGlyphRepertoire().GetCodepoints();
+        var glyphs = codepoints
+            .Select(codepoint =>
+            {
+                var glyphIndex = reader.GetGlyphIndex(codepoint);
+                var metrics = reader.GetHorizontalMetrics(glyphIndex);
+                var contours = reader
+                    .GetGlyphOutline(glyphIndex)
+                    .Contours.Select(FontContourConverter.Convert)
+                    .ToArray();
+                var bounds = GeometryBoundsCalculator.GetBounds(contours);
+
+                return new FontRasterizerGlyph(
+                    codepoint,
+                    glyphIndex,
+                    metrics.AdvanceWidth,
+                    metrics.LeftSideBearing,
+                    bounds is { } value
+                        ? new FontRasterizerBounds(
+                            value.Left,
+                            value.Bottom,
+                            value.Right,
+                            value.Top
+                        )
+                        : null,
+                    contours
+                        .Select(contour => new FontRasterizerContour(
+                            contour.Edges.Select(ToRasterizerSegment).ToArray()
+                        ))
+                        .ToArray()
+                );
+            })
+            .ToArray();
+        var generationSettings = new FontGenerationSettings();
+
+        return new FontRasterizerInput(
+            new FontRasterizerMetrics(
+                face.UnitsPerEm,
+                face.Ascender,
+                face.Descender,
+                face.LineGap,
+                face.GlyphCount,
+                face.NumberOfHorizontalMetrics,
+                face.IndexToLocFormat
+            ),
+            new FontRasterizerGenerationSettings(
+                generationSettings.EmSize,
+                generationSettings.DistanceRange,
+                generationSettings.Padding
+            ),
+            glyphs,
+            reader.GetKerningPairs(codepoints)
+        );
+    }
+
+    /// <summary>
+    /// Converts rasterizer geometry into its serializable segment representation.
+    /// </summary>
+    /// <param name="edge">The geometry edge to convert.</param>
+    /// <returns>The corresponding line or quadratic segment.</returns>
+    /// <exception cref="NotSupportedException">The edge type is not consumed by the font rasterizer.</exception>
+    private static FontRasterizerSegment ToRasterizerSegment(Edge edge) =>
+        edge switch
+        {
+            LineSegment line => new FontRasterizerSegment(
+                "line",
+                new FontRasterizerPoint(line.Start.X, line.Start.Y),
+                null,
+                new FontRasterizerPoint(line.End.X, line.End.Y)
+            ),
+            QuadraticSegment quadratic => new FontRasterizerSegment(
+                "quadratic",
+                new FontRasterizerPoint(quadratic.Start.X, quadratic.Start.Y),
+                new FontRasterizerPoint(quadratic.Control.X, quadratic.Control.Y),
+                new FontRasterizerPoint(quadratic.End.X, quadratic.End.Y)
+            ),
+            _ => throw new NotSupportedException(
+                $"The font rasterizer does not support edge type '{edge.GetType().Name}'."
+            ),
+        };
+
     private void WriteManifest(
         Dictionary<string, Dictionary<string, string>> textureEntries,
-        Dictionary<string, string> fontEntries
+        Dictionary<string, string> fontEntries,
+        Dictionary<string, FontRasterizerInput> fontRasterizerInputs
     )
     {
+        var fontContent = new Dictionary<string, object>(StringComparer.Ordinal);
+        foreach (var entry in fontEntries)
+        {
+            var font = new Dictionary<string, object>(StringComparer.Ordinal)
+            {
+                ["FilePath"] = entry.Value,
+            };
+            if (fontRasterizerInputs.TryGetValue(entry.Key, out var rasterizerInput))
+                font["RasterizerInput"] = rasterizerInput;
+            fontContent[entry.Key] = font;
+        }
+
         var content = new Dictionary<string, object>(StringComparer.Ordinal)
         {
             ["Textures"] = new Dictionary<string, object>(StringComparer.Ordinal)
@@ -222,11 +335,7 @@ public sealed class Pipeline
             },
             ["Fonts"] = new Dictionary<string, object>
             {
-                ["Content"] = fontEntries.ToDictionary(
-                    entry => entry.Key,
-                    entry => (object)new Dictionary<string, string> { ["FilePath"] = entry.Value },
-                    StringComparer.Ordinal
-                ),
+                ["Content"] = fontContent,
             },
         };
 
