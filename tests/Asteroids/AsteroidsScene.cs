@@ -1,7 +1,5 @@
 namespace Nexus.Samples.Asteroids;
 
-using System.Numerics;
-
 /// <summary>Runs a single-wave Asteroids round using indexed uniform-color meshes.</summary>
 [Scene("Asteroids")]
 public sealed class AsteroidsScene : Scene
@@ -271,8 +269,22 @@ public sealed class AsteroidsScene : Scene
             {
                 var direction = Normalize(target.Velocity);
                 var perpendicular = new Vector2D<float>(-direction.Y, direction.X);
-                AddAsteroid(target.Position, target.Generation + 1, target.Radius * 0.62f, 75f + target.Generation * 12f, target.Variant + 1, target.Velocity + perpendicular * 32f);
-                AddAsteroid(target.Position, target.Generation + 1, target.Radius * 0.62f, 75f + target.Generation * 12f, target.Variant + 3, target.Velocity - perpendicular * 32f);
+                AddAsteroid(
+                    target.Position,
+                    target.Generation + 1,
+                    target.Radius * 0.62f,
+                    75f + target.Generation * 12f,
+                    target.Variant + 1,
+                    target.Velocity + perpendicular * 32f
+                );
+                AddAsteroid(
+                    target.Position,
+                    target.Generation + 1,
+                    target.Radius * 0.62f,
+                    75f + target.Generation * 12f,
+                    target.Variant + 3,
+                    target.Velocity - perpendicular * 32f
+                );
             }
         }
 
@@ -368,9 +380,10 @@ public sealed class AsteroidsScene : Scene
             Matrix4X4.CreateScale(_fieldScaleX, _fieldScaleY, 1f)
             * Matrix4X4.CreateScale(22f, 22f, 1f)
             * _shipNode.WorldTransform;
-        _shipRenderer.Color = _invulnerability > 0f && (int)(_invulnerability * 12f) % 2 == 0
-            ? Colors.Red
-            : ShipColor;
+        _shipRenderer.Color =
+            _invulnerability > 0f && (int)(_invulnerability * 12f) % 2 == 0
+                ? Colors.Red
+                : ShipColor;
         foreach (var body in _asteroids.Concat(_bullets))
             body.Renderer.Transform =
                 Matrix4X4.CreateScale(_fieldScaleX, _fieldScaleY, 1f)
@@ -382,7 +395,11 @@ public sealed class AsteroidsScene : Scene
         _scoreText.Text = $"Score: {_score}";
         _livesText.Text = $"Lives: {_lives}";
         _statusText.Text = _finished
-            ? (_lives == 0 ? "Game Over — R to restart." : "Field Cleared — R to restart.")
+            ? (
+                _lives == 0
+                    ? "Game Over - Press R to restart"
+                    : "Field Cleared - Press R to restart"
+            )
             : string.Empty;
     }
 
@@ -402,7 +419,10 @@ public sealed class AsteroidsScene : Scene
         _livesText.Margins = new Margins(0f, 20f, 14f, 0f);
         _statusText.Width = windowSize.X;
         _statusText.Height = 100f;
-        _statusText.Margins = new Margins(0f, 0f, 300f, 0f);
+        _statusText.Color = Colors.AliceBlue;
+        _statusText.HorizontalAlignment = AlignHorizontal.Center;
+        _statusText.VerticalAlignment = AlignVertical.Center;
+        _statusText.Margins = default;
     }
 
     /// <summary>Creates a built-in-font HUD element.</summary>
@@ -429,36 +449,52 @@ public sealed class AsteroidsScene : Scene
             {
                 var angle = index * MathF.PI * 2f / 12f;
                 var radius = 0.78f + (float)random.NextDouble() * 0.42f;
-                vertices[index + 1] = new(new(MathF.Cos(angle) * radius, MathF.Sin(angle) * radius, 0f));
+                vertices[index + 1] = new(
+                    new(MathF.Cos(angle) * radius, MathF.Sin(angle) * radius, 0f)
+                );
                 indices[index * 3] = 0;
                 indices[index * 3 + 1] = (uint)(index + 1);
                 indices[index * 3 + 2] = (uint)(index == 11 ? 1 : index + 2);
             }
-            meshes[variant] = new Mesh($"Asteroid{variant}", PrimitiveTopologyEnum.TriangleList, vertices, indices);
+            meshes[variant] = new Mesh(
+                $"Asteroid{variant}",
+                PrimitiveTopologyEnum.TriangleList,
+                vertices,
+                indices
+            );
         }
         return meshes;
     }
 
     /// <summary>Builds a local-to-world transform for a custom mesh.</summary>
-    private static Matrix4X4<float> Transform(Vector2D<float> position, float rotation, float scale) =>
+    private static Matrix4X4<float> Transform(
+        Vector2D<float> position,
+        float rotation,
+        float scale
+    ) =>
         Matrix4X4.CreateScale(scale, scale, 1f)
         * Matrix4X4.CreateRotationZ(rotation)
         * Matrix4X4.CreateTranslation(position.X, position.Y, 0f);
 
     /// <summary>Gets the ship's forward unit vector.</summary>
-    private Vector2D<float> Forward() =>
-        new(MathF.Cos(_shipRotation), MathF.Sin(_shipRotation));
+    private Vector2D<float> Forward() => new(MathF.Cos(_shipRotation), MathF.Sin(_shipRotation));
 
     /// <summary>Wraps a center point across the design playfield.</summary>
     private static void Wrap(ref Vector2D<float> position)
     {
-        if (position.X < 0f) position.X += DesignWidth;
-        if (position.X >= DesignWidth) position.X -= DesignWidth;
-        if (position.Y < 0f) position.Y += DesignHeight;
-        if (position.Y >= DesignHeight) position.Y -= DesignHeight;
+        if (position.X < 0f)
+            position.X += DesignWidth;
+        if (position.X >= DesignWidth)
+            position.X -= DesignWidth;
+        if (position.Y < 0f)
+            position.Y += DesignHeight;
+        if (position.Y >= DesignHeight)
+            position.Y -= DesignHeight;
     }
 
-    private static float Length(Vector2D<float> value) => MathF.Sqrt(value.X * value.X + value.Y * value.Y);
+    private static float Length(Vector2D<float> value) =>
+        MathF.Sqrt(value.X * value.X + value.Y * value.Y);
+
     private static float DistanceSquared(Vector2D<float> left, Vector2D<float> right)
     {
         var x = left.X - right.X;
@@ -492,7 +528,12 @@ public sealed class AsteroidsScene : Scene
             Spin = spin;
             Mesh = mesh;
             Node = new GameObject2D();
-            Renderer = new UniformColorMeshRenderer { Mesh = mesh, Color = color, DrawOrder = 110 };
+            Renderer = new UniformColorMeshRenderer
+            {
+                Mesh = mesh,
+                Color = color,
+                DrawOrder = 110,
+            };
         }
 
         public GameObject2D Node { get; }
