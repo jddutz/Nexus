@@ -46,7 +46,7 @@ public sealed class BreakoutScene : Scene
     private readonly TextElement _scoreText;
     private readonly TextElement _livesText;
     private readonly TextElement _statusText;
-    private readonly HeldInput _heldInput = new();
+    private readonly HashSet<KeyEnum> _heldKeys = [];
     private readonly HashSet<KeyEnum> _pressedKeys = [];
     private Vector2D<int> _windowSize;
     private Vector2D<float> _bounds;
@@ -103,7 +103,6 @@ public sealed class BreakoutScene : Scene
     /// <param name="deltaTime">Elapsed rendered-frame time in seconds.</param>
     public override void Update(double deltaTime)
     {
-        base.Update(deltaTime);
         var size = _windowService.GetMainWindow().Size;
         if (size != _windowSize)
         {
@@ -112,6 +111,8 @@ public sealed class BreakoutScene : Scene
             UpdateLayout(size);
         }
 
+        base.Update(deltaTime);
+
         if (_state is not (BreakoutRoundState.Paused or BreakoutRoundState.Won or BreakoutRoundState.Lost))
         {
             _accumulator += Math.Min(Math.Max(deltaTime, 0d), 0.25d);
@@ -119,7 +120,10 @@ public sealed class BreakoutScene : Scene
             while (_accumulator >= FixedStep && steps++ < MaximumCatchUpSteps)
             {
                 _accumulator -= FixedStep;
-                Step(((_heldInput.MoveRight ? 1f : 0f) - (_heldInput.MoveLeft ? 1f : 0f)));
+                Step(
+                    (IsHeld(KeyEnum.Right) || IsHeld(KeyEnum.D) ? 1f : 0f)
+                        - (IsHeld(KeyEnum.Left) || IsHeld(KeyEnum.A) ? 1f : 0f)
+                );
                 if (_state is BreakoutRoundState.Won or BreakoutRoundState.Lost)
                     break;
             }
@@ -135,10 +139,10 @@ public sealed class BreakoutScene : Scene
     private InputMap CreateInputMap(IEventHub eventHub)
     {
         var map = new InputMap(eventHub);
-        BindHeld(map, KeyEnum.Left, () => _heldInput.MoveLeft = true, () => _heldInput.MoveLeft = false);
-        BindHeld(map, KeyEnum.Right, () => _heldInput.MoveRight = true, () => _heldInput.MoveRight = false);
-        BindHeld(map, KeyEnum.A, () => _heldInput.MoveLeft = true, () => _heldInput.MoveLeft = false);
-        BindHeld(map, KeyEnum.D, () => _heldInput.MoveRight = true, () => _heldInput.MoveRight = false);
+        BindHeld(map, KeyEnum.Left);
+        BindHeld(map, KeyEnum.Right);
+        BindHeld(map, KeyEnum.A);
+        BindHeld(map, KeyEnum.D);
         map.OnKeyPressed(KeyEnum.Space).Invoke(() => HandlePressed(KeyEnum.Space));
         map.OnKeyPressed(KeyEnum.Escape).Invoke(() => HandlePressed(KeyEnum.Escape));
         map.OnKeyPressed(KeyEnum.R).Invoke(() => HandlePressed(KeyEnum.R));
@@ -148,12 +152,19 @@ public sealed class BreakoutScene : Scene
         return map;
     }
 
-    /// <summary>Registers pressed and released actions for a held control.</summary>
-    private static void BindHeld(InputMap map, KeyEnum key, Action pressed, Action released)
+    /// <summary>Registers pressed and released actions for a held key.</summary>
+    /// <param name="map">The input map receiving the bindings.</param>
+    /// <param name="key">The physical key to track independently.</param>
+    private void BindHeld(InputMap map, KeyEnum key)
     {
-        map.OnKeyPressed(key).Invoke(pressed);
-        map.OnKeyReleased(key).Invoke(released);
+        map.OnKeyPressed(key).Invoke(() => _heldKeys.Add(key));
+        map.OnKeyReleased(key).Invoke(() => _heldKeys.Remove(key));
     }
+
+    /// <summary>Determines whether a physical movement key is currently held.</summary>
+    /// <param name="key">The physical key to check.</param>
+    /// <returns><see langword="true"/> when the key is held; otherwise, <see langword="false"/>.</returns>
+    private bool IsHeld(KeyEnum key) => _heldKeys.Contains(key);
 
     /// <summary>Handles launch, pause, restart, and one-shot key repeat filtering.</summary>
     private void HandlePressed(KeyEnum key)
@@ -342,15 +353,6 @@ public sealed class BreakoutScene : Scene
             HorizontalAlignment = AlignHorizontal.Left,
             VerticalAlignment = AlignVertical.Top,
         };
-
-    /// <summary>Stores mapped held movement state.</summary>
-    private sealed class HeldInput
-    {
-        /// <summary>Gets or sets whether left is held.</summary>
-        public bool MoveLeft { get; set; }
-        /// <summary>Gets or sets whether right is held.</summary>
-        public bool MoveRight { get; set; }
-    }
 
     /// <summary>Owns the paddle transform and solid-color drawable.</summary>
     private sealed class Paddle : GameObject2D
