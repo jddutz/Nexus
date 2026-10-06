@@ -137,6 +137,23 @@ public class EventHubTests
     }
 
     /// <summary>
+    /// Verifies pending events can be discarded without dispatch.
+    /// </summary>
+    [Fact]
+    public void ClearPendingEvents_discardsQueuedEvents()
+    {
+        var eventHub = new EventHub();
+        var handler = new ProbeHandler();
+
+        eventHub.Register(handler);
+        eventHub.Publish(new ProbeEvent(1));
+        eventHub.ClearPendingEvents();
+        eventHub.Drain();
+
+        Assert.Equal(0, handler.EventCount);
+    }
+
+    /// <summary>
     /// Represents an event with a cyclic reference for JSON diagnostics testing.
     /// </summary>
     private sealed class ProbeEvent(int value) : IEvent

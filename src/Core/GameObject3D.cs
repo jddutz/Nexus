@@ -19,7 +19,7 @@ public partial class GameObject3D : GameObject, IGameObject3D
         : base(components) { }
 
     /// <inheritdoc/>
-    [Observable(Public = false)]
+    [Observable(PublicSetter = false)]
     private Matrix4X4<float> _worldTransform = Matrix4X4<float>.Identity;
 
     /// <summary>Composes the local transform with the nearest spatial ancestor.</summary>
@@ -38,7 +38,7 @@ public partial class GameObject3D : GameObject, IGameObject3D
     }
 
     /// <inheritdoc/>
-    [Observable(Public = false)]
+    [Observable(PublicSetter = false)]
     private Matrix4X4<float> _localTransform = Matrix4X4<float>.Identity;
 
     /// <summary>Rebuilds the world transform after the local transform changes.</summary>
@@ -55,7 +55,7 @@ public partial class GameObject3D : GameObject, IGameObject3D
             * Matrix4X4.CreateTranslation(Position.X, Position.Y, Position.Z);
     }
 
-    [Observable(Public = true)]
+    [Observable(PublicSetter = true)]
     private Vector3D<float> _position;
 
     /// <summary>Rebuilds the local transform after the position changes.</summary>
@@ -63,7 +63,7 @@ public partial class GameObject3D : GameObject, IGameObject3D
     protected virtual partial void AfterPositionChanges(Vector3D<float> previousValue) =>
         UpdateLocal();
 
-    [Observable(Public = true)]
+    [Observable(PublicSetter = true)]
     private Quaternion<float> _quaternion = Quaternion<float>.Identity;
 
     /// <summary>Rebuilds the local transform after the quaternion changes.</summary>
@@ -71,7 +71,7 @@ public partial class GameObject3D : GameObject, IGameObject3D
     protected virtual partial void AfterQuaternionChanges(Quaternion<float> previousValue) =>
         UpdateLocal();
 
-    [Observable(Public = true)]
+    [Observable(PublicSetter = true)]
     private Vector3D<float> _scale = new(1f, 1f, 1f);
 
     /// <summary>Rebuilds the local transform after the scale changes.</summary>

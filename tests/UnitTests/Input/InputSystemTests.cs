@@ -639,12 +639,7 @@ public class InputSystemTests
         var gameSystem = new SwitchableGameSystem(eventHub);
         gameSystem.LoadScene(scene);
 
-        eventHub.Publish(new KeyPressedEvent(keyboard, KeyEnum.Escape));
-        eventHub.Drain();
-        Assert.Equal(0, firstCalls);
-
         gameSystem.Initialize();
-        gameSystem.Update(0);
         eventHub.Publish(new KeyPressedEvent(keyboard, KeyEnum.Escape));
         eventHub.Drain();
         Assert.Equal(1, firstCalls);
@@ -660,10 +655,6 @@ public class InputSystemTests
         gameSystem.SwitchScene(nextScene);
         Assert.False(scene.IsActivated);
         Assert.Same(nextScene, gameSystem.CurrentScene);
-        Assert.False(nextScene.IsActivated);
-
-        gameSystem.Update(0);
-
         Assert.True(nextScene.IsActivated);
 
         eventHub.Publish(new KeyPressedEvent(keyboard, KeyEnum.Escape));
@@ -721,9 +712,14 @@ public class InputSystemTests
         NullLogger<GameSystem>.Instance
     )
     {
-        /// <summary>Changes the current scene using the protected generated setter.</summary>
-        /// <param name="scene">The scene to activate, or <see langword="null"/>.</param>
-        public void SwitchScene(IScene? scene) => CurrentScene = scene;
+        /// <summary>Transitions to the supplied scene through the explicit lifecycle methods.</summary>
+        /// <param name="scene">The scene to activate, or <see langword="null"/> to unload.</param>
+        public void SwitchScene(IScene? scene)
+        {
+            UnloadScene();
+            if (scene is not null)
+                LoadScene(scene);
+        }
     }
 
     /// <summary>

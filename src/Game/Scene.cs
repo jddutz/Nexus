@@ -17,13 +17,13 @@ public partial class Scene : IScene
     /// <inheritdoc />
     public event Action<string>? PropertyChanged;
 
-    [Observable(Public = true)]
+    [Observable(PublicSetter = true)]
     private RenderLayerCollection _renderLayers = new();
 
-    [Observable(Public = true)]
+    [Observable(PublicSetter = true)]
     private InputMap? _inputMap;
 
-    [Observable(Public = true, Required = true)]
+    [Observable(PublicSetter = true, Required = true)]
     private ICamera _mainCamera = null!;
 
     /// <summary>
@@ -47,9 +47,6 @@ public partial class Scene : IScene
     /// Gets the unique identifier for this scene.
     /// </summary>
     public NodeId Id { get; }
-
-    /// <summary>Gets whether the scene is currently active.</summary>
-    public bool IsActive => IsActivated;
 
     /// <summary>Gets a registered scene node by identifier.</summary>
     /// <param name="id">The node identifier.</param>
@@ -143,8 +140,11 @@ public partial class Scene : IScene
         return true;
     }
 
-    [Observable(Public = false)]
+    [Observable(PublicSetter = false)]
     private bool _isInitialized = false;
+
+    [Observable(PublicSetter = false)]
+    private bool _isLoaded = false;
 
     /// <inheritdoc />
     public virtual void Initialize()
@@ -155,7 +155,7 @@ public partial class Scene : IScene
         IsInitialized = true;
     }
 
-    [Observable(Public = false)]
+    [Observable(PublicSetter = false)]
     private bool _isActivated = false;
 
     /// <inheritdoc />

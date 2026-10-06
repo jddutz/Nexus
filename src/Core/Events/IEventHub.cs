@@ -27,4 +27,9 @@ public interface IEventHub
     /// Dispatches the events currently queued in the hub.
     /// </summary>
     void Drain();
+
+    /// <summary>
+    /// Removes all events currently queued in the hub without dispatching them.
+    /// </summary>
+    void ClearPendingEvents();
 }

@@ -35,6 +35,9 @@ public partial class GameSystem(
     /// <inheritdoc />
     public event Action<string>? PropertyChanged;
 
+    /// <inheritdoc />
+    public bool IsSceneLoaded => CurrentScene is { IsLoaded: true };
+
     /// <summary>
     /// Represents an entity and its expected ownership in a lifecycle traversal snapshot.
     /// </summary>
@@ -79,7 +82,7 @@ public partial class GameSystem(
         public int ParentIndex { get; }
     }
 
-    [Observable(Public = false)]
+    [Observable(PublicSetter = false)]
     private IScene? _currentScene = null;
 
     /// <summary>
@@ -92,32 +95,56 @@ public partial class GameSystem(
             "startup.system.initialize",
             "gameSystem"
         );
-        var initialScene = CurrentScene;
-        if (initialScene is null)
-            throw new InvalidOperationException(
-                "No current scene is loaded. Load a scene before initializing the game system."
-            );
-
-        _logger.LogInformation(
-            "Initializing game system. StartSceneType={StartSceneType}",
-            initialScene.GetType().Name
-        );
-
         _eventHub.Register(this);
-
-        _logger.LogTrace(
-            "Initial scene selected; entity initialization and activation are deferred until lifecycle traversal."
-        );
-        _logger.LogInformation("Game system initialized and initial scene selected.");
+        _logger.LogInformation("Game system initialized.");
     }
 
-    /// <summary>Loads the supplied scene, unloading any scene that is currently active.</summary>
-    /// <param name="scene">The scene to make current.</param>
+    /// <summary>
+    /// Loads, initializes, and activates the supplied scene hierarchy.
+    /// </summary>
+    /// <param name="scene">The scene to load.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="scene"/> is <see langword="null"/>.</exception>
+    /// <exception cref="InvalidOperationException">A scene is already loaded.</exception>
     public void LoadScene(IScene scene)
     {
         ArgumentNullException.ThrowIfNull(scene);
 
+        if (IsSceneLoaded)
+            throw new InvalidOperationException(
+                "A scene is already loaded. Unload the current scene before loading another."
+            );
+
         CurrentScene = scene;
+        SubscribeCurrentScene(scene);
+        RunLifecycleTraversal(scene, 0, updateEntities: false);
+        SetSceneLoaded(scene, true);
+        _eventHub.Publish(new SceneLoadedEvent(scene));
+    }
+
+    /// <summary>
+    /// Unloads the current scene hierarchy while retaining its current-scene reference.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="IsSceneLoaded"/> becomes <see langword="false"/>. The current-scene reference
+    /// remains available while the unloaded scene awaits disposal. This method has no effect
+    /// when no scene is loaded.
+    /// </remarks>
+    public void UnloadScene()
+    {
+        if (!IsSceneLoaded || CurrentScene is not { } scene)
+            return;
+
+        foreach (var child in scene.Children.ToArray().Reverse())
+            DeactivateSubtree(child);
+
+        if (scene.IsActivated)
+            scene.Deactivate();
+
+        SetSceneLoaded(scene, false);
+        UnsubscribeCurrentScene(scene);
+        _eventHub.Publish(new SceneUnloadedEvent(scene));
+
+        _logger.LogInformation("Scene unloaded. SceneType={SceneType}", scene.GetType().Name);
     }
 
     /// <summary>
@@ -126,7 +153,7 @@ public partial class GameSystem(
     /// <param name="deltaTime">The elapsed time in seconds since the previous frame.</param>
     public void Update(double deltaTime)
     {
-        if (CurrentScene is not { } currentScene)
+        if (!IsSceneLoaded || CurrentScene is not { } currentScene)
             return;
 
         RunLifecycleTraversal(currentScene, deltaTime, updateEntities: true);
@@ -444,58 +471,76 @@ public partial class GameSystem(
     }
 
     /// <summary>
-    /// Deactivates the previous scene and tracks the newly selected current scene.
-    /// Initialization and activation of the current scene are performed during lifecycle traversal.
+    /// Updates scene subscriptions when the observable current-scene selection changes.
     /// </summary>
     /// <param name="previousValue">The scene active before the assignment.</param>
     protected virtual partial void AfterCurrentSceneChanges(IScene? previousValue)
     {
         if (previousValue is not null)
-        {
-            previousValue.PropertyChanged -= OnCurrentScenePropertyChanged;
-            UnsubscribeSceneNode(previousValue);
-
-            if (previousValue is Scene previousInputScene)
-            {
-                previousInputScene.InputMapChanged -= OnCurrentSceneInputMapChanged;
-                previousInputScene.InputMap?.Unregister(_eventHub);
-            }
-
-            foreach (var child in previousValue.Children.ToArray().Reverse())
-                DeactivateSubtree(child);
-
-            if (previousValue.IsActivated)
-                previousValue.Deactivate();
-
-            _eventHub.Publish(new SceneUnloadedEvent(previousValue));
-        }
+            UnsubscribeCurrentScene(previousValue);
 
         var currentScene = CurrentScene;
         if (currentScene is not null)
-        {
-            currentScene.PropertyChanged += OnCurrentScenePropertyChanged;
-            SubscribeSceneNode(currentScene);
-
-            if (currentScene is Scene scene)
-            {
-                scene.InputMapChanged += OnCurrentSceneInputMapChanged;
-
-                if (_windowService is not null)
-                {
-                    _eventHub.Register(this);
-                    if (scene.IsInitialized)
-                        SynchronizeSceneCameraWithMainWindow(scene);
-                }
-            }
-
-            _eventHub.Publish(new SceneLoadedEvent(currentScene));
-        }
+            SubscribeCurrentScene(currentScene);
 
         _logger.LogInformation(
-            "Current scene changed. PreviousSceneType={PreviousSceneType}, CurrentSceneType={CurrentSceneType}",
+            "Current scene selection changed. PreviousSceneType={PreviousSceneType}, CurrentSceneType={CurrentSceneType}",
             previousValue?.GetType().Name ?? "None",
             currentScene?.GetType().Name ?? "None"
         );
+    }
+
+    /// <summary>
+    /// Subscribes to the selected scene and its hierarchy while avoiding duplicate subscriptions.
+    /// </summary>
+    /// <param name="scene">The scene to observe.</param>
+    private void SubscribeCurrentScene(IScene scene)
+    {
+        if (!_subscribedSceneNodes.Contains(scene))
+        {
+            scene.PropertyChanged += OnCurrentScenePropertyChanged;
+            if (scene is Scene concreteScene)
+                concreteScene.InputMapChanged += OnCurrentSceneInputMapChanged;
+
+            SubscribeSceneNode(scene);
+        }
+
+        if (scene is Scene initializedScene && _windowService is not null)
+        {
+            _eventHub.Register(this);
+            if (initializedScene.IsInitialized)
+                SynchronizeSceneCameraWithMainWindow(initializedScene);
+        }
+    }
+
+    /// <summary>
+    /// Removes subscriptions to a scene and its hierarchy.
+    /// </summary>
+    /// <param name="scene">The scene to stop observing.</param>
+    private void UnsubscribeCurrentScene(IScene scene)
+    {
+        if (!_subscribedSceneNodes.Contains(scene))
+            return;
+
+        scene.PropertyChanged -= OnCurrentScenePropertyChanged;
+        if (scene is Scene concreteScene)
+        {
+            concreteScene.InputMapChanged -= OnCurrentSceneInputMapChanged;
+            concreteScene.InputMap?.Unregister(_eventHub);
+        }
+
+        UnsubscribeSceneNode(scene);
+    }
+
+    /// <summary>
+    /// Updates the loaded state for engine-provided scenes.
+    /// </summary>
+    /// <param name="scene">The scene whose loaded state changes.</param>
+    /// <param name="isLoaded">Whether the scene hierarchy is loaded.</param>
+    private static void SetSceneLoaded(IScene scene, bool isLoaded)
+    {
+        if (scene is Scene concreteScene)
+            concreteScene.IsLoaded = isLoaded;
     }
 
     /// <summary>Synchronizes an initialized scene's camera viewport with the main window.</summary>

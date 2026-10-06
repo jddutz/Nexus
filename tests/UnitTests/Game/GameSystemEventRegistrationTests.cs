@@ -52,10 +52,10 @@ public class GameSystemEventRegistrationTests
     }
 
     /// <summary>
-    /// Verifies initialization loads the scene and Update activates its hierarchy.
+    /// Verifies loading activates the scene hierarchy and registers its event handlers.
     /// </summary>
     [Fact]
-    public void Update_activatesTheConfiguredInitialScene()
+    public void LoadScene_activatesTheConfiguredInitialScene()
     {
         var scene = new Scene(NodeId.New())
         {
@@ -73,11 +73,7 @@ public class GameSystemEventRegistrationTests
         gameSystem.Initialize();
 
         Assert.Same(scene, gameSystem.CurrentScene);
-        Assert.False(root.IsActivated);
-        Assert.False(child.IsActivated);
-
-        gameSystem.Update(0);
-
+        Assert.True(gameSystem.IsSceneLoaded);
         Assert.True(root.IsActivated);
         Assert.True(child.IsActivated);
         Assert.True(rootComponent.IsActivated);
@@ -103,8 +99,6 @@ public class GameSystemEventRegistrationTests
         var root = new EventHandlingGameObject([rootComponent]);
         scene.Children.Add(root);
 
-        Assert.False(root.IsActivated);
-        gameSystem.Update(0);
         Assert.True(root.IsActivated);
         Assert.True(rootComponent.IsActivated);
         eventHub.Drain();
@@ -143,17 +137,17 @@ public class GameSystemEventRegistrationTests
     }
 
     /// <summary>
-    /// Verifies initialization fails when no scene has been loaded.
+    /// Verifies initialization is independent of scene selection.
     /// </summary>
     [Fact]
-    public void Initialize_throwsWhenNoSceneHasBeenLoaded()
+    public void Initialize_succeedsWhenNoSceneHasBeenLoaded()
     {
         var gameSystem = CreateGameSystem(new EventHub());
 
-        var exception = Assert.Throws<InvalidOperationException>(gameSystem.Initialize);
+        gameSystem.Initialize();
 
-        Assert.Contains("No current scene is loaded.", exception.Message);
         Assert.Null(gameSystem.CurrentScene);
+        Assert.False(gameSystem.IsSceneLoaded);
     }
 
     /// <summary>

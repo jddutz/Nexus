@@ -67,7 +67,6 @@ public sealed class NexusRuntime(
         audio.Initialize();
         graphics.Initialize();
         gui.Initialize();
-        gameSystem.Initialize();
 
         var startSceneId = gameSettings.Value?.StartSceneId;
         if (string.IsNullOrWhiteSpace(startSceneId))
@@ -79,7 +78,8 @@ public sealed class NexusRuntime(
 
             if (sceneRegistry.SceneCount > 1)
                 throw new InvalidOperationException(
-                    "Multiple scenes are registered. Game:StartSceneId configuration is required."
+                    $"Multiple scenes are registered ({string.Join(", ", sceneRegistry.RegisteredScenes)}). "
+                        + "Game:StartSceneId configuration is required."
                 );
 
             startSceneId = sceneRegistry.RegisteredScenes.Single();
@@ -91,6 +91,8 @@ public sealed class NexusRuntime(
                 $"Start scene '{startSceneId}' is not registered."
             );
 
+        gameSystem.Initialize();
+        eventHub.ClearPendingEvents();
         gameSystem.LoadScene(startScene);
 
         _runtimeStopwatch.Start();

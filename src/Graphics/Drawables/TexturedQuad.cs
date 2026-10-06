@@ -8,35 +8,35 @@ public partial class TexturedQuad : IDrawable
     /// <inheritdoc />
     public DrawableId Id { get; } = DrawableId.New();
 
-    [Observable(Public = true)]
+    [Observable(PublicSetter = true)]
     private ulong _renderLayerMask = RenderLayers.All;
 
     /// <summary>Gets or sets the drawable's position in render order.</summary>
-    [Observable(Public = true)]
+    [Observable(PublicSetter = true)]
     private int _drawOrder;
 
     /// <inheritdoc />
     public Mesh Mesh { get; } = BuiltInGeometry.TexturedQuadOffset;
 
-    [Observable(Public = true)]
+    [Observable(PublicSetter = true)]
     private ITexture _texture = BuiltInTextures.Invalid;
 
-    [Observable(Public = true)]
+    [Observable(PublicSetter = true)]
     private ISamplingBehavior _samplingBehavior = SamplingBehaviors.Smooth;
 
-    [Observable(Public = true)]
+    [Observable(PublicSetter = true)]
     private VertexShader? _vertexShader = BuiltInShaders.TexturedQuadVertexShader;
 
-    [Observable(Public = true)]
+    [Observable(PublicSetter = true)]
     private FragmentShader? _fragmentShader = BuiltInShaders.TexturedQuadFragmentShader;
 
-    [Observable(Public = true)]
+    [Observable(PublicSetter = true)]
     private Rectangle<float> _destination = new(0f, 0f, 1f, 1f);
 
-    [Observable(Public = true)]
+    [Observable(PublicSetter = true)]
     private Vector4D<float> _texCoord = new(0f, 0f, 1f, 1f);
 
-    [Observable(Public = true)]
+    [Observable(PublicSetter = true)]
     private Color _color = Colors.White;
 
     /// <inheritdoc />

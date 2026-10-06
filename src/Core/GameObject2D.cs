@@ -19,7 +19,7 @@ public partial class GameObject2D : GameObject, IGameObject2D
         : base(components) { }
 
     /// <inheritdoc/>
-    [Observable(Public = false)]
+    [Observable(PublicSetter = false)]
     private Matrix4X4<float> _worldTransform = Matrix4X4<float>.Identity;
 
     /// <summary>Composes the local transform with the nearest spatial ancestor.</summary>
@@ -38,7 +38,7 @@ public partial class GameObject2D : GameObject, IGameObject2D
     }
 
     /// <inheritdoc/>
-    [Observable(Public = false)]
+    [Observable(PublicSetter = false)]
     private Matrix4X4<float> _localTransform = Matrix4X4<float>.Identity;
 
     /// <summary>Rebuilds the local transform from the local position, rotation, and scale.</summary>
@@ -55,7 +55,7 @@ public partial class GameObject2D : GameObject, IGameObject2D
     protected virtual partial void AfterLocalTransformChanges(Matrix4X4<float> previousValue) =>
         UpdateWorldTransform();
 
-    [Observable(Public = true)]
+    [Observable(PublicSetter = true)]
     private Vector2D<float> _position;
 
     /// <summary>Rebuilds the local transform after the position changes.</summary>
@@ -63,14 +63,14 @@ public partial class GameObject2D : GameObject, IGameObject2D
     protected virtual partial void AfterPositionChanges(Vector2D<float> previousValue) =>
         UpdateLocal();
 
-    [Observable(Public = true)]
+    [Observable(PublicSetter = true)]
     private float _rotation;
 
     /// <summary>Rebuilds the local transform after the rotation changes.</summary>
     /// <param name="previousValue">The previous rotation.</param>
     protected virtual partial void AfterRotationChanges(float previousValue) => UpdateLocal();
 
-    [Observable(Public = true)]
+    [Observable(PublicSetter = true)]
     private Vector2D<float> _scale = new(1f, 1f);
 
     /// <summary>Rebuilds the local transform after the scale changes.</summary>

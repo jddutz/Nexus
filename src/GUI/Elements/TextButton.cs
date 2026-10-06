@@ -15,37 +15,37 @@ public partial class TextButton : Element
     private TextRenderer? _text;
 
     /// <summary>Gets or sets the optional texture used by the button background.</summary>
-    [Observable(Public = true)]
+    [Observable(PublicSetter = true)]
     private ITexture? _texture;
 
     /// <summary>Gets or sets the optional style used by the button label.</summary>
-    [Observable(Public = true)]
+    [Observable(PublicSetter = true)]
     private ITextStyle? _style;
 
     /// <summary>Gets or sets the source texture border widths.</summary>
-    [Observable(Public = true)]
+    [Observable(PublicSetter = true)]
     private Vector4D<float> _sourceBorders = new(12f, 12f, 12f, 12f);
 
     /// <summary>Gets or sets the background texture sampling behavior.</summary>
-    [Observable(Public = true)]
+    [Observable(PublicSetter = true)]
     private ISamplingBehavior _samplingBehavior = SamplingBehaviors.PixelPerfect;
 
     /// <summary>Gets or sets the render-layer mask shared by the button visuals.</summary>
-    [Observable(Public = true)]
+    [Observable(PublicSetter = true)]
     private ulong _renderLayerMask = RenderLayers.All;
 
-    [Observable(Public = true)]
+    [Observable(PublicSetter = true)]
     private string _label = string.Empty;
 
     /// <summary>Gets or sets the color applied to the button label.</summary>
-    [Observable(Public = true)]
+    [Observable(PublicSetter = true)]
     private Color _textColor = Colors.White;
 
-    [Observable(Public = true)]
+    [Observable(PublicSetter = true)]
     private Margins _padding = new(16f, 10f);
 
     /// <summary>Gets or sets the action invoked for a click, receiving this button instance.</summary>
-    [Observable(Public = true)]
+    [Observable(PublicSetter = true)]
     private Action<TextButton>? _action;
 
     /// <summary>Rejects a null label value.</summary>
@@ -210,8 +210,7 @@ public partial class TextButton : Element
             return;
 
         var canRender = IsEffectivelyVisible && HasRenderableGeometry(Bounds);
-        _background.IsVisible =
-            canRender && Texture is not null && _background.Drawables.Count > 0;
+        _background.IsVisible = canRender && Texture is not null && _background.Drawables.Count > 0;
         _text.IsVisible =
             canRender
             && HasRenderableGeometry((Rectangle<float>)_text.Destination)

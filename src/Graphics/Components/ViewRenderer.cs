@@ -8,10 +8,10 @@ public partial class ViewRenderer : Component
     [Observable]
     private string _name = nameof(ViewRenderer);
 
-    [Observable(Public = true)]
+    [Observable(PublicSetter = true)]
     private ICamera? _camera = null;
 
-    [Observable(Public = true)]
+    [Observable(PublicSetter = true)]
     private ulong _layerMask = 0;
 
     [Observable]

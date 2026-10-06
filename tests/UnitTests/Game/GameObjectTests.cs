@@ -144,7 +144,7 @@ public class GameObjectTests
         };
 
         scene.Activate();
-        Assert.True(scene.IsActive);
+        Assert.True(scene.IsActivated);
         Assert.Equal(1, activationNotifications);
         Assert.Equal(1, activationNotifications);
         Assert.Empty(scene.Children);

@@ -101,8 +101,9 @@ public class BasicRuntimeTests
                 "audio.Initialize",
                 "graphics.Initialize",
                 "gui.Initialize",
-                "game.LoadScene",
                 "game.Initialize",
+                "events.ClearPendingEvents",
+                "game.LoadScene",
             },
             calls
         );
@@ -418,7 +419,12 @@ public class BasicRuntimeTests
     {
         public IScene? CurrentScene => null;
 
+        public bool IsSceneLoaded => false;
+
         public void Initialize() { }
+
+        /// <inheritdoc />
+        public void UnloadScene() { }
 
         /// <inheritdoc />
         public void LoadScene(IScene scene) { }

@@ -10,7 +10,7 @@ public partial class TextRenderer : Component, IRenderer
     private Rectangle<float> _layoutBounds;
 
     /// <summary>Gets or sets whether this renderer submits its drawables for rendering.</summary>
-    [Observable(Public = true)]
+    [Observable(PublicSetter = true)]
     private bool _isVisible = true;
 
     /// <summary>Initializes an empty text component that can receive its style later.</summary>
@@ -30,7 +30,7 @@ public partial class TextRenderer : Component, IRenderer
         TextStyle ?? throw new InvalidOperationException("A text style has not been assigned.");
 
     /// <summary>Gets or sets the style used to lay out and render the text.</summary>
-    [Observable(Public = true)]
+    [Observable(PublicSetter = true)]
     private ITextStyle? _textStyle;
 
     /// <summary>Rebuilds glyph output after the text style changes.</summary>
@@ -39,7 +39,7 @@ public partial class TextRenderer : Component, IRenderer
         RebuildDrawable();
 
     /// <summary>Gets or sets the source text represented by this component.</summary>
-    [Observable(Public = true)]
+    [Observable(PublicSetter = true)]
     private string _text = string.Empty;
 
     /// <summary>Rebuilds glyph output after source text changes.</summary>
@@ -47,7 +47,7 @@ public partial class TextRenderer : Component, IRenderer
     protected virtual partial void AfterTextChanges(string previousValue) => RebuildDrawable();
 
     /// <summary>Gets or sets the destination rectangle used for layout and placement.</summary>
-    [Observable(Public = true)]
+    [Observable(PublicSetter = true)]
     private Rectangle<float> _destination;
 
     /// <summary>Updates glyph placement after destination changes.</summary>
@@ -56,7 +56,7 @@ public partial class TextRenderer : Component, IRenderer
         RebuildDrawable();
 
     /// <summary>Gets or sets normalized horizontal and vertical alignment within the destination.</summary>
-    [Observable(Public = true)]
+    [Observable(PublicSetter = true)]
     private Vector2D<float> _alignment = Vector2D<float>.Zero;
 
     /// <summary>Updates glyph placement after alignment changes.</summary>
@@ -65,11 +65,11 @@ public partial class TextRenderer : Component, IRenderer
         RebuildDrawable();
 
     /// <summary>Gets or sets the maximum number of laid-out lines, or null for no explicit limit.</summary>
-    [Observable(Public = true)]
+    [Observable(PublicSetter = true)]
     private int? _maximumLines;
 
     /// <summary>Gets or sets the color applied to rendered glyphs.</summary>
-    [Observable(Public = true)]
+    [Observable(PublicSetter = true)]
     private Color _color = Colors.White;
 
     /// <summary>Rebuilds glyph instances after their color changes.</summary>
@@ -82,7 +82,7 @@ public partial class TextRenderer : Component, IRenderer
         RebuildDrawable();
 
     /// <summary>Gets or sets whether lines wrap to the destination width.</summary>
-    [Observable(Public = true)]
+    [Observable(PublicSetter = true)]
     private bool _wrap = true;
 
     /// <summary>Rebuilds glyph layout after wrapping changes.</summary>
@@ -90,7 +90,7 @@ public partial class TextRenderer : Component, IRenderer
     protected virtual partial void AfterWrapChanges(bool previousValue) => RebuildDrawable();
 
     /// <summary>Gets or sets the render-layer mask applied to the glyph drawable.</summary>
-    [Observable(Public = true)]
+    [Observable(PublicSetter = true)]
     private ulong _renderLayerMask = RenderLayers.All;
 
     /// <summary>Applies the changed render-layer mask to the current drawable.</summary>
@@ -103,7 +103,7 @@ public partial class TextRenderer : Component, IRenderer
     }
 
     /// <summary>Gets or sets the render order assigned to each glyph drawable.</summary>
-    [Observable(Public = true)]
+    [Observable(PublicSetter = true)]
     private int _drawOrder;
 
     /// <summary>Applies the changed render order to each glyph drawable.</summary>

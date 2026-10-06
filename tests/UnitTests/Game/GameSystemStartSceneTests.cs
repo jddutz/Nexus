@@ -8,48 +8,133 @@ using Nexus.Game;
 /// <summary>Verifies the game system loads and manages its current scene.</summary>
 public class GameSystemStartSceneTests
 {
-    /// <summary>Verifies initialization accepts a scene loaded beforehand.</summary>
+    /// <summary>Verifies game-system initialization does not select a start scene.</summary>
     [Fact]
-    public void Initialize_usesTheLoadedScene()
+    public void Initialize_doesNotRequireASelectedScene()
     {
-        var selectedScene = CreateScene();
         var gameSystem = CreateGameSystem();
-        gameSystem.LoadScene(selectedScene);
 
         gameSystem.Initialize();
 
-        Assert.Same(selectedScene, gameSystem.CurrentScene);
+        Assert.Null(gameSystem.CurrentScene);
+        Assert.False(gameSystem.IsSceneLoaded);
     }
 
-    /// <summary>Verifies initialization fails when no scene has been loaded.</summary>
+    /// <summary>Verifies selecting a scene does not mark it loaded.</summary>
     [Fact]
-    public void Initialize_throwsWhenNoSceneHasBeenLoaded()
+    public void IsSceneLoaded_isFalseForAnUnloadedCurrentScene()
     {
+        var scene = CreateScene();
+        var gameSystem = new SceneSelectingGameSystem(scene);
+
+        Assert.Same(scene, gameSystem.CurrentScene);
+        Assert.False(scene.IsLoaded);
+        Assert.False(gameSystem.IsSceneLoaded);
+    }
+
+    /// <summary>Verifies scene activation alone does not mark it as loaded.</summary>
+    [Fact]
+    public void SceneActivation_doesNotSetLoadedState()
+    {
+        var scene = CreateScene();
+
+        scene.Initialize();
+        scene.Activate();
+
+        Assert.True(scene.IsActivated);
+        Assert.False(scene.IsLoaded);
+    }
+
+    /// <summary>Verifies loading activates the scene hierarchy before returning.</summary>
+    [Fact]
+    public void LoadScene_initializesAndActivatesTheHierarchy()
+    {
+        var scene = CreateScene();
+        var child = new SceneGameObject();
+        scene.Children.Add(child);
         var gameSystem = CreateGameSystem();
 
-        var exception = Assert.Throws<InvalidOperationException>(gameSystem.Initialize);
+        gameSystem.LoadScene(scene);
 
-        Assert.Contains("No current scene is loaded.", exception.Message);
-        Assert.Null(gameSystem.CurrentScene);
+        Assert.Same(scene, gameSystem.CurrentScene);
+        Assert.True(gameSystem.IsSceneLoaded);
+        Assert.True(scene.IsLoaded);
+        Assert.True(scene.IsInitialized);
+        Assert.True(scene.IsActivated);
+        Assert.True(child.IsInitialized);
+        Assert.True(child.IsActivated);
     }
 
-    /// <summary>Verifies loading a replacement scene unloads the previously active scene.</summary>
+    /// <summary>Verifies loading publishes the scene event after activation.</summary>
     [Fact]
-    public void LoadScene_unloadsThePreviousSceneAndLoadsTheReplacement()
+    public void LoadScene_publishesSceneLoadedEventAfterActivation()
+    {
+        var scene = CreateScene();
+        var eventHub = new EventHub();
+        var observer = new SceneLoadedObserver();
+        var gameSystem = new GameSystem(eventHub, NullLogger<GameSystem>.Instance);
+        eventHub.Register(observer);
+
+        gameSystem.LoadScene(scene);
+        eventHub.Drain();
+
+        Assert.Same(scene, observer.Scene);
+        Assert.True(observer.WasActivatedWhenPublished);
+    }
+
+    /// <summary>Verifies loaded-state changes raise observable property notifications.</summary>
+    [Fact]
+    public void IsLoaded_notifiesWhenSceneLoadsAndUnloads()
+    {
+        var scene = CreateScene();
+        var propertyChanges = new List<string>();
+        scene.PropertyChanged += propertyChanges.Add;
+        var gameSystem = CreateGameSystem();
+
+        gameSystem.LoadScene(scene);
+        gameSystem.UnloadScene();
+
+        Assert.Equal(
+            2,
+            propertyChanges.Count(propertyName => propertyName == nameof(Scene.IsLoaded))
+        );
+    }
+
+    /// <summary>Verifies loading another scene requires explicitly unloading the current one.</summary>
+    [Fact]
+    public void LoadScene_throwsWhenAnotherSceneIsLoaded()
     {
         var initialScene = CreateScene();
-        var nextScene = CreateScene();
         var gameSystem = CreateGameSystem();
         gameSystem.LoadScene(initialScene);
-        gameSystem.Initialize();
-        gameSystem.Update(0);
 
-        gameSystem.LoadScene(nextScene);
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            gameSystem.LoadScene(CreateScene())
+        );
 
-        Assert.Same(nextScene, gameSystem.CurrentScene);
-        Assert.False(initialScene.IsActivated);
-        gameSystem.Update(0);
-        Assert.True(nextScene.IsActivated);
+        Assert.Contains("Unload the current scene", exception.Message);
+        Assert.Same(initialScene, gameSystem.CurrentScene);
+        Assert.True(gameSystem.IsSceneLoaded);
+    }
+
+    /// <summary>Verifies unloading deactivates the hierarchy and is harmless when repeated.</summary>
+    [Fact]
+    public void UnloadScene_deactivatesTheHierarchyAndIsIdempotent()
+    {
+        var scene = CreateScene();
+        var child = new SceneGameObject();
+        scene.Children.Add(child);
+        var gameSystem = CreateGameSystem();
+        gameSystem.LoadScene(scene);
+
+        gameSystem.UnloadScene();
+        gameSystem.UnloadScene();
+
+        Assert.False(gameSystem.IsSceneLoaded);
+        Assert.Same(scene, gameSystem.CurrentScene);
+        Assert.False(scene.IsLoaded);
+        Assert.False(scene.IsActivated);
+        Assert.False(child.IsActivated);
     }
 
     /// <summary>Creates a GameSystem with its required services.</summary>
@@ -64,4 +149,37 @@ public class GameSystemStartSceneTests
         {
             MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
         };
+
+    /// <summary>Provides a managed game object for scene lifecycle tests.</summary>
+    private sealed class SceneGameObject : GameObject;
+
+    /// <summary>Provides a selected current scene without loading its hierarchy.</summary>
+    private sealed class SceneSelectingGameSystem : GameSystem
+    {
+        /// <summary>Initializes the helper with a current scene selection.</summary>
+        /// <param name="scene">The scene to select without loading.</param>
+        public SceneSelectingGameSystem(IScene scene)
+            : base(new EventHub(), NullLogger<GameSystem>.Instance)
+        {
+            CurrentScene = scene;
+        }
+    }
+
+    /// <summary>Records the scene and activation state from the global loaded event.</summary>
+    private sealed class SceneLoadedObserver
+    {
+        /// <summary>Gets the scene received in the loaded event, if one was handled.</summary>
+        public IScene? Scene { get; private set; }
+
+        /// <summary>Gets whether the scene was activated when its loaded event was handled.</summary>
+        public bool WasActivatedWhenPublished { get; private set; }
+
+        /// <summary>Records the loaded scene and its activation state.</summary>
+        /// <param name="message">The published scene-loaded event.</param>
+        public void Handle(SceneLoadedEvent message)
+        {
+            Scene = message.Scene;
+            WasActivatedWhenPublished = message.Scene.IsActivated;
+        }
+    }
 }

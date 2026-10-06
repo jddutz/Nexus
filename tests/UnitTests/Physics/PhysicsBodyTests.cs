@@ -76,7 +76,7 @@ public sealed class PhysicsBodyTests
         Assert.True(collider.IsActivated);
         Assert.False(physics.RemoveWorld(world));
 
-        gameSystem.CurrentScene = null;
+        gameSystem.UnloadScene();
         eventHub.Drain();
 
         Assert.False(body.IsActivated);

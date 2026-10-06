@@ -189,6 +189,14 @@ public sealed class EventHub : IEventHub
     }
 
     /// <summary>
+    /// Removes all events currently queued in the hub without dispatching them.
+    /// </summary>
+    public void ClearPendingEvents()
+    {
+        while (_events.TryDequeue(out _)) { }
+    }
+
+    /// <summary>
     /// Writes the event type and cycle-safe JSON payload to the configured logger.
     /// </summary>
     /// <param name="event">The event being dispatched.</param>

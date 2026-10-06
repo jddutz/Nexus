@@ -7,27 +7,27 @@ public partial class TileMapDrawable : IDrawable
     private TileMapInstance[] _instances = [];
 
     /// <summary>Gets or sets the render-layer mask shared by every tile instance.</summary>
-    [Observable(Public = true)]
+    [Observable(PublicSetter = true)]
     private ulong _renderLayerMask = RenderLayers.All;
 
     /// <summary>Gets or sets the drawable's position in render order.</summary>
-    [Observable(Public = true)]
+    [Observable(PublicSetter = true)]
     private int _drawOrder;
 
     /// <summary>Gets or sets the texture sampled by all tile instances.</summary>
-    [Observable(Public = true)]
+    [Observable(PublicSetter = true)]
     private ITexture _texture = BuiltInTextures.Invalid;
 
     /// <summary>Gets or sets the sampling behavior used for the shared texture.</summary>
-    [Observable(Public = true)]
+    [Observable(PublicSetter = true)]
     private ISamplingBehavior _samplingBehavior = SamplingBehaviors.Smooth;
 
     /// <summary>Gets or sets the vertex shader used for textured tile instances.</summary>
-    [Observable(Public = true)]
+    [Observable(PublicSetter = true)]
     private VertexShader? _vertexShader = BuiltInShaders.TexturedQuadVertexShader;
 
     /// <summary>Gets or sets the fragment shader used for textured tile instances.</summary>
-    [Observable(Public = true)]
+    [Observable(PublicSetter = true)]
     private FragmentShader? _fragmentShader = BuiltInShaders.TexturedQuadFragmentShader;
 
     /// <inheritdoc />

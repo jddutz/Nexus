@@ -191,8 +191,6 @@ public class GameSystemLifecycleTests
         var gameSystem = CreateGameSystem(scene, eventHub: eventHub);
         gameSystem.Initialize();
 
-        gameSystem.Update(0);
-
         Assert.True(root.IsActivated);
         Assert.True(child.IsActivated);
         Assert.Equal(1, root.ActivationCount);
@@ -262,7 +260,7 @@ public class GameSystemLifecycleTests
         var gameSystem = CreateGameSystem(scene, windowService, eventHub);
         gameSystem.Initialize();
 
-        Assert.False(scene.IsInitialized);
+        Assert.True(scene.IsInitialized);
         Assert.Empty(scene.Children);
         gameSystem.Update(0);
         Assert.True(scene.IsInitialized);
