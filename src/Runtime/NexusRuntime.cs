@@ -1,10 +1,23 @@
 using Nexus.Core.Performance;
+
 namespace Nexus.Runtime;
 
 /// <summary>
 /// Coordinates the lifecycle and interaction of services participating
 /// in a running Nexus game environment.
 /// </summary>
+/// <param name="eventHub">The event hub used to drain queued events.</param>
+/// <param name="gameSystem">The game-system lifecycle coordinator.</param>
+/// <param name="physics">The physics system.</param>
+/// <param name="audio">The audio system.</param>
+/// <param name="input">The input system.</param>
+/// <param name="graphics">The graphics system.</param>
+/// <param name="gui">The graphical user interface.</param>
+/// <param name="sceneRegistry">The registry used to resolve the configured startup scene.</param>
+/// <param name="gameSettings">The settings containing the startup scene identifier.</param>
+/// <param name="window">The optional window used for runtime callbacks.</param>
+/// <param name="applicationSettings">The optional settings containing runtime limits.</param>
+/// <param name="telemetry">The optional startup and performance telemetry sink.</param>
 public sealed class NexusRuntime(
     IEventHub eventHub,
     IGameSystem gameSystem,
@@ -13,6 +26,8 @@ public sealed class NexusRuntime(
     IInputSystem input,
     IGraphicsSystem graphics,
     IGraphicalUserInterface gui,
+    ISceneRegistry sceneRegistry,
+    IOptions<GameSettings> gameSettings,
     IWindow? window = null,
     IOptions<ApplicationSettings>? applicationSettings = null,
     IPerformanceTelemetry? telemetry = null
@@ -31,30 +46,52 @@ public sealed class NexusRuntime(
     /// <summary>
     /// Initializes the runtime and its configured services.
     /// </summary>
+    /// <exception cref="InvalidOperationException">
+    /// No scene is registered, multiple scenes require an explicit start scene, or the configured scene is not registered.
+    /// </exception>
     public void Initialize()
     {
         if (_initialized)
             return;
 
         using var startupTiming = new LoadPerformanceScope(telemetry, "startup.runtime.initialize");
+
         if (window is not null)
         {
             window.Update += OnUpdate;
             window.Render += OnRender;
         }
 
-        using (var timing = new LoadPerformanceScope(telemetry, "startup.system.initialize", "input"))
-            input.Initialize();
-        using (var timing = new LoadPerformanceScope(telemetry, "startup.system.initialize", "physics"))
-            physics.Initialize();
-        using (var timing = new LoadPerformanceScope(telemetry, "startup.system.initialize", "audio"))
-            audio.Initialize();
-        using (var timing = new LoadPerformanceScope(telemetry, "startup.system.initialize", "graphics"))
-            graphics.Initialize();
-        using (var timing = new LoadPerformanceScope(telemetry, "startup.system.initialize", "gui"))
-            gui.Initialize();
-        using (var timing = new LoadPerformanceScope(telemetry, "startup.system.initialize", "gameSystem"))
-            gameSystem.Initialize();
+        input.Initialize();
+        physics.Initialize();
+        audio.Initialize();
+        graphics.Initialize();
+        gui.Initialize();
+        gameSystem.Initialize();
+
+        var startSceneId = gameSettings.Value?.StartSceneId;
+        if (string.IsNullOrWhiteSpace(startSceneId))
+        {
+            if (sceneRegistry.SceneCount == 0)
+                throw new InvalidOperationException(
+                    "No scenes are registered. Register a scene before initializing the runtime."
+                );
+
+            if (sceneRegistry.SceneCount > 1)
+                throw new InvalidOperationException(
+                    "Multiple scenes are registered. Game:StartSceneId configuration is required."
+                );
+
+            startSceneId = sceneRegistry.RegisteredScenes.Single();
+        }
+
+        var startScene =
+            sceneRegistry.Load(startSceneId)
+            ?? throw new InvalidOperationException(
+                $"Start scene '{startSceneId}' is not registered."
+            );
+
+        gameSystem.LoadScene(startScene);
 
         _runtimeStopwatch.Start();
         _initialized = true;

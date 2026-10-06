@@ -5,17 +5,17 @@ namespace Nexus.Game;
 /// </summary>
 public partial class Scene : IScene
 {
-    /// <inheritdoc />
-    public event Action<string>? PropertyChanged;
+    private readonly ObservableCollection<ISceneNode> _children = new(
+        ReferenceEqualityComparer.Instance
+    );
+    private readonly Dictionary<NodeId, ISceneNode> _allNodes = [];
 
     /// <summary>Initializes a scene with a generated identifier.</summary>
     public Scene()
         : this(NodeId.New()) { }
 
-    private readonly ObservableCollection<ISceneNode> _children = new(
-        ReferenceEqualityComparer.Instance
-    );
-    private readonly Dictionary<NodeId, ISceneNode> _allNodes = [];
+    /// <inheritdoc />
+    public event Action<string>? PropertyChanged;
 
     [Observable(Public = true)]
     private RenderLayerCollection _renderLayers = new();

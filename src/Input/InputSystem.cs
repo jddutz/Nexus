@@ -1,6 +1,7 @@
 namespace Nexus.Input;
 
 using System.Collections.ObjectModel;
+using Nexus.Core.Performance;
 using Nexus.Input.Events;
 using Silk.NET.Windowing;
 
@@ -12,6 +13,7 @@ public sealed class InputSystem : IInputSystem, IDisposable
     private readonly IEventHub _eventHub;
     private readonly IInputAdapter? _inputAdapter;
     private readonly IWindow? _window;
+    private readonly IPerformanceTelemetry? _telemetry;
     private readonly KeyboardInputState _keyboard = new();
     private readonly MouseInputState _mouse = new();
     private readonly Dictionary<InputDeviceId, IKeyboardInputDevice> _keyboards = [];
@@ -40,11 +42,14 @@ public sealed class InputSystem : IInputSystem, IDisposable
     /// </summary>
     /// <param name="eventHub">The global event hub.</param>
     /// <param name="inputAdapter">The adapter that reports keyboard connections and key transitions.</param>
+    /// <param name="window">The optional window used for focus notifications.</param>
+    /// <param name="telemetry">The optional performance telemetry sink.</param>
     /// <exception cref="ArgumentNullException"><paramref name="eventHub"/> is <see langword="null"/>.</exception>
     public InputSystem(
         IEventHub eventHub,
         IInputAdapter? inputAdapter = null,
-        IWindow? window = null
+        IWindow? window = null,
+        IPerformanceTelemetry? telemetry = null
     )
     {
         ArgumentNullException.ThrowIfNull(eventHub);
@@ -52,6 +57,7 @@ public sealed class InputSystem : IInputSystem, IDisposable
         _eventHub = eventHub;
         _inputAdapter = inputAdapter;
         _window = window;
+        _telemetry = telemetry;
         _controllerView = _controllerList.AsReadOnly();
     }
 
@@ -67,6 +73,11 @@ public sealed class InputSystem : IInputSystem, IDisposable
     /// </summary>
     public void Initialize()
     {
+        using var timing = new LoadPerformanceScope(
+            _telemetry,
+            "startup.system.initialize",
+            "input"
+        );
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (_initialized)
             return;

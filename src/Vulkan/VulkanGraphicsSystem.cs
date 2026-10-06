@@ -1,5 +1,7 @@
 namespace Nexus.Graphics.Vulkan;
 
+using Nexus.Core.Performance;
+
 /// <summary>
 /// Coordinates Vulkan resource loading, view batch preparation, and frame rendering.
 /// </summary>
@@ -14,6 +16,7 @@ namespace Nexus.Graphics.Vulkan;
 /// <param name="commandFactory">The owner of per-drawable Vulkan allocations and commands.</param>
 /// <param name="performanceMetrics">Optional performance counter collector.</param>
 /// <param name="diagnostics">Optional immutable Vulkan diagnostic collector.</param>
+/// <param name="telemetry">The optional performance telemetry sink.</param>
 public unsafe class VulkanGraphicsSystem(
     Context context,
     ISwapChain swapChain,
@@ -25,7 +28,8 @@ public unsafe class VulkanGraphicsSystem(
     IVertexBufferRegistry geometryRegistry,
     IImageRegistry textureRegistry,
     PerformanceMetrics? performanceMetrics = null,
-    PerformanceDiagnostics? diagnostics = null
+    PerformanceDiagnostics? diagnostics = null,
+    IPerformanceTelemetry? telemetry = null
 ) : IGraphicsSystem, IDisposable
 {
     private readonly PerformanceMetrics? _performanceMetrics = performanceMetrics;
@@ -83,6 +87,11 @@ public unsafe class VulkanGraphicsSystem(
     /// </summary>
     public void Initialize()
     {
+        using var timing = new LoadPerformanceScope(
+            telemetry,
+            "startup.system.initialize",
+            "graphics"
+        );
         eventHub.Register(this);
 
         Debug.WriteLine(

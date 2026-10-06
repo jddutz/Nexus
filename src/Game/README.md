@@ -7,9 +7,9 @@ Game owns concrete scenes, scene registration, and the game-system lifecycle coo
 - `Scene` implements a scene root; `View` represents game-side view functionality.
 - `ISceneRegistry` and `SceneRegistry` discover concrete scenes from the entry assembly by default and provide named scene loading. `SceneAttribute` optionally overrides a scene's class-name-based registration name.
 - `IGameSystem` and `GameSystem` manage the current scene and object/component activation and deactivation.
-- `GameSettings` accepts an optional initial scene name through the `Game` configuration section.
+- `GameSettings` accepts the runtime startup scene name through the `Game` configuration section.
 
-`GameSystem.Initialize` loads the configured scene when `Game:StartSceneId` is supplied. Otherwise it uses the only registered scene, fails when none are registered, or requires configuration and lists available names when multiple scenes are registered. It does not fall back if the selected scene fails to construct. GameSystem subscribes to each node's child collections before publishing its activation event; children added beneath active parents are initialized and activated immediately, then updated in the next parent-first lifecycle traversal. Captured-ownership checks prevent changes during traversal from causing duplicate updates or activations.
+`NexusRuntime` resolves `Game:StartSceneId` through `ISceneRegistry`, or uses the only registered scene when the setting is absent, and passes the loaded scene to `GameSystem.LoadScene` before initializing the game system. Multiple registered scenes require an explicit start scene. `SceneRegistry` provides scene factories; `GameSystem.LoadScene` owns scene replacement and lifecycle. GameSystem subscribes to each node's child collections before publishing its activation event; children added beneath active parents are initialized and activated immediately, then updated in the next parent-first lifecycle traversal. Captured-ownership checks prevent changes during traversal from causing duplicate updates or activations.
 
 ## Dependencies and boundaries
 

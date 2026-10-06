@@ -12,7 +12,7 @@ Runtime composes engine services and coordinates application startup, update, re
 
 ## Current orchestration
 
-Initialization runs Input, Physics, Audio, Graphics, GUI, then GameSystem so services register before scene lifecycle traversal starts. On update, the runtime drains queued events once, then updates GameSystem, Physics, GUI, Audio, and Input. Physics collision results and gameplay feedback are delivered by the next update's drain. Graphics has no update phase; `graphics.Render` consumes the latest completed update state. Configured frame-count or elapsed-time limits can close the window.
+At startup, NexusRuntime resolves `Game:StartSceneId` through `ISceneRegistry`, or selects the sole registered scene when the setting is absent, then loads it with `GameSystem.LoadScene` before initializing Input, Physics, Audio, Graphics, GUI, and GameSystem. Multiple registered scenes require `Game:StartSceneId`. On update, the runtime drains queued events once, then updates GameSystem, Physics, GUI, Audio, and Input. Physics collision results and gameplay feedback are delivered by the next update's drain. Graphics has no update phase; `graphics.Render` consumes the latest completed update state. Configured frame-count or elapsed-time limits can close the window.
 
 Default composition registers Vulkan when an `IGraphicsSystem` has not already been supplied. `RuntimeBuilder.UseVulkan` currently returns the builder without additional configuration; `UseOpenGL` throws `NotImplementedException`.
 

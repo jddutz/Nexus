@@ -3,10 +3,13 @@ namespace Nexus.Game;
 /// <summary>
 /// Loads scenes by name.
 /// </summary>
-public interface ISceneRegistry
+public interface ISceneRegistry : IObservable
 {
+    /// <summary>Gets the number of registered scenes.</summary>
+    int SceneCount { get; }
+
     /// <summary>Gets the names of all registered scenes.</summary>
-    IReadOnlyCollection<string> RegisteredSceneNames { get; }
+    IReadOnlyCollection<string> RegisteredScenes { get; }
 
     /// <summary>
     /// Registers a factory for the specified scene name.
@@ -23,5 +26,4 @@ public interface ISceneRegistry
     /// <returns>The loaded scene, or <see langword="null"/> when it cannot be loaded.</returns>
     /// <exception cref="InvalidOperationException">The registered factory returns <see langword="null"/>.</exception>
     IScene? Load(string sceneName);
-
 }

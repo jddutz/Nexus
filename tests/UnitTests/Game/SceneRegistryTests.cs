@@ -1,4 +1,5 @@
 using Nexus.Core;
+
 namespace Tests;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -23,9 +24,11 @@ public class SceneRegistryTests
             MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
         };
 
+        Assert.Equal(0, registry.SceneCount);
         registry.Register(sceneName, () => scene);
 
-        Assert.Equal([sceneName], registry.RegisteredSceneNames);
+        Assert.Equal(1, registry.SceneCount);
+        Assert.Equal([sceneName], registry.RegisteredScenes);
         Assert.Same(scene, registry.Load(sceneName));
         Assert.Null(registry.Load("UnknownScene"));
     }
@@ -40,11 +43,7 @@ public class SceneRegistryTests
         const string sceneName = "DuplicateScene";
         registry.Register(
             sceneName,
-            () =>
-                new Scene(NodeId.New())
-                {
-                    MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
-                }
+            () => new Scene(NodeId.New()) { MainCamera = new Nexus.Graphics.Cameras.StaticCamera() }
         );
 
         Assert.Throws<ArgumentException>(() =>
@@ -83,9 +82,9 @@ public class SceneRegistryTests
             services.GetRequiredService<IOptions<SceneRegistrySettings>>()
         );
 
-        Assert.Contains(nameof(UnattributedDiscoveredScene), registry.RegisteredSceneNames);
-        Assert.Contains("RenamedDiscoveredScene", registry.RegisteredSceneNames);
-        Assert.DoesNotContain(nameof(OverriddenDiscoveredScene), registry.RegisteredSceneNames);
+        Assert.Contains(nameof(UnattributedDiscoveredScene), registry.RegisteredScenes);
+        Assert.Contains("RenamedDiscoveredScene", registry.RegisteredScenes);
+        Assert.DoesNotContain(nameof(OverriddenDiscoveredScene), registry.RegisteredScenes);
         Assert.IsType<UnattributedDiscoveredScene>(
             registry.Load(nameof(UnattributedDiscoveredScene))
         );

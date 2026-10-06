@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Microsoft.Extensions.Options;
+using Nexus.Core.Performance;
 
 namespace Nexus.GUI;
 
@@ -9,10 +10,12 @@ namespace Nexus.GUI;
 /// <param name="eventHub">The event hub used to receive game lifecycle events.</param>
 /// <param name="windowService">The service used to read the main window size, or <see langword="null"/> in a headless runtime.</param>
 /// <param name="diagnostics">Optional diagnostics settings used to enable layout logging.</param>
+/// <param name="telemetry">The optional performance telemetry sink.</param>
 public sealed class GraphicalUserInterface(
     IEventHub eventHub,
     IWindowService? windowService = null,
-    IOptions<DiagnosticsSettings>? diagnostics = null
+    IOptions<DiagnosticsSettings>? diagnostics = null,
+    IPerformanceTelemetry? telemetry = null
 ) : IGraphicalUserInterface
 {
     private readonly IEventHub _eventHub = eventHub;
@@ -32,7 +35,15 @@ public sealed class GraphicalUserInterface(
     /// <summary>
     /// Initializes the graphical user interface.
     /// </summary>
-    public void Initialize() => _eventHub.Register(this);
+    public void Initialize()
+    {
+        using var timing = new LoadPerformanceScope(
+            telemetry,
+            "startup.system.initialize",
+            "gui"
+        );
+        _eventHub.Register(this);
+    }
 
     /// <summary>
     /// Updates the graphical user interface for the elapsed time since the previous frame.

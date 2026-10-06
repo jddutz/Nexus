@@ -617,7 +617,6 @@ public class InputSystemTests
     {
         var eventHub = new EventHub();
         var keyboard = new FakeKeyboard(11);
-        const string sceneName = "InputScene";
         var scene = new Scene(NodeId.New())
         {
             MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
@@ -637,13 +636,8 @@ public class InputSystemTests
         nextMap.OnKeyPressed(KeyEnum.Escape).Invoke(() => thirdCalls++);
         nextScene.InputMap = nextMap;
 
-        var sceneRegistry = SceneRegistryTestHelper.CreateEmptyRegistry();
-        sceneRegistry.Register(sceneName, () => scene);
-        var gameSystem = new SwitchableGameSystem(
-            eventHub,
-            sceneRegistry,
-            sceneName
-        );
+        var gameSystem = new SwitchableGameSystem(eventHub);
+        gameSystem.LoadScene(scene);
 
         eventHub.Publish(new KeyPressedEvent(keyboard, KeyEnum.Escape));
         eventHub.Drain();
@@ -722,16 +716,9 @@ public class InputSystemTests
     /// Exposes the protected generated scene setter for lifecycle transition tests.
     /// </summary>
     /// <param name="eventHub">The event hub used by the game system.</param>
-    /// <param name="sceneRegistry">The registry used to load the start scene.</param>
-    private sealed class SwitchableGameSystem(
-        IEventHub eventHub,
-        ISceneRegistry sceneRegistry,
-        string startSceneId
-    ) : GameSystem(
+    private sealed class SwitchableGameSystem(IEventHub eventHub) : GameSystem(
         eventHub,
-        NullLogger<GameSystem>.Instance,
-        sceneRegistry,
-        Options.Create(new GameSettings { StartSceneId = startSceneId })
+        NullLogger<GameSystem>.Instance
     )
     {
         /// <summary>Changes the current scene using the protected generated setter.</summary>

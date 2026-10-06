@@ -57,7 +57,6 @@ public class GameSystemEventRegistrationTests
     [Fact]
     public void Update_activatesTheConfiguredInitialScene()
     {
-        const string sceneName = "WelcomeScreen";
         var scene = new Scene(NodeId.New())
         {
             MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
@@ -68,9 +67,8 @@ public class GameSystemEventRegistrationTests
         var child = new EventHandlingGameObject([childComponent]);
         root.AddChild(child);
         scene.Children.Add(root);
-        var sceneRegistry = SceneRegistryTestHelper.CreateEmptyRegistry();
-        sceneRegistry.Register(sceneName, () => scene);
-        var gameSystem = CreateGameSystem(new EventHub(), sceneRegistry, sceneName);
+        var gameSystem = CreateGameSystem(new EventHub());
+        gameSystem.LoadScene(scene);
 
         gameSystem.Initialize();
 
@@ -92,15 +90,13 @@ public class GameSystemEventRegistrationTests
     [Fact]
     public void ActiveScene_tracksLifecycleForDynamicallyChangedHierarchy()
     {
-        const string sceneName = "DynamicScene";
         var scene = new Scene(NodeId.New())
         {
             MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
         };
-        var sceneRegistry = SceneRegistryTestHelper.CreateEmptyRegistry();
-        sceneRegistry.Register(sceneName, () => scene);
         var eventHub = new EventHub();
-        var gameSystem = CreateGameSystem(eventHub, sceneRegistry, sceneName);
+        var gameSystem = CreateGameSystem(eventHub);
+        gameSystem.LoadScene(scene);
         gameSystem.Initialize();
 
         var rootComponent = new EventHandlingComponent();
@@ -147,20 +143,16 @@ public class GameSystemEventRegistrationTests
     }
 
     /// <summary>
-    /// Verifies initialization propagates a failure when the configured scene is absent.
+    /// Verifies initialization fails when no scene has been loaded.
     /// </summary>
     [Fact]
-    public void Initialize_throwsWhenConfiguredInitialSceneIsNotRegistered()
+    public void Initialize_throwsWhenNoSceneHasBeenLoaded()
     {
-        var gameSystem = CreateGameSystem(
-            new EventHub(),
-            SceneRegistryTestHelper.CreateEmptyRegistry(),
-            "MissingScene"
-        );
+        var gameSystem = CreateGameSystem(new EventHub());
 
         var exception = Assert.Throws<InvalidOperationException>(gameSystem.Initialize);
 
-        Assert.Contains("MissingScene", exception.Message);
+        Assert.Contains("No current scene is loaded.", exception.Message);
         Assert.Null(gameSystem.CurrentScene);
     }
 
@@ -243,17 +235,8 @@ public class GameSystemEventRegistrationTests
     /// </summary>
     /// <param name="eventHub">The event hub to test.</param>
     /// <returns>A game system using the specified event hub.</returns>
-    private static GameSystem CreateGameSystem(
-        IEventHub eventHub,
-        ISceneRegistry? sceneRegistry = null,
-        string startSceneId = ""
-    ) =>
-        new(
-            eventHub,
-            NullLogger<GameSystem>.Instance,
-            sceneRegistry ?? SceneRegistryTestHelper.CreateEmptyRegistry(),
-            Options.Create(new GameSettings { StartSceneId = startSceneId })
-        );
+    private static GameSystem CreateGameSystem(IEventHub eventHub) =>
+        new(eventHub, NullLogger<GameSystem>.Instance);
 
     /// <summary>
     /// Represents an event used to verify global event dispatch.

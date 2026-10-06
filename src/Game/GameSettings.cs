@@ -1,10 +1,10 @@
 namespace Nexus.Game;
 
 /// <summary>
-/// Settings that configure the game system.
+/// Settings used by runtime startup.
 /// </summary>
 public sealed record GameSettings
 {
-    /// <summary>Gets or sets the identifier of the scene to start.</summary>
+    /// <summary>Gets or sets the identifier of the scene loaded at startup when multiple scenes are registered.</summary>
     public string? StartSceneId { get; set; }
 }

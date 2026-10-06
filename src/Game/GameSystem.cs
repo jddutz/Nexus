@@ -1,3 +1,4 @@
+using Nexus.Core.Performance;
 using Nexus.Graphics.Events;
 
 namespace Nexus.Game;
@@ -7,21 +8,17 @@ namespace Nexus.Game;
 /// </summary>
 /// <param name="eventHub">The event hub used to register handlers and publish lifecycle events.</param>
 /// <param name="logger">The logger used for game-system diagnostics.</param>
-/// <param name="sceneRegistry">The registry used to load the configured start scene.</param>
-/// <param name="gameSettings">The settings bound from the Game configuration section.</param>
 /// <param name="windowService">The service used to synchronize the current scene camera with the main window, or <see langword="null"/> in a headless runtime.</param>
+/// <param name="telemetry">The optional performance telemetry sink.</param>
 public partial class GameSystem(
     IEventHub eventHub,
     ILogger<GameSystem> logger,
-    ISceneRegistry sceneRegistry,
-    IOptions<GameSettings> gameSettings,
-    IWindowService? windowService = null
+    IWindowService? windowService = null,
+    IPerformanceTelemetry? telemetry = null
 ) : IGameSystem, IObservable
 {
     private readonly IEventHub _eventHub = eventHub;
     private readonly ILogger<GameSystem> _logger = logger;
-    private readonly ISceneRegistry _sceneRegistry = sceneRegistry;
-    private readonly GameSettings _settings = gameSettings.Value;
     private readonly IWindowService? _windowService = windowService;
     private readonly HashSet<ISceneNode> _subscribedSceneNodes = [];
     private readonly HashSet<IGameObject> _publishedGameObjectActivations = new(
@@ -90,46 +87,37 @@ public partial class GameSystem(
     /// </summary>
     public void Initialize()
     {
-        _eventHub.Register(this);
-
-        var startSceneId = ResolveStartSceneId();
-        var initialScene = _sceneRegistry.Load(startSceneId)
-            ?? throw new InvalidOperationException($"Start scene '{startSceneId}' is not registered.");
+        using var timing = new LoadPerformanceScope(
+            telemetry,
+            "startup.system.initialize",
+            "gameSystem"
+        );
+        var initialScene = CurrentScene;
+        if (initialScene is null)
+            throw new InvalidOperationException(
+                "No current scene is loaded. Load a scene before initializing the game system."
+            );
 
         _logger.LogInformation(
             "Initializing game system. StartSceneType={StartSceneType}",
             initialScene.GetType().Name
         );
 
-        CurrentScene = initialScene;
+        _eventHub.Register(this);
+
         _logger.LogTrace(
             "Initial scene selected; entity initialization and activation are deferred until lifecycle traversal."
         );
         _logger.LogInformation("Game system initialized and initial scene selected.");
     }
 
-    /// <summary>Selects the configured scene or resolves an unambiguous registered scene.</summary>
-    /// <returns>The name of the scene to load.</returns>
-    /// <exception cref="InvalidOperationException">
-    /// No scene is registered, or more than one scene is registered without a configured start scene.
-    /// </exception>
-    private string ResolveStartSceneId()
+    /// <summary>Loads the supplied scene, unloading any scene that is currently active.</summary>
+    /// <param name="scene">The scene to make current.</param>
+    public void LoadScene(IScene scene)
     {
-        if (!string.IsNullOrWhiteSpace(_settings.StartSceneId))
-            return _settings.StartSceneId;
+        ArgumentNullException.ThrowIfNull(scene);
 
-        var registeredSceneNames = _sceneRegistry.RegisteredSceneNames;
-        if (registeredSceneNames.Count == 0)
-            throw new InvalidOperationException(
-                "No scene was discovered. Register a scene before initializing the game system."
-            );
-
-        if (registeredSceneNames.Count == 1)
-            return registeredSceneNames.Single();
-
-        throw new InvalidOperationException(
-            $"Multiple scenes were discovered. Set 'Game:StartSceneId' to one of the registered scenes: {string.Join(", ", registeredSceneNames)}."
-        );
+        CurrentScene = scene;
     }
 
     /// <summary>
@@ -192,10 +180,7 @@ public partial class GameSystem(
             if (!TryActivate(gameObject))
                 return;
 
-            if (
-                gameObject.Parent is IGameObject parent
-                && _activatingGameObjects.Contains(parent)
-            )
+            if (gameObject.Parent is IGameObject parent && _activatingGameObjects.Contains(parent))
                 return;
 
             PublishActivatedSubtree(gameObject);
@@ -294,7 +279,11 @@ public partial class GameSystem(
         if (_isTraversing)
             return;
 
-        var entries = CreateLifecycleSnapshot(scene);
+        var entries = new List<LifecycleEntry> { new(scene, scene, null, null, -1) };
+
+        foreach (var child in scene.Children.ToArray())
+            AppendLifecycleEntries(child, scene, 0, entries);
+
         _removedDuringTraversal.Clear();
         _isTraversing = true;
 
@@ -342,21 +331,6 @@ public partial class GameSystem(
             _isTraversing = false;
             _removedDuringTraversal.Clear();
         }
-    }
-
-    /// <summary>
-    /// Captures the scene, its nodes, and components in parent-first lifecycle order.
-    /// </summary>
-    /// <param name="scene">The scene to snapshot.</param>
-    /// <returns>The captured lifecycle entries.</returns>
-    private static List<LifecycleEntry> CreateLifecycleSnapshot(IScene scene)
-    {
-        var entries = new List<LifecycleEntry> { new(scene, scene, null, null, -1) };
-
-        foreach (var child in scene.Children.ToArray())
-            AppendLifecycleEntries(child, scene, 0, entries);
-
-        return entries;
     }
 
     /// <summary>

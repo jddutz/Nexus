@@ -310,15 +310,13 @@ public class GameSystemLifecycleTests
         IEventHub? eventHub = null
     )
     {
-        var registry = SceneRegistryTestHelper.CreateEmptyRegistry();
-        registry.Register("Lifecycle", () => scene);
-        return new GameSystem(
+        var gameSystem = new GameSystem(
             eventHub ?? new EventHub(),
             NullLogger<GameSystem>.Instance,
-            registry,
-            Options.Create(new GameSettings { StartSceneId = "Lifecycle" }),
             windowService
         );
+        gameSystem.LoadScene(scene);
+        return gameSystem;
     }
 
     /// <summary>

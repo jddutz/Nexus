@@ -61,7 +61,7 @@ Additional coverage:
 |---|---|
 | `startup.application` | Window setup, deferred service construction, runtime initialization; excludes the run loop |
 | `startup.window.create`, `startup.window.initialize`, `startup.services.resolve` | Window creation/initialization and deferred DI construction |
-| `startup.runtime.initialize`, `startup.system.initialize` | Total runtime startup and physics, audio, input, game, graphics, GUI stages |
+| `startup.runtime.initialize`, `startup.system.initialize` | Total runtime startup and individual physics, audio, input, game, graphics, and GUI initialization stages; each system records its own stage |
 | `registry.content.load` | Configuration-backed manifest construction; configuration is already supplied |
 | `geometry.registry.initialize` | Built-in geometry registration; content-backed geometry loading remains unimplemented |
 | `startup.vulkan.context`, `startup.vulkan.swapchain` | Backend setup, with initial swapchain, render-pass, depth and framebuffer stages |

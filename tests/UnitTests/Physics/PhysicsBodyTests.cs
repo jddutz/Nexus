@@ -47,7 +47,6 @@ public sealed class PhysicsBodyTests
     [Fact]
     public void SceneDeactivation_unregistersPhysicsParticipantsAndRetainsWorld()
     {
-        const string sceneName = "PhysicsLifecycle";
         var eventHub = new EventHub();
         var physics = new PhysicsSystem(eventHub);
         physics.Initialize();
@@ -63,14 +62,11 @@ public sealed class PhysicsBodyTests
         owner.AddComponent(collider);
         var scene = new Scene(NodeId.New()) { MainCamera = new StaticCamera() };
         scene.Children.Add(owner);
-        var registry = SceneRegistryTestHelper.CreateEmptyRegistry();
-        registry.Register(sceneName, () => scene);
         var gameSystem = new GameSystem(
             eventHub,
-            NullLogger<GameSystem>.Instance,
-            registry,
-            Options.Create(new GameSettings { StartSceneId = sceneName })
+            NullLogger<GameSystem>.Instance
         );
+        gameSystem.LoadScene(scene);
 
         gameSystem.Initialize();
         gameSystem.Update(0);
@@ -89,7 +85,7 @@ public sealed class PhysicsBodyTests
         Assert.False(physics.Deactivate(collider));
         Assert.Contains(world, physics.Worlds);
 
-        gameSystem.CurrentScene = scene;
+        gameSystem.LoadScene(scene);
         gameSystem.Update(0);
         eventHub.Drain();
 

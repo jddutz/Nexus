@@ -1,14 +1,18 @@
 namespace Nexus.Game;
 
-/// <summary>
-/// Discovers concrete scene classes and loads scenes by name.
-/// </summary>
+/// <summary>Discovers concrete scene classes and loads scenes by name.</summary>
 public class SceneRegistry : ISceneRegistry
 {
     private readonly Dictionary<string, Func<IScene>> _sceneFactories = new(StringComparer.Ordinal);
 
+    /// <inheritdoc />
+    public event Action<string>? PropertyChanged;
+
+    /// <inheritdoc />
+    public int SceneCount => _sceneFactories.Count;
+
     /// <inheritdoc/>
-    public IReadOnlyCollection<string> RegisteredSceneNames => _sceneFactories.Keys;
+    public IReadOnlyCollection<string> RegisteredScenes => _sceneFactories.Keys;
 
     /// <summary>Creates the registry and discovers scenes in the configured assemblies.</summary>
     /// <param name="services">The provider used to construct scenes when loaded.</param>
@@ -61,6 +65,7 @@ public class SceneRegistry : ISceneRegistry
                 nameof(sceneName)
             );
 
+        PropertyChanged?.Invoke(nameof(RegisteredScenes));
     }
 
     /// <inheritdoc/>
@@ -75,5 +80,4 @@ public class SceneRegistry : ISceneRegistry
                 $"The factory for scene '{sceneName}' returned null."
             );
     }
-
 }

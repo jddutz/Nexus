@@ -1,6 +1,7 @@
 namespace Nexus.Physics;
 
 using Microsoft.Extensions.Logging;
+using Nexus.Core.Performance;
 
 /// <summary>
 /// Provides the default physics system implementation.
@@ -9,6 +10,7 @@ public sealed class PhysicsSystem : IPhysicsSystem
 {
     private readonly IEventHub _eventHub;
     private readonly ILogger<PhysicsSystem>? _logger;
+    private readonly IPerformanceTelemetry? _telemetry;
     private readonly List<PhysicsWorld2D> _worlds = [];
     private readonly IReadOnlyCollection<PhysicsWorld2D> _readOnlyWorlds;
     private readonly Dictionary<IPhysicsComponent, PhysicsWorld2D> _registeredComponents =
@@ -17,11 +19,17 @@ public sealed class PhysicsSystem : IPhysicsSystem
     /// <summary>Creates a physics system without any simulation worlds.</summary>
     /// <param name="eventHub">The event hub used for lifecycle and collision events.</param>
     /// <param name="logger">The optional logger used to report rejected registrations.</param>
-    public PhysicsSystem(IEventHub eventHub, ILogger<PhysicsSystem>? logger = null)
+    /// <param name="telemetry">The optional performance telemetry sink.</param>
+    public PhysicsSystem(
+        IEventHub eventHub,
+        ILogger<PhysicsSystem>? logger = null,
+        IPerformanceTelemetry? telemetry = null
+    )
     {
         ArgumentNullException.ThrowIfNull(eventHub);
         _eventHub = eventHub;
         _logger = logger;
+        _telemetry = telemetry;
         _readOnlyWorlds = _worlds.AsReadOnly();
     }
 
@@ -31,6 +39,11 @@ public sealed class PhysicsSystem : IPhysicsSystem
     /// <inheritdoc />
     public void Initialize()
     {
+        using var timing = new LoadPerformanceScope(
+            _telemetry,
+            "startup.system.initialize",
+            "physics"
+        );
         _eventHub.Register(this);
     }
 

@@ -86,7 +86,9 @@ public class BasicRuntimeTests
             CreateRecordingProxy<IAudioSystem>("audio", calls),
             CreateRecordingProxy<IInputSystem>("input", calls),
             CreateRecordingProxy<IGraphicsSystem>("graphics", calls),
-            CreateRecordingProxy<IGraphicalUserInterface>("gui", calls)
+            CreateRecordingProxy<IGraphicalUserInterface>("gui", calls),
+            CreateSceneRegistry("Startup"),
+            Options.Create(new GameSettings { StartSceneId = "Startup" })
         );
 
         runtime.Initialize();
@@ -99,6 +101,7 @@ public class BasicRuntimeTests
                 "audio.Initialize",
                 "graphics.Initialize",
                 "gui.Initialize",
+                "game.LoadScene",
                 "game.Initialize",
             },
             calls
@@ -119,6 +122,90 @@ public class BasicRuntimeTests
             },
             calls
         );
+    }
+
+    [Fact]
+    public void Initialize_usesOnlyRegisteredSceneWhenStartSceneIsNotConfigured()
+    {
+        var calls = new List<string>();
+        var runtime = new NexusRuntime(
+            new EventHub(),
+            CreateRecordingProxy<IGameSystem>("game", calls),
+            CreateRecordingProxy<IPhysicsSystem>("physics", []),
+            CreateRecordingProxy<IAudioSystem>("audio", []),
+            CreateRecordingProxy<IInputSystem>("input", []),
+            CreateRecordingProxy<IGraphicsSystem>("graphics", []),
+            CreateRecordingProxy<IGraphicalUserInterface>("gui", []),
+            CreateSceneRegistry("Startup"),
+            Options.Create(new GameSettings())
+        );
+
+        runtime.Initialize();
+
+        Assert.True(runtime.IsInitialized);
+        Assert.Contains("game.LoadScene", calls);
+    }
+
+    [Fact]
+    public void Initialize_throwsWhenMultipleScenesAreRegisteredWithoutStartScene()
+    {
+        var runtime = new NexusRuntime(
+            new EventHub(),
+            CreateRecordingProxy<IGameSystem>("game", []),
+            CreateRecordingProxy<IPhysicsSystem>("physics", []),
+            CreateRecordingProxy<IAudioSystem>("audio", []),
+            CreateRecordingProxy<IInputSystem>("input", []),
+            CreateRecordingProxy<IGraphicsSystem>("graphics", []),
+            CreateRecordingProxy<IGraphicalUserInterface>("gui", []),
+            CreateSceneRegistry("First", "Second"),
+            Options.Create(new GameSettings())
+        );
+
+        var exception = Assert.Throws<InvalidOperationException>(runtime.Initialize);
+
+        Assert.Contains("Game:StartSceneId", exception.Message);
+        Assert.Contains("First", exception.Message);
+        Assert.Contains("Second", exception.Message);
+    }
+
+    [Fact]
+    public void Initialize_throwsWhenNoScenesAreRegisteredAndStartSceneIsNotConfigured()
+    {
+        var runtime = new NexusRuntime(
+            new EventHub(),
+            CreateRecordingProxy<IGameSystem>("game", []),
+            CreateRecordingProxy<IPhysicsSystem>("physics", []),
+            CreateRecordingProxy<IAudioSystem>("audio", []),
+            CreateRecordingProxy<IInputSystem>("input", []),
+            CreateRecordingProxy<IGraphicsSystem>("graphics", []),
+            CreateRecordingProxy<IGraphicalUserInterface>("gui", []),
+            CreateSceneRegistry(),
+            Options.Create(new GameSettings())
+        );
+
+        var exception = Assert.Throws<InvalidOperationException>(runtime.Initialize);
+
+        Assert.Contains("No scenes are registered.", exception.Message);
+    }
+
+    [Fact]
+    public void Initialize_throwsWhenConfiguredStartSceneIsNotRegistered()
+    {
+        var runtime = new NexusRuntime(
+            new EventHub(),
+            CreateRecordingProxy<IGameSystem>("game", []),
+            CreateRecordingProxy<IPhysicsSystem>("physics", []),
+            CreateRecordingProxy<IAudioSystem>("audio", []),
+            CreateRecordingProxy<IInputSystem>("input", []),
+            CreateRecordingProxy<IGraphicsSystem>("graphics", []),
+            CreateRecordingProxy<IGraphicalUserInterface>("gui", []),
+            CreateSceneRegistry("Startup"),
+            Options.Create(new GameSettings { StartSceneId = "MissingScene" })
+        );
+
+        var exception = Assert.Throws<InvalidOperationException>(runtime.Initialize);
+
+        Assert.Contains("Start scene 'MissingScene' is not registered.", exception.Message);
     }
 
     [Fact]
@@ -228,11 +315,37 @@ public class BasicRuntimeTests
     private static void AddRuntimeServices(IServiceCollection services)
     {
         services.AddNexusGui();
+        services.AddSingleton<ISceneRegistry>(CreateSceneRegistry("Startup"));
+        services.AddSingleton<IOptions<GameSettings>>(
+            Options.Create(new GameSettings { StartSceneId = "Startup" })
+        );
         services.AddSingleton<IInputSystem, NoOpInputSystem>();
         services.AddSingleton<IGameSystem, NoOpGameSystem>();
         services.AddSingleton<IPhysicsSystem, NoOpPhysicsSystem>();
         services.AddSingleton<IGraphicsSystem, NoOpGraphicsSystem>();
         services.AddSingleton<IAudioSystem, NoOpAudioSystem>();
+    }
+
+    /// <summary>Creates an isolated registry containing scenes with the supplied names.</summary>
+    /// <param name="sceneNames">The scene identifiers to register.</param>
+    /// <returns>A registry with the requested scene factories.</returns>
+    private static SceneRegistry CreateSceneRegistry(params string[] sceneNames)
+    {
+        var services = new ServiceCollection().BuildServiceProvider();
+        var registry = new SceneRegistry(
+            services,
+            Options.Create(new SceneRegistrySettings { ScanEntryAssembly = false })
+        );
+        foreach (var sceneName in sceneNames)
+            registry.Register(
+                sceneName,
+                () =>
+                    new Scene
+                    {
+                        MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
+                    }
+            );
+        return registry;
     }
 
     /// <summary>Creates a proxy that records calls for runtime scheduling tests.</summary>
@@ -306,6 +419,9 @@ public class BasicRuntimeTests
         public IScene? CurrentScene => null;
 
         public void Initialize() { }
+
+        /// <inheritdoc />
+        public void LoadScene(IScene scene) { }
 
         public void Update(double deltaTime) { }
     }

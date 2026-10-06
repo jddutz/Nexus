@@ -15,6 +15,10 @@ public interface IGameSystem
     /// </summary>
     void Initialize();
 
+    /// <summary>Loads the supplied scene and selects it in the scene registry.</summary>
+    /// <param name="scene">The scene to make current.</param>
+    void LoadScene(IScene scene);
+
     /// <summary>
     /// Updates the game system for the elapsed time since the previous frame.
     /// </summary>
