@@ -14,6 +14,7 @@ namespace Nexus.Runtime;
 /// <param name="graphics">The graphics system.</param>
 /// <param name="gui">The graphical user interface.</param>
 /// <param name="sceneRegistry">The registry used to resolve the configured startup scene.</param>
+/// <param name="sceneManager">The service holding pending scene transition requests.</param>
 /// <param name="gameSettings">The settings containing the startup scene identifier.</param>
 /// <param name="window">The optional window used for runtime callbacks.</param>
 /// <param name="applicationSettings">The optional settings containing runtime limits.</param>
@@ -27,6 +28,7 @@ public sealed class NexusRuntime(
     IGraphicsSystem graphics,
     IGraphicalUserInterface gui,
     ISceneRegistry sceneRegistry,
+    ISceneManager sceneManager,
     IOptions<GameSettings> gameSettings,
     IWindow? window = null,
     IOptions<ApplicationSettings>? applicationSettings = null,
@@ -67,6 +69,7 @@ public sealed class NexusRuntime(
         audio.Initialize();
         graphics.Initialize();
         gui.Initialize();
+        gameSystem.Initialize();
 
         var startSceneId = gameSettings.Value?.StartSceneId;
         if (string.IsNullOrWhiteSpace(startSceneId))
@@ -85,15 +88,7 @@ public sealed class NexusRuntime(
             startSceneId = sceneRegistry.RegisteredScenes.Single();
         }
 
-        var startScene =
-            sceneRegistry.Load(startSceneId)
-            ?? throw new InvalidOperationException(
-                $"Start scene '{startSceneId}' is not registered."
-            );
-
-        gameSystem.Initialize();
-        eventHub.ClearPendingEvents();
-        gameSystem.LoadScene(startScene);
+        sceneManager.LoadScene(startSceneId);
 
         _runtimeStopwatch.Start();
         _initialized = true;
@@ -108,6 +103,20 @@ public sealed class NexusRuntime(
             throw new InvalidOperationException(
                 "The runtime must be initialized before it can be updated."
             );
+
+        if (sceneManager.IsSceneChangePending)
+        {
+            eventHub.ClearPendingEvents();
+
+            if (gameSystem.IsSceneLoaded)
+            {
+                gameSystem.UnloadScene();
+                eventHub.Drain();
+            }
+
+            var newScene = sceneRegistry.Load(sceneManager.PendingSceneId);
+            gameSystem.LoadScene(newScene);
+        }
 
         eventHub.Drain();
 

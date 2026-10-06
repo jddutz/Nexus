@@ -1,6 +1,7 @@
 using System.Reflection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Nexus.Audio;
 using Nexus.Core;
@@ -88,6 +89,7 @@ public class BasicRuntimeTests
             CreateRecordingProxy<IGraphicsSystem>("graphics", calls),
             CreateRecordingProxy<IGraphicalUserInterface>("gui", calls),
             CreateSceneRegistry("Startup"),
+            new SceneManager(new EventHub(), NullLogger<SceneManager>.Instance),
             Options.Create(new GameSettings { StartSceneId = "Startup" })
         );
 
@@ -126,6 +128,43 @@ public class BasicRuntimeTests
     }
 
     [Fact]
+    public void OnRender_consumesPendingSceneChangeAfterTheOutgoingFrame()
+    {
+        var eventHub = new EventHub();
+        var gameSystem = new GameSystem(eventHub, NullLogger<GameSystem>.Instance);
+        var sceneManager = new SceneManager(eventHub, NullLogger<SceneManager>.Instance);
+        var runtime = new NexusRuntime(
+            eventHub,
+            gameSystem,
+            CreateRecordingProxy<IPhysicsSystem>("physics", []),
+            CreateRecordingProxy<IAudioSystem>("audio", []),
+            CreateRecordingProxy<IInputSystem>("input", []),
+            CreateRecordingProxy<IGraphicsSystem>("graphics", []),
+            CreateRecordingProxy<IGraphicalUserInterface>("gui", []),
+            CreateSceneRegistry("Startup", "Next"),
+            sceneManager,
+            Options.Create(new GameSettings { StartSceneId = "Startup" })
+        );
+
+        runtime.Initialize();
+        var outgoingScene = gameSystem.CurrentScene;
+
+        runtime.OnUpdate(1d / 60d);
+
+        Assert.Same(outgoingScene, gameSystem.CurrentScene);
+
+        sceneManager.LoadScene("Next");
+        runtime.OnUpdate(1d / 60d);
+        Assert.Same(outgoingScene, gameSystem.CurrentScene);
+
+        runtime.OnRender(1d / 60d);
+
+        Assert.NotSame(outgoingScene, gameSystem.CurrentScene);
+        Assert.False(outgoingScene!.IsActivated);
+        Assert.True(gameSystem.IsSceneLoaded);
+    }
+
+    [Fact]
     public void Initialize_usesOnlyRegisteredSceneWhenStartSceneIsNotConfigured()
     {
         var calls = new List<string>();
@@ -138,6 +177,7 @@ public class BasicRuntimeTests
             CreateRecordingProxy<IGraphicsSystem>("graphics", []),
             CreateRecordingProxy<IGraphicalUserInterface>("gui", []),
             CreateSceneRegistry("Startup"),
+            new SceneManager(new EventHub(), NullLogger<SceneManager>.Instance),
             Options.Create(new GameSettings())
         );
 
@@ -159,6 +199,7 @@ public class BasicRuntimeTests
             CreateRecordingProxy<IGraphicsSystem>("graphics", []),
             CreateRecordingProxy<IGraphicalUserInterface>("gui", []),
             CreateSceneRegistry("First", "Second"),
+            new SceneManager(new EventHub(), NullLogger<SceneManager>.Instance),
             Options.Create(new GameSettings())
         );
 
@@ -181,6 +222,7 @@ public class BasicRuntimeTests
             CreateRecordingProxy<IGraphicsSystem>("graphics", []),
             CreateRecordingProxy<IGraphicalUserInterface>("gui", []),
             CreateSceneRegistry(),
+            new SceneManager(new EventHub(), NullLogger<SceneManager>.Instance),
             Options.Create(new GameSettings())
         );
 
@@ -201,6 +243,7 @@ public class BasicRuntimeTests
             CreateRecordingProxy<IGraphicsSystem>("graphics", []),
             CreateRecordingProxy<IGraphicalUserInterface>("gui", []),
             CreateSceneRegistry("Startup"),
+            new SceneManager(new EventHub(), NullLogger<SceneManager>.Instance),
             Options.Create(new GameSettings { StartSceneId = "MissingScene" })
         );
 
@@ -315,7 +358,12 @@ public class BasicRuntimeTests
 
     private static void AddRuntimeServices(IServiceCollection services)
     {
+        services.AddLogging();
         services.AddNexusGui();
+        services.AddSingleton<SceneManager>();
+        services.AddSingleton<ISceneManager>(provider =>
+            provider.GetRequiredService<SceneManager>()
+        );
         services.AddSingleton<ISceneRegistry>(CreateSceneRegistry("Startup"));
         services.AddSingleton<IOptions<GameSettings>>(
             Options.Create(new GameSettings { StartSceneId = "Startup" })

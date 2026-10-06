@@ -36,7 +36,7 @@ public partial class GameSystem(
     public event Action<string>? PropertyChanged;
 
     /// <inheritdoc />
-    public bool IsSceneLoaded => CurrentScene is { IsActivated: true };
+    public bool IsSceneLoaded => CurrentScene is { IsLoaded: true };
 
     /// <summary>
     /// Represents an entity and its expected ownership in a lifecycle traversal snapshot.
@@ -115,8 +115,11 @@ public partial class GameSystem(
             );
 
         CurrentScene = scene;
+
         SubscribeCurrentScene(scene);
-        RunLifecycleTraversal(scene, 0, updateEntities: false);
+
+        scene.IsLoaded = true;
+
         _eventHub.Publish(new SceneLoadedEvent(scene));
     }
 
@@ -133,6 +136,8 @@ public partial class GameSystem(
         if (!IsSceneLoaded || CurrentScene is not { } scene)
             return;
 
+        scene.IsLoaded = false;
+
         foreach (var child in scene.Children.ToArray().Reverse())
             DeactivateSubtree(child);
 
@@ -142,6 +147,41 @@ public partial class GameSystem(
         UnsubscribeCurrentScene(scene);
         _eventHub.Publish(new SceneUnloadedEvent(scene));
 
+        if (scene is IDisposable disposableScene)
+        {
+            disposableScene.Dispose();
+        }
+        else
+        {
+            var nodesToDispose = new Stack<(ISceneNode Node, bool IsPostOrder)>();
+            foreach (var child in scene.Children)
+                nodesToDispose.Push((child, false));
+
+            while (nodesToDispose.TryPop(out var entry))
+            {
+                var (node, isPostOrder) = entry;
+                if (node is IDisposable disposableNode)
+                {
+                    disposableNode.Dispose();
+                    continue;
+                }
+
+                if (!isPostOrder)
+                {
+                    nodesToDispose.Push((node, true));
+                    foreach (var child in node.Children)
+                        nodesToDispose.Push((child, false));
+                    continue;
+                }
+
+                if (node is IGameObject gameObject)
+                    foreach (var component in gameObject.Components.Reverse())
+                        if (component is IDisposable disposableComponent)
+                            disposableComponent.Dispose();
+            }
+        }
+
+        CurrentScene = null;
         _logger.LogInformation("Scene unloaded. SceneType={SceneType}", scene.GetType().Name);
     }
 

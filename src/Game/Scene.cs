@@ -26,6 +26,9 @@ public partial class Scene : IScene
     [Observable(PublicSetter = true, Required = true)]
     private ICamera _mainCamera = null!;
 
+    [Observable(PublicSetter = true)]
+    private bool _isLoaded = false;
+
     /// <summary>
     /// Initializes a new instance of the <see cref="Scene"/> class with the specified identifier.
     /// </summary>

@@ -69,11 +69,13 @@ public class SceneRegistry : ISceneRegistry
     }
 
     /// <inheritdoc/>
-    public IScene? Load(string sceneName)
+    public IScene Load(string sceneName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sceneName);
         if (!_sceneFactories.TryGetValue(sceneName, out var factory))
-            return null;
+            throw new InvalidOperationException(
+                $"No scene is registered with name '{sceneName}'."
+            );
 
         return factory()
             ?? throw new InvalidOperationException(

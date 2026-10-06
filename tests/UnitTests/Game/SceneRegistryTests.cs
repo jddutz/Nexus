@@ -12,10 +12,10 @@ using Nexus.Game;
 public class SceneRegistryTests
 {
     /// <summary>
-    /// Verifies a registered factory is used and unknown identifiers are not loaded.
+    /// Verifies a registered factory is used and unknown identifiers throw.
     /// </summary>
     [Fact]
-    public void Load_usesRegisteredFactoryAndReturnsNullForUnknownScene()
+    public void Load_usesRegisteredFactoryAndThrowsForUnknownScene()
     {
         var registry = SceneRegistryTestHelper.CreateEmptyRegistry();
         const string sceneName = "WelcomeScreen";
@@ -30,7 +30,7 @@ public class SceneRegistryTests
         Assert.Equal(1, registry.SceneCount);
         Assert.Equal([sceneName], registry.RegisteredScenes);
         Assert.Same(scene, registry.Load(sceneName));
-        Assert.Null(registry.Load("UnknownScene"));
+        Assert.Throws<InvalidOperationException>(() => registry.Load("UnknownScene"));
     }
 
     /// <summary>

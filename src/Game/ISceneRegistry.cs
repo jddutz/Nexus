@@ -23,7 +23,9 @@ public interface ISceneRegistry : IObservable
     /// Loads the scene with the specified name.
     /// </summary>
     /// <param name="sceneName">The name of the scene to load.</param>
-    /// <returns>The loaded scene, or <see langword="null"/> when it cannot be loaded.</returns>
-    /// <exception cref="InvalidOperationException">The registered factory returns <see langword="null"/>.</exception>
-    IScene? Load(string sceneName);
+    /// <returns>The loaded scene.</returns>
+    /// <exception cref="InvalidOperationException">
+    /// The scene is not registered, or its registered factory returns <see langword="null"/>.
+    /// </exception>
+    IScene Load(string sceneName);
 }

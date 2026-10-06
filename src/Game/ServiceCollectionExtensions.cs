@@ -26,6 +26,7 @@ public static class ServiceCollectionExtensions
         services.AddOptions<SceneRegistrySettings>();
         services.TryAddSingleton<IFontBuilder, FontBuilder>();
         services.TryAddSingleton<IGameSystem, GameSystem>();
+        services.TryAddSingleton<ISceneManager, SceneManager>();
         services.TryAddSingleton<ISceneRegistry, SceneRegistry>();
 
         return services;

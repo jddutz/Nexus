@@ -94,7 +94,7 @@ Add `appsettings.json`:
 }
 ```
 
-Concrete `IScene` implementations in the entry assembly are discovered by default; `SceneAttribute` can override a scene's class-name-based id. At startup, `NexusRuntime` resolves `Game:StartSceneId` through `ISceneRegistry`, or uses the sole registered scene when that setting is absent, and clears setup events before loading the scene. `GameSystem.LoadScene` initializes and activates the scene hierarchy synchronously and publishes `SceneLoadedEvent`; unload must be explicit before another scene can be loaded. Multiple scenes require an explicit start scene.
+Concrete `IScene` implementations in the entry assembly are discovered by default; `SceneAttribute` can override a scene's class-name-based id. At startup, `NexusRuntime` resolves `Game:StartSceneId` through `ISceneRegistry`, or uses the sole registered scene when that setting is absent, and clears setup events before loading the scene. Designers request transitions through `ISceneManager`; the runtime consumes the latest request after rendering the outgoing frame, resolves it through `ISceneRegistry`, and delegates unload/load lifecycle to `GameSystem`. `GameSystem.LoadScene` initializes and activates the scene hierarchy synchronously and publishes `SceneLoadedEvent`. Multiple scenes require an explicit start scene.
 
 Configure the project to copy the settings and built content into its output directory:
 
