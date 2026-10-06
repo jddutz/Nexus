@@ -36,7 +36,7 @@ public partial class GameSystem(
     public event Action<string>? PropertyChanged;
 
     /// <inheritdoc />
-    public bool IsSceneLoaded => CurrentScene is { IsLoaded: true };
+    public bool IsSceneLoaded => CurrentScene is { IsActivated: true };
 
     /// <summary>
     /// Represents an entity and its expected ownership in a lifecycle traversal snapshot.
@@ -117,7 +117,6 @@ public partial class GameSystem(
         CurrentScene = scene;
         SubscribeCurrentScene(scene);
         RunLifecycleTraversal(scene, 0, updateEntities: false);
-        SetSceneLoaded(scene, true);
         _eventHub.Publish(new SceneLoadedEvent(scene));
     }
 
@@ -140,7 +139,6 @@ public partial class GameSystem(
         if (scene.IsActivated)
             scene.Deactivate();
 
-        SetSceneLoaded(scene, false);
         UnsubscribeCurrentScene(scene);
         _eventHub.Publish(new SceneUnloadedEvent(scene));
 
@@ -530,17 +528,6 @@ public partial class GameSystem(
         }
 
         UnsubscribeSceneNode(scene);
-    }
-
-    /// <summary>
-    /// Updates the loaded state for engine-provided scenes.
-    /// </summary>
-    /// <param name="scene">The scene whose loaded state changes.</param>
-    /// <param name="isLoaded">Whether the scene hierarchy is loaded.</param>
-    private static void SetSceneLoaded(IScene scene, bool isLoaded)
-    {
-        if (scene is Scene concreteScene)
-            concreteScene.IsLoaded = isLoaded;
     }
 
     /// <summary>Synchronizes an initialized scene's camera viewport with the main window.</summary>

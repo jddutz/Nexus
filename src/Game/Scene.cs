@@ -143,9 +143,6 @@ public partial class Scene : IScene
     [Observable(PublicSetter = false)]
     private bool _isInitialized = false;
 
-    [Observable(PublicSetter = false)]
-    private bool _isLoaded = false;
-
     /// <inheritdoc />
     public virtual void Initialize()
     {

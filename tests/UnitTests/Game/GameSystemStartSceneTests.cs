@@ -28,21 +28,24 @@ public class GameSystemStartSceneTests
         var gameSystem = new SceneSelectingGameSystem(scene);
 
         Assert.Same(scene, gameSystem.CurrentScene);
-        Assert.False(scene.IsLoaded);
+        Assert.False(scene.IsActivated);
         Assert.False(gameSystem.IsSceneLoaded);
     }
 
-    /// <summary>Verifies scene activation alone does not mark it as loaded.</summary>
+    /// <summary>Verifies loaded status reflects the current scene's activation state.</summary>
     [Fact]
-    public void SceneActivation_doesNotSetLoadedState()
+    public void IsSceneLoaded_reflectsCurrentSceneActivation()
     {
         var scene = CreateScene();
+        var gameSystem = new SceneSelectingGameSystem(scene);
 
         scene.Initialize();
+        Assert.False(gameSystem.IsSceneLoaded);
+
         scene.Activate();
 
         Assert.True(scene.IsActivated);
-        Assert.False(scene.IsLoaded);
+        Assert.True(gameSystem.IsSceneLoaded);
     }
 
     /// <summary>Verifies loading activates the scene hierarchy before returning.</summary>
@@ -58,7 +61,6 @@ public class GameSystemStartSceneTests
 
         Assert.Same(scene, gameSystem.CurrentScene);
         Assert.True(gameSystem.IsSceneLoaded);
-        Assert.True(scene.IsLoaded);
         Assert.True(scene.IsInitialized);
         Assert.True(scene.IsActivated);
         Assert.True(child.IsInitialized);
@@ -82,9 +84,9 @@ public class GameSystemStartSceneTests
         Assert.True(observer.WasActivatedWhenPublished);
     }
 
-    /// <summary>Verifies loaded-state changes raise observable property notifications.</summary>
+    /// <summary>Verifies activation changes raise observable property notifications.</summary>
     [Fact]
-    public void IsLoaded_notifiesWhenSceneLoadsAndUnloads()
+    public void Activation_notifiesWhenSceneLoadsAndUnloads()
     {
         var scene = CreateScene();
         var propertyChanges = new List<string>();
@@ -96,7 +98,7 @@ public class GameSystemStartSceneTests
 
         Assert.Equal(
             2,
-            propertyChanges.Count(propertyName => propertyName == nameof(Scene.IsLoaded))
+            propertyChanges.Count(propertyName => propertyName == nameof(Scene.IsActivated))
         );
     }
 
@@ -132,7 +134,6 @@ public class GameSystemStartSceneTests
 
         Assert.False(gameSystem.IsSceneLoaded);
         Assert.Same(scene, gameSystem.CurrentScene);
-        Assert.False(scene.IsLoaded);
         Assert.False(scene.IsActivated);
         Assert.False(child.IsActivated);
     }
