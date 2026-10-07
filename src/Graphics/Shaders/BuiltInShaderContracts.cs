@@ -66,7 +66,7 @@ public static class BuiltInShaders
         PrimitiveTopologyEnum.TriangleStrip, BuiltInVertexFormats.TexturedQuad,
         [new(InputSemantics.View, 64)],
         [new(InputSemantics.Transform, 64), new(InputSemantics.TextureRegion, 16),
-         new(InputSemantics.Color, 16), new(InputSemantics.ClippingMask, 4)]);
+         new(InputSemantics.Color, 16), new(InputSemantics.ClippingMask, 8)]);
 
     public static FragmentShader MaskedTexturedQuadFragmentShader { get; } = new(
         nameof(MaskedTexturedQuadFragmentShader), "masked_textured_quad.frag",

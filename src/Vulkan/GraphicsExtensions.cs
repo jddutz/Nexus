@@ -43,10 +43,11 @@ public static class GraphicsExtensions
     {
         var format = input.Semantic switch
         {
+            InputSemantics.ClippingMask when input.Size == 8 => Format.R32G32Sfloat,
             InputSemantics.Transform when input.Size == 64 => Format.R32G32B32A32Sfloat,
             InputSemantics.Color or InputSemantics.TextureRegion when input.Size == 16 =>
                 Format.R32G32B32A32Sfloat,
-            InputSemantics.MsdfDistanceRange or InputSemantics.ClippingMask when input.Size == sizeof(float) => Format.R32Sfloat,
+            InputSemantics.MsdfDistanceRange when input.Size == sizeof(float) => Format.R32Sfloat,
             InputSemantics.Transform
             or InputSemantics.Color
             or InputSemantics.TextureRegion

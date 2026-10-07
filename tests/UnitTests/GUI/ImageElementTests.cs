@@ -18,6 +18,7 @@ public sealed class ImageElementTests
         image.SourceRegion = new(20, 10, 50, 60);
         image.SizingMode = ImageSizingMode.Stretch;
         image.ClippingMask = ClippingMask.LowerHalfDiamond;
+        image.ClippingInset = 0.04f;
         image.Arrange(new(10f, 20f, 80f, 90f));
         var renderer = image.GetComponent<TextureRenderer>()!;
         var masked = Assert.IsType<TexturedQuad>(Assert.Single(renderer.Drawables));
@@ -25,9 +26,13 @@ public sealed class ImageElementTests
         Assert.Same(BuiltInShaders.MaskedTexturedQuadVertexShader, masked.VertexShader);
         Assert.Same(BuiltInShaders.MaskedTexturedQuadFragmentShader, masked.FragmentShader);
         Assert.Equal(new Vector4D<float>(0.2f, 0.1f, 0.5f, 0.6f), masked.TexCoord);
-        var bytes = new byte[100];
+        var bytes = new byte[104];
         masked.WriteInstanceDataTo(0, 1, masked.VertexShader!.InstanceLayout, bytes);
         Assert.Equal(2f, MemoryMarshal.Read<float>(bytes.AsSpan(96)));
+        Assert.Equal(0.04f, MemoryMarshal.Read<float>(bytes.AsSpan(100)));
+        image.ClippingInset = 0.02f;
+        Assert.Equal(0.02f, masked.ClippingInset);
+        Assert.Throws<ArgumentOutOfRangeException>(() => image.ClippingInset = 0.5f);
         var bounds = image.Bounds;
         image.ClippingMask = ClippingMask.None;
         var plain = Assert.IsType<TexturedQuad>(Assert.Single(renderer.Drawables));

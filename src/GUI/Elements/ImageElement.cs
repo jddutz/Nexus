@@ -64,6 +64,20 @@ public partial class ImageElement : Element
     [Observable(PublicSetter = true)]
     private Nexus.Graphics.ClippingMask _clippingMask;
 
+    /// <summary>Moves the geometric mask inward without resizing the image or changing its source.</summary>
+    [Observable(PublicSetter = true)]
+    private float _clippingInset;
+
+    protected virtual void SetClippingInset(float value)
+    {
+        if (!float.IsFinite(value) || value < 0f || value >= 0.5f)
+            throw new ArgumentOutOfRangeException(nameof(value));
+        _clippingInset = value;
+    }
+
+    protected virtual partial void AfterClippingInsetChanges() =>
+        _imageComponent.ClippingInset = ClippingInset;
+
     protected virtual void SetClippingMask(Nexus.Graphics.ClippingMask value)
     {
         if (!Enum.IsDefined(value)) throw new ArgumentOutOfRangeException(nameof(value));

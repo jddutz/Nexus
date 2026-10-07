@@ -83,6 +83,20 @@ public partial class TextureRenderer : Component, IRenderer
     [Observable(PublicSetter = true)]
     private Nexus.Graphics.ClippingMask _clippingMask;
 
+    /// <summary>Normalized inward offset of the mask boundary, from zero up to but excluding 0.5.</summary>
+    [Observable(PublicSetter = true)]
+    private float _clippingInset;
+
+    protected virtual void SetClippingInset(float value)
+    {
+        if (!float.IsFinite(value) || value < 0f || value >= 0.5f)
+            throw new ArgumentOutOfRangeException(nameof(value));
+        _clippingInset = value;
+    }
+
+    protected virtual partial void AfterClippingInsetChanges() =>
+        UpdateDrawable(drawable => drawable.ClippingInset = ClippingInset);
+
     protected virtual void SetClippingMask(Nexus.Graphics.ClippingMask value)
     {
         if (!Enum.IsDefined(value)) throw new ArgumentOutOfRangeException(nameof(value));
@@ -137,6 +151,7 @@ public partial class TextureRenderer : Component, IRenderer
                     TexCoord = TexCoord,
                     Color = Color,
                     ClippingMask = ClippingMask,
+                    ClippingInset = ClippingInset,
                 }
             );
             return;

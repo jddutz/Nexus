@@ -42,6 +42,19 @@ public partial class TexturedQuad : IDrawable
     [Observable(PublicSetter = true)]
     private Nexus.Graphics.ClippingMask _clippingMask;
 
+    [Observable(PublicSetter = true)]
+    private float _clippingInset;
+
+    protected virtual void SetClippingInset(float value)
+    {
+        if (!float.IsFinite(value) || value < 0f || value >= 0.5f)
+            throw new ArgumentOutOfRangeException(nameof(value));
+        _clippingInset = value;
+    }
+
+    protected virtual partial void AfterClippingInsetChanges() =>
+        InstanceDataChanged?.Invoke(this, EventArgs.Empty);
+
     protected virtual void SetClippingMask(Nexus.Graphics.ClippingMask value)
     {
         if (!Enum.IsDefined(value)) throw new ArgumentOutOfRangeException(nameof(value));
@@ -122,7 +135,7 @@ public partial class TexturedQuad : IDrawable
         MemoryMarshal.Write(target[80..], in color);
         if (layout.Length == 4)
         {
-            var mask = (float)ClippingMask;
+            var mask = new Vector2D<float>((float)ClippingMask, ClippingInset);
             MemoryMarshal.Write(target[96..], in mask);
         }
     }
@@ -161,7 +174,7 @@ public partial class TexturedQuad : IDrawable
             || layout[0] is not { Semantic: InputSemantics.Transform, Size: 64 }
             || layout[1] is not { Semantic: InputSemantics.TextureRegion, Size: 16 }
             || layout[2] is not { Semantic: InputSemantics.Color, Size: 16 }
-            || (layout.Length == 4 && layout[3] is not { Semantic: InputSemantics.ClippingMask, Size: 4 })
+            || (layout.Length == 4 && layout[3] is not { Semantic: InputSemantics.ClippingMask, Size: 8 })
         )
             throw new ArgumentException(
                 "The instance layout must contain Transform, TextureRegion, and Color inputs.",
