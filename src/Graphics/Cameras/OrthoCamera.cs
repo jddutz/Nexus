@@ -50,6 +50,9 @@ public partial class OrthoCamera : Component, ICamera
     /// <summary>Gets the fixed right direction, always +X.</summary>
     public Vector3D<float> Right { get; } = Vector3D<float>.UnitX;
 
+    /// <summary>Gets the aspect ratio represented by the orthographic projection.</summary>
+    public float AspectRatio => Height == 0f ? 1f : Width / Height;
+
     /// <summary>Invalidates cached matrices after a camera property changes.</summary>
     protected virtual partial void AfterPositionChanges(Vector3D<float> previousValue) =>
         InvalidateMatrices();

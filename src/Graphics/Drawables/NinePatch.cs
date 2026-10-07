@@ -39,6 +39,20 @@ public partial class NinePatch : IDrawable
     [Observable(PublicSetter = true)]
     private Vector4D<float> _sourceBorders;
 
+    /// <summary>Scales rendered border thickness without changing source texture slices.</summary>
+    [Observable(PublicSetter = true)]
+    private float _borderScale = 1f;
+
+    protected virtual void SetBorderScale(float value)
+    {
+        if (!float.IsFinite(value) || value < 0f)
+            throw new ArgumentOutOfRangeException(nameof(value));
+        _borderScale = value;
+    }
+
+    protected virtual partial void AfterBorderScaleChanges() =>
+        InstanceDataChanged?.Invoke(this, EventArgs.Empty);
+
     [Observable(PublicSetter = true)]
     private Color _color = Colors.White;
 
@@ -120,7 +134,7 @@ public partial class NinePatch : IDrawable
         var sourceBottom = SourceBorders.W / textureHeight;
         var horizontalBorders = SourceBorders.X + SourceBorders.Z;
         var verticalBorders = SourceBorders.Y + SourceBorders.W;
-        var scale = 1f;
+        var scale = BorderScale;
         if (horizontalBorders > 0f)
             scale = MathF.Min(scale, Destination.Size.X / horizontalBorders);
         if (verticalBorders > 0f)

@@ -703,10 +703,8 @@ public unsafe class VulkanGraphicsSystem(
                     batches,
                     new SetViewportScissorCommand(
                         RenderPasses.Start,
-                        clip.X,
-                        clip.Y,
-                        clip.Width,
-                        clip.Height
+                        view.ViewportRegion,
+                        view.ClippingRegion
                     )
                 );
 
@@ -724,10 +722,18 @@ public unsafe class VulkanGraphicsSystem(
                     batches,
                     new SetViewportScissorCommand(
                         RenderPasses.End,
-                        0,
-                        0,
-                        swapChain.Extent.Width,
-                        swapChain.Extent.Height
+                        new Rectangle<int>(
+                            0,
+                            0,
+                            checked((int)swapChain.Extent.Width),
+                            checked((int)swapChain.Extent.Height)
+                        ),
+                        new Rectangle<int>(
+                            0,
+                            0,
+                            checked((int)swapChain.Extent.Width),
+                            checked((int)swapChain.Extent.Height)
+                        )
                     )
                 );
 

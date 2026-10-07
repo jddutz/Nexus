@@ -53,14 +53,14 @@ public partial class TextureRenderer : Component, IRenderer
 
     /// <inheritdoc />
     protected virtual partial void AfterVertexShaderChanges(VertexShader? previousValue) =>
-        UpdateDrawable(drawable => drawable.VertexShader = VertexShader);
+        UpdateDrawable(drawable => drawable.VertexShader = GetVertexShader());
 
     [Observable(PublicSetter = true)]
     private FragmentShader? _fragmentShader = BuiltInShaders.TexturedQuadFragmentShader;
 
     /// <inheritdoc />
     protected virtual partial void AfterFragmentShaderChanges(FragmentShader? previousValue) =>
-        UpdateDrawable(drawable => drawable.FragmentShader = FragmentShader);
+        UpdateDrawable(drawable => drawable.FragmentShader = GetFragmentShader());
 
     [Observable(PublicSetter = true)]
     private Rectangle<float> _destination = new(0f, 0f, 1f, 1f);
@@ -78,6 +78,34 @@ public partial class TextureRenderer : Component, IRenderer
 
     [Observable(PublicSetter = true)]
     private Color _color = Colors.White;
+
+    /// <summary>Clips the image geometrically in normalized destination coordinates.</summary>
+    [Observable(PublicSetter = true)]
+    private Nexus.Graphics.ClippingMask _clippingMask;
+
+    protected virtual void SetClippingMask(Nexus.Graphics.ClippingMask value)
+    {
+        if (!Enum.IsDefined(value)) throw new ArgumentOutOfRangeException(nameof(value));
+        _clippingMask = value;
+        if (value != Nexus.Graphics.ClippingMask.None
+            && (VertexShader != BuiltInShaders.TexturedQuadVertexShader
+                || FragmentShader != BuiltInShaders.TexturedQuadFragmentShader))
+            throw new InvalidOperationException("Built-in clipping masks require the default textured-quad shaders.");
+        _clippingMask = value;
+    }
+
+    protected virtual partial void AfterClippingMaskChanges()
+    {
+        // Changing the mask changes the instance layout, so recreate the drawable allocation.
+        UnregisterDrawable();
+        SynchronizeDrawable();
+    }
+
+    private VertexShader? GetVertexShader() => ClippingMask == Nexus.Graphics.ClippingMask.None
+        ? VertexShader : BuiltInShaders.MaskedTexturedQuadVertexShader;
+
+    private FragmentShader? GetFragmentShader() => ClippingMask == Nexus.Graphics.ClippingMask.None
+        ? FragmentShader : BuiltInShaders.MaskedTexturedQuadFragmentShader;
 
     /// <inheritdoc />
     protected virtual partial void AfterColorChanges() =>
@@ -103,11 +131,12 @@ public partial class TextureRenderer : Component, IRenderer
                     RenderLayerMask = RenderLayerMask,
                     DrawOrder = DrawOrder,
                     SamplingBehavior = samplingBehavior,
-                    VertexShader = VertexShader,
-                    FragmentShader = FragmentShader,
+                    VertexShader = GetVertexShader(),
+                    FragmentShader = GetFragmentShader(),
                     Destination = Destination,
                     TexCoord = TexCoord,
                     Color = Color,
+                    ClippingMask = ClippingMask,
                 }
             );
             return;

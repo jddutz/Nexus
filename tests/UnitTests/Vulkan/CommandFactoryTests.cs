@@ -654,6 +654,8 @@ public class CommandFactoryTests
         public uint Height => 1;
         public ulong Count => 1;
         public ColorFormatEnum TextureFormat => ColorFormatEnum.RGBA8UNorm;
+        public IReadOnlyList<TextureRegion> Regions => [];
+        public TextureRegion GetRegion(string name) => throw new KeyNotFoundException(name);
 
         public void WriteTo(ulong start, ulong count, ColorFormatEnum format, Span<byte> target) { }
     }

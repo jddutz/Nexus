@@ -10,6 +10,7 @@ public static class InputSemantics
 
     /// <summary>Per-instance MSDF distance range in atlas pixels.</summary>
     public const int MsdfDistanceRange = 5;
+    public const int ClippingMask = 6;
 
     public static readonly int[] All =
     [
@@ -19,5 +20,6 @@ public static class InputSemantics
         Color,
         TextureRegion,
         MsdfDistanceRange,
+        ClippingMask,
     ];
 }

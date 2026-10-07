@@ -60,6 +60,19 @@ public partial class ImageElement : Element
     [Observable(PublicSetter = true)]
     private ImageSizingMode _sizingMode = ImageSizingMode.Original;
 
+    /// <summary>Clips the displayed image without changing its layout or atlas source region.</summary>
+    [Observable(PublicSetter = true)]
+    private Nexus.Graphics.ClippingMask _clippingMask;
+
+    protected virtual void SetClippingMask(Nexus.Graphics.ClippingMask value)
+    {
+        if (!Enum.IsDefined(value)) throw new ArgumentOutOfRangeException(nameof(value));
+        _clippingMask = value;
+    }
+
+    protected virtual partial void AfterClippingMaskChanges() =>
+        _imageComponent.ClippingMask = ClippingMask;
+
     private Vector2D<float>? _customSize;
     private Vector4D<float>? _customTexCoord;
 

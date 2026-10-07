@@ -8,6 +8,11 @@ namespace Nexus.Graphics.Cameras;
 public interface ICamera
 {
     /// <summary>
+    /// Gets the aspect ratio represented by the camera projection.
+    /// </summary>
+    float AspectRatio { get; }
+
+    /// <summary>
     /// Gets the view matrix representing the camera's transformation in world space.
     /// </summary>
     Matrix4X4<float> ViewMatrix { get; }

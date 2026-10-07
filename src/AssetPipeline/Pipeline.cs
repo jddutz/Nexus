@@ -29,7 +29,7 @@ public sealed class Pipeline
                 .WithNamingConvention(CamelCaseNamingConvention.Instance)
                 .IgnoreUnmatchedProperties()
                 .Build();
-            var textureEntries = new Dictionary<string, Dictionary<string, string>>(
+            var textureEntries = new Dictionary<string, Dictionary<string, object>>(
                 StringComparer.Ordinal
             );
             var fontEntries = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -102,19 +102,29 @@ public sealed class Pipeline
     private void ProcessTextures(
         AssetDefinition asset,
         string sourceRoot,
-        Dictionary<string, Dictionary<string, string>> textureEntries
+        Dictionary<string, Dictionary<string, object>> textureEntries
     )
     {
-        var textureSection = new Dictionary<string, string>(StringComparer.Ordinal);
+        var groupName = asset.GroupName.Length == 0 ? "Textures" : asset.GroupName;
+        if (!textureEntries.TryGetValue(groupName, out var textureSection))
+        {
+            textureSection = new Dictionary<string, object>(StringComparer.Ordinal);
+            textureEntries.Add(groupName, textureSection);
+        }
         var sourceFolder = Path.Combine(sourceRoot, asset.Path);
         var outputFolder = Path.Combine(_outputFolder, asset.Path);
         Directory.CreateDirectory(outputFolder);
 
-        foreach (var file in asset.Files)
+        foreach (var file in ExpandTextureFiles(sourceFolder, asset.Files))
         {
             var sourcePath = Path.GetFullPath(Path.Combine(sourceFolder, file));
             var outputPath = Path.GetFullPath(Path.Combine(outputFolder, file));
-            var contentId = Path.GetFileNameWithoutExtension(file);
+            var contentId = asset.GroupName.Length == 0
+                ? Path.GetFileNameWithoutExtension(file)
+                : $"{asset.GroupName}.{Path.GetFileName(file)}";
+
+            if (textureEntries.Values.Any(entries => entries.ContainsKey(contentId)))
+                throw new InvalidOperationException($"Duplicate texture content ID '{contentId}'. Use distinct group names or filenames.");
 
             PipelineLog.Info(
                 $"Texture '{contentId}': Source='{sourcePath}', Output='{outputPath}', "
@@ -131,11 +141,71 @@ public sealed class Pipeline
 
             var relativeOutputPath = Path.GetRelativePath(_outputFolder, outputPath)
                 .Replace('\\', '/');
-            textureSection[contentId] = relativeOutputPath;
+            var entry = new Dictionary<string, object> { ["FilePath"] = relativeOutputPath };
+            if (asset.Regions is { Enabled: true } settings)
+            {
+                using var stream = File.OpenRead(sourcePath);
+                var image = StbImageSharp.ImageResult.FromStream(stream, StbImageSharp.ColorComponents.RedGreenBlueAlpha);
+                entry["Regions"] = TextureRegionExtractor.Extract(image.Data, image.Width, image.Height, settings)
+                    .ToDictionary(region => region.Name, region => (object)new
+                    {
+                        Bounds = new
+                        {
+                            X = region.Bounds.Origin.X,
+                            Y = region.Bounds.Origin.Y,
+                            Width = region.Bounds.Size.X,
+                            Height = region.Bounds.Size.Y,
+                        },
+                        TexCoords = new
+                        {
+                            X = region.TexCoords.Origin.X,
+                            Y = region.TexCoords.Origin.Y,
+                            Width = region.TexCoords.Size.X,
+                            Height = region.TexCoords.Size.Y,
+                        },
+                    });
+            }
+            textureSection[contentId] = entry;
             PipelineLog.Info($"Texture '{contentId}' copied. RelativePath='{relativeOutputPath}'.");
         }
 
-        textureEntries[asset.GroupName.Length == 0 ? "Textures" : asset.GroupName] = textureSection;
+
+    }
+
+    /// <summary>Expands filename wildcards in a literal directory, preserving relative paths.</summary>
+    private static IReadOnlyList<string> ExpandTextureFiles(string sourceFolder, string[] files)
+    {
+        var root = Path.GetFullPath(sourceFolder);
+        var matches = new HashSet<string>(OperatingSystem.IsWindows()
+            ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+        foreach (var file in files)
+        {
+            var fullPattern = Path.GetFullPath(Path.Combine(root, file));
+            var directory = Path.GetDirectoryName(fullPattern)!;
+            var pattern = Path.GetFileName(fullPattern);
+            var relative = Path.GetRelativePath(root, fullPattern);
+            if (Path.IsPathRooted(relative) || relative == ".."
+                || relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+                throw new InvalidOperationException($"Texture file '{file}' must stay within '{root}'.");
+            if (directory.IndexOfAny(['*', '?']) >= 0 || pattern.Contains("**", StringComparison.Ordinal))
+                throw new InvalidOperationException($"Texture pattern '{file}' supports * and ? in filenames only; recursive ** patterns are not supported.");
+            if (pattern.IndexOfAny(['*', '?']) < 0)
+            {
+                matches.Add(relative);
+                continue;
+            }
+            var expanded = Directory.EnumerateFiles(directory, pattern, new EnumerationOptions
+            {
+                MatchType = System.IO.MatchType.Simple,
+                RecurseSubdirectories = false,
+                AttributesToSkip = 0,
+            }).ToArray();
+            if (expanded.Length == 0)
+                throw new FileNotFoundException($"Texture pattern '{file}' matched no files in '{directory}'.");
+            foreach (var path in expanded)
+                matches.Add(Path.GetRelativePath(root, path));
+        }
+        return matches.Order(StringComparer.Ordinal).ToArray();
     }
 
     /// <summary>
@@ -294,7 +364,7 @@ public sealed class Pipeline
         };
 
     private void WriteManifest(
-        Dictionary<string, Dictionary<string, string>> textureEntries,
+        Dictionary<string, Dictionary<string, object>> textureEntries,
         Dictionary<string, string> fontEntries,
         Dictionary<string, FontRasterizerInput> fontRasterizerInputs
     )
@@ -320,7 +390,7 @@ public sealed class Pipeline
                     .ToDictionary(
                         entry => entry.Key,
                         entry =>
-                            (object)new Dictionary<string, string> { ["FilePath"] = entry.Value },
+                            entry.Value,
                         StringComparer.Ordinal
                     ),
             },

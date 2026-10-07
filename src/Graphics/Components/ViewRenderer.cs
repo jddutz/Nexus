@@ -17,6 +17,9 @@ public partial class ViewRenderer : Component
     [Observable]
     private Rectangle<int> _clippingRegion;
 
+    /// <summary>Gets or sets the viewport used to map camera projection coordinates.</summary>
+    public Rectangle<int> ViewportRegion { get; set; }
+
     /// <summary>Gets or sets whether the clipping rectangle is explicit instead of full-target.</summary>
     [Observable]
     private bool _hasExplicitClippingRegion;

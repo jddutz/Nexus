@@ -79,6 +79,20 @@ public partial class NinePatchRenderer : Component, IRenderer
     [Observable(PublicSetter = true)]
     private Vector4D<float> _sourceBorders = new(0f, 0f, 0f, 0f);
 
+    /// <summary>Scales rendered borders independently of source pixel insets.</summary>
+    [Observable(PublicSetter = true)]
+    private float _borderScale = 1f;
+
+    protected virtual void SetBorderScale(float value)
+    {
+        if (!float.IsFinite(value) || value < 0f)
+            throw new ArgumentOutOfRangeException(nameof(value));
+        _borderScale = value;
+    }
+
+    protected virtual partial void AfterBorderScaleChanges() =>
+        UpdateDrawable(drawable => drawable.BorderScale = BorderScale);
+
     /// <inheritdoc />
     protected virtual partial void AfterSourceBordersChanges() =>
         UpdateDrawable(drawable => drawable.SourceBorders = SourceBorders);
@@ -113,6 +127,7 @@ public partial class NinePatchRenderer : Component, IRenderer
                     Destination = Destination,
                     TexCoord = TexCoord,
                     SourceBorders = SourceBorders,
+                    BorderScale = BorderScale,
                     Color = Color,
                 }
             );

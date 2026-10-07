@@ -48,7 +48,7 @@ public sealed class TextureRegistry(IContentManifest manifest, ILogger<TextureRe
             _manifest.Textures.GetContentFilePath(contentId)
         );
 
-        var texture = LoadTextureFile(contentId, filepath);
+        var texture = LoadTextureFile(contentId, filepath, _manifest.GetTextureRegions(contentId));
         Register(contentId, texture);
         return texture;
     }
@@ -82,7 +82,7 @@ public sealed class TextureRegistry(IContentManifest manifest, ILogger<TextureRe
     /// <param name="contentId">The content identifier assigned to the texture.</param>
     /// <param name="filepath">The path of the image file to load.</param>
     /// <returns>The loaded texture or an invalid fallback texture.</returns>
-    private Texture LoadTextureFile(ContentId contentId, string filepath)
+    private Texture LoadTextureFile(ContentId contentId, string filepath, IReadOnlyList<TextureRegion>? regions = null)
     {
         using var loadTiming = new LoadPerformanceScope(_profiler, "texture.file.load", contentId.Value);
         try
@@ -110,7 +110,8 @@ public sealed class TextureRegistry(IContentManifest manifest, ILogger<TextureRe
                 (uint)image.Width,
                 (uint)image.Height,
                 colors,
-                ColorFormatEnum.RGBA8Srgb
+                ColorFormatEnum.RGBA8Srgb,
+                regions
             );
 
             if (_profiler?.IsEnabled == true && _logger.IsEnabled(LogLevel.Information))

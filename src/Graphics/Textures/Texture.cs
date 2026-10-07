@@ -4,6 +4,19 @@ namespace Nexus.Graphics.Textures;
 public sealed class Texture : ITexture
 {
     private readonly Color[] _colorData;
+    private readonly Dictionary<string, TextureRegion> _regionsByName;
+
+    /// <inheritdoc />
+    public IReadOnlyList<TextureRegion> Regions { get; }
+
+    /// <inheritdoc />
+    public TextureRegion GetRegion(string name)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        return _regionsByName.TryGetValue(name, out var region)
+            ? region
+            : throw new KeyNotFoundException($"Region '{name}' was not found in texture '{ContentId}'.");
+    }
 
     public TextureId Id { get; }
     public ContentId ContentId { get; }
@@ -21,18 +34,23 @@ public sealed class Texture : ITexture
     /// <param name="height">The texture height in pixels.</param>
     /// <param name="colorData">The texture's pixel colors.</param>
     /// <param name="textureFormat">The GPU storage and sampling format.</param>
+    /// <param name="regions">Optional named atlas regions; copied into a read-only collection.</param>
     public Texture(
         ContentId contentId,
         uint width,
         uint height,
         Color[] colorData,
-        ColorFormatEnum textureFormat = ColorFormatEnum.RGBA8UNorm
+        ColorFormatEnum textureFormat = ColorFormatEnum.RGBA8UNorm,
+        IEnumerable<TextureRegion>? regions = null
     )
     {
         ContentId = contentId;
         Width = width;
         Height = height;
         TextureFormat = textureFormat;
+        var regionArray = regions?.ToArray() ?? [];
+        _regionsByName = regionArray.ToDictionary(region => region.Name, StringComparer.Ordinal);
+        Regions = Array.AsReadOnly(regionArray);
 
         _colorData = colorData;
         Count = (ulong)_colorData.Length;
@@ -42,6 +60,17 @@ public sealed class Texture : ITexture
         foreach (var color in _colorData)
         {
             hash.Add(color.R).Add(color.G).Add(color.B).Add(color.A);
+        }
+
+        // Atlas metadata participates in identity so equal pixels with different regions
+        // do not alias each other in the registry.
+        foreach (var region in regionArray.OrderBy(region => region.Name, StringComparer.Ordinal))
+        {
+            hash.Add(region.Name)
+                .Add(region.Bounds.Origin.X).Add(region.Bounds.Origin.Y)
+                .Add(region.Bounds.Size.X).Add(region.Bounds.Size.Y)
+                .Add(region.TexCoords.Origin.X).Add(region.TexCoords.Origin.Y)
+                .Add(region.TexCoords.Size.X).Add(region.TexCoords.Size.Y);
         }
 
         Id = hash.Compute();

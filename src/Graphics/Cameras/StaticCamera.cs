@@ -49,6 +49,9 @@ public partial class StaticCamera : Component, ICamera
     /// <summary>Gets the fixed right direction, always +X.</summary>
     public Vector3D<float> Right { get; } = Vector3D<float>.UnitX;
 
+    /// <summary>Gets the aspect ratio represented by the current screen-space projection.</summary>
+    public float AspectRatio => _viewportHeight == 0f ? 1f : _viewportWidth / _viewportHeight;
+
     protected virtual partial void AfterNearPlaneChanges(float previousValue) =>
         InvalidateProjection();
 

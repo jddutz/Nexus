@@ -67,6 +67,20 @@ public sealed class ViewTests
         Assert.Equal(new Rectangle<int>(11, 21, 8, 8), view.ViewComponent.ClippingRegion);
     }
 
+    /// <summary>Verifies the default fit mode preserves the camera aspect ratio in the viewport.</summary>
+    [Fact]
+    public void Arrange_fitModePreservesCameraAspectRatio()
+    {
+        var camera = new OrthoCamera();
+        camera.SetSize(200f, 100f);
+        var view = new View { Camera = camera };
+
+        view.Arrange(new Rectangle<float>(10f, 20f, 300f, 300f));
+
+        Assert.Equal(new Rectangle<int>(10, 95, 300, 150), view.ViewComponent.ViewportRegion);
+        Assert.Equal(new Rectangle<int>(10, 20, 300, 300), view.ViewComponent.ClippingRegion);
+    }
+
     /// <summary>Verifies a zero-area arrangement produces an empty explicit viewport.</summary>
     [Fact]
     public void Arrange_zeroAreaProducesEmptyViewport()

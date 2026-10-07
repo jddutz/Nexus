@@ -300,6 +300,34 @@ public sealed class TextureComponentInstanceDataTests
         Assert.Equal(64f / 128f, topLeftRegion.W, 6);
     }
 
+    [Fact]
+    public void NinePatch_border_scale_changes_geometry_without_changing_source_slices()
+    {
+        var component = new NinePatchRenderer
+        {
+            Texture = new Texture("atlas", 100, 100, new Color[10000]),
+            Destination = new(0f, 0f, 120f, 64f),
+            SourceBorders = new(24f, 24f, 24f, 24f),
+            BorderScale = 0.5f,
+        };
+        var drawable = Assert.IsType<NinePatch>(Assert.Single(component.Drawables));
+        var layout = BuiltInShaders.TexturedQuadVertexShader.InstanceLayout;
+        var data = Tests.DrawableTestData.ReadInstances(drawable, layout).ToArray();
+        var transform = MemoryMarshal.Read<Matrix4X4<float>>(data.AsSpan(GetOffset(layout, InputSemantics.Transform), 64));
+        var uv = MemoryMarshal.Read<Vector4D<float>>(data.AsSpan(GetOffset(layout, InputSemantics.TextureRegion), 16));
+        Assert.Equal(12f, transform.M11);
+        Assert.Equal(12f, transform.M22);
+        Assert.Equal(0.24f, uv.Z, 6);
+        Assert.Equal(0.24f, uv.W, 6);
+        var changed = 0;
+        drawable.InstanceDataChanged += (_, _) => changed++;
+        component.BorderScale = 0.25f;
+        Assert.Equal(0.25f, drawable.BorderScale);
+        Assert.Equal(1, changed);
+        Assert.Throws<ArgumentOutOfRangeException>(() => component.BorderScale = -1f);
+        Assert.Throws<ArgumentOutOfRangeException>(() => drawable.BorderScale = float.NaN);
+    }
+
     /// <summary>Verifies destination coordinates are packed without owner or local transforms.</summary>
     [Fact]
     public void Destination_packs_explicit_rectangle()

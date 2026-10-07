@@ -39,6 +39,18 @@ public partial class TexturedQuad : IDrawable
     [Observable(PublicSetter = true)]
     private Color _color = Colors.White;
 
+    [Observable(PublicSetter = true)]
+    private Nexus.Graphics.ClippingMask _clippingMask;
+
+    protected virtual void SetClippingMask(Nexus.Graphics.ClippingMask value)
+    {
+        if (!Enum.IsDefined(value)) throw new ArgumentOutOfRangeException(nameof(value));
+        _clippingMask = value;
+    }
+
+    protected virtual partial void AfterClippingMaskChanges() =>
+        InstanceDataChanged?.Invoke(this, EventArgs.Empty);
+
     /// <inheritdoc />
     public ulong InstanceCount => 1;
 
@@ -91,7 +103,10 @@ public partial class TexturedQuad : IDrawable
             return;
 
         ValidateInstanceLayout(layout);
-        if (target.Length < InstanceDataSize)
+        var size = layout.Sum(input => input.Size);
+        if (ClippingMask != Nexus.Graphics.ClippingMask.None && layout.Length != 4)
+            throw new InvalidOperationException("Clipping requires the masked image shader instance layout.");
+        if (target.Length < size)
             throw new ArgumentException("The target span is too small.", nameof(target));
 
         var transform = Matrix4X4<float>.Identity;
@@ -105,6 +120,11 @@ public partial class TexturedQuad : IDrawable
         MemoryMarshal.Write(target, in transform);
         MemoryMarshal.Write(target[64..], in texCoord);
         MemoryMarshal.Write(target[80..], in color);
+        if (layout.Length == 4)
+        {
+            var mask = (float)ClippingMask;
+            MemoryMarshal.Write(target[96..], in mask);
+        }
     }
 
     /// <inheritdoc />
@@ -137,10 +157,11 @@ public partial class TexturedQuad : IDrawable
     {
         ArgumentNullException.ThrowIfNull(layout);
         if (
-            layout.Length != 3
+            layout.Length is not (3 or 4)
             || layout[0] is not { Semantic: InputSemantics.Transform, Size: 64 }
             || layout[1] is not { Semantic: InputSemantics.TextureRegion, Size: 16 }
             || layout[2] is not { Semantic: InputSemantics.Color, Size: 16 }
+            || (layout.Length == 4 && layout[3] is not { Semantic: InputSemantics.ClippingMask, Size: 4 })
         )
             throw new ArgumentException(
                 "The instance layout must contain Transform, TextureRegion, and Color inputs.",

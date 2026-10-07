@@ -12,6 +12,8 @@ public sealed class AssetDefinition
     /// <summary>Gets or sets whether to include decoded rasterizer input in the font manifest entry.</summary>
     public bool IncludeRasterizerInput { get; set; }
 
+    public TextureRegionSettings? Regions { get; set; }
+
     public string Path { get; set; } = string.Empty;
     public string GroupName { get; set; } = string.Empty;
     public string[] Files { get; set; } = [];

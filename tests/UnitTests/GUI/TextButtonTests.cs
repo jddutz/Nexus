@@ -19,6 +19,68 @@ namespace Tests;
 /// </summary>
 public sealed class TextButtonTests
 {
+    [Fact]
+    public void Icon_and_label_use_independent_alignment_and_margins()
+    {
+        var icon = new ImageElement
+        {
+            Texture = new Texture("icon", 24, 24, new Color[24 * 24]),
+            Width = 24f,
+            Height = 24f,
+            SizingMode = ImageSizingMode.Fit,
+            HorizontalAlignment = AlignHorizontal.Left,
+            VerticalAlignment = AlignVertical.Center,
+            Margins = new(2f, 0f, 0f, 0f),
+        };
+        var button = new TextButton
+        {
+            Style = new TestTextStyle(),
+            Label = "Retreat",
+            Width = 120f,
+            Height = 64f,
+            Padding = new(10f, 8f),
+            LabelHorizontalAlignment = AlignHorizontal.Left,
+            LabelVerticalAlignment = AlignVertical.Center,
+            LabelMargins = new(30f, 0f, 0f, 0f),
+            RenderLayerMask = 2,
+            Icon = icon,
+        };
+        button.Arrange(new(0f, 0f, 120f, 64f));
+        var text = button.GetComponent<TextRenderer>()!;
+        Assert.Equal(new Rectangle<float>(12f, 20f, 24f, 24f), icon.Bounds);
+        Assert.Equal(new Rectangle<float>(40f, 8f, 70f, 48f), text.Destination);
+        Assert.Equal(new Vector2D<float>(0f, 0.5f), text.Alignment);
+        Assert.Same(button, icon.Parent);
+        Assert.Equal(2UL, icon.RenderLayerMask);
+        button.RenderLayerMask = 4;
+        Assert.Equal(4UL, icon.RenderLayerMask);
+        button.Icon = null;
+        Assert.Null(icon.Parent);
+    }
+
+    [Fact]
+    public void Atlas_coordinates_reach_background_and_update_after_arrangement()
+    {
+        var button = new TextButton
+        {
+            Texture = new Texture("atlas", 100, 100, new Color[10000]),
+            TexCoord = new(0.1f, 0.2f, 0.4f, 0.3f),
+            SourceBorders = new(2f, 2f, 2f, 2f),
+            BorderScale = 0.5f,
+        };
+        button.Arrange(new Rectangle<float>(0f, 0f, 80f, 40f));
+        var renderer = button.GetComponent<NinePatchRenderer>()!;
+        var background = Assert.IsType<NinePatch>(Assert.Single(renderer.Drawables));
+        Assert.Equal(button.TexCoord, background.TexCoord);
+        Assert.Equal(0.5f, background.BorderScale);
+        button.BorderScale = 0.25f;
+        Assert.Equal(0.25f, background.BorderScale);
+
+        button.TexCoord = new(0.5f, 0.6f, 0.4f, 0.3f);
+        Assert.Equal(button.TexCoord, renderer.TexCoord);
+        Assert.Equal(button.TexCoord, background.TexCoord);
+    }
+
     /// <summary>Verifies a button without a style remains usable and renders after one is assigned.</summary>
     [Fact]
     public void Parameterless_construction_handles_missing_style_until_assigned()

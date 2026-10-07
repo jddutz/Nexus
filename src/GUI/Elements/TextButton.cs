@@ -13,10 +13,53 @@ public partial class TextButton : Element
     private readonly List<IObservable> _visibilityAncestors = [];
     private NinePatchRenderer? _background;
     private TextRenderer? _text;
+    private ImageElement? _icon;
+
+    /// <summary>Optional icon, positioned within button padding using its own size, alignments, and margins.</summary>
+    public ImageElement? Icon
+    {
+        get => _icon;
+        set
+        {
+            if (ReferenceEquals(_icon, value)) return;
+            if (value?.Parent is not null)
+                throw new ArgumentException("Detach the icon from its current parent first.", nameof(value));
+            if (_icon is not null) RemoveChild(_icon);
+            _icon = value;
+            if (value is not null)
+            {
+                value.RenderLayerMask = RenderLayerMask;
+                AddChild(value);
+            }
+            InvalidateLayout();
+        }
+    }
+
+    /// <summary>Positions the label within its available area.</summary>
+    [Observable(PublicSetter = true)]
+    private AlignHorizontal _labelHorizontalAlignment = AlignHorizontal.Center;
+
+    [Observable(PublicSetter = true)]
+    private AlignVertical _labelVerticalAlignment = AlignVertical.Center;
+
+    /// <summary>Insets the label independently from the icon, after button padding.</summary>
+    [Observable(PublicSetter = true)]
+    private Margins _labelMargins;
 
     /// <summary>Gets or sets the optional texture used by the button background.</summary>
     [Observable(PublicSetter = true)]
     private ITexture? _texture;
+
+    /// <summary>Gets or sets the normalized XYWH atlas region used by the background.</summary>
+    [Observable(PublicSetter = true)]
+    private Vector4D<float> _texCoord = new(0f, 0f, 1f, 1f);
+
+    /// <summary>Updates the background renderer when its atlas region changes.</summary>
+    protected virtual partial void AfterTexCoordChanges(Vector4D<float> previousValue)
+    {
+        if (_background is not null)
+            _background.TexCoord = TexCoord;
+    }
 
     /// <summary>Gets or sets the optional style used by the button label.</summary>
     [Observable(PublicSetter = true)]
@@ -25,6 +68,23 @@ public partial class TextButton : Element
     /// <summary>Gets or sets the source texture border widths.</summary>
     [Observable(PublicSetter = true)]
     private Vector4D<float> _sourceBorders = new(12f, 12f, 12f, 12f);
+
+    /// <summary>Scales the rendered background borders independently of source slices.</summary>
+    [Observable(PublicSetter = true)]
+    private float _borderScale = 1f;
+
+    protected virtual void SetBorderScale(float value)
+    {
+        if (!float.IsFinite(value) || value < 0f)
+            throw new ArgumentOutOfRangeException(nameof(value));
+        _borderScale = value;
+    }
+
+    protected virtual partial void AfterBorderScaleChanges()
+    {
+        if (_background is not null)
+            _background.BorderScale = BorderScale;
+    }
 
     /// <summary>Gets or sets the background texture sampling behavior.</summary>
     [Observable(PublicSetter = true)]
@@ -60,6 +120,8 @@ public partial class TextButton : Element
             _background.RenderLayerMask = RenderLayerMask;
         if (_text is not null)
             _text.RenderLayerMask = RenderLayerMask;
+        if (Icon is not null)
+            Icon.RenderLayerMask = RenderLayerMask;
     }
 
     /// <summary>Updates the text component after the button label changes.</summary>
@@ -174,9 +236,11 @@ public partial class TextButton : Element
         {
             IsVisible = false,
             Texture = Texture,
+            TexCoord = TexCoord,
             RenderLayerMask = RenderLayerMask,
             SamplingBehavior = SamplingBehavior,
             SourceBorders = SourceBorders,
+            BorderScale = BorderScale,
         };
         var text = new TextRenderer
         {
@@ -294,7 +358,9 @@ public partial class TextButton : Element
             MathF.Max(0f, contentConstraint.X - Padding.Left - Padding.Right),
             MathF.Max(0f, contentConstraint.Y - Padding.Top - Padding.Bottom)
         );
-        var labelSize = Style is null ? Vector2D<float>.Zero : _text!.Measure(textConstraint);
+        var labelSize = Style is null ? Vector2D<float>.Zero : _text!.Measure(textConstraint - LabelMargins) + LabelMargins;
+        var iconSize = Icon?.Measure(textConstraint) ?? Vector2D<float>.Zero;
+        labelSize = new(MathF.Max(labelSize.X, iconSize.X), MathF.Max(labelSize.Y, iconSize.Y));
         return new Vector2D<float>(
                 Width is null
                     ? MathF.Min(labelSize.X + Padding.Left + Padding.Right, contentConstraint.X)
@@ -328,13 +394,22 @@ public partial class TextButton : Element
         _text.Text = Label;
         _text.Wrap = false;
         _text.MaximumLines = 1;
-        _text.Destination = new Rectangle<float>(
+        var innerBounds = new Rectangle<float>(
             contentBounds.Origin.X + Padding.Left,
             contentBounds.Origin.Y + Padding.Top,
             MathF.Max(0f, contentBounds.Size.X - Padding.Left - Padding.Right),
             MathF.Max(0f, contentBounds.Size.Y - Padding.Top - Padding.Bottom)
         );
-        _text.Alignment = new Vector2D<float>(0.5f, 0.5f);
+        _text.Destination = innerBounds - LabelMargins;
+        _text.Alignment = new Vector2D<float>(
+            LabelHorizontalAlignment switch { AlignHorizontal.Left => 0f, AlignHorizontal.Right => 1f, _ => 0.5f },
+            LabelVerticalAlignment switch { AlignVertical.Top => 0f, AlignVertical.Bottom => 1f, _ => 0.5f });
+        _text.DrawOrder = SortOrder + 1;
+        if (Icon is not null)
+        {
+            Icon.SortOrder = SortOrder + 1;
+            Icon.Arrange(innerBounds);
+        }
         _background.Destination = contentBounds;
         UpdateRendererVisibility();
     }

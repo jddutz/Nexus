@@ -32,6 +32,10 @@ public partial class View : Element
     [Observable]
     private Nexus.Graphics.BlendMode _blendMode = Nexus.Graphics.BlendMode.Alpha;
 
+    /// <summary>Gets or sets how the camera projection is mapped into the arranged bounds.</summary>
+    [Observable(PublicSetter = true)]
+    private ViewSizingMode _sizingMode = ViewSizingMode.Fit;
+
     /// <summary>Gets the renderer owned by this view.</summary>
     public ViewRenderer ViewComponent { get; }
 
@@ -46,12 +50,16 @@ public partial class View : Element
         ViewComponent.RenderOrder = RenderOrder;
         ViewComponent.PreserveDrawOrder = PreserveDrawOrder;
         ViewComponent.BlendMode = BlendMode;
+        ViewComponent.ViewportRegion = ViewComponent.ClippingRegion;
     }
 
     /// <summary>Synchronizes the assigned camera with the owned renderer.</summary>
     /// <param name="previousValue">The camera previously assigned to the view.</param>
-    protected virtual partial void AfterCameraChanges(ICamera? previousValue) =>
+    protected virtual partial void AfterCameraChanges(ICamera? previousValue)
+    {
         ViewComponent.Camera = Camera;
+        UpdateViewport();
+    }
 
     /// <summary>Synchronizes the layer mask with the owned renderer.</summary>
     /// <param name="previousValue">The previous render-layer mask.</param>
@@ -72,6 +80,11 @@ public partial class View : Element
     /// <param name="previousValue">The previous blending mode.</param>
     protected virtual partial void AfterBlendModeChanges(Nexus.Graphics.BlendMode previousValue) =>
         ViewComponent.BlendMode = BlendMode;
+
+    /// <summary>Updates the viewport when the sizing mode changes.</summary>
+    /// <param name="previousValue">The sizing mode before the change.</param>
+    protected virtual partial void AfterSizingModeChanges(ViewSizingMode previousValue) =>
+        UpdateViewport();
 
     /// <summary>Updates the clipping rectangle when the arranged element bounds change.</summary>
     /// <param name="previousValue">The bounds before the layout change.</param>
@@ -134,7 +147,41 @@ public partial class View : Element
         var bounds = IsEffectivelyVisible
             ? Bounds
             : new Rectangle<float>(Bounds.Origin, Vector2D<float>.Zero);
-        ViewComponent.ClippingRegion = ToClippingRegion(bounds);
+        var clippingRegion = ToClippingRegion(bounds);
+        ViewComponent.ClippingRegion = clippingRegion;
+        ViewComponent.ViewportRegion = CalculateViewportRegion(clippingRegion);
+    }
+
+    /// <summary>Calculates the pixel viewport while retaining the camera projection aspect ratio.</summary>
+    /// <param name="clippingRegion">The arranged bounds used as the scissor region.</param>
+    /// <returns>The viewport region used for projection mapping.</returns>
+    private Rectangle<int> CalculateViewportRegion(Rectangle<int> clippingRegion)
+    {
+        if (
+            SizingMode == ViewSizingMode.Stretch
+            || Camera is null
+            || clippingRegion.Size.X <= 0
+            || clippingRegion.Size.Y <= 0
+            || !float.IsFinite(Camera.AspectRatio)
+            || Camera.AspectRatio <= 0f
+        )
+            return clippingRegion;
+
+        var boundsAspect = (float)clippingRegion.Size.X / clippingRegion.Size.Y;
+        var viewportWidth = clippingRegion.Size.X;
+        var viewportHeight = clippingRegion.Size.Y;
+
+        if (
+            (SizingMode == ViewSizingMode.Fit && boundsAspect > Camera.AspectRatio)
+            || (SizingMode == ViewSizingMode.Fill && boundsAspect < Camera.AspectRatio)
+        )
+            viewportWidth = (int)MathF.Round(viewportHeight * Camera.AspectRatio);
+        else
+            viewportHeight = (int)MathF.Round(viewportWidth / Camera.AspectRatio);
+
+        var x = clippingRegion.Origin.X + (clippingRegion.Size.X - viewportWidth) / 2;
+        var y = clippingRegion.Origin.Y + (clippingRegion.Size.Y - viewportHeight) / 2;
+        return new Rectangle<int>(x, y, viewportWidth, viewportHeight);
     }
 
     /// <summary>Converts screen-space bounds to an integer scissor rectangle without expanding them.</summary>

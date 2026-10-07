@@ -234,6 +234,7 @@ An element supplies the arranged visual placement to its graphics component. A d
 - Concrete element classes own their internal virtual measurement and arrangement behavior. The earlier reusable layout-rule model was discarded.
 - Grid tracks support absolute, content-sized auto, and relative sizing. Auto columns are measured before auto rows so wrapped content can determine row heights at resolved column widths.
 - GUI view conversion is handled by the camera. DPI-related conversion must not be independently duplicated in components without an explicit requirement.
+- Views default to aspect-preserving `Fit` sizing: the camera projection maps through a dedicated viewport, while the arranged view bounds remain the scissor region. `Fill` preserves the projection and clips overflow; `Stretch` permits non-uniform scaling.
 
 ### Graphics and rendering
 

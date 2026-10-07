@@ -60,6 +60,18 @@ public static class BuiltInShaders
             []
         );
 
+    /// <summary>Gets the vertex shader contract for geometrically clipped images.</summary>
+    public static VertexShader MaskedTexturedQuadVertexShader { get; } = new(
+        nameof(MaskedTexturedQuadVertexShader), "masked_textured_quad.vert",
+        PrimitiveTopologyEnum.TriangleStrip, BuiltInVertexFormats.TexturedQuad,
+        [new(InputSemantics.View, 64)],
+        [new(InputSemantics.Transform, 64), new(InputSemantics.TextureRegion, 16),
+         new(InputSemantics.Color, 16), new(InputSemantics.ClippingMask, 4)]);
+
+    public static FragmentShader MaskedTexturedQuadFragmentShader { get; } = new(
+        nameof(MaskedTexturedQuadFragmentShader), "masked_textured_quad.frag",
+        BuiltInVertexFormats.TexturedQuad, ColorFormatEnum.RGBA8UNorm, []);
+
     /// <summary>Gets the vertex shader contract for MSDF text glyphs.</summary>
     public static VertexShader MsdfTextVertexShader { get; } =
         new(
@@ -94,6 +106,8 @@ public static class BuiltInShaders
         UniformColorFragmentShader,
         TexturedQuadVertexShader,
         TexturedQuadFragmentShader,
+        MaskedTexturedQuadVertexShader,
+        MaskedTexturedQuadFragmentShader,
         MsdfTextVertexShader,
         MsdfTextFragmentShader,
     ];

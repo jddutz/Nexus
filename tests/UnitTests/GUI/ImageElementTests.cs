@@ -11,6 +11,34 @@ namespace Tests;
 /// <summary>Tests image sizing, source coordinates, clipping, and visual lifecycle.</summary>
 public sealed class ImageElementTests
 {
+    [Fact]
+    public void Mask_reaches_renderer_and_preserves_layout_and_atlas_coordinates()
+    {
+        var image = CreateImageElement(100, 100);
+        image.SourceRegion = new(20, 10, 50, 60);
+        image.SizingMode = ImageSizingMode.Stretch;
+        image.ClippingMask = ClippingMask.LowerHalfDiamond;
+        image.Arrange(new(10f, 20f, 80f, 90f));
+        var renderer = image.GetComponent<TextureRenderer>()!;
+        var masked = Assert.IsType<TexturedQuad>(Assert.Single(renderer.Drawables));
+        Assert.Equal(ClippingMask.LowerHalfDiamond, renderer.ClippingMask);
+        Assert.Same(BuiltInShaders.MaskedTexturedQuadVertexShader, masked.VertexShader);
+        Assert.Same(BuiltInShaders.MaskedTexturedQuadFragmentShader, masked.FragmentShader);
+        Assert.Equal(new Vector4D<float>(0.2f, 0.1f, 0.5f, 0.6f), masked.TexCoord);
+        var bytes = new byte[100];
+        masked.WriteInstanceDataTo(0, 1, masked.VertexShader!.InstanceLayout, bytes);
+        Assert.Equal(2f, MemoryMarshal.Read<float>(bytes.AsSpan(96)));
+        var bounds = image.Bounds;
+        image.ClippingMask = ClippingMask.None;
+        var plain = Assert.IsType<TexturedQuad>(Assert.Single(renderer.Drawables));
+        Assert.NotSame(masked, plain);
+        Assert.Same(BuiltInShaders.TexturedQuadVertexShader, plain.VertexShader);
+        Assert.Equal(bounds, image.Bounds);
+        Assert.Equal(masked.TexCoord, plain.TexCoord);
+        Assert.Throws<ArgumentOutOfRangeException>(() => image.ClippingMask = (ClippingMask)999);
+        Assert.Throws<ArgumentOutOfRangeException>(() => renderer.ClippingMask = (ClippingMask)999);
+    }
+
     /// <summary>Verifies each sizing mode computes the expected arranged image bounds.</summary>
     [Theory]
     [InlineData(ImageSizingMode.Original, 10f, 21f, 4f, 2f)]

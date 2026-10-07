@@ -23,6 +23,43 @@ The public `TextComponent` is unfinished: its drawable collection is empty, span
 
 `TileMapData` stores sparse occupied cells within declared bounds. `TileMapRenderer` derives their local transforms and publishes complete instance snapshots through its own `TileMapDrawable`; it remains independent of `TextureRenderer`, GUI, and game rules.
 
+## Texture atlas regions
+
+`ITextureRegistry.GetOrCreate(contentId)` loads both the image and its NAP manifest regions. `ITexture.Regions` is a read-only list; `GetRegion(name)` looks up a case-sensitive name and throws `KeyNotFoundException` if it is absent. Standalone textures, direct file loads, and fallback textures have an empty region list.
+
+```csharp
+var texture = textureRegistry.GetOrCreate((ContentId)"panels");
+var region = texture.GetRegion("region-0000");
+
+imageElement.Texture = texture;
+imageElement.SourceRegion = region.Bounds;
+
+spriteRenderer.Texture = texture;
+spriteRenderer.Add(new SpriteInstance
+{
+    TexCoord = new Vector4D<float>(
+        region.TexCoords.Origin.X, region.TexCoords.Origin.Y,
+        region.TexCoords.Size.X, region.TexCoords.Size.Y)
+});
+```
+
+Pixel bounds and normalized UVs use top-left XYWH coordinates. Each region references the original texture; loading an atlas does not create separate texture resources for its regions. Nine-patch insets remain separate explicit metadata.
+
+## Image clipping masks
+
+`ImageElement.ClippingMask` forwards to its owned `TextureRenderer`. Set `ClippingMask.Diamond` to keep a full diamond, or `ClippingMask.LowerHalfDiamond` to leave the upper half visible and taper only the lower half. `None` is the default. Masks operate in normalized displayed-image coordinates (top-left origin), independently of atlas texture coordinates, and do not alter layout size or hit testing.
+
+```csharp
+var portrait = new ImageElement
+{
+    Texture = portraitTexture,
+    SizingMode = ImageSizingMode.Stretch,
+    ClippingMask = ClippingMask.LowerHalfDiamond,
+};
+```
+
+The Vulkan masked-image shader discards fragments outside the shape in a single image draw. The default textured-quad shaders are required when enabling a mask; custom shader mask support and alpha-texture masks are not implemented.
+
 ## Development
 
 ```sh

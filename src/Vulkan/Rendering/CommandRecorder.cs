@@ -89,16 +89,9 @@ public unsafe class CommandRecorder(
     {
         ArgumentNullException.ThrowIfNull(batch);
 
+        // Dynamic rendering must cover the attached swapchain image. Per-view clipping is
+        // applied by the viewport/scissor command and must not define the attachment render area.
         _renderArea = new Rect2D { Offset = new Offset2D(0, 0), Extent = _swapChain.Extent };
-
-        foreach (var command in batch.Commands)
-        {
-            if (command is not SetViewportScissorCommand viewState)
-                continue;
-
-            _renderArea = viewState.RenderArea;
-            break;
-        }
 
         RecordCommands(batch);
     }

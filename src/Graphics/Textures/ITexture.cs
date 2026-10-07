@@ -34,6 +34,13 @@ public interface ITexture
     /// <summary>Gets the pixel format used to store and sample this texture.</summary>
     ColorFormatEnum TextureFormat { get; }
 
+    /// <summary>Gets the atlas regions, or an empty list for a standalone texture.</summary>
+    IReadOnlyList<TextureRegion> Regions { get; }
+
+    /// <summary>Gets an atlas region by its case-sensitive name.</summary>
+    /// <exception cref="KeyNotFoundException">The region does not exist.</exception>
+    TextureRegion GetRegion(string name);
+
     /// <summary>
     /// Writes a range of pixels to a byte buffer using the specified format.
     /// </summary>
