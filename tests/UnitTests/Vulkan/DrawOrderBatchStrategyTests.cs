@@ -13,6 +13,36 @@ using Silk.NET.Vulkan;
 /// <summary>Verifies draw-order batch command ordering.</summary>
 public sealed class DrawOrderBatchStrategyTests
 {
+    [Fact]
+    public void Batch_reorders_changed_drawables_and_replaces_old_instance_buffer_bindings()
+    {
+        var first = new TestDrawable(1) { DrawOrder = 0 };
+        var second = new TestDrawable(2) { DrawOrder = 1 };
+        var batch = new RenderBatch(new DrawOrderBatchStrategy());
+        var pipeline = new PipelineId(1);
+        var mesh = new BindVertexBufferCommand(RenderPasses.Main, pipeline, first, 0, new Buffer(10));
+        var oldInstances = new BindVertexBufferCommand(RenderPasses.Main, pipeline, first, 1, new Buffer(11));
+        var firstDraw = new TestCommand("first", first, pipeline, long.MaxValue / 2);
+        var secondDraw = new TestCommand("second", second, pipeline, long.MaxValue / 2);
+        batch.Add(mesh);
+        batch.Add(oldInstances);
+        batch.Add(firstDraw);
+        batch.Add(secondDraw);
+        first.DrawOrder = 2;
+        var replacement = new BindVertexBufferCommand(RenderPasses.Main, pipeline, first, 1, new Buffer(12));
+        batch.Add(replacement);
+        var ordered = batch.Commands.ToArray();
+        Assert.Same(secondDraw, ordered[0]);
+        Assert.Same(firstDraw, ordered[^1]);
+        Assert.DoesNotContain(oldInstances, ordered);
+        Assert.Contains(mesh, ordered);
+        Assert.Contains(replacement, ordered);
+        batch.RemoveCommand(replacement.Id);
+        Assert.DoesNotContain(replacement, batch.Commands);
+        batch.Remove(first.Id);
+        Assert.Equal(new[] { secondDraw }, batch.Commands);
+    }
+
     /// <summary>Verifies draw order precedes pipeline identity in the sort keys.</summary>
     [Fact]
     public void Compare_orders_draw_order_before_pipeline_id()

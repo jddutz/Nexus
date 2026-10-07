@@ -18,7 +18,9 @@ public sealed class DefaultBatchStrategy : IBatchStrategy
         if (y is null)
             return 1;
 
-        int result;
+        var result = x.RenderPassMask.CompareTo(y.RenderPassMask);
+        if (result != 0)
+            return result;
 
         if (x.PipelineId is null && y.PipelineId is not null)
             return -1;

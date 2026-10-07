@@ -10,6 +10,8 @@ public unsafe class Validation : IValidation
 {
     private readonly VulkanSettings _vkSettings;
     private readonly string[] _layerNames;
+    // Vulkan stores a native function pointer, which does not keep its managed delegate alive.
+    private readonly DebugUtilsMessengerCallbackFunctionEXT _debugCallback;
 
     private Vk? _vk;
     private Instance _instance;
@@ -19,6 +21,7 @@ public unsafe class Validation : IValidation
 
     public Validation(IOptions<VulkanSettings> options)
     {
+        _debugCallback = DebugCallback;
         _vkSettings = options.Value;
         _layerNames = _vkSettings.EnableValidationLayers ? DetectValidationLayers() : [];
     }
@@ -415,7 +418,7 @@ public unsafe class Validation : IValidation
             SType = StructureType.DebugUtilsMessengerCreateInfoExt,
             MessageSeverity = severityFlags,
             MessageType = messageTypes,
-            PfnUserCallback = (DebugUtilsMessengerCallbackFunctionEXT)DebugCallback,
+            PfnUserCallback = _debugCallback,
         };
 
         Debug.WriteLine("Creating debug messenger with Vulkan API...");
@@ -493,6 +496,7 @@ public unsafe class Validation : IValidation
         }
 
         _debugUtils?.Dispose();
+        GC.KeepAlive(_debugCallback);
         _isInitialized = false;
     }
 }

@@ -38,6 +38,12 @@ public sealed class DrawOrderBatchStrategy : IBatchStrategy
             result = x.Drawable.DrawOrder.CompareTo(y.Drawable.DrawOrder);
             if (result != 0)
                 return result;
+
+            // Keep each drawable's complete bind/draw sequence together, even when
+            // its pipeline changes or multiple drawables share a draw order.
+            result = x.Drawable.Id.Value.CompareTo(y.Drawable.Id.Value);
+            if (result != 0)
+                return result;
         }
 
         if (x.PipelineId is null)

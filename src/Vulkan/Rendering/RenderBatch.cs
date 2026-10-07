@@ -5,12 +5,15 @@ namespace Nexus.Graphics.Vulkan.Rendering;
 /// </summary>
 public class RenderBatch(IBatchStrategy batchStrategy) : IRenderBatch
 {
-    private readonly SortedSet<IVulkanCommand> _commands = new(batchStrategy);
+    // DrawOrder and other comparer inputs can change while commands are retained.
+    // Stable identity must control membership; sort only when reading the batch.
+    private readonly Dictionary<Guid, IVulkanCommand> _commands = [];
 
     /// <summary>
     /// Gets the Vulkan commands in execution order.
     /// </summary>
-    public IEnumerable<IVulkanCommand> Commands => _commands;
+    public IEnumerable<IVulkanCommand> Commands =>
+        _commands.Values.OrderBy(command => command, batchStrategy);
 
     /// <summary>
     /// Adds a Vulkan command to the batch.
@@ -24,11 +27,27 @@ public class RenderBatch(IBatchStrategy batchStrategy) : IRenderBatch
     {
         ArgumentNullException.ThrowIfNull(command);
 
-        var added = _commands.Add(command);
+        // A replacement instance buffer must supersede the old binding in this batch.
+        // Binding 0 (mesh) and binding 1 (instances) remain separate command slots.
+        if (command is BindVertexBufferCommand binding)
+            foreach (
+                var existing in _commands
+                    .Values.OfType<BindVertexBufferCommand>()
+                    .Where(existing =>
+                        existing.Drawable.Id == binding.Drawable.Id
+                        && existing.Binding == binding.Binding
+                        && existing.RenderPassMask == binding.RenderPassMask
+                        && existing.Id != binding.Id
+                    )
+                    .ToArray()
+            )
+                _commands.Remove(existing.Id);
+
+        var added = _commands.TryAdd(command.Id, command);
         if (!added)
         {
             Debug.WriteLine(
-                $"[WARN] Command collapsed by batch comparer. CommandType={command.GetType().Name}, PipelineId={command.PipelineId}, "
+                $"[WARN] Duplicate command ID. CommandType={command.GetType().Name}, PipelineId={command.PipelineId}, "
                     + $"DrawableId={command.Drawable?.Id}, RenderPriority={command.RenderPriority}, CommandId={command.Id}"
             );
         }
@@ -39,18 +58,24 @@ public class RenderBatch(IBatchStrategy batchStrategy) : IRenderBatch
     /// <inheritdoc />
     public void Remove(DrawableId drawableId)
     {
-        _commands.RemoveWhere(command => command.Drawable?.Id == drawableId);
+        foreach (
+            var command in _commands
+                .Values.Where(command => command.Drawable?.Id == drawableId)
+                .ToArray()
+        )
+            _commands.Remove(command.Id);
     }
 
     /// <inheritdoc />
     public void RemoveCommand(Guid commandId)
     {
-        _commands.RemoveWhere(command => command.Id == commandId);
+        _commands.Remove(commandId);
     }
 
     /// <inheritdoc />
     public void Clean()
     {
-        _commands.RemoveWhere(command => !command.IsSticky);
+        foreach (var command in _commands.Values.Where(command => !command.IsSticky).ToArray())
+            _commands.Remove(command.Id);
     }
 }
