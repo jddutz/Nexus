@@ -1,3 +1,4 @@
+global using System.Diagnostics;
 global using Microsoft.Extensions.Configuration;
 global using Nexus.Core;
 global using Nexus.Core.Events;

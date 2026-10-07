@@ -94,18 +94,18 @@ public sealed class AsteroidsScene : Scene
     /// <inheritdoc />
     public override void Activate()
     {
-        if (IsActive)
+        if (IsActivated)
             return;
 
         base.Activate();
-        if (IsActive)
+        if (IsActivated)
             _eventHub.Register(this);
     }
 
     /// <inheritdoc />
     public override void Deactivate()
     {
-        if (!IsActive)
+        if (!IsActivated)
             return;
 
         _eventHub.Unregister(this);

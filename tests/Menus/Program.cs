@@ -6,10 +6,14 @@ try
         .SetBasePath(AppContext.BaseDirectory)
         .AddJsonFile("appsettings.json")
         .AddJsonFile($"appsettings.{env}.json", optional: true)
+        .AddJsonFile(".content/content-manifest.json")
         .AddCommandLine(args)
         .Build();
 
-    using var application = new Application(configuration);
+    var services = new ServiceCollection().AddSingleton<MenuSettings>();
+
+    using var application = new Application(configuration, services);
+
     application.Run();
 
     return 0;

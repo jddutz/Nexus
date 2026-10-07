@@ -88,18 +88,18 @@ public sealed class BreakoutScene : Scene
     /// <inheritdoc />
     public override void Activate()
     {
-        if (IsActive)
+        if (IsActivated)
             return;
 
         base.Activate();
-        if (IsActive)
+        if (IsActivated)
             _eventHub.Register(this);
     }
 
     /// <inheritdoc />
     public override void Deactivate()
     {
-        if (!IsActive)
+        if (!IsActivated)
             return;
 
         _eventHub.Unregister(this);
@@ -384,11 +384,11 @@ public sealed class BreakoutScene : Scene
             return;
 
         var hasBallContact = IsBallContact(ball, contact);
-        var velocity = hasBallContact
-            ? contact.Value.IncomingVelocity
+        var velocity = hasBallContact && contact is { } ballContact
+            ? ballContact.IncomingVelocity
             : ball.Body.Velocity;
-        var movingIntoPaddleTop = hasBallContact
-            ? contact!.Value.Normal.Y < 0f
+        var movingIntoPaddleTop = hasBallContact && contact is { } paddleContact
+            ? paddleContact.Normal.Y < 0f
             : HasPositiveOverlap(ball.Bounds, _paddle.Bounds)
                 && ball.Bounds.Origin.Y < _paddle.Bounds.Origin.Y;
         if (velocity.Y > 0f && movingIntoPaddleTop)

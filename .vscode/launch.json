@@ -8,37 +8,31 @@
             "name": "Debug:HelloNexus",
             "type": "dotnet",
             "request": "launch",
-            "projectPath": "${workspaceFolder}/tests/HelloNexus/HelloNexus.csproj",
-            "env": {
-                "DOTNET_ENVIRONMENT": "Development"
-            }
+            "projectPath": "${workspaceFolder}/tests/HelloNexus/HelloNexus.csproj"
         },
         {
             "name": "Debug:Snake",
             "type": "dotnet",
             "request": "launch",
-            "projectPath": "${workspaceFolder}/tests/Snake/Snake.csproj",
-            "env": {
-                "DOTNET_ENVIRONMENT": "Development"
-            }
+            "projectPath": "${workspaceFolder}/tests/Snake/Snake.csproj"
         },
         {
             "name": "Debug:Breakout",
             "type": "dotnet",
             "request": "launch",
-            "projectPath": "${workspaceFolder}/tests/Breakout/Breakout.csproj",
-            "env": {
-                "DOTNET_ENVIRONMENT": "Development"
-            }
+            "projectPath": "${workspaceFolder}/tests/Breakout/Breakout.csproj"
         },
         {
             "name": "Debug:Asteroids",
             "type": "dotnet",
             "request": "launch",
-            "projectPath": "${workspaceFolder}/tests/Asteroids/Asteroids.csproj",
-            "env": {
-                "DOTNET_ENVIRONMENT": "Development"
-            }
+            "projectPath": "${workspaceFolder}/tests/Asteroids/Asteroids.csproj"
+        },
+        {
+            "name": "Debug:Menus",
+            "type": "dotnet",
+            "request": "launch",
+            "projectPath": "${workspaceFolder}/tests/Menus/Menus.csproj"
         }
     ]
 }
