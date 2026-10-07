@@ -1,9 +1,9 @@
 namespace Nexus.Graphics.Components;
 
-/// <summary>Draws a texture using one <see cref="TexturedQuad"/> drawable.</summary>
-public partial class TextureRenderer : Component, IRenderer
+/// <summary>Draws a texture using one <see cref="SpriteDrawable"/> drawable.</summary>
+public partial class SpriteRenderer : Component, IRenderer
 {
-    private TexturedQuad? _drawable;
+    private SpriteDrawable? _drawable;
     private IReadOnlyList<IDrawable> _drawables = [];
 
     /// <summary>Gets or sets whether this renderer submits its drawable for rendering.</summary>
@@ -62,26 +62,65 @@ public partial class TextureRenderer : Component, IRenderer
     protected virtual partial void AfterFragmentShaderChanges(FragmentShader? previousValue) =>
         UpdateDrawable(drawable => drawable.FragmentShader = FragmentShader);
 
-    [Observable(PublicSetter = true)]
-    private Rectangle<float> _destination = new(0f, 0f, 1f, 1f);
+    private readonly Dictionary<SpriteInstanceId, SpriteInstance> _instances = new();
+    private IGameObject2D? _spatialOwner;
+
+    /// <summary>Gets the stable IDs and editable sprite instances.</summary>
+    public IReadOnlyDictionary<SpriteInstanceId, SpriteInstance> Instances =>
+        new System.Collections.ObjectModel.ReadOnlyDictionary<SpriteInstanceId, SpriteInstance>(
+            _instances
+        );
+
+    /// <summary>Adds a sprite and observes subsequent edits.</summary>
+    public SpriteInstanceId Add(SpriteInstance instance)
+    {
+        ArgumentNullException.ThrowIfNull(instance);
+        var id = SpriteInstanceId.New();
+        if (!_instances.Values.Any(existing => ReferenceEquals(existing, instance)))
+            instance.PropertyChanged += OnInstanceChanged;
+        _instances.Add(id, instance);
+        SynchronizeDrawable();
+        return id;
+    }
+
+    /// <summary>Removes a sprite without changing other IDs.</summary>
+    public bool Remove(SpriteInstanceId id)
+    {
+        if (!_instances.Remove(id, out var instance))
+            return false;
+        if (!_instances.Values.Any(existing => ReferenceEquals(existing, instance)))
+            instance.PropertyChanged -= OnInstanceChanged;
+        SynchronizeDrawable();
+        return true;
+    }
+
+    /// <summary>Removes all sprites and their subscriptions.</summary>
+    public void Clear()
+    {
+        foreach (var instance in _instances.Values)
+            instance.PropertyChanged -= OnInstanceChanged;
+        _instances.Clear();
+        SynchronizeDrawable();
+    }
+
+    private void OnInstanceChanged(string propertyName) => SynchronizeDrawable();
+
+    protected virtual partial void AfterIsVisibleChanges() => SynchronizeDrawable();
 
     /// <inheritdoc />
-    protected virtual partial void AfterDestinationChanges() =>
-        UpdateDrawable(drawable => drawable.Destination = Destination);
+    protected override void OnOwnerChanged()
+    {
+        if (_spatialOwner is not null)
+            _spatialOwner.WorldTransformChanged -= OnWorldTransformChanged;
+        _spatialOwner = Owner as IGameObject2D;
+        if (_spatialOwner is not null)
+            _spatialOwner.WorldTransformChanged += OnWorldTransformChanged;
+        base.OnOwnerChanged();
+        SynchronizeDrawable();
+    }
 
-    [Observable(PublicSetter = true)]
-    private Vector4D<float> _texCoord = new(0f, 0f, 1f, 1f);
-
-    /// <inheritdoc />
-    protected virtual partial void AfterTexCoordChanges() =>
-        UpdateDrawable(drawable => drawable.TexCoord = TexCoord);
-
-    [Observable(PublicSetter = true)]
-    private Color _color = Colors.White;
-
-    /// <inheritdoc />
-    protected virtual partial void AfterColorChanges() =>
-        UpdateDrawable(drawable => drawable.Color = Color);
+    private void OnWorldTransformChanged(Matrix4X4<float> previous, Matrix4X4<float> value) =>
+        SynchronizeDrawable();
 
     /// <summary>Validates component state and synchronizes the rendering drawable.</summary>
     private void SynchronizeDrawable()
@@ -97,7 +136,7 @@ public partial class TextureRenderer : Component, IRenderer
             var texture = Texture!;
             var samplingBehavior = SamplingBehavior!;
             RegisterDrawable(
-                new TexturedQuad
+                new SpriteDrawable
                 {
                     Texture = texture,
                     RenderLayerMask = RenderLayerMask,
@@ -105,18 +144,19 @@ public partial class TextureRenderer : Component, IRenderer
                     SamplingBehavior = samplingBehavior,
                     VertexShader = VertexShader,
                     FragmentShader = FragmentShader,
-                    Destination = Destination,
-                    TexCoord = TexCoord,
-                    Color = Color,
                 }
             );
             return;
         }
+        _drawable!.SetInstances(
+            _instances.Values.Where(instance => instance.IsVisible).ToArray(),
+            _spatialOwner?.WorldTransform ?? Matrix4X4<float>.Identity
+        );
     }
 
     /// <summary>Validates state and updates one property on the current drawable.</summary>
     /// <param name="update">The drawable update to apply.</param>
-    private void UpdateDrawable(Action<TexturedQuad> update)
+    private void UpdateDrawable(Action<SpriteDrawable> update)
     {
         if (!IsValidState())
         {
@@ -139,47 +179,17 @@ public partial class TextureRenderer : Component, IRenderer
         && SamplingBehavior is not null
         && VertexShader is not null
         && FragmentShader is not null
-        && IsValidDestination(Destination)
-        && IsValidTexCoord(TexCoord)
-        && IsValidColor(Color);
-
-    /// <summary>Validates destination coordinates and positive extents.</summary>
-    private static bool IsValidDestination(Rectangle<float> destination) =>
-        float.IsFinite(destination.Origin.X)
-        && float.IsFinite(destination.Origin.Y)
-        && float.IsFinite(destination.Size.X)
-        && float.IsFinite(destination.Size.Y)
-        && destination.Size.X > 0f
-        && destination.Size.Y > 0f;
-
-    /// <summary>Validates a normalized texture region.</summary>
-    private static bool IsValidTexCoord(Vector4D<float> texCoord) =>
-        float.IsFinite(texCoord.X)
-        && float.IsFinite(texCoord.Y)
-        && float.IsFinite(texCoord.Z)
-        && float.IsFinite(texCoord.W)
-        && texCoord.X >= 0f
-        && texCoord.Y >= 0f
-        && texCoord.Z > 0f
-        && texCoord.W > 0f
-        && texCoord.X + texCoord.Z <= 1f
-        && texCoord.Y + texCoord.W <= 1f;
-
-    /// <summary>Validates color channels in the normalized color range.</summary>
-    private static bool IsValidColor(Color color) =>
-        float.IsFinite(color.R)
-        && float.IsFinite(color.G)
-        && float.IsFinite(color.B)
-        && float.IsFinite(color.A)
-        && color.R is >= 0f and <= 1f
-        && color.G is >= 0f and <= 1f
-        && color.B is >= 0f and <= 1f
-        && color.A is >= 0f and <= 1f;
+        && IsVisible
+        && _instances.Values.Any(instance => instance.IsVisible);
 
     /// <summary>Registers a newly valid drawable with this component.</summary>
     /// <param name="drawable">The drawable to expose.</param>
-    private void RegisterDrawable(TexturedQuad drawable)
+    private void RegisterDrawable(SpriteDrawable drawable)
     {
+        drawable.SetInstances(
+            _instances.Values.Where(instance => instance.IsVisible).ToArray(),
+            _spatialOwner?.WorldTransform ?? Matrix4X4<float>.Identity
+        );
         _drawable = drawable;
         _drawables = [drawable];
         DrawableAdded?.Invoke(this, new DrawableEventArgs(drawable));

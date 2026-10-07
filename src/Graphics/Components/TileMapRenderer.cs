@@ -5,7 +5,7 @@ public sealed class TileMapRenderer : Component, IRenderer
 {
     private TileMapData? _map;
     private TileMapDrawable? _drawable;
-    private IReadOnlyList<IDrawable> _drawables = Array.Empty<IDrawable>();
+    private IReadOnlyList<IDrawable> _drawables = [];
     private ISpatialObject? _spatialOwner;
     private Vector2D<float> _cellSize = new(1f, 1f);
     private ITexture _texture = BuiltInTextures.Invalid;
@@ -323,7 +323,7 @@ public sealed class TileMapRenderer : Component, IRenderer
 
         var drawable = _drawable;
         _drawable = null;
-        _drawables = Array.Empty<IDrawable>();
+        _drawables = [];
         DrawableRemoved?.Invoke(this, new DrawableEventArgs(drawable));
     }
 }

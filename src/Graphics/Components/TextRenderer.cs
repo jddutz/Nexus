@@ -6,7 +6,7 @@ using System.Text;
 public partial class TextRenderer : Component, IRenderer
 {
     private List<TextSpan> _spans = [];
-    private IReadOnlyList<IDrawable> _drawables = Array.Empty<IDrawable>();
+    private IReadOnlyList<IDrawable> _drawables = [];
     private Rectangle<float> _layoutBounds;
 
     /// <summary>Gets or sets whether this renderer submits its drawables for rendering.</summary>
@@ -596,12 +596,7 @@ public partial class TextRenderer : Component, IRenderer
 
         /// <summary>Gets the empty layout result.</summary>
         public static TextLayoutResult Empty { get; } =
-            new(
-                Array.Empty<LayoutLine>(),
-                [],
-                new Rectangle<float>(0f, 0f, 0f, 0f),
-                Vector2D<float>.Zero
-            );
+            new([], [], new Rectangle<float>(0f, 0f, 0f, 0f), Vector2D<float>.Zero);
     }
 
     /// <summary>Calculates the union of nonzero-area glyph geometry.</summary>
@@ -713,7 +708,7 @@ public partial class TextRenderer : Component, IRenderer
 
         var spans = _spans.ToArray();
         _spans.Clear();
-        _drawables = Array.Empty<IDrawable>();
+        _drawables = [];
         foreach (var span in spans)
             DrawableRemoved?.Invoke(this, new DrawableEventArgs(span));
     }

@@ -4,7 +4,7 @@ namespace Nexus.Graphics.Components;
 public partial class NinePatchRenderer : Component, IRenderer
 {
     private NinePatch? _drawable;
-    private IReadOnlyList<IDrawable> _drawables = Array.Empty<IDrawable>();
+    private IReadOnlyList<IDrawable> _drawables = [];
 
     /// <summary>Gets or sets whether this renderer submits its drawables for rendering.</summary>
     [Observable(PublicSetter = true)]
@@ -223,7 +223,7 @@ public partial class NinePatchRenderer : Component, IRenderer
 
         var drawable = _drawable;
         _drawable = null;
-        _drawables = Array.Empty<IDrawable>();
+        _drawables = [];
         DrawableRemoved?.Invoke(this, new DrawableEventArgs(drawable));
     }
 }
