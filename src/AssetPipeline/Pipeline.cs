@@ -74,7 +74,7 @@ public sealed class Pipeline
                             )
                         )
                         {
-                            ProcessTextures(asset, sourceRoot, textureEntries);
+                            ProcessTextures(asset, pipeline, sourceRoot, textureEntries);
                             continue;
                         }
 
@@ -101,6 +101,7 @@ public sealed class Pipeline
 
     private void ProcessTextures(
         AssetDefinition asset,
+        PipelineDefinition pipeline,
         string sourceRoot,
         Dictionary<string, Dictionary<string, object>> textureEntries
     )
@@ -118,7 +119,14 @@ public sealed class Pipeline
         foreach (var file in ExpandTextureFiles(sourceFolder, asset.Files))
         {
             var sourcePath = Path.GetFullPath(Path.Combine(sourceFolder, file));
-            var outputPath = Path.GetFullPath(Path.Combine(outputFolder, file));
+            var format = (asset.TextureFormat ?? pipeline.TextureFormat).ToLowerInvariant();
+            if (format == "jpeg") format = "jpg";
+            if (format is not ("ktx2" or "png" or "jpg"))
+                throw new InvalidOperationException($"Unsupported texture format '{format}'. Use ktx2, png or jpg.");
+            var mipmaps = asset.Mipmaps ?? pipeline.Mipmaps;
+            var quality = asset.JpegQuality ?? pipeline.JpegQuality;
+            if (quality is < 1 or > 100) throw new InvalidOperationException("jpegQuality must be between 1 and 100.");
+            var outputPath = Path.GetFullPath(Path.Combine(outputFolder, Path.ChangeExtension(file, format)));
             var contentId = asset.GroupName.Length == 0
                 ? Path.GetFileNameWithoutExtension(file)
                 : $"{asset.GroupName}.{Path.GetFileName(file)}";
@@ -137,16 +145,24 @@ public sealed class Pipeline
             }
 
             Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
-            File.Copy(sourcePath, outputPath, overwrite: true);
+            var relativeTarget = Path.GetRelativePath(_outputFolder, outputPath).Replace('\\', '/');
+            var artifacts = mipmaps && format != "ktx2" ? new[] { relativeTarget, relativeTarget + ".mips.ktx2" } : [relativeTarget];
+            var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+            if (textureEntries.Values.SelectMany(section => section.Values).Cast<Dictionary<string, object>>()
+                .Any(existing => artifacts.Any(target => string.Equals((string)existing["FilePath"], target, comparison)
+                    || existing.TryGetValue("MipmapsFilePath", out var companion) && string.Equals((string)companion, target, comparison))))
+                throw new InvalidOperationException($"Texture output collision at '{relativeTarget}'. Use distinct output paths.");
+            var image = TextureExporter.Decode(sourcePath);
+            TextureExporter.Export(outputPath, image, format, mipmaps, quality);
 
             var relativeOutputPath = Path.GetRelativePath(_outputFolder, outputPath)
                 .Replace('\\', '/');
             var entry = new Dictionary<string, object> { ["FilePath"] = relativeOutputPath };
+            if (mipmaps && format != "ktx2" && (image.Width > 1 || image.Height > 1))
+                entry["MipmapsFilePath"] = relativeOutputPath + ".mips.ktx2";
             if (asset.Regions is { Enabled: true } settings)
             {
-                using var stream = File.OpenRead(sourcePath);
-                var image = StbImageSharp.ImageResult.FromStream(stream, StbImageSharp.ColorComponents.RedGreenBlueAlpha);
-                entry["Regions"] = TextureRegionExtractor.Extract(image.Data, image.Width, image.Height, settings)
+                entry["Regions"] = TextureRegionExtractor.Extract(image.Pixels, checked((int)image.Width), checked((int)image.Height), settings)
                     .ToDictionary(region => region.Name, region => (object)new
                     {
                         Bounds = new

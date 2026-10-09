@@ -27,6 +27,8 @@ The public `TextComponent` is unfinished: its drawable collection is empty, span
 
 `ITextureRegistry.GetOrCreate(contentId)` loads both the image and its NAP manifest regions. `ITexture.Regions` is a read-only list; `GetRegion(name)` looks up a case-sensitive name and throws `KeyNotFoundException` if it is absent. Standalone textures, direct file loads, and fallback textures have an empty region list.
 
+NAP defaults to 2D RGBA8 sRGB KTX2 textures with embedded mipmaps. `ITexture.MipLevelCount` includes the base level; `WriteMipLevel` serializes a complete level, while `Count` and `WriteTo` continue to refer to the base image. The registry also loads NAP's PNG/JPEG mip companions via `MipmapsFilePath`. Texture identity includes dimensions, sampling format, and all mip levels. Vulkan allocates and uploads the full chain. `SamplingBehaviors.Smooth` uses trilinear mip filtering, with base-level sampling for single-level textures; explicit `MinFilterEnum.Linear` disables mip sampling. See [NAP texture settings](../AssetPipeline/README.md#texture-formats-and-mipmaps) for format and mip overrides.
+
 ```csharp
 var texture = textureRegistry.GetOrCreate((ContentId)"panels");
 var region = texture.GetRegion("region-0000");

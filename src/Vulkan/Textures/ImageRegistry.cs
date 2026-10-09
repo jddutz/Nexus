@@ -78,7 +78,7 @@ public unsafe class ImageRegistry : IImageRegistry
         _syncManager.FrameSubmitted += OnFrameSubmitted;
     }
 
-    private VkImage CreateImage(uint width, uint height, ColorFormatEnum format)
+    private VkImage CreateImage(uint width, uint height, ColorFormatEnum format, uint mipLevels)
     {
         using var timing = new LoadPerformanceScope(_telemetry, "texture.image.allocate", units: (long)width * height);
         var createInfo = new ImageCreateInfo
@@ -86,7 +86,7 @@ public unsafe class ImageRegistry : IImageRegistry
             SType = StructureType.ImageCreateInfo,
             ImageType = ImageType.Type2D,
             Extent = new Extent3D(width, height, 1),
-            MipLevels = 1,
+            MipLevels = mipLevels,
             ArrayLayers = 1,
             Format = format.ToVulkanFormat(),
             Tiling = ImageTiling.Optimal,
@@ -162,7 +162,7 @@ public unsafe class ImageRegistry : IImageRegistry
         }
     }
 
-    private VkImageView CreateImageView(VkImage image, ColorFormatEnum format)
+    private VkImageView CreateImageView(VkImage image, ColorFormatEnum format, uint mipLevels)
     {
         using var timing = new LoadPerformanceScope(_telemetry, "texture.image.view.create");
         var createInfo = new ImageViewCreateInfo
@@ -184,7 +184,7 @@ public unsafe class ImageRegistry : IImageRegistry
             {
                 AspectMask = ImageAspectFlags.ColorBit,
                 BaseMipLevel = 0,
-                LevelCount = 1,
+                LevelCount = mipLevels,
                 BaseArrayLayer = 0,
                 LayerCount = 1,
             },
@@ -342,45 +342,18 @@ public unsafe class ImageRegistry : IImageRegistry
         }
 
         _telemetry?.RecordCache("texture.image", null, false);
-        var data = new byte[checked((int)(texture.Count * (ulong)format.GetBytesPerPixel()))];
-
-        using (var serialization = new LoadPerformanceScope(_telemetry, "texture.serialize", units: data.Length))
-            texture.WriteTo(0, texture.Count, format, data);
+        byte[] data;
+        BufferImageCopy[] regions;
+        using (var serialization = new LoadPerformanceScope(_telemetry, "texture.serialize", units: checked((long)texture.Count)))
+            (data, regions) = SerializeMipLevels(texture);
 
         var stagingBuffer = CreateStagingBuffer(data);
         try
         {
-            image = CreateImage(texture.Width, texture.Height, format);
-            CreateImageView(image, format);
+            image = CreateImage(texture.Width, texture.Height, format, texture.MipLevelCount);
+            CreateImageView(image, format, texture.MipLevelCount);
 
-            var region = new BufferImageCopy
-            {
-                BufferOffset = 0,
-                BufferRowLength = 0,
-                BufferImageHeight = 0,
-
-                ImageSubresource = new ImageSubresourceLayers
-                {
-                    AspectMask = ImageAspectFlags.ColorBit,
-                    MipLevel = 0,
-                    BaseArrayLayer = 0,
-                    LayerCount = 1,
-                },
-
-                ImageOffset = new Offset3D(0, 0, 0),
-
-                ImageExtent = new Extent3D
-                {
-                    Width = texture.Width,
-                    Height = texture.Height,
-                    Depth = 1,
-                },
-            };
-
-            var commands = new IVulkanCommand[]
-            {
-                new UploadImageCommand(stagingBuffer, image, region),
-            };
+            var commands = regions.Select(region => (IVulkanCommand)new UploadImageCommand(stagingBuffer, image, region)).ToArray();
 
             var imageRegistered = false;
             var referenceRegistered = false;
@@ -446,7 +419,7 @@ public unsafe class ImageRegistry : IImageRegistry
                 SubresourceRange = new ImageSubresourceRange
                 {
                     AspectMask = ImageAspectFlags.ColorBit,
-                    LevelCount = 1,
+                    LevelCount = texture.MipLevelCount,
                     LayerCount = 1,
                 },
             }
@@ -471,32 +444,13 @@ public unsafe class ImageRegistry : IImageRegistry
         if (!_images.TryGetValue(id, out var image))
             return Create(texture);
 
-        var data = new byte[checked((int)(texture.Count * (ulong)format.GetBytesPerPixel()))];
-        using (var serialization = new LoadPerformanceScope(_telemetry, "texture.serialize", units: data.Length))
-            texture.WriteTo(0, texture.Count, format, data);
-
+        byte[] data;
+        BufferImageCopy[] regions;
+        using (var serialization = new LoadPerformanceScope(_telemetry, "texture.serialize", units: checked((long)texture.Count)))
+            (data, regions) = SerializeMipLevels(texture);
         var stagingBuffer = CreateStagingBuffer(data);
-        var region = new BufferImageCopy
-        {
-            BufferOffset = 0,
-            BufferRowLength = 0,
-            BufferImageHeight = 0,
-            ImageSubresource = new ImageSubresourceLayers
-            {
-                AspectMask = ImageAspectFlags.ColorBit,
-                MipLevel = 0,
-                BaseArrayLayer = 0,
-                LayerCount = 1,
-            },
-            ImageOffset = new Offset3D(0, 0, 0),
-            ImageExtent = new Extent3D(texture.Width, texture.Height, 1),
-        };
-
         QueueStagedBuffer(stagingBuffer);
-        return
-        [
-            new UploadImageCommand(stagingBuffer, image, region, ImageLayout.ShaderReadOnlyOptimal),
-        ];
+        return regions.Select(region => (IVulkanCommand)new UploadImageCommand(stagingBuffer, image, region, ImageLayout.ShaderReadOnlyOptimal)).ToArray();
     }
 
     /// <inheritdoc/>
@@ -644,6 +598,34 @@ public unsafe class ImageRegistry : IImageRegistry
         Reset();
 
         GC.SuppressFinalize(this);
+    }
+
+    internal static (byte[] Data, BufferImageCopy[] Regions) SerializeMipLevels(ITexture texture)
+    {
+        var regions = new BufferImageCopy[texture.MipLevelCount];
+        uint width = texture.Width, height = texture.Height;
+        ulong offset = 0;
+        for (uint level = 0; level < texture.MipLevelCount; level++)
+        {
+            regions[level] = new BufferImageCopy
+            {
+                BufferOffset = offset,
+                ImageSubresource = new ImageSubresourceLayers(ImageAspectFlags.ColorBit, level, 0, 1),
+                ImageExtent = new Extent3D(width, height, 1),
+            };
+            offset = checked(offset + (ulong)width * height * (ulong)texture.TextureFormat.GetBytesPerPixel());
+            // Vulkan buffer offsets must be multiples of four, even for RGB formats.
+            offset = checked((offset + 3) & ~3ul);
+            width = Math.Max(1, width / 2); height = Math.Max(1, height / 2);
+        }
+        var data = new byte[checked((int)offset)];
+        for (uint level = 0; level < texture.MipLevelCount; level++)
+        {
+            var region = regions[level];
+            var length = checked((int)((ulong)region.ImageExtent.Width * region.ImageExtent.Height * (ulong)texture.TextureFormat.GetBytesPerPixel()));
+            texture.WriteMipLevel(level, texture.TextureFormat, data.AsSpan(checked((int)region.BufferOffset), length));
+        }
+        return (data, regions);
     }
 
     private static ulong ComputeImageId(TextureId id, ColorFormatEnum color) =>

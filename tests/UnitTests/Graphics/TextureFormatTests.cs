@@ -14,6 +14,7 @@ public sealed class TextureFormatTests
         var colors = Enumerable.Range(0, 4096)
             .Select(index => new Color((byte)index, (byte)(index >> 4), (byte)(index >> 8))).ToArray();
         var originalHash = new Nexus.Core.IdentityHashBuilder(nameof(Texture));
+        originalHash.Add(64u).Add(64u).Add((uint)ColorFormatEnum.RGBA8UNorm).Add(1u);
         foreach (var color in colors)
             originalHash.Add(BitConverter.GetBytes(color.R)).Add(BitConverter.GetBytes(color.G))
                 .Add(BitConverter.GetBytes(color.B)).Add(BitConverter.GetBytes(color.A));

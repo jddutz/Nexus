@@ -47,7 +47,7 @@ public sealed unsafe class UploadImageCommand(
             SubresourceRange = new ImageSubresourceRange
             {
                 AspectMask = ImageAspectFlags.ColorBit,
-                BaseMipLevel = 0,
+                BaseMipLevel = region.ImageSubresource.MipLevel,
                 LevelCount = 1,
                 BaseArrayLayer = 0,
                 LayerCount = 1,
@@ -95,7 +95,7 @@ public sealed unsafe class UploadImageCommand(
             SubresourceRange = new ImageSubresourceRange
             {
                 AspectMask = ImageAspectFlags.ColorBit,
-                BaseMipLevel = 0,
+                BaseMipLevel = region.ImageSubresource.MipLevel,
                 LevelCount = 1,
                 BaseArrayLayer = 0,
                 LayerCount = 1,

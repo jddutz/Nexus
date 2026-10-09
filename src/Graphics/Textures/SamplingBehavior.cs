@@ -78,7 +78,7 @@ public static class SamplingBehaviors
         WrapModeEnum.ClampToEdge
     );
     public static readonly ISamplingBehavior Smooth = new SamplingBehavior(
-        MinFilterEnum.Linear,
+        MinFilterEnum.LinearMipmapLinear,
         MagFilterEnum.Linear,
         WrapModeEnum.ClampToEdge,
         WrapModeEnum.ClampToEdge

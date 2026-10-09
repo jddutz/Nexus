@@ -4,6 +4,17 @@ namespace Nexus.Graphics.Textures;
 public sealed class Texture : ITexture
 {
     private readonly Color[] _colorData;
+    private readonly Texture[] _mipmaps;
+    /// <inheritdoc />
+    public uint MipLevelCount => checked((uint)_mipmaps.Length + 1);
+
+    /// <inheritdoc />
+    public void WriteMipLevel(uint level, ColorFormatEnum format, Span<byte> target)
+    {
+        if (level >= MipLevelCount) throw new ArgumentOutOfRangeException(nameof(level));
+        var source = level == 0 ? this : _mipmaps[level - 1];
+        source.WriteTo(0, source.Count, format, target);
+    }
     private readonly Dictionary<string, TextureRegion> _regionsByName;
 
     /// <inheritdoc />
@@ -35,19 +46,33 @@ public sealed class Texture : ITexture
     /// <param name="colorData">The texture's pixel colors.</param>
     /// <param name="textureFormat">The GPU storage and sampling format.</param>
     /// <param name="regions">Optional named atlas regions; copied into a read-only collection.</param>
+    /// <param name="mipmaps">Optional levels after the base image, in decreasing size order.</param>
     public Texture(
         ContentId contentId,
         uint width,
         uint height,
         Color[] colorData,
         ColorFormatEnum textureFormat = ColorFormatEnum.RGBA8UNorm,
-        IEnumerable<TextureRegion>? regions = null
+        IEnumerable<TextureRegion>? regions = null,
+        IEnumerable<TextureMipLevel>? mipmaps = null
     )
     {
         ContentId = contentId;
         Width = width;
         Height = height;
         TextureFormat = textureFormat;
+        var mipArray = mipmaps?.ToArray() ?? [];
+        uint mipWidth = width, mipHeight = height;
+        _mipmaps = new Texture[mipArray.Length];
+        for (var level = 0; level < mipArray.Length; level++)
+        {
+            if (mipWidth == 1 && mipHeight == 1) throw new ArgumentException("Mip chain extends beyond 1x1.", nameof(mipmaps));
+            mipWidth = Math.Max(1, mipWidth / 2); mipHeight = Math.Max(1, mipHeight / 2);
+            var mip = mipArray[level];
+            TextureMipmaps.Validate(mip);
+            if (mip.Width != mipWidth || mip.Height != mipHeight) throw new ArgumentException("Invalid mip dimensions.", nameof(mipmaps));
+            _mipmaps[level] = new Texture(contentId, mipWidth, mipHeight, ToColors(mip.Pixels), textureFormat);
+        }
         var regionArray = regions?.ToArray() ?? [];
         _regionsByName = regionArray.ToDictionary(region => region.Name, StringComparer.Ordinal);
         Regions = Array.AsReadOnly(regionArray);
@@ -56,6 +81,8 @@ public sealed class Texture : ITexture
         Count = (ulong)_colorData.Length;
 
         var hash = new IdentityHashBuilder(nameof(Texture));
+        hash.Add(width).Add(height).Add((uint)textureFormat).Add(MipLevelCount);
+        foreach (var mip in _mipmaps) hash.Add(mip.Id);
 
         foreach (var color in _colorData)
         {
@@ -122,4 +149,12 @@ public sealed class Texture : ITexture
 
     private static byte ToUNorm8(float value) =>
         (byte)Math.Round(Math.Clamp(value, 0f, 1f) * byte.MaxValue);
+
+    internal static Color[] ToColors(byte[] pixels)
+    {
+        var colors = new Color[pixels.Length / 4];
+        for (var i = 0; i < colors.Length; i++)
+            colors[i] = new Color(pixels[i * 4], pixels[i * 4 + 1], pixels[i * 4 + 2], pixels[i * 4 + 3]);
+        return colors;
+    }
 }

@@ -6,13 +6,54 @@ AssetPipeline is the offline command-line entry point for preparing content and 
 
 `Program.cs` defines `build` and `clean`. `Pipeline` reads camel-case YAML definitions in ordinal input-file order. Each definition has a `root` resolved relative to its definition file and an `assets` array.
 
-- Texture entries use `path`, `files`, and optional `groupName`; files are copied. Grouped texture IDs use `groupName.filename` including the extension (for example, `portraits.anarchist_female.png`). Entries without `groupName` retain filename-stem IDs for compatibility.
+- Texture entries use `path`, `files`, and optional `groupName`; images are converted to KTX2 with a full mip chain by default. Grouped texture IDs use the **source** `groupName.filename` including the extension (for example, `portraits.anarchist_female.png`), even when the output file is `.ktx2`. Entries without `groupName` retain filename-stem IDs for compatibility.
   `files` accepts literal filenames and filename wildcards: `*` matches zero or more characters and `?` matches one character. Quote wildcard patterns in YAML, such as `files: ["*.png"]`. A literal subfolder prefix is supported (`"Portraits/*.png"`); directory wildcards and recursive `**` patterns are not supported. Matches are deduplicated and processed in ordinal order. A wildcard matching no files fails the build. Matching uses the operating system's case rules, and paths must stay inside the asset's source folder. Group names namespace texture IDs; use unique filenames within each group. Duplicate texture IDs fail the build instead of overwriting an earlier entry.
 - Font entries use `contentId` and `source`; `.ttf` or `.otf` source files are copied into `fonts/`. `includeMsdf: true` additionally generates an atlas PNG using default font settings. `includeRasterizerInput: true` adds the source metrics, default repertoire's character-to-glyph mappings, glyph layout metrics and converted contours, generation settings, and supported kerning to the font's manifest entry. It is disabled by default, leaving the existing manifest output unchanged.
 - The manifest contains Texture and Font paths and currently empty Geometry and Audio content sections.
 - Unsupported asset types are logged and skipped. Build failures return exit code 1.
 
-The current implementation copies source files rather than emitting the general `.content` format described in the root baseline. The manifest's font path points to the copied source font, not a serialized complete `FontBuildResult`.
+The implementation emits texture images and copies source fonts rather than emitting the general `.content` format described in the root baseline. The manifest's font path points to the copied source font, not a serialized complete `FontBuildResult`.
+
+## Texture formats and mipmaps
+
+Set defaults at the top level of each YAML definition and override them on individual texture assets:
+
+```yaml
+root: ./source-assets
+textureFormat: ktx2
+mipmaps: true
+jpegQuality: 90
+assets:
+  - assetType: texture
+    path: images
+    files: [world.png]
+  - assetType: texture
+    path: images
+    files: [interface.png]
+    textureFormat: png
+    mipmaps: false
+  - assetType: texture
+    path: images
+    files: [background.png]
+    textureFormat: jpg
+    jpegQuality: 85
+```
+
+| Setting | Default | Behavior |
+| --- | --- | --- |
+| `textureFormat` | `ktx2` | `ktx2`, `png`, or `jpg` (`jpeg` alias); case insensitive. |
+| `mipmaps` | `true` | Builds levels down to 1×1; `false` exports only the base level. |
+| `jpegQuality` | `90` | Integer from 1 to 100, used for JPEG encoding. |
+
+KTX2 output uses the [Khronos KTX2 format](https://registry.khronos.org/KTX/specs/2.0/ktxspec.v2.html), with uncompressed RGBA8 sRGB pixels and embedded mipmaps. This first implementation does not encode or transcode Basis Universal, GPU block compression, or supercompression. JPEG is the lossy disk-compression option; JPEG 2000 (`jp2`/`jpg2`) is unsupported. JPEG output requires opaque input and fails for transparent images rather than silently removing alpha. PNG preserves alpha losslessly.
+
+PNG and JPEG store a single base image. When mipmaps are enabled and the image is larger than 1×1, NAP writes the smaller levels to `<output-filename>.mips.ktx2` and records `MipmapsFilePath` beside `FilePath` in the manifest. Keep both files when distributing content. The runtime reads the base image and companion chain; direct file loading of PNG/JPEG loads only the base image. JPEG mips are generated from the encoded image to keep levels consistent with its lossy pixels.
+
+Mip generation uses an area filter in linear light with alpha-weighted RGB, including edge pixels in odd-sized images. Runtime textures retain all levels, and Vulkan uploads and transitions each mip separately and exposes the full chain through the image view. `SamplingBehaviors.Smooth` now uses trilinear mip filtering; single-level textures still sample their base level. `PixelPerfect` remains nearest filtering. For explicit base-only linear filtering, construct a `SamplingBehavior` with `MinFilterEnum.Linear`.
+
+The runtime reader supports NAP's 2D RGBA8 sRGB KTX2 subset and rejects other KTX2 formats. Atlas regions are extracted from the source image before lossy encoding, retain base-image coordinates, and are preserved independently of output format. Atlas authors should allow sufficient gutters when minifying sprites; mip filtering can blend neighboring atlas regions.
+
+Output paths change extensions while content IDs remain stable. Sources such as `hero.png` and `hero.jpg` in the same output directory would both become `hero.ktx2`; NAP rejects these collisions. Existing content must be rebuilt to adopt the new default. Reusing an output directory can leave obsolete files; the manifest references only the current artifacts.
 
 ## Usage
 
@@ -41,7 +82,7 @@ assets:
 
 ## Dependencies and development
 
-The .NET 10 executable references [Graphics](../Graphics/README.md) and [Assets](../Assets/README.md), with System.CommandLine, YamlDotNet, and StbImageSharp packages. Assets owns managed font generation; this project owns CLI processing, file copying, and manifest registration.
+The .NET 10 executable references [Graphics](../Graphics/README.md) and [Assets](../Assets/README.md), with System.CommandLine, YamlDotNet, StbImageSharp, and StbImageWriteSharp packages. Assets owns managed font generation; this project owns CLI processing, texture conversion, file copying, and manifest registration.
 
 See [pipeline and font tests](../../tests/UnitTests/AssetPipeline/Fonts), the [sample content build script](../../tests/HelloNexus/BuildContentLibrary.ps1), and the [architecture baseline](../../README.md).
 

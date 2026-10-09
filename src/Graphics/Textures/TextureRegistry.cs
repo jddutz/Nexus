@@ -48,7 +48,9 @@ public sealed class TextureRegistry(IContentManifest manifest, ILogger<TextureRe
             _manifest.Textures.GetContentFilePath(contentId)
         );
 
-        var texture = LoadTextureFile(contentId, filepath, _manifest.GetTextureRegions(contentId));
+        var mipPath = _manifest.Textures.GetSection("Content").GetSection(contentId.Value)["MipmapsFilePath"];
+        var texture = LoadTextureFile(contentId, filepath, _manifest.GetTextureRegions(contentId),
+            mipPath is null ? null : Path.Combine(_manifest.ContentLibraryPath, mipPath));
         Register(contentId, texture);
         return texture;
     }
@@ -82,11 +84,18 @@ public sealed class TextureRegistry(IContentManifest manifest, ILogger<TextureRe
     /// <param name="contentId">The content identifier assigned to the texture.</param>
     /// <param name="filepath">The path of the image file to load.</param>
     /// <returns>The loaded texture or an invalid fallback texture.</returns>
-    private Texture LoadTextureFile(ContentId contentId, string filepath, IReadOnlyList<TextureRegion>? regions = null)
+    private Texture LoadTextureFile(ContentId contentId, string filepath, IReadOnlyList<TextureRegion>? regions = null, string? mipPath = null)
     {
         using var loadTiming = new LoadPerformanceScope(_profiler, "texture.file.load", contentId.Value);
         try
         {
+            if (Path.GetExtension(filepath).Equals(".ktx2", StringComparison.OrdinalIgnoreCase))
+            {
+                using var ktx = File.OpenRead(filepath);
+                var levels = Ktx2Texture.Read(ktx);
+                return new Texture(contentId, levels[0].Width, levels[0].Height, Texture.ToColors(levels[0].Pixels),
+                    ColorFormatEnum.RGBA8Srgb, regions, levels.Skip(1));
+            }
             using var stream = File.OpenRead(Path.GetFullPath(filepath));
             ImageResult image;
             using (var decodeTiming = new LoadPerformanceScope(_profiler, "texture.image.decode", contentId.Value))
@@ -105,13 +114,20 @@ public sealed class TextureRegistry(IContentManifest manifest, ILogger<TextureRe
                 );
             }
 
+            TextureMipLevel[] mipmaps = [];
+            if (mipPath is not null)
+            {
+                using var mipStream = File.OpenRead(mipPath);
+                mipmaps = Ktx2Texture.Read(mipStream);
+            }
             var texture = new Texture(
                 contentId,
                 (uint)image.Width,
                 (uint)image.Height,
                 colors,
                 ColorFormatEnum.RGBA8Srgb,
-                regions
+                regions,
+                mipmaps
             );
 
             if (_profiler?.IsEnabled == true && _logger.IsEnabled(LogLevel.Information))

@@ -113,7 +113,7 @@ public sealed class TextureRegionExtractionTests
             var region = manifest.GetTextureRegion((ContentId)"atlas", "panel");
             Assert.Equal(4, region.Bounds.Size.X);
             Assert.Equal(1f, region.TexCoords.Size.X);
-            Assert.Equal("atlas.tga", manifest.Textures.GetContentFilePath((ContentId)"atlas"));
+            Assert.Equal("atlas.ktx2", manifest.Textures.GetContentFilePath((ContentId)"atlas"));
             File.WriteAllText(input, "assets:\n  - assetType: texture\n    files: [atlas.tga]\n");
             Assert.Equal(0, new Pipeline([input], output).Execute());
             using var json = System.Text.Json.JsonDocument.Parse(File.ReadAllText(Path.Combine(output, "content-manifest.json")));

@@ -14,6 +14,10 @@ public sealed class AssetDefinition
 
     public TextureRegionSettings? Regions { get; set; }
 
+    public string? TextureFormat { get; set; }
+    public bool? Mipmaps { get; set; }
+    public int? JpegQuality { get; set; }
+
     public string Path { get; set; } = string.Empty;
     public string GroupName { get; set; } = string.Empty;
     public string[] Files { get; set; } = [];

@@ -34,6 +34,16 @@ public interface ITexture
     /// <summary>Gets the pixel format used to store and sample this texture.</summary>
     ColorFormatEnum TextureFormat { get; }
 
+    /// <summary>Gets the number of stored image levels, including the base level.</summary>
+    uint MipLevelCount => 1;
+
+    /// <summary>Writes one complete image level in the requested format.</summary>
+    void WriteMipLevel(uint level, ColorFormatEnum format, Span<byte> target)
+    {
+        if (level != 0) throw new ArgumentOutOfRangeException(nameof(level));
+        WriteTo(0, Count, format, target);
+    }
+
     /// <summary>Gets the atlas regions, or an empty list for a standalone texture.</summary>
     IReadOnlyList<TextureRegion> Regions { get; }
 

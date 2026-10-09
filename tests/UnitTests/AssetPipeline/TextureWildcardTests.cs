@@ -11,8 +11,8 @@ public sealed class TextureWildcardTests : IDisposable
     {
         var source = Path.Combine(_folder, "Portraits");
         Directory.CreateDirectory(Path.Combine(source, "nested"));
-        File.WriteAllBytes(Path.Combine(source, "hero_a.png"), [1, 2, 3]);
-        File.WriteAllBytes(Path.Combine(source, "hero_b.png"), [4, 5]);
+        WritePng(Path.Combine(source, "hero_a.png"), 10);
+        WritePng(Path.Combine(source, "hero_b.png"), 20);
         File.WriteAllBytes(Path.Combine(source, "notes.txt"), [6]);
         File.WriteAllBytes(Path.Combine(source, "nested", "ignored.png"), [7]);
         var input = Path.Combine(_folder, "assets.yaml");
@@ -26,9 +26,11 @@ public sealed class TextureWildcardTests : IDisposable
         using var json = JsonDocument.Parse(File.ReadAllText(Path.Combine(output, "content-manifest.json")));
         var content = json.RootElement.GetProperty("Textures").GetProperty("Content");
         Assert.Equal(new[] { "hero_a", "hero_b" }, content.EnumerateObject().Select(p => p.Name));
-        Assert.Equal("Portraits/hero_a.png", content.GetProperty("hero_a").GetProperty("FilePath").GetString());
-        Assert.Equal(new byte[] { 1, 2, 3 }, File.ReadAllBytes(Path.Combine(output, "Portraits", "hero_a.png")));
-        Assert.Equal(new byte[] { 4, 5 }, File.ReadAllBytes(Path.Combine(output, "Portraits", "hero_b.png")));
+        Assert.Equal("Portraits/hero_a.ktx2", content.GetProperty("hero_a").GetProperty("FilePath").GetString());
+        using var first = File.OpenRead(Path.Combine(output, "Portraits", "hero_a.ktx2"));
+        Assert.Equal((byte)10, Nexus.Graphics.Textures.Ktx2Texture.Read(first)[0].Pixels[0]);
+        using var second = File.OpenRead(Path.Combine(output, "Portraits", "hero_b.ktx2"));
+        Assert.Equal((byte)20, Nexus.Graphics.Textures.Ktx2Texture.Read(second)[0].Pixels[0]);
         Assert.False(Directory.Exists(Path.Combine(output, "Portraits", "nested")));
     }
 
@@ -39,8 +41,8 @@ public sealed class TextureWildcardTests : IDisposable
     {
         Directory.CreateDirectory(Path.Combine(_folder, "first"));
         Directory.CreateDirectory(Path.Combine(_folder, "second"));
-        File.WriteAllBytes(Path.Combine(_folder, "first", "hero.png"), [1]);
-        File.WriteAllBytes(Path.Combine(_folder, "second", "hero.png"), [2]);
+        WritePng(Path.Combine(_folder, "first", "hero.png"), 10);
+        WritePng(Path.Combine(_folder, "second", "hero.png"), 20);
         var input = Path.Combine(_folder, "assets.yaml");
         File.WriteAllText(input, $"""
             assets:
@@ -58,8 +60,8 @@ public sealed class TextureWildcardTests : IDisposable
         if (expectedExitCode != 0) return;
         using var json = JsonDocument.Parse(File.ReadAllText(Path.Combine(output, "content-manifest.json")));
         var content = json.RootElement.GetProperty("Textures").GetProperty("Content");
-        Assert.Equal("first/hero.png", content.GetProperty("portraits.hero.png").GetProperty("FilePath").GetString());
-        Assert.Equal("second/hero.png", content.GetProperty("characters.hero.png").GetProperty("FilePath").GetString());
+        Assert.Equal("first/hero.ktx2", content.GetProperty("portraits.hero.png").GetProperty("FilePath").GetString());
+        Assert.Equal("second/hero.ktx2", content.GetProperty("characters.hero.png").GetProperty("FilePath").GetString());
     }
 
     [Theory]
@@ -73,6 +75,12 @@ public sealed class TextureWildcardTests : IDisposable
         File.WriteAllText(input, $"assets:\n  - assetType: texture\n    files: [\"{pattern}\"]\n");
         Assert.Equal(1, new Pipeline([input], Path.Combine(_folder, "output")).Execute());
         Assert.False(File.Exists(Path.Combine(_folder, "output", "content-manifest.json")));
+    }
+
+    private static void WritePng(string path, byte red)
+    {
+        using var stream = File.Create(path);
+        new StbImageWriteSharp.ImageWriter().WritePng([red, 0, 0, 255], 1, 1, StbImageWriteSharp.ColorComponents.RedGreenBlueAlpha, stream);
     }
 
     public void Dispose()
