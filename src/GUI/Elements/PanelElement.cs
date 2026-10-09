@@ -1,11 +1,11 @@
 namespace Nexus.GUI.Elements;
 
-/// <summary>A layout panel whose atlas corners and edges retain their pixel sizes.</summary>
+/// <summary>A layout panel whose texture corners and edges retain their pixel sizes.</summary>
 public sealed class PanelElement : Element
 {
     private readonly ITexture _atlas;
     private readonly ITexture? _selectedAtlas;
-    private readonly string _regionName;
+    private readonly string? _regionName;
     private bool _isSelected;
     private readonly NinePatchRenderer _renderer;
     private readonly List<IObservable> _ancestors = [];
@@ -17,22 +17,26 @@ public sealed class PanelElement : Element
         set { _isSelected = value; SynchronizeRenderer(); }
     }
 
+    /// <summary>Creates a nine-slice panel from an entire standalone texture.</summary>
+    public PanelElement(ITexture texture, Vector4D<float> sourceBorders, ITexture? selectedTexture = null)
+        : this(texture, null, sourceBorders, selectedTexture) { }
+
     /// <summary>Creates a panel from a named atlas region and its source border widths.</summary>
     /// <param name="atlas">The texture containing the panel artwork.</param>
     /// <param name="regionName">The named atlas region used for the frame.</param>
     /// <param name="sourceBorders">The left, top, right, and bottom border widths in source pixels.</param>
     /// <param name="selectedAtlas">Optional selected artwork with matching region names.</param>
-    public PanelElement(ITexture atlas, string regionName, Vector4D<float> sourceBorders, ITexture? selectedAtlas = null)
+    public PanelElement(ITexture atlas, string? regionName, Vector4D<float> sourceBorders, ITexture? selectedAtlas = null)
     {
         _atlas = atlas;
         _selectedAtlas = selectedAtlas;
         _regionName = regionName;
-        var uv = atlas.GetRegion(regionName).TexCoords;
+        var uv = GetTexCoord(atlas);
         _renderer = new NinePatchRenderer
         {
             IsVisible = false,
             Texture = atlas,
-            TexCoord = new(uv.Origin.X, uv.Origin.Y, uv.Size.X, uv.Size.Y),
+            TexCoord = uv,
             SourceBorders = sourceBorders,
             BorderScale = 0.4f,
             RenderLayerMask = Nexus.Graphics.RenderLayers.DefaultUI,
@@ -70,6 +74,13 @@ public sealed class PanelElement : Element
             SynchronizeRenderer();
     }
 
+    private Vector4D<float> GetTexCoord(ITexture texture)
+    {
+        if (_regionName is null) return new(0f, 0f, 1f, 1f);
+        var uv = texture.GetRegion(_regionName).TexCoords;
+        return new(uv.Origin.X, uv.Origin.Y, uv.Size.X, uv.Size.Y);
+    }
+
     private void SynchronizeRenderer()
     {
         var visible = Bounds.Size.X > 0f && Bounds.Size.Y > 0f;
@@ -79,9 +90,9 @@ public sealed class PanelElement : Element
         _renderer.IsVisible = false;
         _renderer.DrawOrder = SortOrder;
         var atlas = _isSelected ? _selectedAtlas ?? _atlas : _atlas;
-        var uv = atlas.GetRegion(_regionName).TexCoords;
+        var uv = GetTexCoord(atlas);
         _renderer.Texture = atlas;
-        _renderer.TexCoord = new(uv.Origin.X, uv.Origin.Y, uv.Size.X, uv.Size.Y);
+        _renderer.TexCoord = uv;
         _renderer.Destination = Bounds;
         _renderer.IsVisible = visible;
     }
