@@ -5,6 +5,7 @@ public sealed class UniformColorMesh : IDrawable
 {
     private const int InstanceDataSize = 80;
     private Mesh _mesh;
+    private UniformColorMeshInstance[]? _instances;
     private Matrix4X4<float> _transform = Matrix4X4<float>.Identity;
     private Color _color = Colors.White;
 
@@ -90,7 +91,7 @@ public sealed class UniformColorMesh : IDrawable
     public ITexture Texture { get; set; }
 
     /// <inheritdoc />
-    public ulong InstanceCount => 1;
+    public ulong InstanceCount => (ulong)(_instances?.Length ?? 1);
 
     /// <inheritdoc />
     public ISamplingBehavior SamplingBehavior { get; }
@@ -132,19 +133,40 @@ public sealed class UniformColorMesh : IDrawable
         Span<byte> target
     )
     {
-        if (start != 0 || count != 1)
+        var instances = _instances;
+        var total = (ulong)(instances?.Length ?? 1);
+        if (start > total || count > total - start)
             throw new ArgumentOutOfRangeException(nameof(count));
         if (layout.Length != 2
             || layout[0] is not { Semantic: InputSemantics.Transform, Size: 64 }
             || layout[1] is not { Semantic: InputSemantics.Color, Size: 16 })
             throw new ArgumentException("The instance layout must contain Transform and Color.", nameof(layout));
-        if (target.Length < InstanceDataSize)
+        if ((ulong)target.Length < checked(count * InstanceDataSize))
             throw new ArgumentException("The target span is too small.", nameof(target));
+        for (ulong offset = 0; offset < count; offset++)
+        {
+            var instance = instances is null
+                ? new UniformColorMeshInstance(Transform, Color)
+                : instances[checked((int)(start + offset))];
+            var transform = instance.Transform;
+            var color = instance.Color;
+            var record = target.Slice(checked((int)(offset * InstanceDataSize)), InstanceDataSize);
+            MemoryMarshal.Write(record, in transform);
+            MemoryMarshal.Write(record[64..], in color);
+        }
+    }
 
-        var transform = Transform;
-        var color = Color;
-        MemoryMarshal.Write(target, in transform);
-        MemoryMarshal.Write(target[64..], in color);
+    /// <summary>Replaces the mesh instances, or restores single-instance rendering when null.</summary>
+    public void SetInstances(IReadOnlyList<UniformColorMeshInstance>? instances)
+    {
+        var replacement = instances?.ToArray();
+        if (_instances is null && replacement is null)
+            return;
+        if (_instances is not null && replacement is not null
+            && _instances.AsSpan().SequenceEqual(replacement))
+            return;
+        _instances = replacement;
+        InstanceDataChanged?.Invoke(this, EventArgs.Empty);
     }
 
     /// <inheritdoc />
@@ -166,3 +188,6 @@ public sealed class UniformColorMesh : IDrawable
         MemoryMarshal.Write(target, in view);
     }
 }
+
+/// <summary>A transform and uniform color for one mesh instance.</summary>
+public readonly record struct UniformColorMeshInstance(Matrix4X4<float> Transform, Color Color);

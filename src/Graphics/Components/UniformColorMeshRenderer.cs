@@ -5,6 +5,14 @@ public sealed partial class UniformColorMeshRenderer : Component, IRenderer
 {
     private UniformColorMesh? _drawable;
     private Mesh? _mesh;
+    private UniformColorMeshInstance[]? _instances;
+
+    /// <summary>Replaces the instances rendered together by this component.</summary>
+    public void SetInstances(IReadOnlyList<UniformColorMeshInstance>? instances)
+    {
+        _instances = instances?.ToArray();
+        _drawable?.SetInstances(_instances);
+    }
     private Matrix4X4<float> _transform = Matrix4X4<float>.Identity;
     private Color _color = Colors.White;
     private bool _isVisible = true;
@@ -173,6 +181,7 @@ public sealed partial class UniformColorMeshRenderer : Component, IRenderer
                 RenderLayerMask = RenderLayerMask,
                 DrawOrder = DrawOrder,
             };
+            _drawable.SetInstances(_instances);
             DrawableAdded?.Invoke(this, new DrawableEventArgs(_drawable));
         }
         else
