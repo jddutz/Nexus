@@ -20,6 +20,113 @@ namespace Tests;
 /// </summary>
 public class GraphicalUserInterfaceTests
 {
+    [Fact]
+    public void Modal_blocksSceneAndNewMaps_trapsFocus_andRestoresInput()
+    {
+        var hub = new EventHub();
+        var gui = new GraphicalUserInterface(hub, new TestWindowService(new(800, 600)));
+        var background = new Element { CanFocus = true };
+        var scene = new Scene { MainCamera = new Nexus.Graphics.Cameras.StaticCamera(), InputMap = new InputMap() };
+        scene.Children.Add(background);
+        ActivateScene(scene);
+        gui.Initialize();
+        scene.InputMap.Register(hub);
+        hub.Publish(new SceneLoadedEvent(scene));
+        hub.Drain();
+        gui.SetFocus(background);
+        var sceneCalls = 0;
+        var backgroundCalls = 0;
+        var modalCalls = 0;
+        scene.InputMap.OnKeyPressed(KeyEnum.Space).Invoke(() => sceneCalls++);
+        background.InputMap.OnKeyPressed(KeyEnum.Space).Invoke(() => backgroundCalls++);
+        var dialog = gui.StartModalDialog();
+        var button = new Element { CanFocus = true };
+        button.InputMap.OnKeyPressed(KeyEnum.Space).Invoke(() => modalCalls++);
+        dialog.Content.Children.Add(button);
+        ActivateNode(dialog);
+        hub.Publish(new GameObjectActivatedEvent(dialog));
+        hub.Drain();
+        gui.Update(0);
+        Assert.Equal(new Rectangle<float>(0, 0, 800, 600), dialog.Bounds);
+        Assert.True(gui.MoveFocus(FocusDirection.Next));
+        Assert.Same(button, gui.FocusedElement);
+        Assert.Throws<ArgumentException>(() => gui.SetFocus(background));
+        var lateMap = new InputMap();
+        var lateCalls = 0;
+        lateMap.OnKeyPressed(KeyEnum.Space).Invoke(() => lateCalls++);
+        lateMap.Register(hub);
+        scene.InputMap.Handle(new KeyPressedEvent(null!, KeyEnum.Space));
+        background.InputMap.Handle(new KeyPressedEvent(null!, KeyEnum.Space));
+        button.InputMap.Handle(new KeyPressedEvent(null!, KeyEnum.Space));
+        lateMap.Handle(new KeyPressedEvent(null!, KeyEnum.Space));
+        Assert.Equal(0, sceneCalls);
+        Assert.Equal(0, backgroundCalls);
+        Assert.Equal(0, lateCalls);
+        Assert.Equal(1, modalCalls);
+        dialog.Dispose();
+        dialog.Dispose();
+        Assert.Same(background, gui.FocusedElement);
+        scene.InputMap.Handle(new KeyPressedEvent(null!, KeyEnum.Space));
+        lateMap.Handle(new KeyPressedEvent(null!, KeyEnum.Space));
+        Assert.Equal(1, sceneCalls);
+        Assert.Equal(1, lateCalls);
+        Assert.DoesNotContain(dialog, scene.Children);
+    }
+
+    [Fact]
+    public void LongPress_firesOnce_consumesTap_andCancelsOnMovement()
+    {
+        var map = new InputMap(hitTest: position => position.X >= 0 && position.X < 100 && position.Y >= 0 && position.Y < 100);
+        var mouse = new TestMouse(1);
+        var holds = 0;
+        var taps = 0;
+        map.OnLongPress(() => holds++);
+        map.OnMouseButtonReleased(MouseButtonEnum.Left).Invoke(() => taps++);
+        map.Handle(new MouseButtonPressedEvent(mouse, MouseButtonEnum.Left, new(20, 20)));
+        map.Update(0.25);
+        Assert.Equal(0, holds);
+        map.Update(0.25);
+        map.Update(1);
+        map.Handle(new MouseButtonReleasedEvent(mouse, MouseButtonEnum.Left, new(20, 20)));
+        Assert.Equal(1, holds);
+        Assert.Equal(0, taps);
+        map.Handle(new MouseButtonPressedEvent(mouse, MouseButtonEnum.Left, new(20, 20)));
+        map.Handle(new MouseMovedEvent(mouse, new(40, 20)));
+        map.Update(1);
+        map.Handle(new MouseButtonReleasedEvent(mouse, MouseButtonEnum.Left, new(40, 20)));
+        Assert.Equal(1, holds);
+        Assert.Equal(0, taps);
+        map.Handle(new MouseButtonPressedEvent(mouse, MouseButtonEnum.Left, new(20, 20)));
+        map.Update(0.1);
+        map.Handle(new MouseButtonReleasedEvent(mouse, MouseButtonEnum.Left, new(20, 20)));
+        Assert.Equal(1, taps);
+    }
+
+    [Fact]
+    public void SceneUnload_releasesModalScope_withoutChangingExplicitSuppression()
+    {
+        var hub = new EventHub();
+        var gui = new GraphicalUserInterface(hub);
+        var scene = new Scene { MainCamera = new Nexus.Graphics.Cameras.StaticCamera() };
+        ActivateScene(scene);
+        gui.Handle(new SceneLoadedEvent(scene));
+        var suppressed = new InputMap { SuppressSceneInputEvents = true };
+        suppressed.Register(hub);
+        var normal = new InputMap();
+        normal.Register(hub);
+        var calls = 0;
+        normal.OnKeyPressed(KeyEnum.Space).Invoke(() => calls++);
+        suppressed.OnKeyPressed(KeyEnum.Space).Invoke(() => calls += 100);
+        var dialog = gui.StartModalDialog();
+        gui.Handle(new SceneUnloadedEvent(scene));
+        normal.Handle(new KeyPressedEvent(null!, KeyEnum.Space));
+        suppressed.Handle(new KeyPressedEvent(null!, KeyEnum.Space));
+        Assert.Equal(1, calls);
+        Assert.True(suppressed.SuppressSceneInputEvents);
+        Assert.False(dialog.IsVisible);
+        Assert.Throws<InvalidOperationException>(() => gui.StartModalDialog());
+    }
+
     /// <summary>
     /// Verifies changing an element's requested size invalidates layout.
     /// </summary>

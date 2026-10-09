@@ -54,6 +54,7 @@ public sealed class InputMap
             );
 
         _eventHub = eventHub;
+        InputScope.Register(eventHub, this);
         eventHub.Register(this);
     }
 
@@ -64,13 +65,55 @@ public sealed class InputMap
     {
         ArgumentNullException.ThrowIfNull(eventHub);
         eventHub.Unregister(this);
-        _capturedMousePointerId = null;
+        InputScope.Unregister(eventHub, this);
+        CancelPointerCapture();
         if (ReferenceEquals(_eventHub, eventHub))
             _eventHub = null;
     }
 
     /// <summary>Cancels any mouse interaction currently captured by this map.</summary>
-    public void CancelPointerCapture() => _capturedMousePointerId = null;
+    public void CancelPointerCapture()
+    {
+        _capturedMousePointerId = null;
+        _holdElapsed = 0;
+    }
+
+    private bool IsSuppressed => SuppressSceneInputEvents || !InputScope.Allows(_eventHub, this);
+    private Action? _longPress;
+    private double _holdDuration = 0.5;
+    private double _holdElapsed;
+    private Vector2D<float> _pressPosition;
+    private bool _holdCanceled;
+    private bool _holdInvoked;
+
+    /// <summary>Binds a simulated touch hold. Moving more than ten pixels cancels it.</summary>
+    public void OnLongPress(Action callback, double duration = 0.5)
+    {
+        ArgumentNullException.ThrowIfNull(callback);
+        if (!double.IsFinite(duration) || duration <= 0) throw new ArgumentOutOfRangeException(nameof(duration));
+        _longPress = callback;
+        _holdDuration = duration;
+    }
+
+    /// <summary>Advances captured hold gestures using elapsed seconds.</summary>
+    public void Update(double deltaTime)
+    {
+        if (!_capturedMousePointerId.HasValue || _longPress is null || _holdCanceled || _holdInvoked || IsSuppressed)
+            return;
+        _holdElapsed += Math.Max(0, deltaTime);
+        if (_holdElapsed < _holdDuration) return;
+        _holdInvoked = true;
+        _longPress();
+    }
+
+    /// <summary>Cancels the hold when the captured pointer begins moving or leaves its target.</summary>
+    public void Handle(MouseMovedEvent message)
+    {
+        if (_longPress is null || _capturedMousePointerId != message.Mouse.Id) return;
+        var delta = message.Position - _pressPosition;
+        if (delta.X * delta.X + delta.Y * delta.Y > 100f || !ContainsMousePosition(message.Position))
+            _holdCanceled = true;
+    }
 
     /// <summary>Gets the event hub used by event-producing bindings.</summary>
     /// <exception cref="InvalidOperationException">The input map has not been registered with an event hub.</exception>
@@ -211,7 +254,7 @@ public sealed class InputMap
     /// <param name="message">The key press event to handle.</param>
     public void Handle(KeyPressedEvent message)
     {
-        if (!SuppressSceneInputEvents)
+        if (!IsSuppressed)
             Dispatch(_keyPressedBindings, message.Key);
     }
 
@@ -221,7 +264,7 @@ public sealed class InputMap
     /// <param name="message">The key release event to handle.</param>
     public void Handle(KeyReleasedEvent message)
     {
-        if (!SuppressSceneInputEvents)
+        if (!IsSuppressed)
             Dispatch(_keyReleasedBindings, message.Key);
     }
 
@@ -231,7 +274,7 @@ public sealed class InputMap
     /// <param name="message">The mouse-button press event to handle.</param>
     public void Handle(MouseButtonPressedEvent message)
     {
-        if (SuppressSceneInputEvents)
+        if (IsSuppressed)
             return;
 
         if (_hitTest is null)
@@ -247,11 +290,16 @@ public sealed class InputMap
             || (
                 !_mousePressedBindings.ContainsKey(message.Button)
                 && !_mouseReleasedBindings.ContainsKey(message.Button)
+                && _longPress is null
             )
         )
             return;
 
         _capturedMousePointerId = message.Mouse.Id;
+        _pressPosition = message.Position;
+        _holdElapsed = 0;
+        _holdCanceled = false;
+        _holdInvoked = false;
         Dispatch(_mousePressedBindings, message.Button);
     }
 
@@ -263,7 +311,7 @@ public sealed class InputMap
     {
         if (_hitTest is null)
         {
-            if (!SuppressSceneInputEvents && ContainsMousePosition(message.Position))
+            if (!IsSuppressed && ContainsMousePosition(message.Position))
                 Dispatch(_mouseReleasedBindings, message.Button);
             return;
         }
@@ -272,7 +320,7 @@ public sealed class InputMap
             return;
 
         _capturedMousePointerId = null;
-        if (!SuppressSceneInputEvents && ContainsMousePosition(message.Position))
+        if (!IsSuppressed && !_holdInvoked && !_holdCanceled && ContainsMousePosition(message.Position))
             Dispatch(_mouseReleasedBindings, message.Button);
     }
 
@@ -282,7 +330,7 @@ public sealed class InputMap
     /// <param name="message">The mouse-wheel event to handle.</param>
     public void Handle(MouseWheelEvent message)
     {
-        if (SuppressSceneInputEvents || !ContainsMousePosition(message.Position))
+        if (IsSuppressed || !ContainsMousePosition(message.Position))
             return;
 
         foreach (var callback in _mouseWheelBindings.ToArray())
@@ -309,7 +357,7 @@ public sealed class InputMap
     /// <param name="message">The controller button event to handle.</param>
     public void Handle(ControllerButtonPressedEvent message)
     {
-        if (SuppressSceneInputEvents)
+        if (IsSuppressed)
             return;
 
         Dispatch(_controllerPressedBindings, (message.Controller.Id, message.ButtonIndex));
@@ -322,7 +370,7 @@ public sealed class InputMap
     /// <param name="message">The controller button event to handle.</param>
     public void Handle(ControllerButtonReleasedEvent message)
     {
-        if (SuppressSceneInputEvents)
+        if (IsSuppressed)
             return;
 
         Dispatch(_controllerReleasedBindings, (message.Controller.Id, message.ButtonIndex));
@@ -335,7 +383,7 @@ public sealed class InputMap
     /// <param name="message">The captured analog-change event to handle.</param>
     public void Handle(ControllerAnalogChangedEvent message)
     {
-        if (SuppressSceneInputEvents)
+        if (IsSuppressed)
             return;
 
         DispatchAnalog(

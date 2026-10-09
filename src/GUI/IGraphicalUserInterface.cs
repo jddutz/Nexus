@@ -1,4 +1,4 @@
-﻿namespace Nexus.GUI;
+namespace Nexus.GUI;
 
 /// <summary>
 /// Defines lifecycle operations for a graphical user interface.
@@ -7,6 +7,9 @@ public interface IGraphicalUserInterface
 {
     /// <summary>Gets the element currently focused by the GUI.</summary>
     IElement? FocusedElement { get; }
+
+    /// <summary>Dims the active scene and restricts input to the returned dialog. Dispose it to close.</summary>
+    ModalDialog StartModalDialog();
 
     /// <summary>Sets the focused element, or clears focus when null is supplied.</summary>
     /// <param name="element">The focusable active element, or null to clear focus.</param>

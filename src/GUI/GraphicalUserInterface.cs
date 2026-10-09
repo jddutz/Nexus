@@ -28,6 +28,43 @@ public sealed class GraphicalUserInterface(
     private Element? _focusedElement;
     private Vector2D<int>? _pendingWindowSize;
     private bool _layoutInvalidated;
+    private ModalDialog? _modal;
+    private InputScope? _modalScope;
+    private Element? _savedFocus;
+
+    /// <inheritdoc />
+    public ModalDialog StartModalDialog()
+    {
+        if (_scene is null) throw new InvalidOperationException("A scene must be loaded before opening a dialog.");
+        if (_modal is not null) throw new InvalidOperationException("A modal dialog is already open.");
+        _savedFocus = _focusedElement;
+        SetFocus(null);
+        var dialog = new ModalDialog(CloseModalDialog);
+        _modal = dialog;
+        _modalScope = new InputScope(_eventHub, dialog.ContainsMap);
+        _scene.Children.Add(dialog);
+        _layoutInvalidated = true;
+        return dialog;
+    }
+
+    private void CloseModalDialog()
+    {
+        if (_modal is null) return;
+        var dialog = _modal;
+        _modal = null;
+        SetFocus(null);
+        UnsubscribeFromElements(EnumerateElements([dialog]).ToArray());
+        dialog.IsVisible = false;
+        dialog.Parent?.Children.Remove(dialog);
+        _modalScope?.Dispose();
+        _modalScope = null;
+        var focus = _savedFocus;
+        _savedFocus = null;
+        if (focus is not null && _subscribedElements.Contains(focus) && focus.IsActivated
+            && focus.IsEffectivelyVisible && focus.IsEffectivelyEnabled && focus.CanFocus)
+            SetFocus(focus);
+        _layoutInvalidated = true;
+    }
 
     /// <inheritdoc />
     public IElement? FocusedElement => _focusedElement;
@@ -51,6 +88,8 @@ public sealed class GraphicalUserInterface(
     /// <param name="deltaTime">The elapsed time, in seconds, since the previous frame.</param>
     public void Update(double deltaTime)
     {
+        foreach (var element in _subscribedElements.ToArray())
+            element.InputMap.Update(deltaTime);
         if (!_layoutInvalidated || _scene is null || _windowService is null)
             return;
 
@@ -75,6 +114,7 @@ public sealed class GraphicalUserInterface(
                 || !target.IsEffectivelyVisible
                 || !target.IsEffectivelyEnabled
                 || !target.CanFocus
+                || (_modal is not null && !_modal.ContainsElement(target))
             )
         )
             throw new ArgumentException(
@@ -108,6 +148,7 @@ public sealed class GraphicalUserInterface(
                     && element.IsEffectivelyVisible
                     && element.IsEffectivelyEnabled
                     && element.CanFocus
+                    && (_modal is null || _modal.ContainsElement(element))
                 )
                 .ToArray();
         if (focusableElements.Length == 0)
@@ -134,6 +175,7 @@ public sealed class GraphicalUserInterface(
     /// <param name="message">The scene-loaded event.</param>
     public void Handle(SceneLoadedEvent message)
     {
+        _modal?.Dispose();
         UnsubscribeFromElements(_subscribedElements.ToArray());
         _scene = message.Scene;
         SubscribeToActiveElements(_scene.Children.OfType<IGameObject>());
@@ -159,8 +201,20 @@ public sealed class GraphicalUserInterface(
     /// <param name="message">The game-object deactivation event.</param>
     public void Handle(GameObjectDeactivatedEvent message)
     {
+        if (ReferenceEquals(message.GameObject, _modal))
+            _modal?.Dispose();
         UnsubscribeFromElements(EnumerateElements([message.GameObject]));
         _layoutInvalidated = true;
+    }
+
+    /// <summary>Releases modal input restrictions when the current scene is unloaded.</summary>
+    public void Handle(SceneUnloadedEvent message)
+    {
+        if (!ReferenceEquals(message.Scene, _scene)) return;
+        _savedFocus = null;
+        _modal?.Dispose();
+        UnsubscribeFromElements(_subscribedElements.ToArray());
+        _scene = null;
     }
 
     /// <summary>
