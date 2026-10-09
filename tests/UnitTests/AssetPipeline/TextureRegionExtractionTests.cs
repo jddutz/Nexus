@@ -78,6 +78,21 @@ public sealed class TextureRegionExtractionTests
     }
 
     [Fact]
+    public void RowToleranceOrdersColumnsDespiteSmallVerticalShiftsWithoutDrifting()
+    {
+        var regions = TextureRegionExtractor.Extract(Pixels(16, 8,
+            (10, 0, 255), (5, 1, 255), (0, 2, 255), (14, 3, 255), (2, 5, 255)), 16, 8,
+            new() { MinimumIslandArea = 1, Padding = 0 });
+        Assert.Equal(new[] { 0, 5, 10, 2, 14 }, regions.Select(r => r.Bounds.Origin.X));
+        var strict = TextureRegionExtractor.Extract(Pixels(8, 4,
+            (6, 0, 255), (0, 2, 255)), 8, 4,
+            new() { MinimumIslandArea = 1, Padding = 0, RowTolerance = 0 });
+        Assert.Equal(6, strict[0].Bounds.Origin.X);
+        Assert.Throws<ArgumentOutOfRangeException>(() => TextureRegionExtractor.Extract(
+            new byte[16], 2, 2, new() { RowTolerance = -1 }));
+    }
+
+    [Fact]
     public void EmptyMaskAndInvalidSettingsAreHandled()
     {
         Assert.Empty(TextureRegionExtractor.Extract(new byte[16], 2, 2, new()));

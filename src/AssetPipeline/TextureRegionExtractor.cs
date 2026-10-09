@@ -10,6 +10,7 @@ public sealed class TextureRegionSettings
     public int MinimumIslandArea { get; set; } = 64;
     public int MergeDistance { get; set; }
     public int Padding { get; set; } = 2;
+    public int RowTolerance { get; set; } = 2;
     public Dictionary<string, int[]> Groups { get; set; } = [];
     public Dictionary<string, RegionBounds> NamedBounds { get; set; } = [];
 }
@@ -33,7 +34,7 @@ public static class TextureRegionExtractor
         if (width <= 0 || height <= 0 || rgba.Length != checked(width * height * 4))
             throw new ArgumentException("Expected positive dimensions and packed RGBA pixels.");
         if (settings.AlphaThreshold is < 0 or > 255 || settings.MinimumIslandArea < 1
-            || settings.MergeDistance < 0 || settings.Padding < 0)
+            || settings.MergeDistance < 0 || settings.Padding < 0 || settings.RowTolerance < 0)
             throw new ArgumentOutOfRangeException(nameof(settings));
         var seen = new bool[width * height];
         var islands = new List<(int X, int Y, int R, int B)>();
@@ -78,6 +79,21 @@ public static class TextureRegionExtractor
                 X: group.Min(item => item.bounds.X), Y: group.Min(item => item.bounds.Y),
                 R: group.Max(item => item.bounds.R), B: group.Max(item => item.bounds.B)))
             .OrderBy(bounds => bounds.Y).ThenBy(bounds => bounds.X).ToArray();
+        // Anchor each row to its first top coordinate, avoiding transitive drift
+        // and non-transitive comparisons when artwork is slightly misaligned.
+        for (var start = 0; start < candidates.Length;)
+        {
+            var end = start + 1;
+            while (end < candidates.Length && (long)candidates[end].Y - candidates[start].Y <= settings.RowTolerance)
+                end++;
+            Array.Sort(candidates, start, end - start,
+                Comparer<(int X, int Y, int R, int B)>.Create((a, b) =>
+                {
+                    var column = a.X.CompareTo(b.X);
+                    return column != 0 ? column : a.Y.CompareTo(b.Y);
+                }));
+            start = end;
+        }
         var result = new Dictionary<string, Nexus.Graphics.Textures.TextureRegion>(StringComparer.Ordinal);
         var used = new HashSet<int>();
         void Add(string name, int x, int y, int r, int b, bool pad)

@@ -107,6 +107,7 @@ For this minimal texture import, specify `assetType: texture` and `files`. `path
 | `alphaThreshold` | `16` | Integer 0–255; only alpha strictly above this value is occupied. |
 | `minimumIslandArea` | `64` | Integer at least 1; minimum occupied pixel count per island. |
 | `mergeDistance` | `0` | Nonnegative integer; 0 disables automatic merging. |
+| `rowTolerance` | `2` | Nonnegative pixel tolerance for top coordinates in the same row; 0 restores strict top/left order. |
 | `padding` | `2` | Nonnegative integer; expands bounds by this many pixels on every side. |
 | `groups` | `{}` | Optional named lists of candidate indices. |
 | `namedBounds` | `{}` | Optional named pixel rectangles. Each rectangle needs positive `width` and `height`; `x` and `y` default to 0. |
@@ -138,7 +139,7 @@ assets:
 
 Alpha must be strictly above `alphaThreshold` (0–255, default 16). Eight-connected occupied pixels form islands; `minimumIslandArea` counts occupied pixels (default 64), filtering before merging. A positive `mergeDistance` joins island bounding rectangles transitively using the maximum horizontal/vertical gap in pixels; zero disables merging. Padding expands the final bounds and clamps them to the image, without influencing detection or grouping.
 
-Candidates are sorted by top then left and named `region-0000`, etc. Group indices refer to this zero-based order after automatic merging and before padding. Groups consume their candidates and create a named union; a candidate may belong to only one group. `namedBounds` replaces a matching candidate/group name or adds a new region, with exact unpadded bounds. For touching shadows, override the detected candidate and add explicit bounds for the other panel. Settings apply independently to every file in the texture asset; use separate entries for per-image overrides. Candidate names can change when source pixels or detection settings change; named overrides provide stable application names.
+Candidates are sorted by row then left. Each row includes top coordinates within `rowTolerance` pixels of its topmost candidate, without chaining the tolerance across candidates. Increase the tolerance for uneven artwork in a regular sheet. Candidates are named `region-0000`, etc. Group indices refer to this zero-based order after automatic merging and before padding. Groups consume their candidates and create a named union; a candidate may belong to only one group. `namedBounds` replaces a matching candidate/group name or adds a new region, with exact unpadded bounds. For touching shadows, override the detected candidate and add explicit bounds for the other panel. Settings apply independently to every file in the texture asset; use separate entries for per-image overrides. Candidate names can change when source pixels or detection settings change; named overrides provide stable application names.
 
 The texture manifest entry retains `FilePath` and adds `Regions`, keyed by region name. Each region has scalar `Bounds` and `TexCoords` objects with `X`, `Y`, `Width`, and `Height`; coordinates start at the top left. UVs use normalized XYWH, not right/bottom endpoints.
 
