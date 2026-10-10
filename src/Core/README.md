@@ -26,3 +26,9 @@ dotnet build src/Core/Nexus.Core.csproj
 ```
 
 Related tests are in [Core tests](../../tests/UnitTests/Core), [game-object tests](../../tests/UnitTests/Game/GameObjectTests.cs), and [source-generator tests](../../tests/SourceGeneratorTests). See [code generation](../../docs/Code%20Generation.md) and the [architecture baseline](../../README.md) for design guidance. Build commands here describe project entry points; they were not executed for this documentation change.
+
+## Timed animation values
+
+`AnimationPlayer<T>` assigns values through a supplied setter. `Animation<T>` snapshots positive-duration `AnimationFrame<T>` values and optionally loops. Call `Advance(elapsed)` once per game update. `Play` replaces playback, `Enqueue` appends sequences, and `Stop` cancels playback. Nonlooping playback retains the final value and raises `Completed` once after the queue drains; callers can restore or hide visuals there.
+
+For example, `new AnimationPlayer<int>(frame => renderer.CurrentFrame = frame)` can animate any renderer exposing a frame index. Nexus sprites currently expose atlas coordinates as `SpriteInstance.TexCoord`; `SpriteAnimationPlayer` adapts that property to the generic player. Colors, visibility, and other values use the same API. Playback is discrete, without interpolation, and the player has no rendering or combat dependency.

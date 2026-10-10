@@ -55,8 +55,7 @@ public sealed class GraphicsProfiler : IGraphicsProfiler, IDisposable
         _duration!.Record(elapsedMs, tags);
         _allocations!.Add(allocatedBytes, tags);
         if (units > 0) _work!.Add(units, tags);
-        var level = codepoint >= 0 || operation.EndsWith(".hit", StringComparison.Ordinal) || operation.EndsWith(".miss", StringComparison.Ordinal)
-            ? LogLevel.Debug : LogLevel.Information;
+        const LogLevel level = LogLevel.Debug;
         if (_logger?.IsEnabled(level) == true)
             _logger.Log(level, "Graphics load {Operation}: Resource={Resource}, EmSize={EmSize}, Codepoint={Codepoint}, ElapsedMs={ElapsedMs:F3}, AllocatedBytes={AllocatedBytes}, Units={Units}",
                 operation, resource, size, codepoint, elapsedMs, allocatedBytes, units);

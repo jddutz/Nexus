@@ -16,6 +16,8 @@ public sealed class AssetDefinition
 
     public string? TextureFormat { get; set; }
     public bool? Mipmaps { get; set; }
+    /// <summary>Copies companion Aseprite JSON exports into the texture manifest when present.</summary>
+    public bool Aseprite { get; set; }
     public int? JpegQuality { get; set; }
 
     public string Path { get; set; } = string.Empty;

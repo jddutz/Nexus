@@ -20,6 +20,44 @@ namespace Tests;
 /// </summary>
 public class GraphicalUserInterfaceTests
 {
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void LayoutTelemetry_recordsPassesAndReentrantInvalidation_onlyWhenEnabled(bool enabled)
+    {
+        using var profiler = new GraphicsProfiler(Microsoft.Extensions.Options.Options.Create(
+            new DiagnosticsSettings { EnablePerformanceMetrics = enabled }));
+        var gui = new GraphicalUserInterface(new EventHub(),
+            new TestWindowService(new(800, 600)), telemetry: profiler);
+        var flow = new FlowLayout();
+        flow.Children.Add(new Element { Width = 100f, Height = 30f });
+        var scene = new Scene { MainCamera = new Nexus.Graphics.Cameras.StaticCamera() };
+        scene.Children.Add(flow);
+        ActivateScene(scene);
+        gui.Handle(new SceneLoadedEvent(scene));
+        gui.Update(0);
+
+        var samples = profiler.GetSnapshot();
+        if (!enabled)
+        {
+            Assert.Empty(samples);
+            return;
+        }
+        Assert.Equal(1, samples.Single(sample => sample.Operation == "gui.layout.pass").Count);
+        Assert.Contains(samples, sample => sample.Operation == "gui.layout.wait");
+        Assert.Contains(samples, sample => sample.Operation == "gui.layout.measure"
+            && sample.Resource == nameof(FlowLayout));
+        Assert.Contains(samples, sample => sample.Operation == "gui.layout.arrange"
+            && sample.Resource == nameof(FlowLayout));
+        Assert.Contains(samples, sample => sample.Operation == "gui.layout.invalidate.during-pass");
+
+        // The layout request raised during arrangement must still run on the next update.
+        gui.Update(0);
+        Assert.Equal(2, profiler.GetSnapshot().Single(sample => sample.Operation == "gui.layout.pass").Count);
+        gui.Update(0);
+        Assert.Equal(2, profiler.GetSnapshot().Single(sample => sample.Operation == "gui.layout.pass").Count);
+    }
+
     [Fact]
     public void Annotation_tracksTargetAndCameraWithoutLayoutInvalidation_afterViewLayout()
     {

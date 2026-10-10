@@ -130,8 +130,8 @@ public sealed class TextureRegistry(IContentManifest manifest, ILogger<TextureRe
                 mipmaps
             );
 
-            if (_profiler?.IsEnabled == true && _logger.IsEnabled(LogLevel.Information))
-                _logger.LogInformation(
+            if (_profiler?.IsEnabled == true && _logger.IsEnabled(LogLevel.Debug))
+                _logger.LogDebug(
                     "Texture loaded: Id={Id}, Width={Width}, Height={Height}",
                     Path.GetFileNameWithoutExtension(filepath),
                     image.Width,

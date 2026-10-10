@@ -132,6 +132,10 @@ public unsafe class VulkanGraphicsSystem(
     {
         ArgumentNullException.ThrowIfNull(drawable);
 
+        // Renderers can publish DrawableAdded while handling IsVisible, followed by
+        // IsVisibleChanged for the same drawable. Both notifications describe one allocation.
+        if (_drawables.ContainsKey(drawable.Id)) return;
+
         var commands = commandFactory.Create(drawable).ToArray();
         var persistentCommands = commands.Where(command => command.IsSticky).ToArray();
         var transientCommands = commands.Where(command => !command.IsSticky).ToArray();

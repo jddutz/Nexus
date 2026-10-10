@@ -23,6 +23,27 @@ public sealed class SpriteRendererTests
     }
 
     [Fact]
+    public void TintAndVisibilityChangesInvalidateThePublishedDrawable()
+    {
+        var renderer = CreateRenderer();
+        var sprite = new SpriteInstance();
+        renderer.Add(sprite);
+        var drawable = Assert.Single(renderer.Drawables);
+        var invalidations = 0;
+        drawable.InstanceDataChanged += (_, _) => invalidations++;
+        sprite.Color = new Color(1f, 0.2f, 0.2f, 1f);
+        Assert.Equal(1, invalidations);
+        Assert.Equal(sprite.Color, MemoryMarshal.Read<Color>(Read(renderer).AsSpan(80)));
+        sprite.Color = sprite.Color.WithTransparency(0.5f);
+        Assert.Equal(2, invalidations);
+        var removed = new List<IDrawable>();
+        renderer.DrawableRemoved += (_, e) => removed.Add(e.Drawable);
+        renderer.IsVisible = false;
+        Assert.Same(drawable, Assert.Single(removed));
+        Assert.Empty(renderer.Drawables);
+    }
+
+    [Fact]
     public void PacksAnchoredLocalTransformBeforeOwnerWorldTransform()
     {
         var renderer = CreateRenderer();

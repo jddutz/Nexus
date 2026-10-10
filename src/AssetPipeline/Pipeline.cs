@@ -158,6 +158,17 @@ public sealed class Pipeline
             var relativeOutputPath = Path.GetRelativePath(_outputFolder, outputPath)
                 .Replace('\\', '/');
             var entry = new Dictionary<string, object> { ["FilePath"] = relativeOutputPath };
+            var animationSource = Path.ChangeExtension(sourcePath, ".json");
+            if (asset.Aseprite && File.Exists(animationSource))
+            {
+                // Validate before publishing runtime content. The editor source remains in .assets.
+                var animations = Nexus.Graphics.AsepriteSpriteSheet.Load(animationSource);
+                if (animations.AtlasWidth != image.Width || animations.AtlasHeight != image.Height)
+                    throw new InvalidOperationException($"Aseprite atlas size does not match '{sourcePath}'.");
+                var animationOutput = Path.ChangeExtension(outputPath, ".json");
+                File.Copy(animationSource, animationOutput, overwrite: true);
+                entry["AnimationsFilePath"] = Path.GetRelativePath(_outputFolder, animationOutput).Replace('\\', '/');
+            }
             if (mipmaps && format != "ktx2" && (image.Width > 1 || image.Height > 1))
                 entry["MipmapsFilePath"] = relativeOutputPath + ".mips.ktx2";
             if (asset.Regions is { Enabled: true } settings)

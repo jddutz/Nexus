@@ -28,6 +28,8 @@ public sealed class GraphicalUserInterface(
     private Element? _focusedElement;
     private Vector2D<int>? _pendingWindowSize;
     private bool _layoutInvalidated;
+    private bool _isLayingOut;
+    private long _invalidationStarted;
     private ModalDialog? _modal;
     private InputScope? _modalScope;
     private Element? _savedFocus;
@@ -43,7 +45,7 @@ public sealed class GraphicalUserInterface(
         _modal = dialog;
         _modalScope = new InputScope(_eventHub, dialog.ContainsMap);
         _scene.Children.Add(dialog);
-        _layoutInvalidated = true;
+        InvalidateLayout("modal.open");
         return dialog;
     }
 
@@ -63,7 +65,7 @@ public sealed class GraphicalUserInterface(
         if (focus is not null && _subscribedElements.Contains(focus) && focus.IsActivated
             && focus.IsEffectivelyVisible && focus.IsEffectivelyEnabled && focus.CanFocus)
             SetFocus(focus);
-        _layoutInvalidated = true;
+        InvalidateLayout("modal.close");
     }
 
     /// <inheritdoc />
@@ -96,12 +98,24 @@ public sealed class GraphicalUserInterface(
         if (_layoutInvalidated)
         {
             _layoutInvalidated = false;
+            if (telemetry?.IsEnabled == true)
+                telemetry.RecordDuration("gui.layout.wait", null,
+                    Stopwatch.GetElapsedTime(_invalidationStarted).TotalMilliseconds, 0);
+            using var timing = new LoadPerformanceScope(telemetry, "gui.layout.pass");
             var size = _pendingWindowSize ?? _windowService.GetMainWindow().Size;
             _pendingWindowSize = null;
             var screenSize = new Vector2D<float>(size.X, size.Y);
             var screenBounds = new Rectangle<float>(Vector2D<float>.Zero, screenSize);
-            foreach (var element in EnumerateActiveLayoutRoots(_scene.Children.OfType<IGameObject>()))
-                MeasureAndArrange(element, screenSize, screenBounds);
+            _isLayingOut = true;
+            try
+            {
+                foreach (var element in EnumerateActiveLayoutRoots(_scene.Children.OfType<IGameObject>()))
+                    MeasureAndArrange(element, screenSize, screenBounds);
+            }
+            finally
+            {
+                _isLayingOut = false;
+            }
         }
 
         // Resolve anchors after every view has its final viewport, even without a layout
@@ -187,7 +201,7 @@ public sealed class GraphicalUserInterface(
         UnsubscribeFromElements(_subscribedElements.ToArray());
         _scene = message.Scene;
         SubscribeToActiveElements(_scene.Children.OfType<IGameObject>());
-        _layoutInvalidated = true;
+        InvalidateLayout("scene.loaded");
     }
 
     /// <summary>
@@ -199,7 +213,7 @@ public sealed class GraphicalUserInterface(
         if (message.GameObject.IsActivated)
         {
             SubscribeToActiveElements([message.GameObject]);
-            _layoutInvalidated = true;
+            InvalidateLayout("object.activated");
         }
     }
 
@@ -212,7 +226,7 @@ public sealed class GraphicalUserInterface(
         if (ReferenceEquals(message.GameObject, _modal))
             _modal?.Dispose();
         UnsubscribeFromElements(EnumerateElements([message.GameObject]));
-        _layoutInvalidated = true;
+        InvalidateLayout("object.deactivated");
     }
 
     /// <summary>Releases modal input restrictions when the current scene is unloaded.</summary>
@@ -234,7 +248,7 @@ public sealed class GraphicalUserInterface(
         if (_windowService is not null && message.WindowId == _windowService.MainWindowId)
         {
             _pendingWindowSize = message.Size;
-            _layoutInvalidated = true;
+            InvalidateLayout("window.resized");
         }
     }
 
@@ -324,7 +338,21 @@ public sealed class GraphicalUserInterface(
                         or nameof(TextButton.Padding)
             )
         )
-            _layoutInvalidated = true;
+            InvalidateLayout("element.changed", telemetry?.IsEnabled == true ? changedElement.GetType().Name : null);
+    }
+
+    /// <summary>Queues layout and records requests, including requests raised by layout itself.</summary>
+    private void InvalidateLayout(string reason, string? elementType = null)
+    {
+        if (telemetry?.IsEnabled == true)
+        {
+            if (!_layoutInvalidated)
+                _invalidationStarted = Stopwatch.GetTimestamp();
+            telemetry.RecordDuration("gui.layout.invalidate." + reason, elementType, 0, 0, units: 1);
+            if (_isLayingOut)
+                telemetry.RecordDuration("gui.layout.invalidate.during-pass", elementType, 0, 0, units: 1);
+        }
+        _layoutInvalidated = true;
     }
 
     /// <summary>
@@ -358,8 +386,12 @@ public sealed class GraphicalUserInterface(
         Rectangle<float> screenBounds
     )
     {
-        var measuredSize = element.Measure(screenSize);
-        element.Arrange(screenBounds);
+        Vector2D<float> measuredSize;
+        var resource = telemetry?.IsEnabled == true ? element.GetType().Name : null;
+        using (var measure = new LoadPerformanceScope(telemetry, "gui.layout.measure", resource, units: 1))
+            measuredSize = element.Measure(screenSize);
+        using (var arrange = new LoadPerformanceScope(telemetry, "gui.layout.arrange", resource, units: 1))
+            element.Arrange(screenBounds);
 
         if (_diagnosticsEnabled)
         {

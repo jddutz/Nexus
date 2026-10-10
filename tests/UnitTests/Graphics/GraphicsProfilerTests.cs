@@ -26,6 +26,29 @@ public sealed class GraphicsProfilerTests
     }
 
     [Fact]
+    public void PerformanceSamplesLogAtDebugAndKeepAggregates()
+    {
+        var logger = new RecordingLogger();
+        using var profiler = new GraphicsProfiler(Options.Create(new DiagnosticsSettings { EnablePerformanceMetrics = true }), logger);
+        profiler.RecordDuration("texture.image.realize", null, 10, 100);
+        profiler.RecordDuration("gui.layout.arrange", null, 2, 20);
+        profiler.RecordDuration("font.msdf.glyph", "font", 4, 40, 16, 65);
+        profiler.RecordCache("registry", null, true);
+        Assert.Equal(4, logger.Levels.Count);
+        Assert.All(logger.Levels, level => Assert.Equal(Microsoft.Extensions.Logging.LogLevel.Debug, level));
+        Assert.Equal(4, profiler.GetSnapshot().Count);
+    }
+
+    private sealed class RecordingLogger : Microsoft.Extensions.Logging.ILogger<GraphicsProfiler>
+    {
+        public List<Microsoft.Extensions.Logging.LogLevel> Levels { get; } = [];
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel) => true;
+        public void Log<TState>(Microsoft.Extensions.Logging.LogLevel logLevel, Microsoft.Extensions.Logging.EventId eventId,
+            TState state, Exception? exception, Func<TState, Exception?, string> formatter) => Levels.Add(logLevel);
+    }
+
+    [Fact]
     public void AggregatesPreserveWorkAllocationsCacheCountsAndSlowestGlyph()
     {
         using var profiler = new GraphicsProfiler(Options.Create(new DiagnosticsSettings { EnablePerformanceMetrics = true }));

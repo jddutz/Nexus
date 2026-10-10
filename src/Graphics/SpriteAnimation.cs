@@ -26,66 +26,20 @@ public sealed class SpriteAnimation
     public TimeSpan Duration { get; }
 }
 
-/// <summary>Advances atlas frames independently of sprite rendering.</summary>
+/// <summary>Adapts generic timed-value playback to a sprite's atlas coordinates.</summary>
 public sealed class SpriteAnimationPlayer
 {
-    private long _elapsedTicks;
-    private readonly SpriteInstance _instance;
-    private readonly SpriteAnimation _animation;
-
-    /// <summary>Starts playback and assigns the first frame.</summary>
+    private readonly AnimationPlayer<Vector4D<float>> _player;
+    private readonly Animation<Vector4D<float>> _animation;
     public SpriteAnimationPlayer(SpriteInstance instance, SpriteAnimation animation)
     {
         ArgumentNullException.ThrowIfNull(instance);
         ArgumentNullException.ThrowIfNull(animation);
-        _instance = instance;
-        _animation = animation;
+        _player = new(value => instance.TexCoord = value);
+        _animation = new(animation.Frames.Select(frame => new AnimationFrame<Vector4D<float>>(frame.TexCoord, frame.Duration)), animation.Loop);
         Restart();
     }
-
-    /// <summary>Gets whether nonlooping playback reached its final frame.</summary>
-    public bool IsCompleted { get; private set; }
-
-    /// <summary>Restarts playback at the first frame.</summary>
-    public void Restart()
-    {
-        _elapsedTicks = 0;
-        IsCompleted = false;
-        _instance.TexCoord = _animation.Frames[0].TexCoord;
-    }
-
-    /// <summary>Advances playback, preserving the final frame after nonlooping completion.</summary>
-    public void Advance(TimeSpan elapsed)
-    {
-        if (elapsed < TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(elapsed));
-        if (IsCompleted) return;
-        var duration = _animation.Duration.Ticks;
-        if (_animation.Loop)
-        {
-            var step = elapsed.Ticks % duration;
-            _elapsedTicks = _elapsedTicks >= duration - step
-                ? _elapsedTicks - (duration - step) : _elapsedTicks + step;
-        }
-        else
-        {
-            if (elapsed.Ticks >= duration - _elapsedTicks)
-            {
-                _elapsedTicks = duration;
-                IsCompleted = true;
-                _instance.TexCoord = _animation.Frames[^1].TexCoord;
-                return;
-            }
-            _elapsedTicks += elapsed.Ticks;
-        }
-        var remaining = _elapsedTicks;
-        foreach (var frame in _animation.Frames)
-        {
-            if (remaining < frame.Duration.Ticks)
-            {
-                _instance.TexCoord = frame.TexCoord;
-                return;
-            }
-            remaining -= frame.Duration.Ticks;
-        }
-    }
+    public bool IsCompleted => _player.IsCompleted;
+    public void Restart() => _player.Play(_animation);
+    public void Advance(TimeSpan elapsed) => _player.Advance(elapsed);
 }
