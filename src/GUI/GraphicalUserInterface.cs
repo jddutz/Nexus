@@ -90,16 +90,24 @@ public sealed class GraphicalUserInterface(
     {
         foreach (var element in _subscribedElements.ToArray())
             element.InputMap.Update(deltaTime);
-        if (!_layoutInvalidated || _scene is null || _windowService is null)
+        if (_scene is null || _windowService is null)
             return;
 
-        _layoutInvalidated = false;
-        var size = _pendingWindowSize ?? _windowService.GetMainWindow().Size;
-        _pendingWindowSize = null;
-        var screenSize = new Vector2D<float>(size.X, size.Y);
-        var screenBounds = new Rectangle<float>(Vector2D<float>.Zero, screenSize);
-        foreach (var element in EnumerateActiveLayoutRoots(_scene.Children.OfType<IGameObject>()))
-            MeasureAndArrange(element, screenSize, screenBounds);
+        if (_layoutInvalidated)
+        {
+            _layoutInvalidated = false;
+            var size = _pendingWindowSize ?? _windowService.GetMainWindow().Size;
+            _pendingWindowSize = null;
+            var screenSize = new Vector2D<float>(size.X, size.Y);
+            var screenBounds = new Rectangle<float>(Vector2D<float>.Zero, screenSize);
+            foreach (var element in EnumerateActiveLayoutRoots(_scene.Children.OfType<IGameObject>()))
+                MeasureAndArrange(element, screenSize, screenBounds);
+        }
+
+        // Resolve anchors after every view has its final viewport, even without a layout
+        // invalidation: target transforms and camera matrices can change each frame.
+        foreach (var annotation in _subscribedElements.OfType<ViewAnnotation>().ToArray())
+            annotation.Arrange(default);
     }
 
     /// <inheritdoc />

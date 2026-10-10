@@ -298,6 +298,18 @@ public unsafe class CommandRecorder(
     /// </summary>
     public void Submit()
     {
+        if (!_hasRenderedThisFrame)
+        {
+            // A scene can have no renderable views. Never present the old contents
+            // of a recycled swap-chain image when no pass has cleared this frame.
+            _renderArea = new Rect2D { Offset = new Offset2D(0, 0), Extent = _swapChain.Extent };
+            var configuration = _renderPasses.Configurations.Values.FirstOrDefault()
+                ?? new RenderPassConfiguration { ColorStoreOp = AttachmentStoreOp.Store };
+            BeginRendering(configuration, AttachmentLoadOp.Clear);
+            EndRendering();
+            _hasRenderedThisFrame = true;
+        }
+
         TransitionToPresent();
 
         var result = _context.VulkanApi.EndCommandBuffer(_commandBuffer);

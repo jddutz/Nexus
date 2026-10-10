@@ -21,6 +21,41 @@ namespace Tests;
 public class GraphicalUserInterfaceTests
 {
     [Fact]
+    public void Annotation_tracksTargetAndCameraWithoutLayoutInvalidation_afterViewLayout()
+    {
+        var hub = new EventHub();
+        var gui = new GraphicalUserInterface(hub, new TestWindowService(new(800, 600)));
+        var camera = new Nexus.Graphics.Cameras.OrthoCamera();
+        camera.SetSize(400f, 200f);
+        var view = new View { Camera = camera, Width = 400f, Height = 200f };
+        var target = new GameObject3D { Position = new(0f, 0f, 0f) };
+        var annotation = new ViewAnnotation
+        {
+            TargetGameObject = target, View = view,
+            LeftOffset = -10f, RightOffset = 30f, TopOffset = -20f, BottomOffset = 10f,
+        };
+        var child = new Element();
+        annotation.Children.Add(child);
+        var scene = new Scene { MainCamera = new Nexus.Graphics.Cameras.StaticCamera() };
+        // The annotation deliberately precedes its view in scene/layout order.
+        scene.Children.Add(annotation);
+        scene.Children.Add(view);
+        scene.Children.Add(target);
+        ActivateScene(scene);
+        gui.Handle(new SceneLoadedEvent(scene));
+        gui.Update(0);
+        Assert.Equal(new Rectangle<float>(390f, 280f, 40f, 30f), child.Bounds);
+
+        target.Position = new(50f, 25f, 0f);
+        gui.Update(0);
+        Assert.Equal(new Rectangle<float>(440f, 305f, 40f, 30f), child.Bounds);
+
+        camera.Position = new(50f, 25f, 0f);
+        gui.Update(0);
+        Assert.Equal(new Rectangle<float>(390f, 280f, 40f, 30f), child.Bounds);
+    }
+
+    [Fact]
     public void Modal_blocksSceneAndNewMaps_trapsFocus_andRestoresInput()
     {
         var hub = new EventHub();

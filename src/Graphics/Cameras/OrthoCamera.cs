@@ -201,20 +201,20 @@ public partial class OrthoCamera : Component, ICamera
 
     /// <summary>Moves the camera by the specified translation.</summary>
     /// <param name="translation">The offset to apply to the camera position.</param>
-    public void Translate(Vector3D<float> translation) => SetPosition(Position + translation);
+    public void Translate(Vector3D<float> translation) => Position += translation;
 
     /// <summary>Centers the camera's orthographic view on the specified world-space target.</summary>
     /// <param name="target">The point to center the view on.</param>
     /// <remarks>The camera's orientation is fixed; only its X/Y position changes.</remarks>
     public void LookAt(Vector3D<float> target) =>
-        SetPosition(new Vector3D<float>(target.X, target.Y, Position.Z));
+        Position = new Vector3D<float>(target.X, target.Y, Position.Z);
 
     /// <summary>Sets the width and height of the orthographic view volume.</summary>
     /// <param name="width">The new view volume width.</param>
     /// <param name="height">The new view volume height.</param>
     public void SetSize(float width, float height)
     {
-        SetWidth(width);
-        SetHeight(height);
+        Width = width;
+        Height = height;
     }
 }

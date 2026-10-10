@@ -122,6 +122,9 @@ public sealed class NexusRuntime(
         eventHub.Drain();
 
         gameSystem.Update(deltaTime);
+        // Newly activated scene components must reach graphics and GUI before this
+        // frame's layout/rendering, rather than leaving a viewless transition frame.
+        eventHub.Drain();
         physics.Update(deltaTime);
         gui.Update(deltaTime);
         audio.Update(deltaTime);

@@ -118,6 +118,7 @@ public class BasicRuntimeTests
             {
                 "events.Drain",
                 "game.Update",
+                "events.Drain",
                 "physics.Update",
                 "gui.Update",
                 "audio.Update",
@@ -128,7 +129,7 @@ public class BasicRuntimeTests
     }
 
     [Fact]
-    public void OnRender_consumesPendingSceneChangeAfterTheOutgoingFrame()
+    public void OnUpdate_consumesPendingSceneChangeAndDeliversOutgoingRemovals()
     {
         var eventHub = new EventHub();
         var gameSystem = new GameSystem(eventHub, NullLogger<GameSystem>.Instance);
@@ -147,21 +148,70 @@ public class BasicRuntimeTests
         );
 
         runtime.Initialize();
+        runtime.OnUpdate(1d / 60d);
         var outgoingScene = gameSystem.CurrentScene;
+        var observer = new RemovalObserver();
+        eventHub.Register(observer);
+        var removed = new GameObject();
+        outgoingScene!.Children.Add(removed);
 
         runtime.OnUpdate(1d / 60d);
 
         Assert.Same(outgoingScene, gameSystem.CurrentScene);
 
+        outgoingScene.Children.Remove(removed);
         sceneManager.LoadScene("Next");
         runtime.OnUpdate(1d / 60d);
-        Assert.Same(outgoingScene, gameSystem.CurrentScene);
 
-        runtime.OnRender(1d / 60d);
-
+        Assert.Contains(removed, observer.Removed);
         Assert.NotSame(outgoingScene, gameSystem.CurrentScene);
         Assert.False(outgoingScene!.IsActivated);
         Assert.True(gameSystem.IsSceneLoaded);
+    }
+
+    private sealed class RemovalObserver
+    {
+        public List<IGameObject> Removed { get; } = [];
+        public void Handle(GameObjectDeactivatedEvent message) => Removed.Add(message.GameObject);
+    }
+
+    [Fact]
+    public void SceneTransition_deliversIncomingViewActivationBeforeRendering()
+    {
+        var hub = new EventHub();
+        var game = new GameSystem(hub, NullLogger<GameSystem>.Instance);
+        var manager = new SceneManager(hub, NullLogger<SceneManager>.Instance);
+        var registry = CreateSceneRegistry("Startup");
+        var camera = new Nexus.Graphics.Cameras.StaticCamera();
+        var view = new Nexus.GUI.Elements.View { Camera = camera };
+        registry.Register("Next", () =>
+        {
+            var scene = new Scene { MainCamera = camera };
+            scene.Children.Add(view);
+            return scene;
+        });
+        var observer = new ComponentActivationObserver();
+        hub.Register(observer);
+        var runtime = new NexusRuntime(hub, game,
+            CreateRecordingProxy<IPhysicsSystem>("physics", []),
+            CreateRecordingProxy<IAudioSystem>("audio", []),
+            CreateRecordingProxy<IInputSystem>("input", []),
+            CreateRecordingProxy<IGraphicsSystem>("graphics", []),
+            CreateRecordingProxy<IGraphicalUserInterface>("gui", []),
+            registry, manager, Options.Create(new GameSettings { StartSceneId = "Startup" }));
+        runtime.Initialize();
+        runtime.OnUpdate(1d / 60d);
+        manager.LoadScene("Next");
+
+        runtime.OnUpdate(1d / 60d);
+
+        Assert.Contains(view.ViewComponent, observer.Activated);
+    }
+
+    private sealed class ComponentActivationObserver
+    {
+        public List<IComponent> Activated { get; } = [];
+        public void Handle(ComponentActivatedEvent message) => Activated.Add(message.Component);
     }
 
     [Fact]

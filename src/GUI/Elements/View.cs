@@ -53,6 +53,30 @@ public partial class View : Element
         ViewComponent.ViewportRegion = ViewComponent.ClippingRegion;
     }
 
+    /// <summary>Projects a world point into absolute screen pixels using the rendered viewport.</summary>
+    /// <param name="worldPoint">The world-space point to project.</param>
+    /// <param name="screenPoint">The projected point, including the viewport origin.</param>
+    /// <returns>Whether the view and homogeneous projection are valid.</returns>
+    public bool TryProjectToScreen(Vector3D<float> worldPoint, out Vector2D<float> screenPoint)
+    {
+        screenPoint = default;
+        var viewport = ViewComponent.ViewportRegion;
+        if (!IsEffectivelyVisible || Camera is null || viewport.Size.X <= 0 || viewport.Size.Y <= 0)
+            return false;
+
+        var clip = Vector4D.Transform(new Vector4D<float>(worldPoint, 1f), Camera.ViewProjectionMatrix);
+        if (!float.IsFinite(clip.W) || clip.W <= 0f)
+            return false;
+
+        // Match rendering: Vulkan NDC has +Y down, including orthographic world views.
+        var x = viewport.Origin.X + (clip.X / clip.W + 1f) * 0.5f * viewport.Size.X;
+        var y = viewport.Origin.Y + (clip.Y / clip.W + 1f) * 0.5f * viewport.Size.Y;
+        if (!float.IsFinite(x) || !float.IsFinite(y) || !float.IsFinite(clip.Z))
+            return false;
+        screenPoint = new(x, y);
+        return true;
+    }
+
     /// <summary>Synchronizes the assigned camera with the owned renderer.</summary>
     /// <param name="previousValue">The camera previously assigned to the view.</param>
     protected virtual partial void AfterCameraChanges(ICamera? previousValue)
