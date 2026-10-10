@@ -12,6 +12,21 @@ namespace Tests;
 public sealed class ImageElementTests
 {
     [Fact]
+    public void Fit_nonSquare_icon_keeps_valid_source_coordinates()
+    {
+        var image = CreateImageElement(180, 196);
+        image.Width = 36f;
+        image.Height = 36f;
+        image.SizingMode = ImageSizingMode.Fit;
+        image.Arrange(new(504f, 642f, 56f, 56f));
+        var renderer = image.GetComponent<TextureRenderer>()!;
+        Assert.True(renderer.IsVisible);
+        var quad = Assert.IsType<TexturedQuad>(Assert.Single(renderer.Drawables));
+        Assert.InRange(quad.TexCoord.X + quad.TexCoord.Z, 0f, 1f);
+        Assert.InRange(quad.TexCoord.Y + quad.TexCoord.W, 0f, 1f);
+    }
+
+    [Fact]
     public void Mask_reaches_renderer_and_preserves_layout_and_atlas_coordinates()
     {
         var image = CreateImageElement(100, 100);

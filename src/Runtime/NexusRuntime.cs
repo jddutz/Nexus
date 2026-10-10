@@ -106,7 +106,8 @@ public sealed class NexusRuntime(
 
         if (sceneManager.IsSceneChangePending)
         {
-            eventHub.ClearPendingEvents();
+            // Deliver removals queued by the outgoing scene before replacing it.
+            eventHub.Drain();
 
             if (gameSystem.IsSceneLoaded)
             {

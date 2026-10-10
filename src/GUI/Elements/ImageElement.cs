@@ -248,10 +248,11 @@ public partial class ImageElement : Element
         }
 
         var sourceTexCoord = GetActiveTexCoord(texture, sourceRegion);
-        var leftFraction = (left - imageX) / imageSize.X;
-        var topFraction = (top - imageY) / imageSize.Y;
-        var rightFraction = (right - imageX) / imageSize.X;
-        var bottomFraction = (bottom - imageY) / imageSize.Y;
+        // Centered fitting can round the far edge just beyond the source image.
+        var leftFraction = Math.Clamp((left - imageX) / imageSize.X, 0f, 1f);
+        var topFraction = Math.Clamp((top - imageY) / imageSize.Y, 0f, 1f);
+        var rightFraction = Math.Clamp((right - imageX) / imageSize.X, 0f, 1f);
+        var bottomFraction = Math.Clamp((bottom - imageY) / imageSize.Y, 0f, 1f);
         var texCoord = new Vector4D<float>(
             sourceTexCoord.X + leftFraction * sourceTexCoord.Z,
             sourceTexCoord.Y + topFraction * sourceTexCoord.W,
