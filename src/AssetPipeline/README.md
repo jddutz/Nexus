@@ -144,3 +144,9 @@ Candidates are sorted by row then left. Each row includes top coordinates within
 The texture manifest entry retains `FilePath` and adds `Regions`, keyed by region name. Each region has scalar `Bounds` and `TexCoords` objects with `X`, `Y`, `Width`, and `Height`; coordinates start at the top left. UVs use normalized XYWH, not right/bottom endpoints.
 
 Runtime lookup: `textureRegistry.GetOrCreate(textureContentId).GetRegion("decoratedPanel")` (namespace `Nexus.Graphics.Textures`); the loaded `ITexture.Regions` list contains all regions. Manifest-only lookup remains available as `manifest.GetTextureRegion(textureContentId, "decoratedPanel")`. Assign `region.Bounds` to `ImageElement.SourceRegion`, or assign `new Vector4D<float>(region.TexCoords.Origin.X, region.TexCoords.Origin.Y, region.TexCoords.Size.X, region.TexCoords.Size.Y)` to `SpriteInstance.TexCoord`. Regions are candidates for review, not semantic asset recognition. Nine-patch stretch insets remain explicit metadata.
+
+## Aseprite animation exports
+
+Set `aseprite: true` on a texture asset group to import same-name JSON companions (for example, `enemy.png` and `enemy.json`). NAP validates atlas dimensions, copies the JSON beside the converted texture, and writes `AnimationsFilePath` in its texture manifest entry. Files without JSON remain standalone textures; `.aseprite` editor files stay in the source folder. Use `mipmaps: false` for atlases without gutters.
+
+At runtime, `manifest.GetSpriteSheet(textureId)` returns an `AsepriteSpriteSheet`, or null for standalone artwork. `GetAnimation("Stagger")` uses exported millisecond durations and plays once by default. Tags support forward, reverse and ping-pong directions; layer exports named `character (Idle) 0.aseprite` are also supported. Export untrimmed, unrotated frames with a shared size. Use `FrameWidth` and `FrameHeight` for world geometry instead of atlas dimensions.

@@ -4,6 +4,31 @@ namespace Tests;
 
 public class AnimationPlayerTests
 {
+    [Theory]
+    [InlineData(30)]
+    [InlineData(60)]
+    [InlineData(144)]
+    public void EightAsepriteFramesTakeEightHundredMillisecondsAtAnyUpdateRate(int updatesPerSecond)
+    {
+        var value = -1;
+        var player = new AnimationPlayer<int>(frame => value = frame);
+        player.Play(new(Enumerable.Range(0, 8).Select(frame =>
+            new AnimationFrame<int>(frame, TimeSpan.FromMilliseconds(100)))));
+        long elapsed = 0;
+        var step = TimeSpan.TicksPerSecond / updatesPerSecond;
+        var almostFinished = TimeSpan.FromMilliseconds(799).Ticks;
+        while (elapsed < almostFinished)
+        {
+            var ticks = Math.Min(step, almostFinished - elapsed);
+            player.Advance(TimeSpan.FromTicks(ticks));
+            elapsed += ticks;
+            Assert.Equal((int)(elapsed / TimeSpan.FromMilliseconds(100).Ticks), value);
+            Assert.False(player.IsCompleted);
+        }
+        player.Advance(TimeSpan.FromMilliseconds(1));
+        Assert.True(player.IsCompleted);
+    }
+
     [Fact]
     public void HoldsEachValueForItsDurationAndCompletesOnce()
     {

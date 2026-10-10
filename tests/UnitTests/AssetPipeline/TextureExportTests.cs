@@ -10,6 +10,32 @@ public sealed class TextureExportTests : IDisposable
 {
     private readonly string _folder = Path.Combine(Path.GetTempPath(), $"nap-textures-{Guid.NewGuid():N}");
 
+    [Fact]
+    public void AsepriteCompanionSurvivesPipelineAndLoadsLayerAnimation()
+    {
+        Directory.CreateDirectory(_folder);
+        WriteImage("image.png", 4, 2);
+        File.WriteAllText(Path.Combine(_folder, "image.json"), """
+            {"frames": {
+              "actor (Idle) 0.aseprite": {"frame":{"x":0,"y":0,"w":2,"h":2},"rotated":false,"trimmed":false,"duration":100},
+              "actor (Stagger) 0.aseprite": {"frame":{"x":2,"y":0,"w":2,"h":2},"rotated":false,"trimmed":false,"duration":70}
+            },"meta":{"size":{"w":4,"h":2},"frameTags":[]}}
+            """);
+        var input = Path.Combine(_folder, "assets.yaml");
+        File.WriteAllText(input, "assets:\n  - assetType: texture\n    files: [image.png]\n    aseprite: true\n    mipmaps: false\n");
+        var output = Path.Combine(_folder, "out");
+        Assert.Equal(0, new Pipeline([input], output).Execute());
+        var manifest = new ContentManifest(output, new ConfigurationBuilder()
+            .AddJsonFile(Path.Combine(output, "content-manifest.json")).Build());
+        var sheet = Nexus.Graphics.SpriteAnimationManifestExtensions.GetSpriteSheet(manifest, new("image"))!;
+        Assert.Equal(2, sheet.FrameWidth);
+        var stagger = sheet.GetAnimation("stagger");
+        Assert.False(stagger.Loop);
+        Assert.Equal(TimeSpan.FromMilliseconds(70), stagger.Duration);
+        Assert.Equal(0.5f, stagger.Frames[0].TexCoord.X);
+        Assert.Equal(0.5f, stagger.Frames[0].TexCoord.Z);
+    }
+
     [Theory]
     [InlineData("ktx2", true, 3)]
     [InlineData("ktx2", false, 1)]
