@@ -5,6 +5,23 @@ namespace Nexus.AssetPipeline;
 
 internal static class TextureExporter
 {
+    public static TextureMipLevel CenterOnCanvas(TextureMipLevel source, int width, int height)
+    {
+        var sourceWidth = checked((int)source.Width);
+        var sourceHeight = checked((int)source.Height);
+        var copyWidth = Math.Min(width, sourceWidth);
+        var copyHeight = Math.Min(height, sourceHeight);
+        var sourceX = (sourceWidth - copyWidth) / 2;
+        var sourceY = (sourceHeight - copyHeight) / 2;
+        var targetX = (width - copyWidth) / 2;
+        var targetY = (height - copyHeight) / 2;
+        var pixels = new byte[checked(width * height * 4)];
+        for (var y = 0; y < copyHeight; y++)
+            Buffer.BlockCopy(source.Pixels, checked(((sourceY + y) * sourceWidth + sourceX) * 4),
+                pixels, checked(((targetY + y) * width + targetX) * 4), checked(copyWidth * 4));
+        return new((uint)width, (uint)height, pixels);
+    }
+
     public static TextureMipLevel Decode(string path)
     {
         using var stream = File.OpenRead(path);

@@ -106,6 +106,15 @@ public sealed class Pipeline
         Dictionary<string, Dictionary<string, object>> textureEntries
     )
     {
+        var metadata = asset.Metadata?.ToLowerInvariant() ?? "none";
+        if (metadata is not ("none" or "aseprite"))
+            throw new InvalidOperationException($"Unsupported texture metadata '{asset.Metadata}'. Use aseprite or none.");
+        var sizeMode = asset.ImageSizeMode.ToLowerInvariant();
+        if (sizeMode is not ("shrink" or "fit" or "fill" or "stretch"))
+            throw new InvalidOperationException("imageSizeMode must be shrink, fit, fill, or stretch.");
+        if (asset.TargetImageWidth is <= 0 || asset.TargetImageHeight is <= 0
+            || asset.TargetImageWidth.HasValue != asset.TargetImageHeight.HasValue)
+            throw new InvalidOperationException("targetImageWidth and targetImageHeight must both be positive integers.");
         var groupName = asset.GroupName.Length == 0 ? "Textures" : asset.GroupName;
         if (!textureEntries.TryGetValue(groupName, out var textureSection))
         {
@@ -153,13 +162,33 @@ public sealed class Pipeline
                     || existing.TryGetValue("MipmapsFilePath", out var companion) && string.Equals((string)companion, target, comparison))))
                 throw new InvalidOperationException($"Texture output collision at '{relativeTarget}'. Use distinct output paths.");
             var image = TextureExporter.Decode(sourcePath);
+            if (asset.TargetImageWidth is { } width && asset.TargetImageHeight is { } height)
+            {
+                var targetWidth = width;
+                var targetHeight = height;
+                if (sizeMode != "stretch")
+                {
+                    var scale = sizeMode == "fill"
+                        ? Math.Max((double)width / image.Width, (double)height / image.Height)
+                        : Math.Min((double)width / image.Width, (double)height / image.Height);
+                    if (sizeMode == "shrink") scale = Math.Min(1, scale);
+                    width = Math.Max(1, checked((int)(sizeMode == "fill" ? Math.Ceiling(image.Width * scale) : Math.Round(image.Width * scale))));
+                    height = Math.Max(1, checked((int)(sizeMode == "fill" ? Math.Ceiling(image.Height * scale) : Math.Round(image.Height * scale))));
+                }
+                if (metadata == "aseprite" && (image.Width != width || image.Height != height
+                    || sizeMode is "fit" or "fill" && (image.Width != targetWidth || image.Height != targetHeight)))
+                    throw new InvalidOperationException("Resizing Aseprite textures requires updating frame metadata and is not supported.");
+                image = Nexus.Graphics.Textures.TextureMipmaps.Resize(image, (uint)width, (uint)height);
+                if (sizeMode is "fit" or "fill")
+                    image = TextureExporter.CenterOnCanvas(image, targetWidth, targetHeight);
+            }
             TextureExporter.Export(outputPath, image, format, mipmaps, quality);
 
             var relativeOutputPath = Path.GetRelativePath(_outputFolder, outputPath)
                 .Replace('\\', '/');
             var entry = new Dictionary<string, object> { ["FilePath"] = relativeOutputPath };
             var animationSource = Path.ChangeExtension(sourcePath, ".json");
-            if (asset.Aseprite && File.Exists(animationSource))
+            if (metadata == "aseprite" && File.Exists(animationSource))
             {
                 // Validate before publishing runtime content. The editor source remains in .assets.
                 var animations = Nexus.Graphics.AsepriteSpriteSheet.Load(animationSource);

@@ -51,6 +51,11 @@ public unsafe class DescriptorSetPool : IDescriptorSetPool
     private readonly ISyncManager _syncManager;
     private readonly Queue<DescriptorSet>[] _released;
     private VkDescriptorPool _vkDescriptorPool;
+    private readonly List<VkDescriptorPool> _pools = [];
+    private readonly Dictionary<DescriptorSet, VkDescriptorPool> _owners = [];
+    private readonly uint _maxSets;
+    private readonly uint _uniformBufferCount;
+    private readonly uint _combinedImageSamplerCount;
     private bool _disposed;
 
     /// <summary>Creates a descriptor pool with deferred frame-safe release.</summary>
@@ -71,6 +76,9 @@ public unsafe class DescriptorSetPool : IDescriptorSetPool
         ArgumentNullException.ThrowIfNull(syncManager);
         _context = context;
         _syncManager = syncManager;
+        _maxSets = maxSets;
+        _uniformBufferCount = uniformBufferCount;
+        _combinedImageSamplerCount = combinedImageSamplerCount;
         _released = CreateReleaseQueues(syncManager);
         _vkDescriptorPool = CreateNativePool(
             context,
@@ -78,6 +86,7 @@ public unsafe class DescriptorSetPool : IDescriptorSetPool
             uniformBufferCount,
             combinedImageSamplerCount
         );
+        _pools.Add(_vkDescriptorPool);
         _syncManager.FrameCompleted += OnFrameCompleted;
     }
 
@@ -177,11 +186,21 @@ public unsafe class DescriptorSetPool : IDescriptorSetPool
             &descriptorSet
         );
 
+        if (result is Result.ErrorOutOfPoolMemory or Result.ErrorFragmentedPool)
+        {
+            // Existing sets remain valid in their original pool, including pending releases.
+            _vkDescriptorPool = CreateNativePool(_context, _maxSets, _uniformBufferCount, _combinedImageSamplerCount);
+            _pools.Add(_vkDescriptorPool);
+            allocInfo.DescriptorPool = _vkDescriptorPool;
+            result = _context.VulkanApi.AllocateDescriptorSets(_context.Device, &allocInfo, &descriptorSet);
+        }
+
         if (result != Result.Success)
         {
             throw new InvalidOperationException($"Failed to allocate descriptor set: {result}");
         }
 
+        _owners.Add(descriptorSet, _vkDescriptorPool);
         return descriptorSet;
     }
 
@@ -278,13 +297,14 @@ public unsafe class DescriptorSetPool : IDescriptorSetPool
         {
             var result = _context.VulkanApi.FreeDescriptorSets(
                 _context.Device,
-                _vkDescriptorPool,
+                _owners[descriptorSet],
                 1,
                 &descriptorSet
             );
 
             if (result != Result.Success)
                 throw new InvalidOperationException($"Failed to release descriptor set: {result}");
+            _owners.Remove(descriptorSet);
         }
     }
 
@@ -300,11 +320,11 @@ public unsafe class DescriptorSetPool : IDescriptorSetPool
         _disposed = true;
         _syncManager.FrameCompleted -= OnFrameCompleted;
 
-        if (_vkDescriptorPool.Handle != 0)
-        {
-            _context.VulkanApi.DestroyDescriptorPool(_context.Device, _vkDescriptorPool, null);
-            _vkDescriptorPool = default;
-        }
+        foreach (var pool in _pools)
+            _context.VulkanApi.DestroyDescriptorPool(_context.Device, pool, null);
+        _pools.Clear();
+        _owners.Clear();
+        _vkDescriptorPool = default;
 
         GC.SuppressFinalize(this);
     }

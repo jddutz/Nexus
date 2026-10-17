@@ -147,6 +147,34 @@ Runtime lookup: `textureRegistry.GetOrCreate(textureContentId).GetRegion("decora
 
 ## Aseprite animation exports
 
-Set `aseprite: true` on a texture asset group to import same-name JSON companions (for example, `enemy.png` and `enemy.json`). NAP validates atlas dimensions, copies the JSON beside the converted texture, and writes `AnimationsFilePath` in its texture manifest entry. Files without JSON remain standalone textures; `.aseprite` editor files stay in the source folder. Use `mipmaps: false` for atlases without gutters.
+Set `metadata: aseprite` on a texture asset group to import same-name JSON companions (for example, `enemy.png` and `enemy.json`). Omit `metadata` or use `metadata: none` to skip companion metadata. Values are case insensitive; unsupported formats fail the build. This replaces the previous `aseprite: true` setting. NAP validates atlas dimensions, copies the JSON beside the converted texture, and writes `AnimationsFilePath` in its texture manifest entry. Files without JSON remain standalone textures; `.aseprite` editor files stay in the source folder. Use `mipmaps: false` for atlases without gutters.
 
 At runtime, `manifest.GetSpriteSheet(textureId)` returns an `AsepriteSpriteSheet`, or null for standalone artwork. `GetAnimation("Stagger")` uses exported millisecond durations and plays once by default. Tags support forward, reverse and ping-pong directions; layer exports named `character (Idle) 0.aseprite` are also supported. Export untrimmed, unrotated frames with a shared size. Use `FrameWidth` and `FrameHeight` for world geometry instead of atlas dimensions.
+
+### Resizing folder imports
+
+Set `targetImageWidth` and `targetImageHeight` together on a texture entry to
+resample every matched image before export, mip generation, and region extraction.
+Source files remain unchanged. Entries without these settings retain their size.
+
+```yaml
+root: .assets
+assets:
+  - assetType: texture
+    path: Textures/Abilities
+    groupName: Abilities
+    files: ['*.png']
+    targetImageWidth: 128
+    targetImageHeight: 128
+    imageSizeMode: shrink
+```
+
+Both dimensions must be positive integers. `imageSizeMode` is case insensitive:
+
+- `shrink` (default): preserve aspect ratio and fit within the target bounds; never enlarge.
+- `fit`: preserve aspect ratio, scale to fit, and center on an exact target-sized canvas with transparent RGBA (0, 0, 0, 0) padding. Allows enlargement.
+- `fill`: preserve aspect ratio, scale to cover the target, and crop the excess from the center to the exact target size. Allows enlargement.
+- `stretch`: use the exact target width and height, allowing aspect ratio changes.
+
+Resampling uses alpha-aware area filtering in linear light. Aseprite entries reject
+size changes because their companion frame coordinates would also need updating.

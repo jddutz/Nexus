@@ -10,8 +10,10 @@ public sealed class TextureExportTests : IDisposable
 {
     private readonly string _folder = Path.Combine(Path.GetTempPath(), $"nap-textures-{Guid.NewGuid():N}");
 
-    [Fact]
-    public void AsepriteCompanionSurvivesPipelineAndLoadsLayerAnimation()
+    [Theory]
+    [InlineData("aseprite")]
+    [InlineData("Aseprite")]
+    public void AsepriteCompanionSurvivesPipelineAndLoadsLayerAnimation(string metadata)
     {
         Directory.CreateDirectory(_folder);
         WriteImage("image.png", 4, 2);
@@ -22,7 +24,7 @@ public sealed class TextureExportTests : IDisposable
             },"meta":{"size":{"w":4,"h":2},"frameTags":[]}}
             """);
         var input = Path.Combine(_folder, "assets.yaml");
-        File.WriteAllText(input, "assets:\n  - assetType: texture\n    files: [image.png]\n    aseprite: true\n    mipmaps: false\n");
+        File.WriteAllText(input, $"assets:\n  - assetType: texture\n    files: [image.png]\n    metadata: {metadata}\n    mipmaps: false\n");
         var output = Path.Combine(_folder, "out");
         Assert.Equal(0, new Pipeline([input], output).Execute());
         var manifest = new ContentManifest(output, new ConfigurationBuilder()
@@ -80,6 +82,87 @@ public sealed class TextureExportTests : IDisposable
     }
 
     [Theory]
+    [InlineData("shrink", 8, 4, 4, 2)]
+    [InlineData("shrink", 2, 1, 2, 1)]
+    [InlineData("fit", 2, 1, 4, 4)]
+    [InlineData("fill", 8, 4, 4, 4)]
+    [InlineData("stretch", 8, 4, 4, 4)]
+    public void FolderSizingAppliesBeforeMipGeneration(string mode, int width, int height, uint expectedWidth, uint expectedHeight)
+    {
+        Directory.CreateDirectory(Path.Combine(_folder, "Textures", "Abilities"));
+        WriteImage("Textures/Abilities/icon.png", width, height);
+        var input = Path.Combine(_folder, "assets.yaml");
+        File.WriteAllText(input, $"assets:\n  - assetType: texture\n    path: Textures/Abilities\n    files: ['*.png']\n    targetImageWidth: 4\n    targetImageHeight: 4\n    imageSizeMode: {mode}\n");
+        var output = Path.Combine(_folder, "out");
+        Assert.Equal(0, new Pipeline([input], output).Execute());
+        using var stream = File.OpenRead(Path.Combine(output, "Textures", "Abilities", "icon.ktx2"));
+        var levels = Ktx2Texture.Read(stream);
+        Assert.Equal(expectedWidth, levels[0].Width);
+        Assert.Equal(expectedHeight, levels[0].Height);
+        Assert.Equal(1u, levels[^1].Width);
+        Assert.Equal(1u, levels[^1].Height);
+        using var original = File.OpenRead(Path.Combine(_folder, "Textures", "Abilities", "icon.png"));
+        Assert.Equal(width, StbImageSharp.ImageResult.FromStream(original).Width);
+    }
+
+    [Theory]
+    [InlineData("targetImageWidth: 4")]
+    [InlineData("targetImageWidth: 0\n    targetImageHeight: 4")]
+    [InlineData("targetImageWidth: 4\n    targetImageHeight: -1")]
+    [InlineData("imageSizeMode: invalid")]
+    [InlineData("metadata: invalid")]
+    public void InvalidImageSizingFails(string settings)
+    {
+        Directory.CreateDirectory(_folder);
+        WriteImage("image.png", 2, 2);
+        var input = Path.Combine(_folder, "assets.yaml");
+        File.WriteAllText(input, $"assets:\n  - assetType: texture\n    files: [image.png]\n    {settings}\n");
+        Assert.Equal(1, new Pipeline([input], Path.Combine(_folder, "out")).Execute());
+    }
+
+    [Theory]
+    [InlineData("fit", false)]
+    [InlineData("fit", true)]
+    [InlineData("fill", false)]
+    [InlineData("fill", true)]
+    public void FitPadsWithTransparentBlackAndFillCropsTheCenter(string mode, bool portrait)
+    {
+        Directory.CreateDirectory(_folder);
+        var width = portrait ? 4 : 8;
+        var height = portrait ? 8 : 4;
+        var pixels = new byte[width * height * 4];
+        for (var y = 0; y < height; y++)
+        for (var x = 0; x < width; x++)
+        {
+            var offset = (y * width + x) * 4;
+            // Red outer bands, green center: centered fill must remove all red.
+            var coordinate = portrait ? y : x;
+            pixels[offset + (coordinate is >= 2 and < 6 ? 1 : 0)] = 255;
+            pixels[offset + 3] = 255;
+        }
+        using (var stream = File.Create(Path.Combine(_folder, "image.png")))
+            new StbImageWriteSharp.ImageWriter().WritePng(pixels, width, height,
+                StbImageWriteSharp.ColorComponents.RedGreenBlueAlpha, stream);
+        var input = Path.Combine(_folder, "assets.yaml");
+        File.WriteAllText(input, $"assets:\n  - assetType: texture\n    files: [image.png]\n    targetImageWidth: 4\n    targetImageHeight: 4\n    imageSizeMode: {mode}\n");
+        var output = Path.Combine(_folder, "out");
+        Assert.Equal(0, new Pipeline([input], output).Execute());
+        using var result = File.OpenRead(Path.Combine(output, "image.ktx2"));
+        var image = Ktx2Texture.Read(result)[0];
+        Assert.Equal(4u, image.Width);
+        Assert.Equal(4u, image.Height);
+        for (var y = 0; y < 4; y++)
+        for (var x = 0; x < 4; x++)
+        {
+            var pixel = image.Pixels.AsSpan((y * 4 + x) * 4, 4).ToArray();
+            var padded = mode == "fit" && (portrait ? x is 0 or 3 : y is 0 or 3);
+            if (padded) Assert.Equal(new byte[] { 0, 0, 0, 0 }, pixel);
+            else if (mode == "fill") Assert.Equal(new byte[] { 0, 255, 0, 255 }, pixel);
+            else Assert.Equal(255, pixel[3]);
+        }
+    }
+
+    [Theory]
     [InlineData("textureFormat: jp2")]
     [InlineData("jpegQuality: 0")]
     [InlineData("textureFormat: jpg", true)]
@@ -108,6 +191,14 @@ public sealed class TextureExportTests : IDisposable
         Assert.InRange(opaque[1].Pixels[0], 187, 189);
         var alpha = TextureMipmaps.Generate(new(3, 1, [255, 0, 0, 255, 0, 0, 0, 0, 0, 0, 0, 0]));
         Assert.Equal(new byte[] { 255, 0, 0, 85 }, alpha[1].Pixels);
+    }
+
+    [Fact]
+    public void ResizingFiltersTransparentPixelsWithoutDarkFringes()
+    {
+        var resized = TextureMipmaps.Resize(new(3, 1,
+            [255, 0, 0, 255, 0, 0, 0, 0, 0, 0, 0, 0]), 2, 1);
+        Assert.Equal(new byte[] { 255, 0, 0, 170, 0, 0, 0, 0 }, resized.Pixels);
     }
 
     [Fact]

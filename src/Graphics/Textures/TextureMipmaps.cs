@@ -14,35 +14,45 @@ public static class TextureMipmaps
         {
             var width = Math.Max(1, source.Width / 2);
             var height = Math.Max(1, source.Height / 2);
-            var pixels = new byte[checked((int)(width * height * 4))];
-            for (uint y = 0; y < height; y++)
-            for (uint x = 0; x < width; x++)
-            {
-                double alpha = 0, red = 0, green = 0, blue = 0, weight = 0;
-                // Area filtering includes the final row/column of odd-sized images.
-                double left = (double)x * source.Width / width, right = (double)(x + 1) * source.Width / width;
-                double top = (double)y * source.Height / height, bottom = (double)(y + 1) * source.Height / height;
-                for (var sy = (int)top; sy < Math.Ceiling(bottom); sy++)
-                for (var sx = (int)left; sx < Math.Ceiling(right); sx++)
-                {
-                    var w = (Math.Min(right, sx + 1) - Math.Max(left, sx)) * (Math.Min(bottom, sy + 1) - Math.Max(top, sy));
-                    var offset = checked((sy * (int)source.Width + sx) * 4);
-                    var a = source.Pixels[offset + 3] / 255.0 * w;
-                    weight += w; alpha += a;
-                    red += Linear(source.Pixels[offset]) * a;
-                    green += Linear(source.Pixels[offset + 1]) * a;
-                    blue += Linear(source.Pixels[offset + 2]) * a;
-                }
-                var target = checked((int)((y * width + x) * 4));
-                pixels[target] = alpha == 0 ? (byte)0 : Srgb(red / alpha);
-                pixels[target + 1] = alpha == 0 ? (byte)0 : Srgb(green / alpha);
-                pixels[target + 2] = alpha == 0 ? (byte)0 : Srgb(blue / alpha);
-                pixels[target + 3] = (byte)Math.Round(alpha / weight * 255);
-            }
-            source = new(width, height, pixels);
+            source = Resize(source, width, height);
             levels.Add(source);
         }
         return levels.ToArray();
+    }
+
+    /// <summary>Resamples RGBA8 pixels using alpha-aware area filtering in linear light.</summary>
+    public static TextureMipLevel Resize(TextureMipLevel source, uint width, uint height)
+    {
+        Validate(source);
+        if (width == 0 || height == 0)
+            throw new ArgumentOutOfRangeException(nameof(width), "Target dimensions must be positive.");
+        if (source.Width == width && source.Height == height) return source;
+        var pixels = new byte[checked((int)((long)width * height * 4))];
+        for (uint y = 0; y < height; y++)
+        for (uint x = 0; x < width; x++)
+        {
+            double alpha = 0, red = 0, green = 0, blue = 0, weight = 0;
+            // Area filtering includes the final row/column of odd-sized images.
+            double left = (double)x * source.Width / width, right = (double)(x + 1) * source.Width / width;
+            double top = (double)y * source.Height / height, bottom = (double)(y + 1) * source.Height / height;
+            for (var sy = (int)top; sy < Math.Ceiling(bottom); sy++)
+            for (var sx = (int)left; sx < Math.Ceiling(right); sx++)
+            {
+                var w = (Math.Min(right, sx + 1) - Math.Max(left, sx)) * (Math.Min(bottom, sy + 1) - Math.Max(top, sy));
+                var offset = checked((sy * (int)source.Width + sx) * 4);
+                var a = source.Pixels[offset + 3] / 255.0 * w;
+                weight += w; alpha += a;
+                red += Linear(source.Pixels[offset]) * a;
+                green += Linear(source.Pixels[offset + 1]) * a;
+                blue += Linear(source.Pixels[offset + 2]) * a;
+            }
+            var target = checked((int)((y * width + x) * 4));
+            pixels[target] = alpha == 0 ? (byte)0 : Srgb(red / alpha);
+            pixels[target + 1] = alpha == 0 ? (byte)0 : Srgb(green / alpha);
+            pixels[target + 2] = alpha == 0 ? (byte)0 : Srgb(blue / alpha);
+            pixels[target + 3] = (byte)Math.Round(alpha / weight * 255);
+        }
+        return new(width, height, pixels);
     }
 
     public static void Validate(TextureMipLevel level)

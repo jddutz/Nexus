@@ -16,9 +16,13 @@ public sealed class AssetDefinition
 
     public string? TextureFormat { get; set; }
     public bool? Mipmaps { get; set; }
-    /// <summary>Copies companion Aseprite JSON exports into the texture manifest when present.</summary>
-    public bool Aseprite { get; set; }
+    /// <summary>Optional companion metadata format: aseprite or none (default).</summary>
+    public string? Metadata { get; set; }
     public int? JpegQuality { get; set; }
+    public int? TargetImageWidth { get; set; }
+    public int? TargetImageHeight { get; set; }
+    /// <summary>shrink (default), fit, fill, or stretch; requires both target dimensions.</summary>
+    public string ImageSizeMode { get; set; } = "shrink";
 
     public string Path { get; set; } = string.Empty;
     public string GroupName { get; set; } = string.Empty;
