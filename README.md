@@ -253,6 +253,7 @@ An element supplies the arranged visual placement to its graphics component. A d
 ### Text
 
 - TextComponent consumes source text and style information and produces drawable text output.
+- `RichTextElement` parses properly nested `[b]`, `[i]`, `[color=#RRGGBB]`, `[color=#RRGGBBAA]`, and `[br]` tags for inline GUI text. `[[` escapes a literal opening bracket; malformed or unsupported tags throw `FormatException`.
 - TextSpan represents **output from TextComponent**, rather than an editable source-text container.
 - TextSpan should be mostly immutable. Rebuilding output is preferred when changes would require maintaining interdependent layout state.
 - GUI alignment enums remain GUI concerns. Graphics uses numeric layout parameters instead of referencing those enums.
