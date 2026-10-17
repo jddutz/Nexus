@@ -56,8 +56,9 @@ public interface IPipelineRegistry : IDisposable
     int GetDescriptorSetLayoutCount(PipelineId pipelineId);
 
     /// <summary>
-    /// Deletes a pipeline and layout and releases Vulkan resources.
+    /// Releases one caller's reference, retaining the pipeline and its layouts for reuse.
     /// </summary>
     /// <param name="id">The pipeline identifier.</param>
+    /// <remarks>Vulkan resources remain owned by the registry until disposal.</remarks>
     void Release(PipelineId id);
 }

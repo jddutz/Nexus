@@ -15,7 +15,7 @@ internal sealed record PipelineEntry(
 );
 
 /// <summary>
-/// Provides identifier-based access to Vulkan graphics pipelines and layouts.
+/// Caches Vulkan graphics pipelines and layouts until the registry is disposed.
 /// </summary>
 public unsafe class PipelineRegistry(Context context, IPipelineFactory pipelineFactory, IPerformanceTelemetry? telemetry = null)
     : IPipelineRegistry
@@ -96,24 +96,13 @@ public unsafe class PipelineRegistry(Context context, IPipelineFactory pipelineF
         if (!_pipelines.TryGetValue(id, out var entry))
             return;
 
-        if (entry.References > 1)
+        if (entry.References > 0)
         {
             _pipelines[id] = entry with { References = entry.References - 1 };
-            return;
         }
-
-        if (_pipelines.Remove(id))
-        {
-            _context.VulkanApi.DestroyPipeline(_context.Device, entry.Pipeline, null);
-            _context.VulkanApi.DestroyPipelineLayout(_context.Device, entry.Layout, null);
-
-            foreach (var descriptorSetLayout in entry.DescriptorSetLayouts)
-                _context.VulkanApi.DestroyDescriptorSetLayout(
-                    _context.Device,
-                    descriptorSetLayout,
-                    null
-                );
-        }
+        // Scene teardown releases every drawable before the next scene acquires
+        // its pipelines. Keep zero-reference entries warm across that gap.
+        // Dispose owns destruction, after rendering has stopped using the device.
     }
 
     /// <inheritdoc />
