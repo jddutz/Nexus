@@ -33,6 +33,12 @@
             "type": "dotnet",
             "request": "launch",
             "projectPath": "${workspaceFolder}/tests/Menus/Menus.csproj"
+        },
+        {
+            "name": "Debug:Landfall",
+            "type": "dotnet",
+            "request": "launch",
+            "projectPath": "${workspaceFolder}/tests/Landfall/Landfall.csproj"
         }
     ]
 }

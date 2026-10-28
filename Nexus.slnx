@@ -19,11 +19,14 @@
     <Project Path="src/Runtime/Nexus.Runtime.csproj" />
     <Project Path="src/Testing/Nexus.Testing.csproj" />
   </Folder>
+  <Folder Name="/src/Runtime/" />
   <Folder Name="/tests/">
     <Project Path="tests/HelloNexus/HelloNexus.csproj" />
     <Project Path="tests/Breakout/Breakout.csproj" />
     <Project Path="tests/Asteroids/Asteroids.csproj" />
+    <Project Path="tests/Landfall/Landfall.csproj" />
     <Project Path="tests/Snake/Snake.csproj" />
+    <Project Path="tests/Landfall/Tests/Landfall.Tests.csproj" />
     <Project Path="tests/SourceGeneratorTests/Nexus.SourceGeneratorTests.csproj" />
     <Project Path="tests/UnitTests/UnitTests.csproj" />
   </Folder>

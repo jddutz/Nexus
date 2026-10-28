@@ -123,6 +123,11 @@ Run the project from VS Code with **F5** after configuring a .NET launch profile
 dotnet run
 ```
 
+For Landfall, select **Debug:Landfall** in VS Code's Run and Debug view. If VS Code
+reports no launchable target, check that `dotnet sln Nexus.slnx list` succeeds;
+duplicate project entries prevent the solution from loading. After correcting the
+solution, run **Developer: Reload Window** to refresh project discovery.
+
 ## Repository structure
 
 The following names match the supplied repository view. Folder names describe physical organization; they do not automatically define namespace names or dependency direction.
