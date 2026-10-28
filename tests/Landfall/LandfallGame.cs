@@ -7,12 +7,54 @@ public readonly record struct Cell(int X, int Y)
 
 public enum Terrain { Grassland, Forest, Mountain, Water }
 public enum PlacementResult { Valid, OutsideBoard, Overlap, Disconnected }
+public enum BuildingPlacementResult { Valid, OutsideBoard, NeedsTerrain, Overlap }
+
+/// <summary>A rectangular building footprint displaying one atlas tile across its whole area.</summary>
+public sealed record BuildingDefinition
+{
+    public TileFeature Feature { get; }
+    public string Name { get; }
+    public int Width { get; }
+    public int Height { get; }
+    public bool PlayerPlaceable { get; }
+
+    public BuildingDefinition(TileFeature feature, string name, int width, int height, bool playerPlaceable = true)
+    {
+        ArgumentNullException.ThrowIfNull(feature);
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        if (width is < 1 or > LandfallGame.BoardSize) throw new ArgumentOutOfRangeException(nameof(width));
+        if (height is < 1 or > LandfallGame.BoardSize) throw new ArgumentOutOfRangeException(nameof(height));
+        Feature = feature;
+        Name = name;
+        Width = width;
+        Height = height;
+        PlayerPlaceable = playerPlaceable;
+    }
+}
+
+public sealed record BuildingPlacement(BuildingDefinition Definition, Cell Anchor);
+
+public static class Buildings
+{
+    public static BuildingDefinition Settlement { get; } = new(new("settlement", new(0, 0)), "Settlement", 2, 2,
+        playerPlaceable: false);
+    public static BuildingDefinition Farm { get; } = new(TileFeature.FromRegion("farm", "farm"), "Farm", 1, 1);
+    public static IReadOnlyList<BuildingDefinition> Available { get; } = Array.AsReadOnly(new[] { Farm });
+}
 
 /// <summary>A resource or building type and its tile in its layer's 8×8 atlas.</summary>
 public sealed record TileFeature
 {
     public string TypeId { get; }
     public Cell AtlasTile { get; }
+    public string? RegionName { get; private init; }
+
+    /// <summary>References named artwork from the generated manifest instead of duplicating coordinates.</summary>
+    public static TileFeature FromRegion(string typeId, string regionName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(regionName);
+        return new(typeId, new(0, 0)) { RegionName = regionName };
+    }
 
     public TileFeature(string typeId, Cell atlasTile)
     {
@@ -118,7 +160,7 @@ public sealed class LandfallGame
     private readonly Random _random;
     private readonly Terrain?[,] _board = new Terrain?[BoardSize, BoardSize];
     private readonly TileFeature?[,] _resources = new TileFeature?[BoardSize, BoardSize];
-    private readonly TileFeature?[,] _buildings = new TileFeature?[BoardSize, BoardSize];
+    private readonly BuildingPlacement?[,] _buildings = new BuildingPlacement?[BoardSize, BoardSize];
     public long LayerRevision { get; private set; }
     private readonly Piece[] _pieces = new Piece[SlotCount];
     public IReadOnlyList<Piece> Pieces => Array.AsReadOnly(_pieces);
@@ -156,7 +198,8 @@ public sealed class LandfallGame
     public static bool InBounds(Cell cell) => cell.X is >= 0 and < BoardSize && cell.Y is >= 0 and < BoardSize;
 
     public TileFeature? GetResource(int x, int y) => _resources[x, y];
-    public TileFeature? GetBuilding(int x, int y) => _buildings[x, y];
+    public TileFeature? GetBuilding(int x, int y) => _buildings[x, y]?.Definition.Feature;
+    public BuildingPlacement? GetBuildingPlacement(int x, int y) => _buildings[x, y];
 
     /// <summary>Assigns a resource independently of terrain, allowing future map generation under fog.</summary>
     public void AssignResource(int x, int y, TileFeature resource)
@@ -172,9 +215,31 @@ public sealed class LandfallGame
     public bool TryPlaceBuilding(int x, int y, TileFeature building)
     {
         ArgumentNullException.ThrowIfNull(building);
-        if (!InBounds(new(x, y)) || !_board[x, y].HasValue || _buildings[x, y] is not null)
-            return false;
-        _buildings[x, y] = building;
+        return TryPlaceBuilding(new(building, building.TypeId, 1, 1), new(x, y));
+    }
+
+    public BuildingPlacementResult ValidateBuilding(BuildingDefinition building, Cell anchor)
+    {
+        ArgumentNullException.ThrowIfNull(building);
+        if (anchor.X < 0 || anchor.Y < 0 || anchor.X > BoardSize - building.Width
+            || anchor.Y > BoardSize - building.Height) return BuildingPlacementResult.OutsideBoard;
+        for (var y = 0; y < building.Height; y++)
+        for (var x = 0; x < building.Width; x++)
+            if (_buildings[anchor.X + x, anchor.Y + y] is not null) return BuildingPlacementResult.Overlap;
+        for (var y = 0; y < building.Height; y++)
+        for (var x = 0; x < building.Width; x++)
+            if (!_board[anchor.X + x, anchor.Y + y].HasValue) return BuildingPlacementResult.NeedsTerrain;
+        return BuildingPlacementResult.Valid;
+    }
+
+    /// <summary>Commits the entire footprint atomically, retaining resources underneath every cell.</summary>
+    public bool TryPlaceBuilding(BuildingDefinition building, Cell anchor)
+    {
+        if (ValidateBuilding(building, anchor) != BuildingPlacementResult.Valid) return false;
+        var placement = new BuildingPlacement(building, anchor);
+        for (var y = 0; y < building.Height; y++)
+        for (var x = 0; x < building.Width; x++)
+            _buildings[anchor.X + x, anchor.Y + y] = placement;
         LayerRevision++;
         return true;
     }

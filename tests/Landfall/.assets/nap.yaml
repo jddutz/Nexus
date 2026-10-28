@@ -1,0 +1,22 @@
+root: .
+
+assets:
+  - assetType: texture
+    files:
+      - terrain.png
+      - resources.png
+
+  - assetType: texture
+    files:
+      - buildings.png
+    regions:
+      namedBounds:
+        # Atlas tile (0,2), with 128-pixel tiles. Artwork bounds are independent of board footprint.
+        farm: { x: 0, y: 256, width: 128, height: 128 }
+      
+  - assetType: texture
+    path: units/bandit
+    files:
+      - bandit.png
+    metadata: aseprite
+    mipmaps: false

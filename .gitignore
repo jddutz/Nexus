@@ -5,6 +5,9 @@
 
 # Local assets folder
 .assets/
+!tests/Landfall/.assets/
+tests/Landfall/.assets/*
+!tests/Landfall/.assets/nap.yaml
 .content/
 TestResults/
 TestCoverage/

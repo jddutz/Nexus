@@ -23,6 +23,7 @@ public sealed class LandfallScene : Scene
     private readonly IEventHub _events;
     private readonly ITextStyleRegistry _styles;
     private readonly ITexture _atlas;
+    private readonly ITexture _buildingAtlas;
     private readonly StaticCamera _camera = new();
     private readonly TileMapData _board = new(new(0, 0, 20, 20));
     private readonly TileMapData _fog = new(new(0, 0, 20, 20));
@@ -53,6 +54,15 @@ public sealed class LandfallScene : Scene
     private readonly TextElement _newGame;
     private readonly ImageElement _background;
     private readonly ImageElement _field;
+    private readonly ImageElement _buildingPanel;
+    private readonly TextElement _buildingHeading;
+    private readonly TextElement _buildingHint;
+    private readonly List<ImageElement> _buildingCards = [];
+    private readonly List<TextElement> _buildingLabels = [];
+    private readonly List<GameObject2D> _buildingIcons = [];
+    private readonly List<TileMapRenderer> _buildingIconRenderers = [];
+    private readonly BuildingDefinition[] _availableBuildings = Buildings.Available.Where(b => b.PlayerPlaceable).ToArray();
+    private int _selectedBuilding = -1;
     private Vector2D<int> _size;
     private Vector2D<float> _pointer = new(-1, -1);
     private float _left, _top, _cell, _trayLeft, _trayTop, _slotWidth;
@@ -66,11 +76,12 @@ public sealed class LandfallScene : Scene
         _windows = windows;
         _events = events;
         _styles = styles;
-        _atlas = textures.GetOrCreate("terrain-tile-map");
+        _atlas = textures.GetOrCreate("terrain");
+        _buildingAtlas = textures.GetOrCreate("buildings");
         MainCamera = _camera;
         _boardRenderer = Renderer(_board, _atlas, 0);
-        _resourceRenderer = Renderer(_resources, textures.GetOrCreate("resource-tile-map"), 1);
-        _buildingRenderer = Renderer(_buildings, _atlas, 2);
+        _resourceRenderer = Renderer(_resources, textures.GetOrCreate("resources"), 1);
+        _buildingRenderer = Renderer(_buildings, _buildingAtlas, 2);
         // Fog masks every map layer; grid lines and placement previews remain above it.
         _fogRenderer = Renderer(_fog, BuiltInTextures.Uniform, 3);
         _previewRenderer = Renderer(_preview, _atlas, 10);
@@ -81,6 +92,21 @@ public sealed class LandfallScene : Scene
         _previewObject = new([_previewRenderer]);
         _background = Panel(Color.FromArgb(0xff080c0a), -100);
         _field = Panel(Color.FromArgb(0xff151a17), -30);
+        _buildingPanel = Panel(Color.FromArgb(0xff18241e), -25);
+        _buildingHeading = Label("BUILDINGS", 20);
+        _buildingHint = Label(_availableBuildings.Length == 0 ? "No player buildings defined yet." : "Select a building, then click terrain to place.", 16);
+        foreach (var building in _availableBuildings)
+        {
+            _buildingCards.Add(Panel(Color.FromArgb(0xff293c32), -20));
+            _buildingLabels.Add(Label($"{building.Name}\n{building.Width} x {building.Height}", 17));
+            var map = new TileMapData(new(0, 0, building.Width, building.Height));
+            for (var y = 0; y < building.Height; y++)
+            for (var x = 0; x < building.Width; x++)
+                map.SetCell(x, y, BuildingTile(building, x, y, Colors.White));
+            var renderer = Renderer(map, _buildingAtlas, 0);
+            _buildingIconRenderers.Add(renderer);
+            _buildingIcons.Add(new([renderer]));
+        }
         _status = Label("", 18);
         _help = Label("Select 1-5 or click a piece | Q/E or R: rotate | Click board: place | Esc: deselect", 16);
         _rotateLeft = Label("[ Q: Rotate left ]", 17);
@@ -113,6 +139,15 @@ public sealed class LandfallScene : Scene
         Children.Add(new View { Camera = _camera, PreserveDrawOrder = true });
         Children.Add(_background);
         Children.Add(_field);
+        Children.Add(_buildingPanel);
+        Children.Add(_buildingHeading);
+        Children.Add(_buildingHint);
+        for (var i = 0; i < _availableBuildings.Length; i++)
+        {
+            Children.Add(_buildingCards[i]);
+            Children.Add(_buildingLabels[i]);
+            Children.Add(_buildingIcons[i]);
+        }
         Children.Add(_boardObject);
         Children.Add(_resourceObject);
         Children.Add(_buildingObject);
@@ -174,11 +209,23 @@ public sealed class LandfallScene : Scene
         if (Hit(_rotateLeft, _pointer)) { Rotate(-1); return; }
         if (Hit(_rotateRight, _pointer)) { Rotate(1); return; }
         if (_game.IsGameOver) return;
+        for (var i = 0; i < _buildingCards.Count; i++)
+            if (Hit(_buildingCards[i], _pointer))
+            {
+                _selectedBuilding = _selectedBuilding == i ? -1 : i;
+                _selected = -1;
+                Refresh();
+                return;
+            }
         for (var i = 0; i < 5; i++)
             if (Hit(_cards[i], _pointer)) { Select(i); return; }
-        if (_selected >= 0 && PointerCell() is { } cell)
+        if (PointerCell() is { } cell)
         {
-            if (_game.TryPlace(_selected, cell)) _selected = -1;
+            if (_selectedBuilding >= 0)
+            {
+                if (_game.TryPlaceBuilding(_availableBuildings[_selectedBuilding], cell)) _selectedBuilding = -1;
+            }
+            else if (_selected >= 0 && _game.TryPlace(_selected, cell)) _selected = -1;
             Refresh();
         }
     }
@@ -189,6 +236,7 @@ public sealed class LandfallScene : Scene
         {
             _confirmRestart = false;
             _selected = -1;
+            _selectedBuilding = -1;
             Refresh();
             return;
         }
@@ -201,6 +249,7 @@ public sealed class LandfallScene : Scene
 
     private void Select(int slot)
     {
+        _selectedBuilding = -1;
         _selected = _selected == slot ? -1 : slot;
         Refresh();
     }
@@ -218,6 +267,7 @@ public sealed class LandfallScene : Scene
         {
             _game.Restart();
             _selected = 0;
+            _selectedBuilding = -1;
             _confirmRestart = false;
         }
         else _confirmRestart = true;
@@ -242,9 +292,12 @@ public sealed class LandfallScene : Scene
             if (!_game.IsRevealed(x, y)) _fog.SetCell(x, y, fogCell);
             if (_game.IsResourceVisible(x, y) && _game.GetResource(x, y) is { } resource)
                 _resources.SetCell(x, y, FeatureTile(resource));
-            if (_game.IsRevealed(x, y) && _game.GetBuilding(x, y) is { } building)
-                _buildings.SetCell(x, y, FeatureTile(building));
+            if (_game.IsRevealed(x, y) && _game.GetBuildingPlacement(x, y) is { } building)
+                _buildings.SetCell(x, y, BuildingTile(building.Definition,
+                    x - building.Anchor.X, y - building.Anchor.Y, Colors.White));
         }
+        for (var i = 0; i < _buildingCards.Count; i++)
+            _buildingCards[i].Color = Color.FromArgb(i == _selectedBuilding ? 0xff708961u : 0xff293c32u);
         for (var i = 0; i < 5; i++)
         {
             var piece = _game.Pieces[i];
@@ -265,6 +318,7 @@ public sealed class LandfallScene : Scene
     private void UpdatePreview()
     {
         _preview.Clear();
+        _previewRenderer.Texture = _selectedBuilding >= 0 ? _buildingAtlas : _atlas;
         if (_confirmRestart)
         {
             _status.Text = "Clear this landscape? Press N / Enter or click New game again. Esc cancels.";
@@ -273,6 +327,29 @@ public sealed class LandfallScene : Scene
         if (_game.IsGameOver)
         {
             _status.Text = "No placements remain. Press N or click New game to start a new landscape.";
+            return;
+        }
+        if (_selectedBuilding >= 0)
+        {
+            var building = _availableBuildings[_selectedBuilding];
+            _status.Text = $"Place {building.Name} on a clear {building.Width} x {building.Height} area of terrain.";
+            if (PointerCell() is not { } buildingAnchor) return;
+            var result = _game.ValidateBuilding(building, buildingAnchor);
+            var tint = (result == BuildingPlacementResult.Valid ? Colors.White : Colors.Red).WithTransparency(0.65f);
+            for (var y = 0; y < building.Height; y++)
+            for (var x = 0; x < building.Width; x++)
+            {
+                var destination = buildingAnchor + new Cell(x, y);
+                if (LandfallGame.InBounds(destination))
+                    _preview.SetCell(destination.X, destination.Y, BuildingTile(building, x, y, tint));
+            }
+            _status.Text = result switch
+            {
+                BuildingPlacementResult.Valid => $"Click to place {building.Name}.",
+                BuildingPlacementResult.OutsideBoard => "Outside the board.",
+                BuildingPlacementResult.Overlap => "Overlaps an existing building.",
+                _ => "Every building tile must be on placed terrain.",
+            };
             return;
         }
         _status.Text = _selected < 0 ? "Select a terrain piece." : "Place a piece beside the landscape. The anchor tile stays under the pointer.";
@@ -307,9 +384,12 @@ public sealed class LandfallScene : Scene
     private void Layout()
     {
         _size = _windows.GetMainWindow().Size;
-        var side = MathF.Max(20, MathF.Min(_size.X - 40, _size.Y - 300));
+        var sidebarWidth = MathF.Min(190, MathF.Max(120, _size.X * 0.18f));
+        var contentLeft = sidebarWidth + 40;
+        var contentWidth = MathF.Max(20, _size.X - contentLeft - 20);
+        var side = MathF.Max(20, MathF.Min(contentWidth, _size.Y - 300));
         _cell = side / 20;
-        _left = (_size.X - side) / 2;
+        _left = contentLeft + (contentWidth - side) / 2;
         _top = 66;
         _boardObject.Position = _previewObject.Position = _fogObject.Position = new(_left, _top);
         _resourceObject.Position = _buildingObject.Position = new(_left, _top);
@@ -317,14 +397,27 @@ public sealed class LandfallScene : Scene
         _resourceRenderer.CellSize = _buildingRenderer.CellSize = new(_cell, _cell);
         Place(_background, 0, 0, Math.Max(1, _size.X), Math.Max(1, _size.Y));
         Place(_field, _left, _top, side, side);
+        Place(_buildingPanel, 12, _top, sidebarWidth + 8, side);
+        Place(_buildingHeading, 24, _top + 16, sidebarWidth - 16, 28);
+        Place(_buildingHint, 24, _top + 54, sidebarWidth - 16, 80);
+        for (var i = 0; i < _availableBuildings.Length; i++)
+        {
+            var building = _availableBuildings[i];
+            var cardTop = _top + 140 + i * 142;
+            Place(_buildingCards[i], 22, cardTop, sidebarWidth - 12, 132);
+            Place(_buildingLabels[i], 30, cardTop + 8, sidebarWidth - 28, 45);
+            var scale = MathF.Min((sidebarWidth - 32) / building.Width, 64f / building.Height);
+            _buildingIconRenderers[i].CellSize = new(scale, scale);
+            _buildingIcons[i].Position = new(22 + (sidebarWidth - 12 - building.Width * scale) / 2, cardTop + 60);
+        }
         for (var i = 0; i <= 20; i++)
         {
             Place(_gridLines[i], _left + i * _cell, _top, 1, side);
             Place(_gridLines[21 + i], _left, _top + i * _cell, side, 1);
         }
-        var trayWidth = MathF.Min(800, MathF.Max(100, _size.X - 40));
+        var trayWidth = MathF.Min(800, contentWidth);
         _slotWidth = trayWidth / 5;
-        _trayLeft = (_size.X - trayWidth) / 2;
+        _trayLeft = contentLeft + (contentWidth - trayWidth) / 2;
         _trayTop = _top + side + 36;
         for (var i = 0; i < 5; i++)
         {
@@ -374,6 +467,17 @@ public sealed class LandfallScene : Scene
 
     private static TileMapCell FeatureTile(TileFeature feature) => new(
         new(feature.AtlasTile.X / 8f, feature.AtlasTile.Y / 8f, 1 / 8f, 1 / 8f), Colors.White);
+
+    private TileMapCell BuildingTile(BuildingDefinition building, int x, int y, Color tint)
+    {
+        var feature = building.Feature;
+        var region = feature.RegionName is { } name
+            ? _buildingAtlas.GetRegion(name).TexCoords
+            : new Rectangle<float>(feature.AtlasTile.X / 8f, feature.AtlasTile.Y / 8f, 1 / 8f, 1 / 8f);
+        var width = region.Size.X / building.Width;
+        var height = region.Size.Y / building.Height;
+        return new(new(region.Origin.X + x * width, region.Origin.Y + y * height, width, height), tint);
+    }
 
     private static TileMapCell Tile(Terrain terrain, Color tint)
     {

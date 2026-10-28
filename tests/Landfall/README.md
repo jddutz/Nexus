@@ -30,8 +30,10 @@ The supplied 1024×1024 atlas contains 8×8 tiles of 128 pixels each, addressed 
 | Water | (3,6) |
 
 Landfall loads `.content/content-manifest.json` and the generated KTX2 textures through
-Nexus's texture registry. The generated `.content` directory is copied on build and publish.
-Terrain uses `terrain-tile-map`; resources use the separate `resource-tile-map` atlas,
+Nexus's texture registry. The bandit atlas is imported with its Aseprite JSON companion,
+so its animation data is included in the manifest. The generated `.content` directory is
+copied on build and publish.
+Terrain uses `terrain`; resources use the separate `resources` atlas,
 also an 8×8 grid of 128-pixel tiles. The terrain mapping lives in `LandfallScene.Tile`.
 After changing source images in `.assets`, regenerate content from the repository root:
 
@@ -56,11 +58,21 @@ background → terrain → resources → buildings → fog → grid → placemen
 Resources can be assigned to any board cell with `AssignResource`, including cells still
 under fog. `TryPlaceBuilding` places one building on an occupied terrain cell. It hides
 that cell's resource without removing the assignment; `GetResource` still returns it.
-Both layers reset on a new game. `TileFeature` stores a type ID and atlas coordinate;
-resource/building types, generation, and player building controls are deferred.
-Resource coordinates address `resource-tile-map`; buildings temporarily use the terrain
-atlas until building artwork is supplied.
-The layers start empty until those definitions are supplied.
+Both layers reset on a new game. `TileFeature` stores a type ID and either a named atlas
+region or a tile coordinate. Resource generation and additional building types are deferred.
+Resource coordinates address `resources`; buildings use the `buildings` atlas.
+The left sidebar lists the player-placeable definitions in `Buildings.Available`.
+Select a building, hover over the board for a footprint preview, and click to place.
+All footprint cells must have terrain and no existing building; placement is atomic.
+Successful placement clears selection and hides resources across the whole footprint.
+Escape deselects, and selecting a terrain piece exits building mode. Rotation controls
+apply to terrain pieces. A building's atlas tile is displayed across its whole footprint.
+Farm is the only player-placeable building and occupies 1×1 cell. Its artwork is named
+`farm` in `.assets/nap.yaml`, using atlas tile (0,2): pixel bounds (0,256,128,128).
+NAP exports that named region to the content manifest, and the palette, preview, and
+placed building all read it by name. Change artwork bounds in YAML and rebuild content;
+board footprints remain defined in `Buildings`. Settlement has a 2×2 definition and is
+excluded from the player palette.
 
 Run the rule tests, including complete deterministic games checked against an independent
 placement search:

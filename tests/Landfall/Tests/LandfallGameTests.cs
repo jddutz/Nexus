@@ -3,6 +3,71 @@ namespace Nexus.Samples.Landfall.Tests;
 public sealed class LandfallGameTests
 {
     [Fact]
+    public void FarmIsTheOnlyPlayerBuildingAndUsesNamedArtwork()
+    {
+        var farm = Assert.Single(Buildings.Available);
+        Assert.Same(Buildings.Farm, farm);
+        Assert.Equal(1, farm.Width);
+        Assert.Equal(1, farm.Height);
+        Assert.True(farm.PlayerPlaceable);
+        Assert.Equal("farm", farm.Feature.RegionName);
+        var game = new LandfallGame();
+        Assert.True(game.TryPlaceBuilding(farm, new(9, 9)));
+        Assert.Same(farm, game.GetBuildingPlacement(9, 9)!.Definition);
+        Assert.Null(game.GetBuildingPlacement(10, 9));
+    }
+
+    [Fact]
+    public void MultiTileBuildingPlacesOneSharedFootprintAndHidesAllCoveredResources()
+    {
+        var game = new LandfallGame(new MonominoRandom());
+        var building = new BuildingDefinition(new("test-large", new(1, 0)), "Test large", 2, 2);
+        for (var y = 9; y <= 10; y++)
+        for (var x = 9; x <= 10; x++) game.AssignResource(x, y, new("test-resource", new(0, 0)));
+        var revision = game.LayerRevision;
+        Assert.True(game.TryPlaceBuilding(building, new(9, 9)));
+        Assert.Equal(revision + 1, game.LayerRevision);
+        var instance = game.GetBuildingPlacement(9, 9);
+        for (var y = 9; y <= 10; y++)
+        for (var x = 9; x <= 10; x++)
+        {
+            Assert.Same(instance, game.GetBuildingPlacement(x, y));
+            Assert.NotNull(game.GetResource(x, y));
+            Assert.False(game.IsResourceVisible(x, y));
+        }
+        Assert.Equal(new Cell(9, 9), instance!.Anchor);
+        game.Restart();
+        Assert.Null(game.GetBuildingPlacement(10, 10));
+    }
+
+    [Fact]
+    public void MultiTileBuildingRejectsEntireFootprintWithoutPartialPlacement()
+    {
+        var game = new LandfallGame();
+        var building = new BuildingDefinition(new("test-large", new(1, 0)), "Test large", 2, 2);
+        Assert.Equal(BuildingPlacementResult.OutsideBoard, game.ValidateBuilding(building, new(19, 19)));
+        Assert.Equal(BuildingPlacementResult.NeedsTerrain, game.ValidateBuilding(building, new(8, 9)));
+        Assert.False(game.TryPlaceBuilding(building, new(8, 9)));
+        Assert.Null(game.GetBuilding(9, 9));
+        Assert.True(game.TryPlaceBuilding(10, 10, new("blocker", new(2, 0))));
+        Assert.Equal(BuildingPlacementResult.Overlap, game.ValidateBuilding(building, new(9, 9)));
+        Assert.False(game.TryPlaceBuilding(building, new(9, 9)));
+        Assert.Null(game.GetBuilding(9, 9));
+        Assert.Null(game.GetBuilding(10, 9));
+        Assert.Null(game.GetBuilding(9, 10));
+    }
+
+    [Fact]
+    public void SettlementIsTwoByTwoAndExcludedFromPlayerPalette()
+    {
+        Assert.Equal(2, Buildings.Settlement.Width);
+        Assert.Equal(2, Buildings.Settlement.Height);
+        Assert.False(Buildings.Settlement.PlayerPlaceable);
+        Assert.DoesNotContain(Buildings.Settlement, Buildings.Available);
+        Assert.Throws<ArgumentOutOfRangeException>(() => new BuildingDefinition(new("bad", new(0, 0)), "Bad", 0, 2));
+    }
+
+    [Fact]
     public void BuildingHidesResourceWithoutRemovingItsAssignmentOrChangingTerrain()
     {
         var game = new LandfallGame(new MonominoRandom());
