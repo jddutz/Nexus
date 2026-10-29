@@ -13,6 +13,39 @@ namespace Nexus.UnitTests.Graphics;
 /// <summary>Verifies sparse tile-map data and batched renderer synchronization.</summary>
 public sealed class TileMapRendererTests
 {
+    /// <summary>Rotated artwork stays inside its cell, including non-square cell sizes.</summary>
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(-1)]
+    [InlineData(4)]
+    public void Rotated_cells_preserve_bounds(int rotation)
+    {
+        var map = new TileMapData(new Rectangle<int>(2, 3, 1, 1));
+        var cell = new TileMapCell(new Vector4D<float>(0f, 0f, 1f, 1f), Colors.White, rotation);
+        Assert.Equal((rotation % 4 + 4) % 4, cell.Rotation);
+        map.SetCell(2, 3, cell);
+        var renderer = new TileMapRenderer { Map = map, CellSize = new Vector2D<float>(8f, 6f) };
+        renderer.Activate();
+        var drawable = Assert.IsType<TileMapDrawable>(Assert.Single(renderer.Drawables));
+        var transform = Assert.Single(ReadInstances(drawable));
+        var corners = new[] { (0f, 0f), (1f, 0f), (0f, 1f), (1f, 1f) };
+        foreach (var (x, y) in corners)
+        {
+            var px = x * transform.M11 + y * transform.M21 + transform.M41;
+            var py = x * transform.M12 + y * transform.M22 + transform.M42;
+            Assert.True(MathF.Abs(px - 16f) < 0.0001f || MathF.Abs(px - 24f) < 0.0001f);
+            Assert.True(MathF.Abs(py - 18f) < 0.0001f || MathF.Abs(py - 24f) < 0.0001f);
+        }
+        if (cell.Rotation == 1)
+        {
+            Assert.Equal(24f, transform.M41, 4);
+            Assert.Equal(18f, transform.M42, 4);
+            Assert.Equal(6f, transform.M12, 4);
+        }
+    }
+
     private static readonly TileMapCell WhiteCell = new(
         new Vector4D<float>(0f, 0f, 1f, 1f),
         Colors.White

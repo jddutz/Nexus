@@ -11,14 +11,18 @@ public readonly record struct TileMapCell
     /// <summary>Gets the tint applied to this cell.</summary>
     public Color Color { get; }
 
+    /// <summary>Clockwise quarter turns applied to the cell artwork.</summary>
+    public int Rotation { get; }
+
     /// <summary>Creates a cell with a normalized texture region and tint.</summary>
     /// <param name="textureRegion">The normalized atlas region in (x, y, width, height) form.</param>
     /// <param name="color">The normalized color tint.</param>
     /// <exception cref="ArgumentOutOfRangeException">A region or color channel is invalid.</exception>
-    public TileMapCell(Vector4D<float> textureRegion, Color color)
+    public TileMapCell(Vector4D<float> textureRegion, Color color, int rotation = 0)
     {
         TextureRegion = textureRegion;
         Color = color;
+        Rotation = (rotation % 4 + 4) % 4;
         EnsureValid();
     }
 

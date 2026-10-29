@@ -299,7 +299,10 @@ public sealed class TileMapRenderer : Component, IRenderer
         foreach (var (coordinate, cell) in snapshot.Cells)
         {
             var localTransform =
-                Matrix4X4.CreateScale(cellSize.X, cellSize.Y, 1f)
+                Matrix4X4.CreateTranslation(-0.5f, -0.5f, 0f)
+                * Matrix4X4.CreateRotationZ(cell.Rotation * MathF.PI / 2f)
+                * Matrix4X4.CreateTranslation(0.5f, 0.5f, 0f)
+                * Matrix4X4.CreateScale(cellSize.X, cellSize.Y, 1f)
                 * Matrix4X4.CreateTranslation(
                     coordinate.X * cellSize.X,
                     coordinate.Y * cellSize.Y,
