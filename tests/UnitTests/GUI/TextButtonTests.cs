@@ -137,7 +137,7 @@ public sealed class TextButtonTests
         second.Arrange(new Rectangle<float>(0f, 0f, 20f, 20f));
 
         Assert.Null(first.Parent);
-        Assert.Null(first.Root);
+        Assert.Null(first.Scene);
         Assert.False(first.IsActivated);
         Assert.True(first.CanFocus);
         Assert.False(first.IsFocused);
@@ -246,7 +246,10 @@ public sealed class TextButtonTests
         button.IsVisible = false;
 
         Assert.Equal(2, button.Components.Count());
-        Assert.All(button.Components.OfType<IRenderer>(), renderer => Assert.False(renderer.IsVisible));
+        Assert.All(
+            button.Components.OfType<IRenderer>(),
+            renderer => Assert.False(renderer.IsVisible)
+        );
         Assert.Empty(removedComponents);
         Assert.Equal(Vector2D<float>.Zero, button.Measure(new(100f, 100f)));
         var hiddenBounds = new Rectangle<float>(0f, 0f, 40f, 30f);
@@ -290,13 +293,22 @@ public sealed class TextButtonTests
         parent.AddChild(button);
 
         Assert.Equal(2, button.Components.Count());
-        Assert.All(button.Components.OfType<IRenderer>(), renderer => Assert.False(renderer.IsVisible));
+        Assert.All(
+            button.Components.OfType<IRenderer>(),
+            renderer => Assert.False(renderer.IsVisible)
+        );
         Assert.Equal(Vector2D<float>.Zero, button.Bounds.Size);
         parent.IsVisible = true;
-        Assert.All(button.Components.OfType<IRenderer>(), renderer => Assert.False(renderer.IsVisible));
+        Assert.All(
+            button.Components.OfType<IRenderer>(),
+            renderer => Assert.False(renderer.IsVisible)
+        );
         button.Arrange(new Rectangle<float>(0f, 0f, 20f, 20f));
         Assert.Equal(2, button.Components.Count());
-        Assert.All(button.Components.OfType<IRenderer>(), renderer => Assert.True(renderer.IsVisible));
+        Assert.All(
+            button.Components.OfType<IRenderer>(),
+            renderer => Assert.True(renderer.IsVisible)
+        );
     }
 
     /// <summary>
@@ -347,9 +359,7 @@ public sealed class TextButtonTests
     public void Arrange_withZeroGeometryHidesRenderersWithoutRemovingComponents()
     {
         var button = CreateButton("A");
-        var background = Assert.IsType<NinePatchRenderer>(
-            button.GetComponent<NinePatchRenderer>()
-        );
+        var background = Assert.IsType<NinePatchRenderer>(button.GetComponent<NinePatchRenderer>());
         var text = Assert.Single(button.Components.OfType<TextRenderer>());
 
         button.Arrange(new Rectangle<float>(0f, 0f, 0f, 20f));
@@ -444,7 +454,7 @@ public sealed class TextButtonTests
         parent.AddChild(button);
 
         Assert.Same(parent, button.Parent);
-        Assert.Same(scene, button.Root);
+        Assert.Same(scene, button.Scene);
         Assert.Same(button, scene.GetSceneNode(button.Id));
         Assert.Contains(button, parent.Children);
         Assert.Equal(2, button.Components.Count);

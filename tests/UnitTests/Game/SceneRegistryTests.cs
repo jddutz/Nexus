@@ -19,10 +19,15 @@ public class SceneRegistryTests
     {
         var registry = SceneRegistryTestHelper.CreateEmptyRegistry();
         const string sceneName = "WelcomeScreen";
-        var scene = new Scene(NodeId.New())
+        var existingNode = new GameObject();
+        var existingChild = new GameObject();
+        existingNode.Children.Add(existingChild);
+        using var services = new ServiceCollection().BuildServiceProvider();
+        var scene = new Scene(NodeId.New(), services)
         {
             MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
         };
+        scene.Children.Add(existingNode);
 
         Assert.Equal(0, registry.SceneCount);
         registry.Register(sceneName, () => scene);
@@ -30,6 +35,14 @@ public class SceneRegistryTests
         Assert.Equal(1, registry.SceneCount);
         Assert.Equal([sceneName], registry.RegisteredScenes);
         Assert.Same(scene, registry.Load(sceneName));
+        Assert.Same(registry, scene.Factory);
+        Assert.Same(registry, existingNode.Factory);
+        Assert.Same(registry, existingChild.Factory);
+
+        var addedNode = new GameObject();
+        scene.Children.Add(addedNode);
+        Assert.Same(registry, addedNode.Factory);
+
         Assert.Throws<InvalidOperationException>(() => registry.Load("UnknownScene"));
     }
 

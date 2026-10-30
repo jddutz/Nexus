@@ -142,6 +142,8 @@ public partial class Game(
         foreach (var child in scene.Children.ToArray().Reverse())
             DeactivateSubtree(child);
 
+        _eventHub.Unregister(scene);
+
         if (scene.IsActivated)
             scene.Deactivate();
 
@@ -286,7 +288,7 @@ public partial class Game(
     /// </summary>
     /// <param name="entity">The entity to activate.</param>
     /// <returns><see langword="true"/> if the entity became activated; otherwise, <see langword="false"/>.</returns>
-    private static bool TryActivate(IManagedEntity entity)
+    private bool TryActivate(IManagedEntity entity)
     {
         if (!entity.IsInitialized)
             entity.Initialize();
@@ -295,6 +297,12 @@ public partial class Game(
             return false;
 
         entity.Activate();
+
+        if (entity.IsActivated)
+        {
+            _eventHub.Register(entity);
+        }
+
         return entity.IsActivated;
     }
 

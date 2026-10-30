@@ -1,8 +1,9 @@
 namespace Nexus.GameEngine;
 
 /// <summary>Discovers concrete scene classes and loads scenes by name.</summary>
-public class SceneRegistry : ISceneRegistry
+public class SceneRegistry : ISceneRegistry, ISceneObjectFactory
 {
+    private readonly IServiceProvider _services;
     private readonly Dictionary<string, Func<IScene>> _sceneFactories = new(StringComparer.Ordinal);
 
     /// <inheritdoc />
@@ -21,6 +22,8 @@ public class SceneRegistry : ISceneRegistry
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(options);
+
+        _services = services;
 
         var settings = options.Value;
         var assemblies = new HashSet<Assembly>(settings.Assemblies);
@@ -72,14 +75,26 @@ public class SceneRegistry : ISceneRegistry
     public IScene Load(string sceneName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sceneName);
-        if (!_sceneFactories.TryGetValue(sceneName, out var factory))
-            throw new InvalidOperationException(
-                $"No scene is registered with name '{sceneName}'."
-            );
 
-        return factory()
+        if (!_sceneFactories.TryGetValue(sceneName, out var factory))
+            throw new InvalidOperationException($"No scene is registered with name '{sceneName}'.");
+
+        var scene =
+            factory()
             ?? throw new InvalidOperationException(
                 $"The factory for scene '{sceneName}' returned null."
             );
+
+        scene.Factory = this;
+
+        return scene;
+    }
+
+    public T CreateSceneNode<T>(params object[] args)
+        where T : ISceneNode
+    {
+        var node = ActivatorUtilities.CreateInstance<T>(_services, args);
+        node.Factory = this;
+        return node;
     }
 }

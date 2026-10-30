@@ -183,9 +183,9 @@ public class GameObjectTests
         scene.Children.Add(root);
 
         Assert.Same(scene, root.Parent);
-        Assert.Same(scene, root.Root);
-        Assert.Same(scene, child.Root);
-        Assert.Same(scene, leaf.Root);
+        Assert.Same(scene, root.Scene);
+        Assert.Same(scene, child.Scene);
+        Assert.Same(scene, leaf.Scene);
         Assert.Same(root, scene.GetSceneNode(root.Id));
         Assert.Same(child, scene.GetSceneNode(child.Id));
         Assert.Same(leaf, scene.GetSceneNode(leaf.Id));
@@ -200,7 +200,7 @@ public class GameObjectTests
         Assert.Null(scene.GetSceneNode(child.Id));
         Assert.Null(scene.GetSceneNode(leaf.Id));
         Assert.Null(scene.GetSceneNode(laterChild.Id));
-        Assert.Null(root.Root);
+        Assert.Null(root.Scene);
         Assert.Null(root.Parent);
         Assert.Same(child, leaf.Parent);
     }
@@ -223,7 +223,7 @@ public class GameObjectTests
         Assert.Throws<InvalidOperationException>(() => scene.Children.Add(candidate));
 
         Assert.Null(candidate.Parent);
-        Assert.Null(candidate.Root);
+        Assert.Null(candidate.Scene);
         Assert.Same(existingNode, scene.GetSceneNode(existingNode.Id));
         Assert.Null(scene.GetSceneNode(candidate.Id));
         Assert.DoesNotContain(candidate, scene.Children);
@@ -236,7 +236,7 @@ public class GameObjectTests
         Assert.Throws<InvalidOperationException>(() => scene.Children.Add(duplicateIdSubtree));
 
         Assert.Null(duplicateIdSubtree.Parent);
-        Assert.Null(duplicateIdSubtree.Root);
+        Assert.Null(duplicateIdSubtree.Scene);
         Assert.DoesNotContain(duplicateIdSubtree, scene.Children);
     }
 
@@ -259,7 +259,7 @@ public class GameObjectTests
         );
 
         Assert.Null(collidingChild.Parent);
-        Assert.Null(collidingChild.Root);
+        Assert.Null(collidingChild.Scene);
         Assert.DoesNotContain(collidingChild, registeredParent.Children);
         Assert.Same(existingNode, scene.GetSceneNode(existingNode.Id));
     }
@@ -300,11 +300,11 @@ public class GameObjectTests
 
         nextScene.Children.Add(rootNode);
 
-        Assert.Same(nextScene, node.Root);
+        Assert.Same(nextScene, node.Scene);
         Assert.Same(nextScene, node.Parent);
         Assert.Same(node, nextScene.GetSceneNode(node.Id));
-        Assert.Same(nextScene, child.Root);
-        Assert.Same(nextScene, leaf.Root);
+        Assert.Same(nextScene, child.Scene);
+        Assert.Same(nextScene, leaf.Scene);
     }
 
     /// <summary>Verifies Scene child validation rejects null nodes and ancestor cycles.</summary>

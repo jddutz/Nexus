@@ -7,14 +7,36 @@ namespace Nexus.GameEngine;
 /// </summary>
 public partial class Scene : IScene
 {
+    private readonly IServiceProvider _serviceProvider;
+
     private readonly ObservableCollection<ISceneNode> _children = new(
         ReferenceEqualityComparer.Instance
     );
     private readonly Dictionary<NodeId, ISceneNode> _allNodes = [];
+    private ISceneObjectFactory? _factory;
 
     /// <summary>Initializes a scene with a generated identifier.</summary>
-    public Scene()
-        : this(NodeId.New()) { }
+    public Scene(IServiceProvider serviceProvider)
+        : this(NodeId.New(), serviceProvider) { }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="Scene"/> class with the specified identifier.
+    /// </summary>
+    /// <param name="id">The node identifier for the scene.</param>
+    public Scene(NodeId id, IServiceProvider serviceProvider)
+    {
+        _serviceProvider = serviceProvider;
+
+        Id = id;
+
+        _children.ValidationRules += ValidateChild;
+        _children.ItemAdded += OnChildAdded;
+        _children.ItemRemoved += OnChildRemoved;
+
+        _allNodes.Add(Id, this);
+
+        RenderLayers.Create("GUI", RenderPasses.Main);
+    }
 
     /// <inheritdoc />
     public event Action<string>? PropertyChanged;
@@ -32,23 +54,6 @@ public partial class Scene : IScene
     private bool _isLoaded = false;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="Scene"/> class with the specified identifier.
-    /// </summary>
-    /// <param name="id">The node identifier for the scene.</param>
-    public Scene(NodeId id)
-    {
-        Id = id;
-
-        _children.ValidationRules += ValidateChild;
-        _children.ItemAdded += OnChildAdded;
-        _children.ItemRemoved += OnChildRemoved;
-
-        _allNodes.Add(Id, this);
-
-        RenderLayers.Create("GUI", RenderPasses.Main);
-    }
-
-    /// <summary>
     /// Gets the unique identifier for this scene.
     /// </summary>
     public NodeId Id { get; }
@@ -58,28 +63,14 @@ public partial class Scene : IScene
     /// <returns>The registered node, or <see langword="null"/>.</returns>
     public ISceneNode? GetSceneNode(NodeId id) => _allNodes.GetValueOrDefault(id);
 
-    /// <summary>Creates and adds a child node of the requested type.</summary>
-    /// <typeparam name="TChild">The child node type.</typeparam>
-    /// <returns>The newly created child.</returns>
-    public TChild CreateChild<TChild>()
-        where TChild : ISceneNode, new()
-    {
-        var child = new TChild();
-        Children.Add(child);
-        return child;
-    }
-
     /// <inheritdoc />
-    public ISceneNode? Root => this;
-
-    /// <inheritdoc />
-    ISceneNode? ISceneNode.Root
+    public ISceneNode? Root
     {
         get => this;
         set
         {
-            if (!ReferenceEquals(value, this))
-                throw new InvalidOperationException("A scene is always its own root.");
+            if (value != this)
+                throw new InvalidOperationException("Scenes cannot be nested.");
         }
     }
 
@@ -97,6 +88,21 @@ public partial class Scene : IScene
 
     /// <inheritdoc />
     public IObservableCollection<ISceneNode> Children => _children;
+
+    public ISceneObjectFactory Factory
+    {
+        get =>
+            _factory
+            ?? throw new InvalidOperationException("The scene factory has not been assigned.");
+        set
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            _factory = value;
+            foreach (var node in _allNodes.Values)
+                if (!ReferenceEquals(node, this))
+                    node.Factory = value;
+        }
+    }
 
     /// <summary>
     /// Determines whether a node can be added without creating duplicate ownership or a cycle.
@@ -248,6 +254,9 @@ public partial class Scene : IScene
                 $"Duplicate Node Id: {node.Id}. A different node is already registered with the same Node Id."
             );
         }
+
+        if (_factory is not null)
+            node.Factory = Factory;
 
         node.Root = this;
 

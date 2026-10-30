@@ -69,6 +69,21 @@ public partial class GameObject : IGameObject
     /// </summary>
     public NodeId Id { get; }
 
+    private ISceneObjectFactory? _factory;
+
+    /// <inheritdoc />
+    public ISceneObjectFactory Factory
+    {
+        get =>
+            _factory
+            ?? throw new InvalidOperationException("The scene factory has not been assigned.");
+        set
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            _factory = value;
+        }
+    }
+
     /// <summary>
     /// Gets the parent game object, if this object is attached to one.
     /// </summary>

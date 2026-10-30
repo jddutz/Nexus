@@ -32,4 +32,9 @@ public interface ISceneNode
     /// then notify each child.
     /// </summary>
     void OnSceneHierarchyChanged();
+
+    /// <summary>
+    /// Gets or sets the scene object factory used to create new nodes.
+    /// </summary>
+    ISceneObjectFactory Factory { get; set; }
 }
