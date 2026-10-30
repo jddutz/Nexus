@@ -1,3 +1,5 @@
+using Silk.NET.Maths;
+
 namespace Nexus.GameEngine;
 
 /// <summary>
@@ -201,6 +203,34 @@ public partial class Scene : IScene
     {
         foreach (var child in _children)
             child.OnSceneHierarchyChanged();
+    }
+
+    /// <inheritdoc />
+    public IReadOnlyList<RaycastHit> Raycast(Ray3D<float> ray)
+    {
+        var hits = new List<RaycastHit>();
+        foreach (var node in _allNodes.Values)
+        {
+            if (node is not IGameObject gameObject)
+                continue;
+
+            var nearest = float.PositiveInfinity;
+            foreach (var component in gameObject.Components)
+            {
+                if (
+                    component is IShape shape
+                    && shape.IntersectsWith(ray, out var distance)
+                    && distance < nearest
+                )
+                    nearest = distance;
+            }
+
+            if (nearest < float.PositiveInfinity)
+                hits.Add(new RaycastHit(node, nearest));
+        }
+
+        hits.Sort((first, second) => first.Distance.CompareTo(second.Distance));
+        return hits;
     }
 
     /// <summary>
