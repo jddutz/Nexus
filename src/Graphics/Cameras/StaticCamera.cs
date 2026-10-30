@@ -138,7 +138,7 @@ public partial class StaticCamera : Component, ICamera
 
     /// <inheritdoc/>
     public Ray3D<float> ScreenToWorldRay(
-        Vector2D<int> screenPoint,
+        Vector2D<float> screenPoint,
         int screenWidth,
         int screenHeight
     )
@@ -149,12 +149,12 @@ public partial class StaticCamera : Component, ICamera
     }
 
     /// <inheritdoc/>
-    public Vector2D<int> WorldToScreenPoint(
+    public Vector2D<float> WorldToScreenPoint(
         Vector3D<float> worldPoint,
         int screenWidth,
         int screenHeight
     )
     {
-        return new Vector2D<int>((int)worldPoint.X, (int)worldPoint.Y);
+        return new Vector2D<float>(worldPoint.X, worldPoint.Y);
     }
 }

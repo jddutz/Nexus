@@ -162,7 +162,7 @@ public partial class OrthoCamera : Component, ICamera
 
     /// <inheritdoc/>
     public Ray3D<float> ScreenToWorldRay(
-        Vector2D<int> screenPoint,
+        Vector2D<float> screenPoint,
         int screenWidth,
         int screenHeight
     )
@@ -179,7 +179,7 @@ public partial class OrthoCamera : Component, ICamera
     }
 
     /// <inheritdoc/>
-    public Vector2D<int> WorldToScreenPoint(
+    public Vector2D<float> WorldToScreenPoint(
         Vector3D<float> worldPoint,
         int screenWidth,
         int screenHeight
@@ -196,7 +196,7 @@ public partial class OrthoCamera : Component, ICamera
         var screenX = (int)((normalizedX + 1.0f) * 0.5f * screenWidth);
         var screenY = (int)((1.0f - normalizedY) * 0.5f * screenHeight);
 
-        return new Vector2D<int>(screenX, screenY);
+        return new Vector2D<float>(screenX, screenY);
     }
 
     /// <summary>Moves the camera by the specified translation.</summary>

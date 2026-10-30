@@ -186,7 +186,7 @@ public partial class PerspectiveCamera : Component, ICamera
 
     /// <inheritdoc/>
     public Ray3D<float> ScreenToWorldRay(
-        Vector2D<int> screenPoint,
+        Vector2D<float> screenPoint,
         int screenWidth,
         int screenHeight
     )
@@ -210,7 +210,7 @@ public partial class PerspectiveCamera : Component, ICamera
     }
 
     /// <inheritdoc/>
-    public Vector2D<int> WorldToScreenPoint(
+    public Vector2D<float> WorldToScreenPoint(
         Vector3D<float> worldPoint,
         int screenWidth,
         int screenHeight
@@ -222,7 +222,7 @@ public partial class PerspectiveCamera : Component, ICamera
         );
 
         if (MathF.Abs(clipSpace.W) < float.Epsilon)
-            return new Vector2D<int>(-1, -1);
+            return new Vector2D<float>(-1, -1);
 
         var ndc = new Vector3D<float>(
             clipSpace.X / clipSpace.W,
@@ -230,10 +230,10 @@ public partial class PerspectiveCamera : Component, ICamera
             clipSpace.Z / clipSpace.W
         );
 
-        var screenX = (int)((ndc.X + 1.0f) * 0.5f * screenWidth);
-        var screenY = (int)((1.0f - ndc.Y) * 0.5f * screenHeight);
+        var screenX = (ndc.X + 1.0f) * 0.5f * screenWidth;
+        var screenY = (1.0f - ndc.Y) * 0.5f * screenHeight;
 
-        return new Vector2D<int>(screenX, screenY);
+        return new Vector2D<float>(screenX, screenY);
     }
 
     /// <summary>Moves the camera by the specified translation.</summary>

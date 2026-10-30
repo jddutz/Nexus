@@ -69,7 +69,7 @@ public interface ICamera
     /// <param name="screenWidth">The width of the screen in pixels.</param>
     /// <param name="screenHeight">The height of the screen in pixels.</param>
     /// <returns>A ray in world space originating from the camera through the screen point.</returns>
-    Ray3D<float> ScreenToWorldRay(Vector2D<int> screenPoint, int screenWidth, int screenHeight);
+    Ray3D<float> ScreenToWorldRay(Vector2D<float> screenPoint, int screenWidth, int screenHeight);
 
     /// <summary>
     /// Projects a world-space point to screen-space coordinates.
@@ -78,5 +78,9 @@ public interface ICamera
     /// <param name="screenWidth">The width of the screen in pixels.</param>
     /// <param name="screenHeight">The height of the screen in pixels.</param>
     /// <returns>The screen-space coordinates (pixel position) of the world point.</returns>
-    Vector2D<int> WorldToScreenPoint(Vector3D<float> worldPoint, int screenWidth, int screenHeight);
+    Vector2D<float> WorldToScreenPoint(
+        Vector3D<float> worldPoint,
+        int screenWidth,
+        int screenHeight
+    );
 }
