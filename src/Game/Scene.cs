@@ -1,4 +1,4 @@
-namespace Nexus.Game;
+namespace Nexus.GameEngine;
 
 /// <summary>
 /// Provides the root node and node lookup for a scene hierarchy.

@@ -1,7 +1,7 @@
 using Nexus.Assets.Fonts;
 using Nexus.Core;
 using Nexus.Core.Events;
-using Nexus.Game;
+using Nexus.GameEngine;
 using Nexus.Graphics;
 using Nexus.Graphics.Text;
 using Nexus.Graphics.Textures;

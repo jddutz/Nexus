@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Nexus.Core;
 using Nexus.Core.Events;
-using Nexus.Game;
+using Nexus.GameEngine;
 
 /// <summary>
 /// Verifies game objects and components participate in global event handling with their lifecycle.
@@ -229,8 +229,8 @@ public class GameSystemEventRegistrationTests
     /// </summary>
     /// <param name="eventHub">The event hub to test.</param>
     /// <returns>A game system using the specified event hub.</returns>
-    private static GameSystem CreateGameSystem(IEventHub eventHub) =>
-        new(eventHub, NullLogger<GameSystem>.Instance);
+    private static Game CreateGameSystem(IEventHub eventHub) =>
+        new(eventHub, NullLogger<Game>.Instance);
 
     /// <summary>
     /// Represents an event used to verify global event dispatch.

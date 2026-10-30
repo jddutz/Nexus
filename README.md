@@ -36,6 +36,17 @@ Vulkan is the active backend. The presence of folders for OpenGL, Audio, Network
 
 ## Quickstart
 
+To build a local engine package, run `.\publish.ps1 -Version 1.0.0` from the
+repository root. The script builds Release assemblies and writes a single
+`Nexus.GameEngine` package to `C:\Users\jddut\Source\LocalNuGetRepo`; use
+`-OutputDirectory` to choose another feed. Before building, it removes existing
+`Nexus.GameEngine` packages (including symbol packages) from that directory,
+leaving unrelated files untouched. It bundles the runtime's engine
+assemblies and source generator, while retaining third-party NuGet dependencies.
+The offline asset pipeline is not included. Increment the version for updated
+builds, and register the feed once with
+`dotnet nuget add source C:\Users\jddut\Source\LocalNuGetRepo --name NexusLocal`.
+
 Create a C# console project and add the engine package:
 
 ```bash
@@ -123,10 +134,12 @@ Run the project from VS Code with **F5** after configuring a .NET launch profile
 dotnet run
 ```
 
-For Landfall, select **Debug:Landfall** in VS Code's Run and Debug view. If VS Code
-reports no launchable target, check that `dotnet sln Nexus.slnx list` succeeds;
-duplicate project entries prevent the solution from loading. After correcting the
-solution, run **Developer: Reload Window** to refresh project discovery.
+Run `dotnet test` from the repository root to execute the solution's tests.
+The solution includes only projects present in this repository; Landfall is not
+included. If VS Code reports no launchable target, check that
+`dotnet sln Nexus.slnx list` succeeds. Missing or duplicate project entries prevent
+the solution from loading. After correcting the solution, run
+**Developer: Reload Window** to refresh project discovery.
 
 ## Repository structure
 

@@ -2,7 +2,7 @@ global using System.Diagnostics;
 global using Microsoft.Extensions.Configuration;
 global using Nexus.Core;
 global using Nexus.Core.Events;
-global using Nexus.Game;
+global using Nexus.GameEngine;
 global using Nexus.Graphics;
 global using Nexus.Graphics.Cameras;
 global using Nexus.Graphics.Text;

@@ -1,5 +1,5 @@
 using Nexus.Core;
-using Nexus.Game;
+using Nexus.GameEngine;
 using Silk.NET.Maths;
 
 namespace Tests;

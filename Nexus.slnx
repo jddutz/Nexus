@@ -6,7 +6,7 @@
     <Project Path="src/AssetPipeline/Nexus.AssetPipeline.csproj" />
     <Project Path="src/Assets/Nexus.Assets.csproj" />
     <Project Path="src/Core/Nexus.Core.csproj" />
-    <Project Path="src/Game/Nexus.Game.csproj" />
+    <Project Path="src/Game/Nexus.GameEngine.csproj" />
     <Project Path="src/Graphics/Nexus.Graphics.csproj" />
     <Project Path="src/OpenGL/Nexus.Graphics.OpenGL.csproj" />
     <Project Path="src/Vulkan/Nexus.Graphics.Vulkan.csproj" />
@@ -24,9 +24,7 @@
     <Project Path="tests/HelloNexus/HelloNexus.csproj" />
     <Project Path="tests/Breakout/Breakout.csproj" />
     <Project Path="tests/Asteroids/Asteroids.csproj" />
-    <Project Path="tests/Landfall/Landfall.csproj" />
     <Project Path="tests/Snake/Snake.csproj" />
-    <Project Path="tests/Landfall/Tests/Landfall.Tests.csproj" />
     <Project Path="tests/SourceGeneratorTests/Nexus.SourceGeneratorTests.csproj" />
     <Project Path="tests/UnitTests/UnitTests.csproj" />
   </Folder>

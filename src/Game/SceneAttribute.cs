@@ -1,4 +1,4 @@
-namespace Nexus.Game;
+namespace Nexus.GameEngine;
 
 /// <summary>
 /// Overrides the default registration name of an automatically discovered scene.

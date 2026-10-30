@@ -3,7 +3,7 @@ namespace Tests;
 using Microsoft.Extensions.Logging.Abstractions;
 using Nexus.Core;
 using Nexus.Core.Events;
-using Nexus.Game;
+using Nexus.GameEngine;
 
 /// <summary>Verifies the game system loads and manages its current scene.</summary>
 public class GameSystemStartSceneTests
@@ -74,7 +74,7 @@ public class GameSystemStartSceneTests
         var scene = CreateScene();
         var eventHub = new EventHub();
         var observer = new SceneLoadedObserver();
-        var gameSystem = new GameSystem(eventHub, NullLogger<GameSystem>.Instance);
+        var gameSystem = new Game(eventHub, NullLogger<Game>.Instance);
         eventHub.Register(observer);
 
         gameSystem.LoadScene(scene);
@@ -140,27 +140,23 @@ public class GameSystemStartSceneTests
 
     /// <summary>Creates a GameSystem with its required services.</summary>
     /// <returns>A game system ready to initialize.</returns>
-    private static GameSystem CreateGameSystem() =>
-        new(new EventHub(), NullLogger<GameSystem>.Instance);
+    private static Game CreateGameSystem() => new(new EventHub(), NullLogger<Game>.Instance);
 
     /// <summary>Creates a scene with the required main camera.</summary>
     /// <returns>A new scene.</returns>
     private static Scene CreateScene() =>
-        new()
-        {
-            MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
-        };
+        new() { MainCamera = new Nexus.Graphics.Cameras.StaticCamera() };
 
     /// <summary>Provides a managed game object for scene lifecycle tests.</summary>
     private sealed class SceneGameObject : GameObject;
 
     /// <summary>Provides a selected current scene without loading its hierarchy.</summary>
-    private sealed class SceneSelectingGameSystem : GameSystem
+    private sealed class SceneSelectingGameSystem : Game
     {
         /// <summary>Initializes the helper with a current scene selection.</summary>
         /// <param name="scene">The scene to select without loading.</param>
         public SceneSelectingGameSystem(IScene scene)
-            : base(new EventHub(), NullLogger<GameSystem>.Instance)
+            : base(new EventHub(), NullLogger<Game>.Instance)
         {
             CurrentScene = scene;
         }

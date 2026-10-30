@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Nexus.Core;
 using Nexus.Core.Events;
-using Nexus.Game;
+using Nexus.GameEngine;
 using Nexus.Input;
 using Nexus.Input.Devices;
 using Nexus.Input.Events;
@@ -707,10 +707,8 @@ public class InputSystemTests
     /// Exposes the protected generated scene setter for lifecycle transition tests.
     /// </summary>
     /// <param name="eventHub">The event hub used by the game system.</param>
-    private sealed class SwitchableGameSystem(IEventHub eventHub) : GameSystem(
-        eventHub,
-        NullLogger<GameSystem>.Instance
-    )
+    private sealed class SwitchableGameSystem(IEventHub eventHub)
+        : Game(eventHub, NullLogger<Game>.Instance)
     {
         /// <summary>Transitions to the supplied scene through the explicit lifecycle methods.</summary>
         /// <param name="scene">The scene to activate, or <see langword="null"/> to unload.</param>

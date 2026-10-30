@@ -1,4 +1,4 @@
-namespace Nexus.Game;
+namespace Nexus.GameEngine;
 
 /// <summary>
 /// Configures scene discovery.

@@ -1,4 +1,4 @@
-namespace Nexus.Game;
+namespace Nexus.GameEngine;
 
 using Microsoft.Extensions.Configuration;
 using Nexus.Assets.Fonts;
@@ -25,7 +25,7 @@ public static class ServiceCollectionExtensions
         services.AddOptions<GameSettings>().Bind(configuration.GetSection("Game"));
         services.AddOptions<SceneRegistrySettings>();
         services.TryAddSingleton<IFontBuilder, FontBuilder>();
-        services.TryAddSingleton<IGameSystem, GameSystem>();
+        services.TryAddSingleton<IGameSystem, Game>();
         services.TryAddSingleton<ISceneManager, SceneManager>();
         services.TryAddSingleton<ISceneRegistry, SceneRegistry>();
 

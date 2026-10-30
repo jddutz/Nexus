@@ -1,7 +1,7 @@
 using Nexus.Core.Performance;
 using Nexus.Graphics.Events;
 
-namespace Nexus.Game;
+namespace Nexus.GameEngine;
 
 /// <summary>
 /// Provides the default implementation of the game system lifecycle.
@@ -10,15 +10,15 @@ namespace Nexus.Game;
 /// <param name="logger">The logger used for game-system diagnostics.</param>
 /// <param name="windowService">The service used to synchronize the current scene camera with the main window, or <see langword="null"/> in a headless runtime.</param>
 /// <param name="telemetry">The optional performance telemetry sink.</param>
-public partial class GameSystem(
+public partial class Game(
     IEventHub eventHub,
-    ILogger<GameSystem> logger,
+    ILogger<Game> logger,
     IWindowService? windowService = null,
     IPerformanceTelemetry? telemetry = null
 ) : IGameSystem, IObservable
 {
     private readonly IEventHub _eventHub = eventHub;
-    private readonly ILogger<GameSystem> _logger = logger;
+    private readonly ILogger<Game> _logger = logger;
     private readonly IWindowService? _windowService = windowService;
     private readonly HashSet<ISceneNode> _subscribedSceneNodes = [];
     private readonly HashSet<IGameObject> _publishedGameObjectActivations = new(
@@ -36,7 +36,7 @@ public partial class GameSystem(
     public event Action<string>? PropertyChanged;
 
     /// <inheritdoc />
-    public bool IsSceneLoaded => CurrentScene is { IsLoaded: true };
+    public bool IsSceneLoaded => CurrentScene is { IsActivated: true };
 
     /// <summary>
     /// Represents an entity and its expected ownership in a lifecycle traversal snapshot.
@@ -119,6 +119,7 @@ public partial class GameSystem(
         SubscribeCurrentScene(scene);
 
         scene.IsLoaded = true;
+        RunLifecycleTraversal(scene, 0, updateEntities: false);
 
         _eventHub.Publish(new SceneLoadedEvent(scene));
     }
@@ -181,7 +182,6 @@ public partial class GameSystem(
             }
         }
 
-        CurrentScene = null;
         _logger.LogInformation("Scene unloaded. SceneType={SceneType}", scene.GetType().Name);
     }
 

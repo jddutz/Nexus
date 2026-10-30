@@ -1,4 +1,4 @@
-# Nexus.Game
+# Nexus.GameEngine
 
 Game owns concrete scenes, scene registration, and the game-system lifecycle coordinator. Shared game-object and component contracts and implementations live in [Core](../Core/README.md).
 
@@ -20,7 +20,7 @@ These are current project references, not confirmation of the proposed module po
 ## Development
 
 ```sh
-dotnet build src/Game/Nexus.Game.csproj
+dotnet build src/Game/Nexus.GameEngine.csproj
 ```
 
 Run from the repository root. Relevant coverage is in [Game tests](../../tests/UnitTests/Game). Read the [lifecycle specification](../../docs/Game%20System%20Lifecycle.md) and [architecture baseline](../../README.md) before changing traversal or lifecycle delegation. The build command was not executed for this documentation change.

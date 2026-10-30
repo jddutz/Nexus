@@ -1,4 +1,4 @@
-namespace Nexus.Game;
+namespace Nexus.GameEngine;
 
 /// <summary>
 /// Stores the latest pending scene transition request.
@@ -60,6 +60,18 @@ public sealed class SceneManager : ISceneManager
         lock (_syncRoot)
         {
             _pendingSceneId = sceneId;
+        }
+    }
+
+    /// <inheritdoc />
+    public void CompleteSceneChange(string sceneId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sceneId);
+
+        lock (_syncRoot)
+        {
+            if (string.Equals(_pendingSceneId, sceneId, StringComparison.Ordinal))
+                _pendingSceneId = null;
         }
     }
 

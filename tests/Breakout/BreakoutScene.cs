@@ -2,7 +2,7 @@ namespace Nexus.Samples.Breakout;
 
 using Nexus.Core;
 using Nexus.Core.Events;
-using Nexus.Game;
+using Nexus.GameEngine;
 using Nexus.GUI;
 using Nexus.GUI.Elements;
 using Nexus.Graphics;

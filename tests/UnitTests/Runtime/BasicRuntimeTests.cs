@@ -6,7 +6,7 @@ using Microsoft.Extensions.Options;
 using Nexus.Audio;
 using Nexus.Core;
 using Nexus.Core.Events;
-using Nexus.Game;
+using Nexus.GameEngine;
 using Nexus.Graphics;
 using Nexus.Graphics.Vulkan;
 using Nexus.GUI;
@@ -106,6 +106,7 @@ public class BasicRuntimeTests
                 "game.Initialize",
                 "events.ClearPendingEvents",
                 "game.LoadScene",
+                "events.Drain",
             },
             calls
         );
@@ -132,7 +133,7 @@ public class BasicRuntimeTests
     public void OnUpdate_consumesPendingSceneChangeAndDeliversOutgoingRemovals()
     {
         var eventHub = new EventHub();
-        var gameSystem = new GameSystem(eventHub, NullLogger<GameSystem>.Instance);
+        var gameSystem = new Game(eventHub, NullLogger<Game>.Instance);
         var sceneManager = new SceneManager(eventHub, NullLogger<SceneManager>.Instance);
         var runtime = new NexusRuntime(
             eventHub,
@@ -172,6 +173,7 @@ public class BasicRuntimeTests
     private sealed class RemovalObserver
     {
         public List<IGameObject> Removed { get; } = [];
+
         public void Handle(GameObjectDeactivatedEvent message) => Removed.Add(message.GameObject);
     }
 
@@ -179,26 +181,34 @@ public class BasicRuntimeTests
     public void SceneTransition_deliversIncomingViewActivationBeforeRendering()
     {
         var hub = new EventHub();
-        var game = new GameSystem(hub, NullLogger<GameSystem>.Instance);
+        var game = new Game(hub, NullLogger<Game>.Instance);
         var manager = new SceneManager(hub, NullLogger<SceneManager>.Instance);
         var registry = CreateSceneRegistry("Startup");
         var camera = new Nexus.Graphics.Cameras.StaticCamera();
         var view = new Nexus.GUI.Elements.View { Camera = camera };
-        registry.Register("Next", () =>
-        {
-            var scene = new Scene { MainCamera = camera };
-            scene.Children.Add(view);
-            return scene;
-        });
+        registry.Register(
+            "Next",
+            () =>
+            {
+                var scene = new Scene { MainCamera = camera };
+                scene.Children.Add(view);
+                return scene;
+            }
+        );
         var observer = new ComponentActivationObserver();
         hub.Register(observer);
-        var runtime = new NexusRuntime(hub, game,
+        var runtime = new NexusRuntime(
+            hub,
+            game,
             CreateRecordingProxy<IPhysicsSystem>("physics", []),
             CreateRecordingProxy<IAudioSystem>("audio", []),
             CreateRecordingProxy<IInputSystem>("input", []),
             CreateRecordingProxy<IGraphicsSystem>("graphics", []),
             CreateRecordingProxy<IGraphicalUserInterface>("gui", []),
-            registry, manager, Options.Create(new GameSettings { StartSceneId = "Startup" }));
+            registry,
+            manager,
+            Options.Create(new GameSettings { StartSceneId = "Startup" })
+        );
         runtime.Initialize();
         runtime.OnUpdate(1d / 60d);
         manager.LoadScene("Next");
@@ -211,6 +221,7 @@ public class BasicRuntimeTests
     private sealed class ComponentActivationObserver
     {
         public List<IComponent> Activated { get; } = [];
+
         public void Handle(ComponentActivatedEvent message) => Activated.Add(message.Component);
     }
 
@@ -438,11 +449,7 @@ public class BasicRuntimeTests
         foreach (var sceneName in sceneNames)
             registry.Register(
                 sceneName,
-                () =>
-                    new Scene
-                    {
-                        MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
-                    }
+                () => new Scene { MainCamera = new Nexus.Graphics.Cameras.StaticCamera() }
             );
         return registry;
     }

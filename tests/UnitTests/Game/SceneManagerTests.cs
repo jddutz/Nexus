@@ -3,7 +3,7 @@ namespace Tests;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Nexus.Core.Events;
-using Nexus.Game;
+using Nexus.GameEngine;
 
 /// <summary>Verifies pending scene transition requests.</summary>
 public class SceneManagerTests
@@ -42,6 +42,27 @@ public class SceneManagerTests
 
         sceneManager.LoadScene("Previous");
         sceneManager.LoadScene("Next");
+
+        Assert.True(sceneManager.IsSceneChangePending);
+        Assert.Equal("Next", sceneManager.PendingSceneId);
+    }
+
+    /// <summary>Verifies completion clears only the matching pending request.</summary>
+    [Fact]
+    public void CompleteSceneChange_clearsOnlyTheMatchingRequest()
+    {
+        var sceneManager = new SceneManager(
+            new EventHub(),
+            NullLogger<SceneManager>.Instance
+        );
+
+        sceneManager.LoadScene("Startup");
+        sceneManager.CompleteSceneChange("Startup");
+
+        Assert.False(sceneManager.IsSceneChangePending);
+
+        sceneManager.LoadScene("Next");
+        sceneManager.CompleteSceneChange("Startup");
 
         Assert.True(sceneManager.IsSceneChangePending);
         Assert.Equal("Next", sceneManager.PendingSceneId);

@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Nexus.Core;
 using Nexus.Core.Events;
-using Nexus.Game;
+using Nexus.GameEngine;
 using Nexus.Graphics;
 using Nexus.Graphics.Events;
 using Silk.NET.Maths;
@@ -302,15 +302,15 @@ public class GameSystemLifecycleTests
     /// </summary>
     /// <param name="scene">The scene to activate.</param>
     /// <returns>A game system registered with the scene.</returns>
-    private static GameSystem CreateGameSystem(
+    private static Game CreateGameSystem(
         IScene scene,
         IWindowService? windowService = null,
         IEventHub? eventHub = null
     )
     {
-        var gameSystem = new GameSystem(
+        var gameSystem = new Game(
             eventHub ?? new EventHub(),
-            NullLogger<GameSystem>.Instance,
+            NullLogger<Game>.Instance,
             windowService
         );
         gameSystem.LoadScene(scene);

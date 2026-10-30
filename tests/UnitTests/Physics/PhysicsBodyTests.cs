@@ -4,10 +4,10 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Nexus.Core;
 using Nexus.Core.Events;
-using Nexus.Game;
+using Nexus.GameEngine;
+using Nexus.Graphics.Cameras;
 using Nexus.Physics;
 using Nexus.Physics.Components;
-using Nexus.Graphics.Cameras;
 using Silk.NET.Maths;
 
 /// <summary>Verifies lifecycle and pose behavior for 2D physics bodies.</summary>
@@ -52,20 +52,13 @@ public sealed class PhysicsBodyTests
         physics.Initialize();
         var world = physics.CreateWorld2D();
         var body = new PhysicsBody2D { WorldId = world.Id };
-        var collider = new PhysicsCollider2D
-        {
-            WorldId = world.Id,
-            Shape = new CircleShape2D(1f),
-        };
+        var collider = new PhysicsCollider2D { WorldId = world.Id, Shape = new CircleShape2D(1f) };
         var owner = new GameObject2D();
         owner.AddComponent(body);
         owner.AddComponent(collider);
         var scene = new Scene(NodeId.New()) { MainCamera = new StaticCamera() };
         scene.Children.Add(owner);
-        var gameSystem = new GameSystem(
-            eventHub,
-            NullLogger<GameSystem>.Instance
-        );
+        var gameSystem = new Game(eventHub, NullLogger<Game>.Instance);
         gameSystem.LoadScene(scene);
 
         gameSystem.Initialize();
@@ -103,11 +96,7 @@ public sealed class PhysicsBodyTests
         physics.Initialize();
         var world = physics.CreateWorld2D();
         var movingOwner = new GameObject2D { Position = new(0f, 0f), Scale = new(1f, 1f) };
-        var movingBody = new PhysicsBody2D
-        {
-            WorldId = world.Id,
-            Velocity = new(100f, 0f),
-        };
+        var movingBody = new PhysicsBody2D { WorldId = world.Id, Velocity = new(100f, 0f) };
         var movingCollider = new PhysicsCollider2D
         {
             WorldId = world.Id,
@@ -213,17 +202,26 @@ public sealed class PhysicsBodyTests
         var firstTargetCollider = AddUnitRectangleCollider(firstTargetOwner, world.Id);
         var secondTargetOwner = new GameObject2D { Position = new(5f, 0f) };
         var secondTargetCollider = AddUnitRectangleCollider(secondTargetOwner, world.Id);
-        var expectedTarget = firstTargetCollider.Id.Value < secondTargetCollider.Id.Value
-            ? firstTargetOwner
-            : secondTargetOwner;
+        var expectedTarget =
+            firstTargetCollider.Id.Value < secondTargetCollider.Id.Value
+                ? firstTargetOwner
+                : secondTargetOwner;
 
-        ActivatePhysics(physics, movingBody, movingCollider, firstTargetCollider, secondTargetCollider);
+        ActivatePhysics(
+            physics,
+            movingBody,
+            movingCollider,
+            firstTargetCollider,
+            secondTargetCollider
+        );
         physics.Update(0.1d);
         eventHub.Drain();
 
-        var collision = Assert.Single(recorder.Events, message =>
-            ReferenceEquals(message.First.Owner, movingOwner)
-            || ReferenceEquals(message.Second.Owner, movingOwner)
+        var collision = Assert.Single(
+            recorder.Events,
+            message =>
+                ReferenceEquals(message.First.Owner, movingOwner)
+                || ReferenceEquals(message.Second.Owner, movingOwner)
         );
         Assert.NotNull(collision.Contact);
         Assert.Contains(
@@ -306,9 +304,7 @@ public sealed class PhysicsBodyTests
         var movingCollider = new PhysicsCollider2D
         {
             WorldId = world.Id,
-            Shape = new TriangleMeshShape2D([
-                new(new(0f, 0f), new(2f, 0f), new(0f, 2f)),
-            ]),
+            Shape = new TriangleMeshShape2D([new(new(0f, 0f), new(2f, 0f), new(0f, 2f))]),
         };
         movingOwner.AddComponent(movingBody);
         movingOwner.AddComponent(movingCollider);
@@ -334,11 +330,7 @@ public sealed class PhysicsBodyTests
     public void SweptContact_preservesExactOverlapForRotatedRectangles()
     {
         var (eventHub, physics, world, recorder) = CreatePhysicsContext();
-        var movingOwner = new GameObject2D
-        {
-            Position = new(0f, 0f),
-            Rotation = MathF.PI / 4f,
-        };
+        var movingOwner = new GameObject2D { Position = new(0f, 0f), Rotation = MathF.PI / 4f };
         var movingBody = new PhysicsBody2D { WorldId = world.Id, Velocity = new(2f, 0f) };
         var movingCollider = new PhysicsCollider2D
         {
@@ -422,11 +414,7 @@ public sealed class PhysicsBodyTests
         var physics = new PhysicsSystem(eventHub);
         var world = physics.CreateWorld2D();
         var movingOwner = new GameObject2D { Position = new(0f, 0f) };
-        var movingBody = new PhysicsBody2D
-        {
-            WorldId = world.Id,
-            Velocity = new(100f, 0f),
-        };
+        var movingBody = new PhysicsBody2D { WorldId = world.Id, Velocity = new(100f, 0f) };
         var movingCollider = new PhysicsCollider2D
         {
             WorldId = world.Id,
@@ -498,7 +486,10 @@ public sealed class PhysicsBodyTests
     /// <summary>Registers physics components with their test physics system.</summary>
     /// <param name="physics">The physics system under test.</param>
     /// <param name="components">The components to activate.</param>
-    private static void ActivatePhysics(PhysicsSystem physics, params IPhysicsComponent[] components)
+    private static void ActivatePhysics(
+        PhysicsSystem physics,
+        params IPhysicsComponent[] components
+    )
     {
         foreach (var component in components)
             Assert.True(physics.Activate(component));

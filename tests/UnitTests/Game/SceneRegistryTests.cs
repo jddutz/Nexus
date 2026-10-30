@@ -4,7 +4,7 @@ namespace Tests;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
-using Nexus.Game;
+using Nexus.GameEngine;
 
 /// <summary>
 /// Verifies scenes are created through factories registered by identifier.

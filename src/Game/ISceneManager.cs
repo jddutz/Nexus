@@ -1,4 +1,4 @@
-namespace Nexus.Game;
+namespace Nexus.GameEngine;
 
 /// <summary>
 /// Accepts scene transition requests for processing by the runtime.
@@ -20,4 +20,9 @@ public interface ISceneManager
     /// <param name="sceneId">The registered identifier of the destination scene.</param>
     /// <exception cref="ArgumentException"><paramref name="sceneId"/> is null, empty, or whitespace.</exception>
     void LoadScene(string sceneId);
+
+    /// <summary>Completes the matching pending request after the runtime loads that scene.</summary>
+    /// <param name="sceneId">The registered identifier of the loaded scene.</param>
+    /// <exception cref="ArgumentException"><paramref name="sceneId"/> is null, empty, or whitespace.</exception>
+    void CompleteSceneChange(string sceneId);
 }

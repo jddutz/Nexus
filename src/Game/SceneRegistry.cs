@@ -1,4 +1,4 @@
-namespace Nexus.Game;
+namespace Nexus.GameEngine;
 
 /// <summary>Discovers concrete scene classes and loads scenes by name.</summary>
 public class SceneRegistry : ISceneRegistry

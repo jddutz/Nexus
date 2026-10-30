@@ -2,7 +2,7 @@ namespace Tests;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
-using Nexus.Game;
+using Nexus.GameEngine;
 
 /// <summary>Creates scene registries configured for isolated registry tests.</summary>
 internal static class SceneRegistryTestHelper

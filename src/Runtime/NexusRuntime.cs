@@ -88,7 +88,17 @@ public sealed class NexusRuntime(
             startSceneId = sceneRegistry.RegisteredScenes.Single();
         }
 
+        if (!sceneRegistry.RegisteredScenes.Contains(startSceneId))
+            throw new InvalidOperationException(
+                $"Start scene '{startSceneId}' is not registered."
+            );
+
+        var startScene = sceneRegistry.Load(startSceneId);
+        eventHub.ClearPendingEvents();
         sceneManager.LoadScene(startSceneId);
+        gameSystem.LoadScene(startScene);
+        eventHub.Drain();
+        sceneManager.CompleteSceneChange(startSceneId);
 
         _runtimeStopwatch.Start();
         _initialized = true;

@@ -1,7 +1,7 @@
 using System.Reflection;
 using Nexus.Core;
 using Nexus.Core.Events;
-using Nexus.Game;
+using Nexus.GameEngine;
 using Nexus.Graphics;
 using Nexus.Graphics.Events;
 using Nexus.Graphics.Textures;
@@ -30,7 +30,16 @@ public class GraphicalUserInterfaceTests
         var gui = new GraphicalUserInterface(new EventHub(),
             new TestWindowService(new(800, 600)), telemetry: profiler);
         var flow = new FlowLayout();
-        flow.Children.Add(new Element { Width = 100f, Height = 30f });
+        var shouldInvalidateDuringArrange = true;
+        var child = new LayoutProbeElement(arrange: (element, _) =>
+        {
+            if (!shouldInvalidateDuringArrange)
+                return;
+
+            shouldInvalidateDuringArrange = false;
+            element.Height = 31f;
+        }) { Width = 100f, Height = 30f };
+        flow.Children.Add(child);
         var scene = new Scene { MainCamera = new Nexus.Graphics.Cameras.StaticCamera() };
         scene.Children.Add(flow);
         ActivateScene(scene);
