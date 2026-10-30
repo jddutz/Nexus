@@ -7,11 +7,14 @@ using Nexus.GameEngine;
 /// <summary>Creates scene registries configured for isolated registry tests.</summary>
 internal static class SceneRegistryTestHelper
 {
+    /// <summary>Gets a service provider that returns no registered services.</summary>
+    internal static IServiceProvider ServiceProvider { get; } = EmptyServiceProvider.Instance;
+
     /// <summary>Creates a registry with automatic assembly scanning disabled.</summary>
     /// <returns>An empty registry for manually registered test scenes.</returns>
     internal static SceneRegistry CreateEmptyRegistry() =>
         new(
-            EmptyServiceProvider.Instance,
+            ServiceProvider,
             Options.Create(new SceneRegistrySettings { ScanEntryAssembly = false })
         );
 

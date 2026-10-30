@@ -56,14 +56,18 @@ public class SceneRegistryTests
         const string sceneName = "DuplicateScene";
         registry.Register(
             sceneName,
-            () => new Scene(NodeId.New()) { MainCamera = new Nexus.Graphics.Cameras.StaticCamera() }
+            () =>
+                new Scene(NodeId.New(), SceneRegistryTestHelper.ServiceProvider)
+                {
+                    MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
+                }
         );
 
         Assert.Throws<ArgumentException>(() =>
             registry.Register(
                 sceneName,
                 () =>
-                    new Scene(NodeId.New())
+                    new Scene(NodeId.New(), SceneRegistryTestHelper.ServiceProvider)
                     {
                         MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
                     }
@@ -114,7 +118,9 @@ public class SceneRegistryTests
     public sealed class UnattributedDiscoveredScene : Scene
     {
         /// <summary>Creates a scene used to verify default name discovery.</summary>
-        public UnattributedDiscoveredScene() { }
+        /// <param name="serviceProvider">The services used by the scene.</param>
+        public UnattributedDiscoveredScene(IServiceProvider serviceProvider)
+            : base(serviceProvider) { }
     }
 
     /// <summary>A scene whose discovery name is overridden by its attribute.</summary>
@@ -122,6 +128,8 @@ public class SceneRegistryTests
     public sealed class OverriddenDiscoveredScene : Scene
     {
         /// <summary>Creates a scene used to verify attribute name overrides.</summary>
-        public OverriddenDiscoveredScene() { }
+        /// <param name="serviceProvider">The services used by the scene.</param>
+        public OverriddenDiscoveredScene(IServiceProvider serviceProvider)
+            : base(serviceProvider) { }
     }
 }

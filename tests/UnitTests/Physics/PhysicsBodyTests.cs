@@ -56,7 +56,10 @@ public sealed class PhysicsBodyTests
         var owner = new GameObject2D();
         owner.AddComponent(body);
         owner.AddComponent(collider);
-        var scene = new Scene(NodeId.New()) { MainCamera = new StaticCamera() };
+        var scene = new Scene(NodeId.New(), SceneRegistryTestHelper.ServiceProvider)
+        {
+            MainCamera = new StaticCamera(),
+        };
         scene.Children.Add(owner);
         var gameSystem = new Game(eventHub, NullLogger<Game>.Instance);
         gameSystem.LoadScene(scene);

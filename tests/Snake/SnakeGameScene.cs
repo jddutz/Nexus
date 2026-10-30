@@ -85,12 +85,15 @@ public sealed class SnakeGameScene : Scene
     /// <param name="eventHub">Dispatches scene input events.</param>
     /// <param name="windowService">Provides the main window size for responsive layout.</param>
     /// <param name="diagnostics">Optional diagnostics settings used to enable game logging.</param>
+    /// <param name="serviceProvider">Provides services used by the scene.</param>
     public SnakeGameScene(
         ITextStyleRegistry textStyles,
         IEventHub eventHub,
         IWindowService windowService,
+        IServiceProvider serviceProvider,
         IOptions<DiagnosticsSettings>? diagnostics = null
     )
+        : base(serviceProvider)
     {
         ArgumentNullException.ThrowIfNull(textStyles);
         ArgumentNullException.ThrowIfNull(eventHub);

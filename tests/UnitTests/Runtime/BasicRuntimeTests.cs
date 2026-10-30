@@ -190,7 +190,7 @@ public class BasicRuntimeTests
             "Next",
             () =>
             {
-                var scene = new Scene { MainCamera = camera };
+                var scene = new Scene(SceneRegistryTestHelper.ServiceProvider) { MainCamera = camera };
                 scene.Children.Add(view);
                 return scene;
             }
@@ -449,7 +449,11 @@ public class BasicRuntimeTests
         foreach (var sceneName in sceneNames)
             registry.Register(
                 sceneName,
-                () => new Scene { MainCamera = new Nexus.Graphics.Cameras.StaticCamera() }
+                () =>
+                    new Scene(SceneRegistryTestHelper.ServiceProvider)
+                    {
+                        MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
+                    }
             );
         return registry;
     }

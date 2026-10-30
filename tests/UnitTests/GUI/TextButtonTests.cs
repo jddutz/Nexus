@@ -137,7 +137,7 @@ public sealed class TextButtonTests
         second.Arrange(new Rectangle<float>(0f, 0f, 20f, 20f));
 
         Assert.Null(first.Parent);
-        Assert.Null(first.Scene);
+        Assert.Null(first.Root);
         Assert.False(first.IsActivated);
         Assert.True(first.CanFocus);
         Assert.False(first.IsFocused);
@@ -226,7 +226,10 @@ public sealed class TextButtonTests
     [Fact]
     public void Visibility_togglesAndRetainsVisualComponents()
     {
-        var scene = new Scene() { MainCamera = new Nexus.Graphics.Cameras.StaticCamera() };
+        var scene = new Scene(SceneRegistryTestHelper.ServiceProvider)
+        {
+            MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
+        };
         var parent = new Element();
         var button = CreateButton("AB");
         var bounds = new Rectangle<float>(4f, 5f, 60f, 24f);
@@ -445,7 +448,10 @@ public sealed class TextButtonTests
     [Fact]
     public void AddChild_registersButtonInScene()
     {
-        var scene = new Scene() { MainCamera = new Nexus.Graphics.Cameras.StaticCamera() };
+        var scene = new Scene(SceneRegistryTestHelper.ServiceProvider)
+        {
+            MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
+        };
         var parent = new GameObject();
         scene.Children.Add(parent);
         scene.Activate();
@@ -454,7 +460,7 @@ public sealed class TextButtonTests
         parent.AddChild(button);
 
         Assert.Same(parent, button.Parent);
-        Assert.Same(scene, button.Scene);
+        Assert.Same(scene, button.Root);
         Assert.Same(button, scene.GetSceneNode(button.Id));
         Assert.Contains(button, parent.Children);
         Assert.Equal(2, button.Components.Count);
@@ -639,7 +645,10 @@ public sealed class TextButtonTests
         var gui = new GraphicalUserInterface(eventHub);
         var button = CreateButton("A");
         button.Arrange(new Rectangle<float>(4f, 5f, 60f, 24f));
-        var scene = new Scene() { MainCamera = new Nexus.Graphics.Cameras.StaticCamera() };
+        var scene = new Scene(SceneRegistryTestHelper.ServiceProvider)
+        {
+            MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
+        };
         scene.Children.Add(button);
         scene.Activate();
         button.Activate();

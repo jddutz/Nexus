@@ -57,12 +57,15 @@ public sealed class BreakoutScene : Scene
     /// <param name="eventHub">Dispatches key transitions.</param>
     /// <param name="windowService">Provides the current window size.</param>
     /// <param name="physics">Owns the scene's simulation world.</param>
+    /// <param name="serviceProvider">Provides services used by the scene.</param>
     public BreakoutScene(
         ITextStyleRegistry textStyles,
         IEventHub eventHub,
         IWindowService windowService,
-        IPhysicsSystem physics
+        IPhysicsSystem physics,
+        IServiceProvider serviceProvider
     )
+        : base(serviceProvider)
     {
         ArgumentNullException.ThrowIfNull(textStyles);
         ArgumentNullException.ThrowIfNull(eventHub);

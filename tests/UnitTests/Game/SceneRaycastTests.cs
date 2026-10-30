@@ -10,7 +10,10 @@ public class SceneRaycastTests
     [Fact]
     public void Raycast_returnsNearestHitPerOwnerOrderedByWorldDistance()
     {
-        IScene scene = new Scene { MainCamera = new Nexus.Graphics.Cameras.StaticCamera() };
+        IScene scene = new Scene(SceneRegistryTestHelper.ServiceProvider)
+        {
+            MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
+        };
         var far = new GameObject();
         far.AddComponent(new SphereShape(new(10, 0, 0), 1));
         var near = new GameObject();
@@ -35,7 +38,10 @@ public class SceneRaycastTests
     [Fact]
     public void Raycast_reflectsComponentChangesAndHandlesInteriorAndZeroDirection()
     {
-        var scene = new Scene { MainCamera = new Nexus.Graphics.Cameras.StaticCamera() };
+        var scene = new Scene(SceneRegistryTestHelper.ServiceProvider)
+        {
+            MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
+        };
         var node = new GameObject();
         scene.Children.Add(node);
         var ray = new Ray3D<float>(Vector3D<float>.Zero, new(1, 0, 0));

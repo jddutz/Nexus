@@ -617,7 +617,7 @@ public class InputSystemTests
     {
         var eventHub = new EventHub();
         var keyboard = new FakeKeyboard(11);
-        var scene = new Scene(NodeId.New())
+        var scene = new Scene(NodeId.New(), SceneRegistryTestHelper.ServiceProvider)
         {
             MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
         };
@@ -628,7 +628,7 @@ public class InputSystemTests
         firstMap.OnKeyPressed(KeyEnum.Escape).Invoke(() => firstCalls++);
         scene.InputMap = firstMap;
 
-        var nextScene = new Scene(NodeId.New())
+        var nextScene = new Scene(NodeId.New(), SceneRegistryTestHelper.ServiceProvider)
         {
             MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
         };

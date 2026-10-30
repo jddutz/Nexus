@@ -145,7 +145,10 @@ public class GameSystemStartSceneTests
     /// <summary>Creates a scene with the required main camera.</summary>
     /// <returns>A new scene.</returns>
     private static Scene CreateScene() =>
-        new() { MainCamera = new Nexus.Graphics.Cameras.StaticCamera() };
+        new(SceneRegistryTestHelper.ServiceProvider)
+        {
+            MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
+        };
 
     /// <summary>Provides a managed game object for scene lifecycle tests.</summary>
     private sealed class SceneGameObject : GameObject;

@@ -12,11 +12,14 @@ public class WelcomeScreen : Scene
     /// <param name="textStyles">Builds and caches text styles for the welcome text.</param>
     /// <param name="eventHub">Dispatches the welcome screen's input bindings.</param>
     /// <param name="windowService">Provides the main window closed by the exit bindings.</param>
+    /// <param name="serviceProvider">Provides services used by the scene.</param>
     public WelcomeScreen(
         ITextStyleRegistry textStyles,
         IEventHub eventHub,
-        IWindowService windowService
+        IWindowService windowService,
+        IServiceProvider serviceProvider
     )
+        : base(serviceProvider)
     {
         _textStyles = textStyles;
         _camera = new StaticCamera();

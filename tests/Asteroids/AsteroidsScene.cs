@@ -69,12 +69,15 @@ public sealed class AsteroidsScene : Scene
     /// <param name="eventHub">Dispatches key transitions.</param>
     /// <param name="windowService">Provides the current window size.</param>
     /// <param name="physics">Owns the scene's simulation world.</param>
+    /// <param name="serviceProvider">Provides services used by the scene.</param>
     public AsteroidsScene(
         ITextStyleRegistry textStyles,
         IEventHub eventHub,
         IWindowService windowService,
-        IPhysicsSystem physics
+        IPhysicsSystem physics,
+        IServiceProvider serviceProvider
     )
+        : base(serviceProvider)
     {
         _windowService = windowService;
         _eventHub = eventHub;

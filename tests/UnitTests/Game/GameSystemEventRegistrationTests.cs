@@ -57,7 +57,7 @@ public class GameSystemEventRegistrationTests
     [Fact]
     public void LoadScene_activatesTheConfiguredInitialScene()
     {
-        var scene = new Scene(NodeId.New())
+        var scene = new Scene(NodeId.New(), SceneRegistryTestHelper.ServiceProvider)
         {
             MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
         };
@@ -86,7 +86,7 @@ public class GameSystemEventRegistrationTests
     [Fact]
     public void ActiveScene_tracksLifecycleForDynamicallyChangedHierarchy()
     {
-        var scene = new Scene(NodeId.New())
+        var scene = new Scene(NodeId.New(), SceneRegistryTestHelper.ServiceProvider)
         {
             MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
         };

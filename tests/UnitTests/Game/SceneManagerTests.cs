@@ -20,7 +20,7 @@ public class SceneManagerTests
         Assert.True(sceneManager.IsSceneChangePending);
         Assert.Equal("MainMenu", sceneManager.PendingSceneId);
 
-        var loadedScene = new MainMenuScene
+        var loadedScene = new MainMenuScene(SceneRegistryTestHelper.ServiceProvider)
         {
             MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
         };
@@ -106,7 +106,7 @@ public class SceneManagerTests
         var sceneManager = new SceneManager(eventHub, logger);
         sceneManager.LoadScene("ExpectedScene");
 
-        var loadedScene = new OtherScene
+        var loadedScene = new OtherScene(SceneRegistryTestHelper.ServiceProvider)
         {
             MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
         };
@@ -131,7 +131,10 @@ public class SceneManagerTests
         eventHub.Publish(
             new SceneLoadedEvent
             (
-                new OtherScene { MainCamera = new Nexus.Graphics.Cameras.StaticCamera() }
+                new OtherScene(SceneRegistryTestHelper.ServiceProvider)
+                {
+                    MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
+                }
             )
         );
         eventHub.Drain();
@@ -142,11 +145,23 @@ public class SceneManagerTests
     }
 
     /// <summary>A scene whose identifier is derived from its type name.</summary>
-    private sealed class OtherScene : Scene;
+    private sealed class OtherScene : Scene
+    {
+        /// <summary>Creates a scene used to verify type-name identification.</summary>
+        /// <param name="serviceProvider">The services used by the scene.</param>
+        public OtherScene(IServiceProvider serviceProvider)
+            : base(serviceProvider) { }
+    }
 
     /// <summary>A scene whose registration name is used to test matching loaded events.</summary>
     [Scene("MainMenu")]
-    private sealed class MainMenuScene : Scene;
+    private sealed class MainMenuScene : Scene
+    {
+        /// <summary>Creates a scene used to verify attribute-name identification.</summary>
+        /// <param name="serviceProvider">The services used by the scene.</param>
+        public MainMenuScene(IServiceProvider serviceProvider)
+            : base(serviceProvider) { }
+    }
 
     /// <summary>Captures warning-level messages from the scene manager.</summary>
     private sealed class WarningRecordingLogger : ILogger<SceneManager>

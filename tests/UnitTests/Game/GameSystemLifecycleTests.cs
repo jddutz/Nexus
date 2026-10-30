@@ -254,7 +254,13 @@ public class GameSystemLifecycleTests
     public void InitializeAndResize_updatesCurrentSceneMainCameraFromMainWindow()
     {
         var camera = new Nexus.Graphics.Cameras.StaticCamera();
-        var scene = new CameraInitializingScene(camera) { MainCamera = null! };
+        var scene = new CameraInitializingScene(
+            camera,
+            SceneRegistryTestHelper.ServiceProvider
+        )
+        {
+            MainCamera = null!,
+        };
         var windowService = new TestWindowService(new(800, 600));
         var eventHub = new EventHub();
         var gameSystem = CreateGameSystem(scene, windowService, eventHub);
@@ -387,7 +393,9 @@ public class GameSystemLifecycleTests
     /// <summary>
     /// Scene that records its frame update.
     /// </summary>
-    private sealed class LifecycleScene(List<string> calls) : Scene(NodeId.New())
+    /// <param name="calls">The list recording lifecycle calls.</param>
+    private sealed class LifecycleScene(List<string> calls)
+        : Scene(NodeId.New(), SceneRegistryTestHelper.ServiceProvider)
     {
         /// <inheritdoc />
         public override void Update(double deltaTime)
@@ -403,7 +411,12 @@ public class GameSystemLifecycleTests
 
         /// <summary>Creates a scene that sets its required camera during initialization.</summary>
         /// <param name="camera">The camera to assign when initialization runs.</param>
-        public CameraInitializingScene(Nexus.Graphics.Cameras.StaticCamera camera)
+        /// <param name="serviceProvider">The services used by the scene.</param>
+        public CameraInitializingScene(
+            Nexus.Graphics.Cameras.StaticCamera camera,
+            IServiceProvider serviceProvider
+        )
+            : base(serviceProvider)
         {
             _camera = camera;
         }
