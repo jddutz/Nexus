@@ -20,7 +20,7 @@ These are current project references, not confirmation of the proposed module po
 ## Development
 
 ```sh
-dotnet build src/Game/Nexus.GameEngine.csproj
+dotnet build src/GameEngine/Nexus.GameEngine.csproj
 ```
 
 Run from the repository root. Relevant coverage is in [Game tests](../../tests/UnitTests/Game). Read the [lifecycle specification](../../docs/Game%20System%20Lifecycle.md) and [architecture baseline](../../README.md) before changing traversal or lifecycle delegation. The build command was not executed for this documentation change.
