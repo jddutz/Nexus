@@ -6,6 +6,11 @@ The vision is for game developers to exclusively use VS Code for coding and deve
 
 The current development stack uses .NET 10 and Silk.NET, with Vulkan as the active rendering backend.
 
+Built-in Vulkan SPIR-V shaders are embedded in `Nexus.Graphics.Vulkan.dll`, so
+NuGet consumers do not need loose built-in shader files. Custom shaders continue
+to load from the application's `Shaders/` directory when no built-in matches.
+Run `.\CompileShaders.ps1` before building or packing after shader-source changes.
+
 The samples now include Breakout, SnakeGame, and Asteroids alongside HelloNexus. Asteroids
 adds indexed 32-bit custom meshes, a uniform-color triangle-list pipeline, transformable
 mesh drawables, continuous movement, and runtime drawable removal. Breakout uses

@@ -1,11 +1,13 @@
 using Nexus.Core.Performance;
 namespace Nexus.Graphics.Vulkan;
 
+/// <summary>Creates and manages Vulkan shader modules.</summary>
 public unsafe class ShaderFactory(Context context, IPerformanceTelemetry? telemetry = null) : IShaderFactory
 {
     private readonly Context _context = context;
     private readonly Dictionary<DrawableId, ShaderModule> _modules = [];
 
+    /// <inheritdoc />
     public DrawableId Create(IShaderContract description)
     {
         using var timing = new LoadPerformanceScope(telemetry, "shader.realize", description.SourceFileName);
@@ -25,6 +27,7 @@ public unsafe class ShaderFactory(Context context, IPerformanceTelemetry? teleme
         return id;
     }
 
+    /// <inheritdoc />
     public ShaderModule Read(DrawableId id)
     {
         if (!_modules.TryGetValue(id, out var module))
@@ -33,6 +36,7 @@ public unsafe class ShaderFactory(Context context, IPerformanceTelemetry? teleme
         return module;
     }
 
+    /// <inheritdoc />
     public void Update(DrawableId id, IShaderContract description)
     {
         if (!_modules.TryGetValue(id, out var existing))
@@ -46,6 +50,7 @@ public unsafe class ShaderFactory(Context context, IPerformanceTelemetry? teleme
         _context.VulkanApi.DestroyShaderModule(_context.Device, existing, null);
     }
 
+    /// <inheritdoc />
     public void Delete(DrawableId id)
     {
         if (!_modules.Remove(id, out var module))
@@ -54,16 +59,14 @@ public unsafe class ShaderFactory(Context context, IPerformanceTelemetry? teleme
         _context.VulkanApi.DestroyShaderModule(_context.Device, module, null);
     }
 
+    /// <summary>Loads SPIR-V data and creates a native shader module.</summary>
+    /// <param name="shader">The shader contract to realize.</param>
+    /// <returns>The created Vulkan shader module.</returns>
     private ShaderModule CreateModule(IShaderContract shader)
     {
-        var shaderPath = Path.Combine(
-            AppContext.BaseDirectory,
-            "Shaders",
-            shader.SourceFileName + ".spv"
-        );
         byte[] code;
         using (var timing = new LoadPerformanceScope(telemetry, "shader.file.read", shader.SourceFileName))
-            code = File.ReadAllBytes(shaderPath);
+            code = ShaderLoader.Load(shader.SourceFileName);
         using var creation = new LoadPerformanceScope(telemetry, "shader.module.create", shader.SourceFileName, units: code.Length);
 
         if (code.Length == 0)

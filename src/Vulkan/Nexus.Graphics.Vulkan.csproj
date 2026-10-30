@@ -26,10 +26,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="Shaders\Compiled\**\*.spv">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-      <TargetPath>Shaders\%(RecursiveDir)%(Filename)%(Extension)</TargetPath>
-    </Content>
+    <EmbeddedResource Include="Shaders\Compiled\*.spv"
+                      LogicalName="Nexus.Graphics.Vulkan.Shaders.%(Filename)%(Extension)" />
   </ItemGroup>
 </Project>

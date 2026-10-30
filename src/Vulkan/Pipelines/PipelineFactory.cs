@@ -96,12 +96,7 @@ public unsafe class PipelineFactory(
 
         for (var i = 0; i < shaders.Length; i++)
         {
-            var shaderPath = Path.Combine(
-                AppContext.BaseDirectory,
-                "Shaders",
-                shaders[i].SourceFileName + ".spv"
-            );
-            var code = File.ReadAllBytes(shaderPath);
+            var code = ShaderLoader.Load(shaders[i].SourceFileName);
 
             fixed (byte* codePtr = code)
             {
