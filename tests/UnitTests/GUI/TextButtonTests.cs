@@ -684,7 +684,7 @@ public sealed class TextButtonTests
             Style = new TestTextStyle(),
             Texture = new Texture("button", 8, 8, new Color[64]),
             SourceBorders = new Vector4D<float>(1f, 1f, 1f, 1f),
-            Padding = new(4f),
+            Padding = new(4f, 3f),
             Label = label,
         };
 
