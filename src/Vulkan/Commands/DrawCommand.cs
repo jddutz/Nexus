@@ -31,8 +31,7 @@ public sealed class DrawCommand : IVulkanCommand
     {
         ArgumentNullException.ThrowIfNull(drawable);
 
-        if (vertexCount == 0)
-            throw new ArgumentOutOfRangeException(nameof(vertexCount));
+        ArgumentOutOfRangeException.ThrowIfZero(vertexCount);
 
         Id = Guid.NewGuid();
         RenderPassMask = renderPassMask;

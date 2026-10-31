@@ -90,7 +90,8 @@ public sealed class InputMap
     public void OnLongPress(Action callback, double duration = 0.5)
     {
         ArgumentNullException.ThrowIfNull(callback);
-        if (!double.IsFinite(duration) || duration <= 0) throw new ArgumentOutOfRangeException(nameof(duration));
+        if (!double.IsFinite(duration) || duration <= 0)
+            throw new ArgumentOutOfRangeException(nameof(duration));
         _longPress = callback;
         _holdDuration = duration;
     }
@@ -98,10 +99,17 @@ public sealed class InputMap
     /// <summary>Advances captured hold gestures using elapsed seconds.</summary>
     public void Update(double deltaTime)
     {
-        if (!_capturedMousePointerId.HasValue || _longPress is null || _holdCanceled || _holdInvoked || IsSuppressed)
+        if (
+            !_capturedMousePointerId.HasValue
+            || _longPress is null
+            || _holdCanceled
+            || _holdInvoked
+            || IsSuppressed
+        )
             return;
         _holdElapsed += Math.Max(0, deltaTime);
-        if (_holdElapsed < _holdDuration) return;
+        if (_holdElapsed < _holdDuration)
+            return;
         _holdInvoked = true;
         _longPress();
     }
@@ -109,9 +117,13 @@ public sealed class InputMap
     /// <summary>Cancels the hold when the captured pointer begins moving or leaves its target.</summary>
     public void Handle(MouseMovedEvent message)
     {
-        if (_longPress is null || _capturedMousePointerId != message.Mouse.Id) return;
+        if (_longPress is null || _capturedMousePointerId != message.Mouse.Id)
+            return;
         var delta = message.Position - _pressPosition;
-        if (delta.X * delta.X + delta.Y * delta.Y > 100f || !ContainsMousePosition(message.Position))
+        if (
+            delta.X * delta.X + delta.Y * delta.Y > 100f
+            || !ContainsMousePosition(message.Position)
+        )
             _holdCanceled = true;
     }
 
@@ -320,7 +332,12 @@ public sealed class InputMap
             return;
 
         _capturedMousePointerId = null;
-        if (!IsSuppressed && !_holdInvoked && !_holdCanceled && ContainsMousePosition(message.Position))
+        if (
+            !IsSuppressed
+            && !_holdInvoked
+            && !_holdCanceled
+            && ContainsMousePosition(message.Position)
+        )
             Dispatch(_mouseReleasedBindings, message.Button);
     }
 
@@ -432,8 +449,7 @@ public sealed class InputMap
     /// <param name="controlIndex">The controller-local control index.</param>
     private static void ValidateControllerBinding(InputDeviceId controllerId, int controlIndex)
     {
-        if (controllerId == InputDeviceId.Invalid)
-            throw new ArgumentOutOfRangeException(nameof(controllerId));
+        ArgumentOutOfRangeException.ThrowIfEqual(controllerId, InputDeviceId.Invalid);
         ValidateControlIndex(controlIndex, nameof(controlIndex));
     }
 

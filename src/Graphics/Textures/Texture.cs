@@ -5,16 +5,18 @@ public sealed class Texture : ITexture
 {
     private readonly Color[] _colorData;
     private readonly Texture[] _mipmaps;
+
     /// <inheritdoc />
     public uint MipLevelCount => checked((uint)_mipmaps.Length + 1);
 
     /// <inheritdoc />
     public void WriteMipLevel(uint level, ColorFormatEnum format, Span<byte> target)
     {
-        if (level >= MipLevelCount) throw new ArgumentOutOfRangeException(nameof(level));
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(level, MipLevelCount);
         var source = level == 0 ? this : _mipmaps[level - 1];
         source.WriteTo(0, source.Count, format, target);
     }
+
     private readonly Dictionary<string, TextureRegion> _regionsByName;
 
     /// <inheritdoc />
@@ -26,7 +28,9 @@ public sealed class Texture : ITexture
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         return _regionsByName.TryGetValue(name, out var region)
             ? region
-            : throw new KeyNotFoundException($"Region '{name}' was not found in texture '{ContentId}'.");
+            : throw new KeyNotFoundException(
+                $"Region '{name}' was not found in texture '{ContentId}'."
+            );
     }
 
     public TextureId Id { get; }
@@ -62,16 +66,26 @@ public sealed class Texture : ITexture
         Height = height;
         TextureFormat = textureFormat;
         var mipArray = mipmaps?.ToArray() ?? [];
-        uint mipWidth = width, mipHeight = height;
+        uint mipWidth = width,
+            mipHeight = height;
         _mipmaps = new Texture[mipArray.Length];
         for (var level = 0; level < mipArray.Length; level++)
         {
-            if (mipWidth == 1 && mipHeight == 1) throw new ArgumentException("Mip chain extends beyond 1x1.", nameof(mipmaps));
-            mipWidth = Math.Max(1, mipWidth / 2); mipHeight = Math.Max(1, mipHeight / 2);
+            if (mipWidth == 1 && mipHeight == 1)
+                throw new ArgumentException("Mip chain extends beyond 1x1.", nameof(mipmaps));
+            mipWidth = Math.Max(1, mipWidth / 2);
+            mipHeight = Math.Max(1, mipHeight / 2);
             var mip = mipArray[level];
             TextureMipmaps.Validate(mip);
-            if (mip.Width != mipWidth || mip.Height != mipHeight) throw new ArgumentException("Invalid mip dimensions.", nameof(mipmaps));
-            _mipmaps[level] = new Texture(contentId, mipWidth, mipHeight, ToColors(mip.Pixels), textureFormat);
+            if (mip.Width != mipWidth || mip.Height != mipHeight)
+                throw new ArgumentException("Invalid mip dimensions.", nameof(mipmaps));
+            _mipmaps[level] = new Texture(
+                contentId,
+                mipWidth,
+                mipHeight,
+                ToColors(mip.Pixels),
+                textureFormat
+            );
         }
         var regionArray = regions?.ToArray() ?? [];
         _regionsByName = regionArray.ToDictionary(region => region.Name, StringComparer.Ordinal);
@@ -82,7 +96,8 @@ public sealed class Texture : ITexture
 
         var hash = new IdentityHashBuilder(nameof(Texture));
         hash.Add(width).Add(height).Add((uint)textureFormat).Add(MipLevelCount);
-        foreach (var mip in _mipmaps) hash.Add(mip.Id);
+        foreach (var mip in _mipmaps)
+            hash.Add(mip.Id);
 
         foreach (var color in _colorData)
         {
@@ -94,10 +109,14 @@ public sealed class Texture : ITexture
         foreach (var region in regionArray.OrderBy(region => region.Name, StringComparer.Ordinal))
         {
             hash.Add(region.Name)
-                .Add(region.Bounds.Origin.X).Add(region.Bounds.Origin.Y)
-                .Add(region.Bounds.Size.X).Add(region.Bounds.Size.Y)
-                .Add(region.TexCoords.Origin.X).Add(region.TexCoords.Origin.Y)
-                .Add(region.TexCoords.Size.X).Add(region.TexCoords.Size.Y);
+                .Add(region.Bounds.Origin.X)
+                .Add(region.Bounds.Origin.Y)
+                .Add(region.Bounds.Size.X)
+                .Add(region.Bounds.Size.Y)
+                .Add(region.TexCoords.Origin.X)
+                .Add(region.TexCoords.Origin.Y)
+                .Add(region.TexCoords.Size.X)
+                .Add(region.TexCoords.Size.Y);
         }
 
         Id = hash.Compute();
@@ -141,7 +160,8 @@ public sealed class Texture : ITexture
         for (ulong index = 0; index < count; index++)
         {
             _colorData[checked((int)(start + index))]
-                .WriteColorData(format,
+                .WriteColorData(
+                    format,
                     target.Slice(checked((int)(index * (ulong)bytesPerPixel)), bytesPerPixel)
                 );
         }
@@ -154,7 +174,12 @@ public sealed class Texture : ITexture
     {
         var colors = new Color[pixels.Length / 4];
         for (var i = 0; i < colors.Length; i++)
-            colors[i] = new Color(pixels[i * 4], pixels[i * 4 + 1], pixels[i * 4 + 2], pixels[i * 4 + 3]);
+            colors[i] = new Color(
+                pixels[i * 4],
+                pixels[i * 4 + 1],
+                pixels[i * 4 + 2],
+                pixels[i * 4 + 3]
+            );
         return colors;
     }
 }

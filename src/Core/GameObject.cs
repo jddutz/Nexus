@@ -84,6 +84,10 @@ public partial class GameObject : IGameObject
         }
     }
 
+    /// <inheritdoc />
+    public T Create<T>(params object[] args)
+        where T : ISceneNode => Factory.CreateSceneNode<T>(args);
+
     /// <summary>
     /// Gets the parent game object, if this object is attached to one.
     /// </summary>

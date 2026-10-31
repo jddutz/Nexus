@@ -37,4 +37,13 @@ public interface ISceneNode
     /// Gets or sets the scene object factory used to create new nodes.
     /// </summary>
     ISceneObjectFactory Factory { get; set; }
+
+    /// <summary>
+    /// Creates a new instance of the specified scene node using Factory.
+    /// </summary>
+    /// <typeparam name="T">The type of node to be created.</typeparam>
+    /// <param name="args">Required constructor parameters.</param>
+    /// <returns>An instance of type T.</returns>
+    T Create<T>(params object[] args)
+        where T : ISceneNode;
 }

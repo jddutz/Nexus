@@ -108,8 +108,7 @@ public class RenderLayerCollection : IRenderLayerCollection
     /// <param name="layerCount">The number of default layers to create.</param>
     public RenderLayerCollection(int layerCount = 0)
     {
-        if (layerCount < 0)
-            throw new ArgumentOutOfRangeException(nameof(layerCount));
+        ArgumentOutOfRangeException.ThrowIfNegative(layerCount);
 
         for (var i = 0; i < layerCount; i++)
             Create($"Layer {i}", RenderPasses.Main);

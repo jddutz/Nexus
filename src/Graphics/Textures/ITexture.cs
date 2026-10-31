@@ -40,7 +40,7 @@ public interface ITexture
     /// <summary>Writes one complete image level in the requested format.</summary>
     void WriteMipLevel(uint level, ColorFormatEnum format, Span<byte> target)
     {
-        if (level != 0) throw new ArgumentOutOfRangeException(nameof(level));
+        ArgumentOutOfRangeException.ThrowIfNotEqual(level, 0u);
         WriteTo(0, Count, format, target);
     }
 

@@ -62,8 +62,7 @@ public partial class FlowLayout : Element
     /// <summary>Sets the line count or size after validating the value.</summary>
     protected virtual void SetSize(uint value)
     {
-        if (value == 0)
-            throw new ArgumentOutOfRangeException(nameof(value));
+        ArgumentOutOfRangeException.ThrowIfZero(value);
         _size = value;
     }
 

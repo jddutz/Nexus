@@ -104,6 +104,10 @@ public partial class Scene : IScene
         }
     }
 
+    /// <inheritdoc />
+    public T Create<T>(params object[] args)
+        where T : ISceneNode => Factory.CreateSceneNode<T>(args);
+
     /// <summary>
     /// Determines whether a node can be added without creating duplicate ownership or a cycle.
     /// </summary>

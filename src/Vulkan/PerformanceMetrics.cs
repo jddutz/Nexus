@@ -29,7 +29,8 @@ public class PerformanceMetrics
     public DateTime StartTime { get; }
 
     /// <summary>Gets the elapsed time since metric collection began.</summary>
-    public TimeSpan ElapsedTime => _enabled ? Stopwatch.GetElapsedTime(_startTimestamp) : TimeSpan.Zero;
+    public TimeSpan ElapsedTime =>
+        _enabled ? Stopwatch.GetElapsedTime(_startTimestamp) : TimeSpan.Zero;
 
     /// <summary>Gets the total number of successfully recorded Vulkan commands.</summary>
     public long Commands { get; private set; }
@@ -80,8 +81,7 @@ public class PerformanceMetrics
         get => _maximumFrameTimeThreshold;
         set
         {
-            if (value < TimeSpan.Zero)
-                throw new ArgumentOutOfRangeException(nameof(value));
+            ArgumentOutOfRangeException.ThrowIfLessThan(value, TimeSpan.Zero);
 
             _maximumFrameTimeThreshold = value;
         }
@@ -106,8 +106,7 @@ public class PerformanceMetrics
         if (!_enabled)
             return;
 
-        if (frameTime < TimeSpan.Zero)
-            throw new ArgumentOutOfRangeException(nameof(frameTime));
+        ArgumentOutOfRangeException.ThrowIfLessThan(frameTime, TimeSpan.Zero);
 
         if (Frames == 0)
         {
