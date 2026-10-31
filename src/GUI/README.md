@@ -5,7 +5,9 @@ GUI provides screen-space elements, measurement and arrangement, focus managemen
 ## Main types and behavior
 
 - `IElement` and `Element` define element hierarchy, sizing, alignment, visibility, enabled state, and layout behavior.
-- `ImageElement`, `TextElement`, and `TextButton` provide image, text, and button presentation.
+- `ImageElement`, `TileMapElement`, `TextElement`, and `TextButton` provide image, tile-map,
+  text, and button presentation. `TileMapElement` fits its tile map into the arranged content
+  area and forwards tile texture and rendering settings to Graphics' `TileMapRenderer`.
 - `GraphicalUserInterface` tracks elements through lifecycle events, invalidates layout, and measures/arranges active layout roots using the main window size.
 - `FocusDirection`, alignment enums, `SizingMode`, and `TextAlignment` represent GUI-specific policy.
 - `TextElement` and `TextButton` delegate text measurement, fitting, and drawable preparation to Graphics' `TextComponent`.
