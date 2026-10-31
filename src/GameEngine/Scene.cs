@@ -47,9 +47,6 @@ public partial class Scene : IScene
     [Observable(PublicSetter = true)]
     private InputMap? _inputMap;
 
-    [Observable(PublicSetter = true, Required = true)]
-    private ICamera _mainCamera = null!;
-
     [Observable(PublicSetter = true)]
     private bool _isLoaded = false;
 

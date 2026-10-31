@@ -266,8 +266,8 @@ An element supplies the arranged visual placement to its graphics component. A d
 - Nine-patch rendering uses nine quad instances and reuses geometry.
 - Tile maps use bounded sparse data and one persistent textured-quad drawable, independent of GUI and game-specific rules.
 - Drawable GUI renderers remain attached to their elements; `IsVisible` gates submission when elements are hidden or their geometry is unrenderable.
-- Views own the render policy (draw-order preservation, blending, and depth state) for contents selected by their layer mask; render layers only classify contents and render-pass membership. `RenderLayers` centralizes the common `DefaultUI` and `All` masks, and view/drawable masks default to `All`.
-- Scenes do not create a default render view. Scene composition creates views and attaches the scene's static camera to the chosen view owner; view masks can narrow the default all-layer selection. `GameSystem` forwards main-window size changes to that camera.
+- Views own the render policy (draw-order preservation, blending, and depth state) for contents selected by their layer mask; render layers only classify contents and render-pass membership. GUI output defaults to `DefaultUI`; graphics views and drawables retain their `All` defaults, and games author other layer assignments.
+- `GraphicalUserInterface` owns a fullscreen `StaticCamera` and default UI view. It synchronously registers that view with the graphics system for the loaded scene and updates its viewport on window resize. `Scene` owns render layers and game-authored world views, but no `MainCamera`.
 - Vulkan rendering follows `PrepareFrame`, per-view `Begin`, per-pass `Record`, per-view `Finalize`, then `Submit`.
 - Draw commands execute inside their rendering pass. Resource uploads occur before the pass.
 - Sticky draw commands are retained. Drawables expose an ascending `DrawOrder`; the default batch strategy groups by pipeline before drawable identity, while views can explicitly select draw-order preservation.

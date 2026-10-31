@@ -22,7 +22,6 @@ public class SceneManagerTests
 
         var loadedScene = new MainMenuScene(SceneRegistryTestHelper.ServiceProvider)
         {
-            MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
         };
         eventHub.Publish(new SceneLoadedEvent(loadedScene));
         eventHub.Drain();
@@ -108,7 +107,6 @@ public class SceneManagerTests
 
         var loadedScene = new OtherScene(SceneRegistryTestHelper.ServiceProvider)
         {
-            MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
         };
         eventHub.Publish(new SceneLoadedEvent(loadedScene));
         eventHub.Drain();
@@ -133,7 +131,6 @@ public class SceneManagerTests
             (
                 new OtherScene(SceneRegistryTestHelper.ServiceProvider)
                 {
-                    MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
                 }
             )
         );

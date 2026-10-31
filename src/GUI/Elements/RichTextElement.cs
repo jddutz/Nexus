@@ -36,7 +36,7 @@ public sealed class RichTextElement : FlowLayout
         ITextStyle italicStyle,
         ITextStyle boldItalicStyle,
         Color? textColor = null,
-        ulong renderLayerMask = RenderLayers.All
+        ulong renderLayerMask = RenderLayers.DefaultUI
     )
     {
         ArgumentNullException.ThrowIfNull(markup);

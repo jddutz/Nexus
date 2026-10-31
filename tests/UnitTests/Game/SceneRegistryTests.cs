@@ -23,10 +23,7 @@ public class SceneRegistryTests
         var existingChild = new GameObject();
         existingNode.Children.Add(existingChild);
         using var services = new ServiceCollection().BuildServiceProvider();
-        var scene = new Scene(NodeId.New(), services)
-        {
-            MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
-        };
+        var scene = new Scene(NodeId.New(), services);
         scene.Children.Add(existingNode);
 
         Assert.Equal(0, registry.SceneCount);
@@ -59,7 +56,6 @@ public class SceneRegistryTests
             () =>
                 new Scene(NodeId.New(), SceneRegistryTestHelper.ServiceProvider)
                 {
-                    MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
                 }
         );
 
@@ -69,7 +65,6 @@ public class SceneRegistryTests
                 () =>
                     new Scene(NodeId.New(), SceneRegistryTestHelper.ServiceProvider)
                     {
-                        MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
                     }
             )
         );

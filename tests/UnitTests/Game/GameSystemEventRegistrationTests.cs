@@ -57,10 +57,7 @@ public class GameSystemEventRegistrationTests
     [Fact]
     public void LoadScene_activatesTheConfiguredInitialScene()
     {
-        var scene = new Scene(NodeId.New(), SceneRegistryTestHelper.ServiceProvider)
-        {
-            MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
-        };
+        var scene = new Scene(NodeId.New(), SceneRegistryTestHelper.ServiceProvider);
         var rootComponent = new EventHandlingComponent();
         var root = new EventHandlingGameObject([rootComponent]);
         var childComponent = new EventHandlingComponent();
@@ -86,10 +83,7 @@ public class GameSystemEventRegistrationTests
     [Fact]
     public void ActiveScene_tracksLifecycleForDynamicallyChangedHierarchy()
     {
-        var scene = new Scene(NodeId.New(), SceneRegistryTestHelper.ServiceProvider)
-        {
-            MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
-        };
+        var scene = new Scene(NodeId.New(), SceneRegistryTestHelper.ServiceProvider);
         var eventHub = new EventHub();
         var gameSystem = CreateGameSystem(eventHub);
         gameSystem.LoadScene(scene);

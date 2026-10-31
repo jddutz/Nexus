@@ -104,7 +104,6 @@ public sealed class SnakeGameScene : Scene
             .GraphicsInstrumentationEnabled;
         _boardRenderer.Map = _boardData;
         _boardObject = new GameObject2D([_boardRenderer]);
-        MainCamera = _camera;
         _scoreText = new TextElement
         {
             Style = textStyles.GetOrCreate(BuiltInFonts.Default, 24),

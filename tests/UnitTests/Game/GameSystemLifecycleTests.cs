@@ -25,7 +25,6 @@ public class GameSystemLifecycleTests
         var calls = new List<string>();
         var scene = new LifecycleScene(calls)
         {
-            MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
         };
         var parent = new LifecycleGameObject("parent", calls);
         var component = new LifecycleComponent("component", calls);
@@ -52,7 +51,6 @@ public class GameSystemLifecycleTests
         var calls = new List<string>();
         var scene = new LifecycleScene(calls)
         {
-            MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
         };
         var parent = new LifecycleGameObject("parent", calls) { ActivationAllowed = false };
         var child = new LifecycleGameObject("child", calls);
@@ -100,7 +98,6 @@ public class GameSystemLifecycleTests
         var calls = new List<string>();
         var scene = new LifecycleScene(calls)
         {
-            MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
         };
         var parent = new LifecycleGameObject("parent", calls);
         var child = new LifecycleGameObject("child", calls);
@@ -146,7 +143,6 @@ public class GameSystemLifecycleTests
         var calls = new List<string>();
         var scene = new LifecycleScene(calls)
         {
-            MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
         };
         var parent = new LifecycleGameObject("parent", calls);
         var child = new LifecycleGameObject("child", calls);
@@ -181,7 +177,6 @@ public class GameSystemLifecycleTests
         var calls = new List<string>();
         var scene = new LifecycleScene(calls)
         {
-            MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
         };
         var eventHub = new EventHub();
         var root = new LifecycleGameObject("root", calls);
@@ -219,7 +214,6 @@ public class GameSystemLifecycleTests
         var calls = new List<string>();
         var scene = new LifecycleScene(calls)
         {
-            MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
         };
         var source = new LifecycleGameObject("source", calls);
         var destination = new LifecycleGameObject("destination", calls);
@@ -248,146 +242,21 @@ public class GameSystemLifecycleTests
     }
 
     /// <summary>
-    /// Verifies the current scene's main camera tracks the main window size and ignores other windows.
-    /// </summary>
-    [Fact]
-    public void InitializeAndResize_updatesCurrentSceneMainCameraFromMainWindow()
-    {
-        var camera = new Nexus.Graphics.Cameras.StaticCamera();
-        var scene = new CameraInitializingScene(
-            camera,
-            SceneRegistryTestHelper.ServiceProvider
-        )
-        {
-            MainCamera = null!,
-        };
-        var windowService = new TestWindowService(new(800, 600));
-        var eventHub = new EventHub();
-        var gameSystem = CreateGameSystem(scene, windowService, eventHub);
-        gameSystem.Initialize();
-
-        Assert.True(scene.IsInitialized);
-        Assert.Empty(scene.Children);
-        gameSystem.Update(0);
-        Assert.True(scene.IsInitialized);
-        var initialProjection = scene.MainCamera.ProjectionMatrix;
-        Assert.Equal(
-            Matrix4X4.CreateOrthographicOffCenter(
-                0f,
-                800f,
-                0f,
-                600f,
-                camera.NearPlane,
-                camera.FarPlane
-            ),
-            initialProjection
-        );
-
-        eventHub.Publish(new WindowResizedEvent(2, new(1280, 720)));
-        eventHub.Drain();
-        Assert.Equal(initialProjection, scene.MainCamera.ProjectionMatrix);
-
-        eventHub.Publish(new WindowResizedEvent(windowService.MainWindowId, new(1280, 720)));
-        eventHub.Drain();
-
-        Assert.Equal(
-            Matrix4X4.CreateOrthographicOffCenter(
-                0f,
-                1280f,
-                0f,
-                720f,
-                camera.NearPlane,
-                camera.FarPlane
-            ),
-            scene.MainCamera.ProjectionMatrix
-        );
-    }
-
-    /// <summary>
     /// Creates a game system whose initial scene is the supplied scene.
     /// </summary>
     /// <param name="scene">The scene to activate.</param>
     /// <returns>A game system registered with the scene.</returns>
     private static Game CreateGameSystem(
         IScene scene,
-        IWindowService? windowService = null,
         IEventHub? eventHub = null
     )
     {
         var gameSystem = new Game(
             eventHub ?? new EventHub(),
-            NullLogger<Game>.Instance,
-            windowService
+            NullLogger<Game>.Instance
         );
         gameSystem.LoadScene(scene);
         return gameSystem;
-    }
-
-    /// <summary>
-    /// Provides a test window service backed by a size-only proxy window.
-    /// </summary>
-    private sealed class TestWindowService : IWindowService
-    {
-        private readonly IWindow _window;
-
-        /// <summary>Gets the main window identifier used by resize events.</summary>
-        public WindowId MainWindowId => 1;
-
-        /// <summary>Initializes the test window with its starting size.</summary>
-        /// <param name="size">The logical window size.</param>
-        public TestWindowService(Vector2D<int> size)
-        {
-            _window = DispatchProxy.Create<IWindow, TestWindow>();
-            ((TestWindow)(object)_window).Size = size;
-        }
-
-        /// <summary>Gets the test window with the specified identifier.</summary>
-        /// <param name="windowId">The requested window identifier.</param>
-        /// <returns>The proxied test window.</returns>
-        public IWindow GetWindow(WindowId windowId) => _window;
-
-        /// <summary>Gets the test main window.</summary>
-        /// <returns>The proxied test window.</returns>
-        public IWindow GetMainWindow() => _window;
-
-        /// <summary>Creates no additional windows in this test service.</summary>
-        /// <param name="settings">The requested window settings.</param>
-        /// <returns>This method does not return.</returns>
-        public WindowId CreateWindow(WindowSettings settings) => throw new NotSupportedException();
-
-        /// <summary>Closes no windows in this test service.</summary>
-        /// <param name="windowId">The requested window identifier.</param>
-        public void CloseWindow(WindowId? windowId = null) => throw new NotSupportedException();
-    }
-
-    /// <summary>
-    /// Implements the window size property required by the game system tests.
-    /// </summary>
-    public class TestWindow : DispatchProxy
-    {
-        /// <summary>Gets or sets the logical size exposed by the test window.</summary>
-        public Vector2D<int> Size { get; set; }
-
-        /// <summary>Handles calls made against the proxied window interface.</summary>
-        /// <param name="targetMethod">The invoked window member.</param>
-        /// <param name="args">The invoked member arguments.</param>
-        /// <returns>The size property value when requested.</returns>
-        protected override object? Invoke(MethodInfo? targetMethod, object?[]? args) =>
-            targetMethod?.Name switch
-            {
-                "get_Size" => Size,
-                "set_Size" => SetSize(args),
-                _ => throw new NotSupportedException(targetMethod?.Name),
-            };
-
-        /// <summary>Stores the value passed to the proxied size setter.</summary>
-        /// <param name="args">The setter arguments.</param>
-        /// <returns><see langword="null"/>.</returns>
-        private object? SetSize(object?[]? args)
-        {
-            Size = (Vector2D<int>)args![0]!;
-            return null;
-        }
     }
 
     /// <summary>
@@ -401,31 +270,6 @@ public class GameSystemLifecycleTests
         public override void Update(double deltaTime)
         {
             calls.Add("scene.update");
-        }
-    }
-
-    /// <summary>Provides its main camera during scene initialization.</summary>
-    private sealed class CameraInitializingScene : Scene
-    {
-        private readonly Nexus.Graphics.Cameras.StaticCamera _camera;
-
-        /// <summary>Creates a scene that sets its required camera during initialization.</summary>
-        /// <param name="camera">The camera to assign when initialization runs.</param>
-        /// <param name="serviceProvider">The services used by the scene.</param>
-        public CameraInitializingScene(
-            Nexus.Graphics.Cameras.StaticCamera camera,
-            IServiceProvider serviceProvider
-        )
-            : base(serviceProvider)
-        {
-            _camera = camera;
-        }
-
-        /// <inheritdoc />
-        public override void Initialize()
-        {
-            MainCamera = _camera;
-            base.Initialize();
         }
     }
 

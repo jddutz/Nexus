@@ -97,7 +97,7 @@ public partial class TextButton : Element
 
     /// <summary>Gets or sets the render-layer mask shared by the button visuals.</summary>
     [Observable(PublicSetter = true)]
-    private ulong _renderLayerMask = RenderLayers.All;
+    private ulong _renderLayerMask = RenderLayers.DefaultUI;
 
     [Observable(PublicSetter = true)]
     private string _label = string.Empty;

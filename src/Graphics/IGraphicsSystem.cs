@@ -1,5 +1,7 @@
 namespace Nexus.Graphics;
 
+using Nexus.Graphics.Components;
+
 /// <summary>
 /// Defines the lifecycle and resource access contract for a graphics system.
 /// </summary>
@@ -20,4 +22,16 @@ public interface IGraphicsSystem
     /// Renders the current frame.
     /// </summary>
     void Render();
+
+    /// <summary>
+    /// Registers a runtime-owned view for rendering until it is unregistered.
+    /// </summary>
+    /// <param name="view">The view to register.</param>
+    void RegisterView(ViewRenderer view);
+
+    /// <summary>
+    /// Removes a runtime-owned view from rendering.
+    /// </summary>
+    /// <param name="view">The view to unregister.</param>
+    void UnregisterView(ViewRenderer view);
 }

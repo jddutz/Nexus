@@ -35,7 +35,6 @@ public sealed class SettingsScene : Scene
         _textStyles = textStyles;
         _textures = textures;
         _sceneManager = sceneManager;
-        MainCamera = _camera;
     }
 
     /// <summary>Initializes the settings page and increments its visit count.</summary>

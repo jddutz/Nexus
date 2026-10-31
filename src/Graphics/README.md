@@ -9,7 +9,7 @@ Graphics describes visual state and rendering data independently of a concrete r
 - `Cameras/`: static, orthographic, and perspective camera implementations and view-frustum data.
 - `Geometry/`, `Textures/`, and `Shaders/`: resource descriptions and rendering contracts consumed by backends.
 - `Text/`: `ITextStyle` and `TextStyle`, pairing generated font metrics, glyphs, kerning, and MSDF metadata with an atlas texture and visual settings. `BuiltInFonts` provides embedded decoded outlines for all 16 Aileron faces. `TextStyleRegistry` rasterizes these at the requested generation size without a font file or font manifest entry.
-- `IGraphicsSystem`, render-layer types, and `IWindowService`: system-level rendering and window abstractions.
+- `IGraphicsSystem`, render-layer types, and `IWindowService`: system-level rendering and window abstractions. Graphics systems support synchronous registration of runtime-owned views as well as event-driven scene views.
 
 ## Dependencies and ownership
 

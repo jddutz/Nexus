@@ -101,6 +101,20 @@ public unsafe class VulkanGraphicsSystem(
         );
     }
 
+    /// <inheritdoc />
+    public void RegisterView(ViewRenderer view)
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        ActivateViewComponent(view);
+    }
+
+    /// <inheritdoc />
+    public void UnregisterView(ViewRenderer view)
+    {
+        ArgumentNullException.ThrowIfNull(view);
+        DeactivateViewComponent(view);
+    }
+
     /// <summary>Creates and populates the batch collection for an active view.</summary>
     /// <param name="view">The activated view configuration.</param>
     private void ActivateViewComponent(ViewRenderer view)
@@ -124,6 +138,23 @@ public unsafe class VulkanGraphicsSystem(
                 AddDrawableToBatches(view, batches, registration);
             }
         }
+    }
+
+    /// <summary>Removes a view and its prepared draw commands from the active renderer.</summary>
+    /// <param name="view">The view to deactivate.</param>
+    private void DeactivateViewComponent(ViewRenderer view)
+    {
+        if (_batches.Remove(view.Id))
+        {
+            view.PropertyChanged -= OnViewPropertyChanged;
+            _activeViews.Remove(view);
+            foreach (var registration in _drawables.Values)
+                registration.ViewCommands.Remove(view.Id);
+        }
+
+        Debug.WriteLine(
+            $"Cleared Vulkan graphics view configuration.{_diagnostics?.FrameCountLogSuffix}"
+        );
     }
 
     /// <summary>Creates and registers commands for an active drawable.</summary>
@@ -607,17 +638,7 @@ public unsafe class VulkanGraphicsSystem(
     {
         if (e.Component is ViewRenderer view)
         {
-            if (_batches.Remove(view.Id))
-            {
-                view.PropertyChanged -= OnViewPropertyChanged;
-                _activeViews.Remove(view);
-                foreach (var registration in _drawables.Values)
-                    registration.ViewCommands.Remove(view.Id);
-            }
-
-            Debug.WriteLine(
-                $"Cleared Vulkan graphics view configuration.{_diagnostics?.FrameCountLogSuffix}"
-            );
+            DeactivateViewComponent(view);
             return;
         }
 

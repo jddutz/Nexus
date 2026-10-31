@@ -8,11 +8,11 @@ GUI provides screen-space elements, measurement and arrangement, focus managemen
 - `ImageElement`, `TileMapElement`, `TextElement`, and `TextButton` provide image, tile-map,
   text, and button presentation. `TileMapElement` fits its tile map into the arranged content
   area and forwards tile texture and rendering settings to Graphics' `TileMapRenderer`.
-- `GraphicalUserInterface` tracks elements through lifecycle events, invalidates layout, and measures/arranges active layout roots using the main window size.
+- `GraphicalUserInterface` tracks elements through lifecycle events, owns the fullscreen UI camera/view, synchronously registers that view with Graphics for the active scene, and measures/arranges active layout roots using the main window size.
 - `FocusDirection`, alignment enums, `SizingMode`, and `TextAlignment` represent GUI-specific policy.
 - `TextElement` and `TextButton` delegate text measurement, fitting, and drawable preparation to Graphics' `TextComponent`.
 
-Layout work is driven by invalidation. `GraphicalUserInterface.Update` skips layout when there is no scene, window service, or pending invalidation. Focus targets must be active, registered, visible, enabled, and focusable. GUI interprets input using its own geometry and interaction state.
+Layout work is driven by invalidation. `GraphicalUserInterface.Update` skips layout when there is no scene, window service, or pending invalidation. Its default view selects only `RenderLayers.DefaultUI`; GUI elements use that layer by default. Game-authored views and other render-layer assignments remain the game's responsibility. Focus targets must be active, registered, visible, enabled, and focusable. GUI interprets input using its own geometry and interaction state.
 
 The rectangle passed to `Arrange` is an allocation; `Bounds` is the hit-test rectangle. Text elements use rendered glyph bounds, images use their clipped image rectangle, and text buttons use their full button rectangle. Hidden elements have zero-size hit-test bounds while retaining their allocation for restoration.
 

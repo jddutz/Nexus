@@ -1,30 +1,28 @@
 using System.Diagnostics;
 using Microsoft.Extensions.Options;
 using Nexus.Core.Performance;
+using Nexus.Graphics;
+using Nexus.Graphics.Cameras;
+using Nexus.Graphics.Components;
 
 namespace Nexus.GUI;
 
 /// <summary>
 /// Tracks active GUI elements and updates their layouts in response to game lifecycle events.
 /// </summary>
-/// <param name="eventHub">The event hub used to receive game lifecycle events.</param>
-/// <param name="windowService">The service used to read the main window size, or <see langword="null"/> in a headless runtime.</param>
-/// <param name="diagnostics">Optional diagnostics settings used to enable layout logging.</param>
-/// <param name="telemetry">The optional performance telemetry sink.</param>
-public sealed class GraphicalUserInterface(
-    IEventHub eventHub,
-    IWindowService? windowService = null,
-    IOptions<DiagnosticsSettings>? diagnostics = null,
-    IPerformanceTelemetry? telemetry = null
-) : IGraphicalUserInterface
+public sealed class GraphicalUserInterface : IGraphicalUserInterface
 {
-    private readonly IEventHub _eventHub = eventHub;
-    private readonly IWindowService? _windowService = windowService;
-    private readonly bool _diagnosticsEnabled = (diagnostics?.Value ?? new DiagnosticsSettings())
-        .GraphicsInstrumentationEnabled;
+    private readonly IEventHub _eventHub;
+    private readonly IGraphicsSystem _graphicsSystem;
+    private readonly IWindowService? _windowService;
+    private readonly IPerformanceTelemetry? _telemetry;
+    private readonly bool _diagnosticsEnabled;
+    private readonly StaticCamera _defaultCamera = new();
+    private readonly ViewRenderer _defaultView;
     private readonly HashSet<Element> _subscribedElements = [];
     private readonly Dictionary<Element, Action<string>> _propertyChangedHandlers = [];
     private IScene? _scene;
+    private bool _defaultViewRegistered;
     private Element? _focusedElement;
     private Vector2D<int>? _pendingWindowSize;
     private bool _layoutInvalidated;
@@ -33,6 +31,42 @@ public sealed class GraphicalUserInterface(
     private ModalDialog? _modal;
     private InputScope? _modalScope;
     private Element? _savedFocus;
+
+    /// <summary>Initializes a GUI service with the runtime services it coordinates.</summary>
+    /// <param name="eventHub">The event hub used to receive game lifecycle events.</param>
+    /// <param name="graphicsSystem">The graphics system used to register the default UI view.</param>
+    /// <param name="windowService">The main-window service, or null in a headless runtime.</param>
+    /// <param name="diagnostics">Optional diagnostics settings used to enable layout logging.</param>
+    /// <param name="telemetry">The optional performance telemetry sink.</param>
+    public GraphicalUserInterface(
+        IEventHub eventHub,
+        IGraphicsSystem graphicsSystem,
+        IWindowService? windowService = null,
+        IOptions<DiagnosticsSettings>? diagnostics = null,
+        IPerformanceTelemetry? telemetry = null
+    )
+    {
+        ArgumentNullException.ThrowIfNull(eventHub);
+        ArgumentNullException.ThrowIfNull(graphicsSystem);
+
+        _eventHub = eventHub;
+        _graphicsSystem = graphicsSystem;
+        _windowService = windowService;
+        _telemetry = telemetry;
+        _diagnosticsEnabled = (diagnostics?.Value ?? new DiagnosticsSettings())
+            .GraphicsInstrumentationEnabled;
+        _defaultView = new ViewRenderer
+        {
+            Camera = _defaultCamera,
+            LayerMask = RenderLayers.DefaultUI,
+            HasExplicitClippingRegion = true,
+            RenderOrder = int.MaxValue,
+            PreserveDrawOrder = true,
+            EnableDepthTest = false,
+            EnableDepthWrite = false,
+            BlendMode = BlendMode.Alpha,
+        };
+    }
 
     /// <inheritdoc />
     public ModalDialog StartModalDialog()
@@ -77,10 +111,12 @@ public sealed class GraphicalUserInterface(
     public void Initialize()
     {
         using var timing = new LoadPerformanceScope(
-            telemetry,
+            _telemetry,
             "startup.system.initialize",
             "gui"
         );
+        _defaultView.Initialize();
+        _defaultView.Activate();
         _eventHub.Register(this);
     }
 
@@ -98,10 +134,10 @@ public sealed class GraphicalUserInterface(
         if (_layoutInvalidated)
         {
             _layoutInvalidated = false;
-            if (telemetry?.IsEnabled == true)
-                telemetry.RecordDuration("gui.layout.wait", null,
+            if (_telemetry?.IsEnabled == true)
+                _telemetry.RecordDuration("gui.layout.wait", null,
                     Stopwatch.GetElapsedTime(_invalidationStarted).TotalMilliseconds, 0);
-            using var timing = new LoadPerformanceScope(telemetry, "gui.layout.pass");
+            using var timing = new LoadPerformanceScope(_telemetry, "gui.layout.pass");
             var size = _pendingWindowSize ?? _windowService.GetMainWindow().Size;
             _pendingWindowSize = null;
             var screenSize = new Vector2D<float>(size.X, size.Y);
@@ -200,6 +236,11 @@ public sealed class GraphicalUserInterface(
         _modal?.Dispose();
         UnsubscribeFromElements(_subscribedElements.ToArray());
         _scene = message.Scene;
+        UpdateDefaultViewViewport(
+            _windowService?.GetMainWindow().Size ?? new Vector2D<int>(1, 1)
+        );
+        _graphicsSystem.RegisterView(_defaultView);
+        _defaultViewRegistered = true;
         SubscribeToActiveElements(_scene.Children.OfType<IGameObject>());
         InvalidateLayout("scene.loaded");
     }
@@ -233,6 +274,7 @@ public sealed class GraphicalUserInterface(
     public void Handle(SceneUnloadedEvent message)
     {
         if (!ReferenceEquals(message.Scene, _scene)) return;
+        UnregisterDefaultView();
         _savedFocus = null;
         _modal?.Dispose();
         UnsubscribeFromElements(_subscribedElements.ToArray());
@@ -248,8 +290,29 @@ public sealed class GraphicalUserInterface(
         if (_windowService is not null && message.WindowId == _windowService.MainWindowId)
         {
             _pendingWindowSize = message.Size;
+            UpdateDefaultViewViewport(message.Size);
             InvalidateLayout("window.resized");
         }
+    }
+
+    /// <summary>Updates the owned camera and view rectangles to cover the given window size.</summary>
+    /// <param name="size">The window dimensions in pixels.</param>
+    private void UpdateDefaultViewViewport(Vector2D<int> size)
+    {
+        _defaultCamera.SetViewportSize(size.X, size.Y);
+        var viewport = new Rectangle<int>(Vector2D<int>.Zero, size);
+        _defaultView.ViewportRegion = viewport;
+        _defaultView.ClippingRegion = viewport;
+    }
+
+    /// <summary>Removes the default UI view from the active graphics system when registered.</summary>
+    private void UnregisterDefaultView()
+    {
+        if (!_defaultViewRegistered)
+            return;
+
+        _graphicsSystem.UnregisterView(_defaultView);
+        _defaultViewRegistered = false;
     }
 
     /// <summary>
@@ -338,19 +401,19 @@ public sealed class GraphicalUserInterface(
                         or nameof(TextButton.Padding)
             )
         )
-            InvalidateLayout("element.changed", telemetry?.IsEnabled == true ? changedElement.GetType().Name : null);
+            InvalidateLayout("element.changed", _telemetry?.IsEnabled == true ? changedElement.GetType().Name : null);
     }
 
     /// <summary>Queues layout and records requests, including requests raised by layout itself.</summary>
     private void InvalidateLayout(string reason, string? elementType = null)
     {
-        if (telemetry?.IsEnabled == true)
+        if (_telemetry?.IsEnabled == true)
         {
             if (!_layoutInvalidated)
                 _invalidationStarted = Stopwatch.GetTimestamp();
-            telemetry.RecordDuration("gui.layout.invalidate." + reason, elementType, 0, 0, units: 1);
+            _telemetry.RecordDuration("gui.layout.invalidate." + reason, elementType, 0, 0, units: 1);
             if (_isLayingOut)
-                telemetry.RecordDuration("gui.layout.invalidate.during-pass", elementType, 0, 0, units: 1);
+                _telemetry.RecordDuration("gui.layout.invalidate.during-pass", elementType, 0, 0, units: 1);
         }
         _layoutInvalidated = true;
     }
@@ -387,10 +450,10 @@ public sealed class GraphicalUserInterface(
     )
     {
         Vector2D<float> measuredSize;
-        var resource = telemetry?.IsEnabled == true ? element.GetType().Name : null;
-        using (var measure = new LoadPerformanceScope(telemetry, "gui.layout.measure", resource, units: 1))
+        var resource = _telemetry?.IsEnabled == true ? element.GetType().Name : null;
+        using (var measure = new LoadPerformanceScope(_telemetry, "gui.layout.measure", resource, units: 1))
             measuredSize = element.Measure(screenSize);
-        using (var arrange = new LoadPerformanceScope(telemetry, "gui.layout.arrange", resource, units: 1))
+        using (var arrange = new LoadPerformanceScope(_telemetry, "gui.layout.arrange", resource, units: 1))
             element.Arrange(screenBounds);
 
         if (_diagnosticsEnabled)

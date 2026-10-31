@@ -30,7 +30,6 @@ public sealed class MainMenu : Scene
         _textStyles = textStyles;
         _textures = textures;
         _sceneManager = sceneManager;
-        MainCamera = _camera;
     }
 
     /// <inheritdoc />

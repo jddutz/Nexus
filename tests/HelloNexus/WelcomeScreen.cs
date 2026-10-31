@@ -23,7 +23,6 @@ public class WelcomeScreen : Scene
     {
         _textStyles = textStyles;
         _camera = new StaticCamera();
-        MainCamera = _camera;
 
         var inputMap = new InputMap(eventHub);
         var window = windowService.GetMainWindow();

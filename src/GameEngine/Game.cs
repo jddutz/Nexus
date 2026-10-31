@@ -8,18 +8,15 @@ namespace Nexus.GameEngine;
 /// </summary>
 /// <param name="eventHub">The event hub used to register handlers and publish lifecycle events.</param>
 /// <param name="logger">The logger used for game-system diagnostics.</param>
-/// <param name="windowService">The service used to synchronize the current scene camera with the main window, or <see langword="null"/> in a headless runtime.</param>
 /// <param name="telemetry">The optional performance telemetry sink.</param>
 public partial class Game(
     IEventHub eventHub,
     ILogger<Game> logger,
-    IWindowService? windowService = null,
     IPerformanceTelemetry? telemetry = null
 ) : IGameSystem, IObservable
 {
     private readonly IEventHub _eventHub = eventHub;
     private readonly ILogger<Game> _logger = logger;
-    private readonly IWindowService? _windowService = windowService;
     private readonly HashSet<ISceneNode> _subscribedSceneNodes = [];
     private readonly HashSet<IGameObject> _publishedGameObjectActivations = new(
         ReferenceEqualityComparer.Instance
@@ -375,9 +372,6 @@ public partial class Game(
                 if (!IsInCurrentHierarchy(index, entries))
                     continue;
 
-                if (!wasInitialized && entity is Scene initializedScene)
-                    SynchronizeSceneCameraWithMainWindow(initializedScene);
-
                 if (!entity.IsActivated && AreParentsActivated(entry, entries))
                 {
                     if (entity is IComponent component)
@@ -551,12 +545,6 @@ public partial class Game(
             SubscribeSceneNode(scene);
         }
 
-        if (scene is Scene initializedScene && _windowService is not null)
-        {
-            _eventHub.Register(this);
-            if (initializedScene.IsInitialized)
-                SynchronizeSceneCameraWithMainWindow(initializedScene);
-        }
     }
 
     /// <summary>
@@ -576,34 +564,6 @@ public partial class Game(
         }
 
         UnsubscribeSceneNode(scene);
-    }
-
-    /// <summary>Synchronizes an initialized scene's camera viewport with the main window.</summary>
-    /// <param name="scene">The initialized scene whose camera is synchronized.</param>
-    private void SynchronizeSceneCameraWithMainWindow(Scene scene)
-    {
-        if (_windowService is null)
-            return;
-
-        var windowSize = _windowService.GetMainWindow().Size;
-        scene.MainCamera.SetViewportSize(windowSize.X, windowSize.Y);
-    }
-
-    /// <summary>
-    /// Updates the active scene's main camera when the main window changes size.
-    /// </summary>
-    /// <param name="message">The window-resized event.</param>
-    public void Handle(WindowResizedEvent message)
-    {
-        if (
-            _windowService is null
-            || message.WindowId != _windowService.MainWindowId
-            || CurrentScene is not Scene scene
-            || !scene.IsInitialized
-        )
-            return;
-
-        scene.MainCamera.SetViewportSize(message.Size.X, message.Size.Y);
     }
 
     /// <summary>

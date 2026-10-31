@@ -82,7 +82,6 @@ public sealed class AsteroidsScene : Scene
         _windowService = windowService;
         _eventHub = eventHub;
         _worldId = physics.CreateWorld2D().Id;
-        MainCamera = _camera;
         _scoreText = CreateText(textStyles, 24);
         _livesText = CreateText(textStyles, 24);
         _statusText = CreateText(textStyles, 28);

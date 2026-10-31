@@ -90,7 +90,7 @@ public sealed class TileMapElement : Element
     /// <summary>Initializes an empty element with an owned tile-map renderer.</summary>
     public TileMapElement()
     {
-        _renderer = new TileMapRenderer();
+        _renderer = new TileMapRenderer { RenderLayerMask = RenderLayers.DefaultUI };
         _renderObject = new GameObject2D([_renderer]);
         AddChild(_renderObject);
         PropertyChanged += OnElementPropertyChanged;

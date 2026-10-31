@@ -16,7 +16,7 @@ public partial class TextElement : Element
     private int? _maximumLines;
 
     [Observable]
-    private ulong _renderLayerMask = RenderLayers.All;
+    private ulong _renderLayerMask = RenderLayers.DefaultUI;
     private readonly TextRenderer _textComponent;
 
     /// <summary>Gets or sets the color applied to the text glyphs.</summary>

@@ -20,6 +20,52 @@ namespace Tests;
 /// </summary>
 public class GraphicalUserInterfaceTests
 {
+    /// <summary>Verifies GUI element renderers default to the dedicated UI layer.</summary>
+    [Fact]
+    public void GuiElements_defaultToDefaultUiLayer()
+    {
+        Assert.Equal(RenderLayers.DefaultUI, new ImageElement().RenderLayerMask);
+        Assert.Equal(RenderLayers.DefaultUI, new TextElement().RenderLayerMask);
+        Assert.Equal(RenderLayers.DefaultUI, new TextButton().RenderLayerMask);
+        Assert.Equal(RenderLayers.DefaultUI, new TileMapElement().RenderLayerMask);
+        Assert.Equal(RenderLayers.All, new View().LayerMask);
+    }
+
+    /// <summary>
+    /// Verifies the GUI registers its fullscreen UI view before rendering and updates it on resize.
+    /// </summary>
+    [Fact]
+    public void SceneLifecycle_registersAndResizesDefaultUiView()
+    {
+        var eventHub = new EventHub();
+        var graphicsSystem = new TestGraphicsSystem();
+        var windowService = new TestWindowService(new(800, 600));
+        var gui = new GraphicalUserInterface(eventHub, graphicsSystem, windowService);
+        gui.Initialize();
+
+        var scene = new Scene(SceneRegistryTestHelper.ServiceProvider);
+        eventHub.Publish(new SceneLoadedEvent(scene));
+        eventHub.Drain();
+
+        var view = Assert.Single(graphicsSystem.RegisteredViews);
+        var camera = Assert.IsType<Nexus.Graphics.Cameras.StaticCamera>(view.Camera);
+        Assert.Equal(RenderLayers.DefaultUI, view.LayerMask);
+        Assert.Equal(new Rectangle<int>(0, 0, 800, 600), view.ViewportRegion);
+        Assert.Equal(new Rectangle<int>(0, 0, 800, 600), view.ClippingRegion);
+        Assert.Equal(800f / 600f, camera.AspectRatio);
+
+        eventHub.Publish(new WindowResizedEvent(windowService.MainWindowId, new(1280, 720)));
+        eventHub.Drain();
+
+        Assert.Equal(new Rectangle<int>(0, 0, 1280, 720), view.ViewportRegion);
+        Assert.Equal(new Rectangle<int>(0, 0, 1280, 720), view.ClippingRegion);
+        Assert.Equal(1280f / 720f, camera.AspectRatio);
+
+        eventHub.Publish(new SceneUnloadedEvent(scene));
+        eventHub.Drain();
+        Assert.Empty(graphicsSystem.RegisteredViews);
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
@@ -27,7 +73,7 @@ public class GraphicalUserInterfaceTests
     {
         using var profiler = new GraphicsProfiler(Microsoft.Extensions.Options.Options.Create(
             new DiagnosticsSettings { EnablePerformanceMetrics = enabled }));
-        var gui = new GraphicalUserInterface(new EventHub(),
+        var gui = new GraphicalUserInterface(new EventHub(), new TestGraphicsSystem(),
             new TestWindowService(new(800, 600)), telemetry: profiler);
         var flow = new FlowLayout();
         var shouldInvalidateDuringArrange = true;
@@ -40,10 +86,7 @@ public class GraphicalUserInterfaceTests
             element.Height = 31f;
         }) { Width = 100f, Height = 30f };
         flow.Children.Add(child);
-        var scene = new Scene(SceneRegistryTestHelper.ServiceProvider)
-        {
-            MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
-        };
+        var scene = new Scene(SceneRegistryTestHelper.ServiceProvider);
         scene.Children.Add(flow);
         ActivateScene(scene);
         gui.Handle(new SceneLoadedEvent(scene));
@@ -74,7 +117,7 @@ public class GraphicalUserInterfaceTests
     public void Annotation_tracksTargetAndCameraWithoutLayoutInvalidation_afterViewLayout()
     {
         var hub = new EventHub();
-        var gui = new GraphicalUserInterface(hub, new TestWindowService(new(800, 600)));
+        var gui = new GraphicalUserInterface(hub, new TestGraphicsSystem(), new TestWindowService(new(800, 600)));
         var camera = new Nexus.Graphics.Cameras.OrthoCamera();
         camera.SetSize(400f, 200f);
         var view = new View { Camera = camera, Width = 400f, Height = 200f };
@@ -86,10 +129,7 @@ public class GraphicalUserInterfaceTests
         };
         var child = new Element();
         annotation.Children.Add(child);
-        var scene = new Scene(SceneRegistryTestHelper.ServiceProvider)
-        {
-            MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
-        };
+        var scene = new Scene(SceneRegistryTestHelper.ServiceProvider);
         // The annotation deliberately precedes its view in scene/layout order.
         scene.Children.Add(annotation);
         scene.Children.Add(view);
@@ -112,11 +152,10 @@ public class GraphicalUserInterfaceTests
     public void Modal_blocksSceneAndNewMaps_trapsFocus_andRestoresInput()
     {
         var hub = new EventHub();
-        var gui = new GraphicalUserInterface(hub, new TestWindowService(new(800, 600)));
+        var gui = new GraphicalUserInterface(hub, new TestGraphicsSystem(), new TestWindowService(new(800, 600)));
         var background = new Element { CanFocus = true };
         var scene = new Scene(SceneRegistryTestHelper.ServiceProvider)
         {
-            MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
             InputMap = new InputMap(),
         };
         scene.Children.Add(background);
@@ -198,11 +237,8 @@ public class GraphicalUserInterfaceTests
     public void SceneUnload_releasesModalScope_withoutChangingExplicitSuppression()
     {
         var hub = new EventHub();
-        var gui = new GraphicalUserInterface(hub);
-        var scene = new Scene(SceneRegistryTestHelper.ServiceProvider)
-        {
-            MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
-        };
+        var gui = new GraphicalUserInterface(hub, new TestGraphicsSystem());
+        var scene = new Scene(SceneRegistryTestHelper.ServiceProvider);
         ActivateScene(scene);
         gui.Handle(new SceneLoadedEvent(scene));
         var suppressed = new InputMap { SuppressSceneInputEvents = true };
@@ -229,13 +265,10 @@ public class GraphicalUserInterfaceTests
     public void WidthAndHeightChanges_invalidateLayout()
     {
         var eventHub = new EventHub();
-        var gui = new GraphicalUserInterface(eventHub, new TestWindowService(new(800, 600)));
+        var gui = new GraphicalUserInterface(eventHub, new TestGraphicsSystem(), new TestWindowService(new(800, 600)));
         var layoutCount = 0;
         var element = new LayoutProbeElement(arrange: (_, _) => layoutCount++);
-        var scene = new Scene(SceneRegistryTestHelper.ServiceProvider)
-        {
-            MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
-        };
+        var scene = new Scene(SceneRegistryTestHelper.ServiceProvider);
         scene.Children.Add(element);
         ActivateScene(scene);
         gui.Initialize();
@@ -258,13 +291,10 @@ public class GraphicalUserInterfaceTests
     public void ContentChanges_invalidateLayoutOnlyWhenTheyCanAffectLayout()
     {
         var eventHub = new EventHub();
-        var gui = new GraphicalUserInterface(eventHub, new TestWindowService(new(800, 600)));
+        var gui = new GraphicalUserInterface(eventHub, new TestGraphicsSystem(), new TestWindowService(new(800, 600)));
         var textElement = new LayoutCountingTextElement();
         var imageElement = new LayoutCountingImageElement { Texture = CreateTexture() };
-        var scene = new Scene(SceneRegistryTestHelper.ServiceProvider)
-        {
-            MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
-        };
+        var scene = new Scene(SceneRegistryTestHelper.ServiceProvider);
         scene.Children.Add(textElement);
         scene.Children.Add(imageElement);
         ActivateScene(scene);
@@ -305,7 +335,7 @@ public class GraphicalUserInterfaceTests
     public void LifecycleEvents_discoverRegisterAndRemoveActiveElements()
     {
         var eventHub = new EventHub();
-        var gui = new GraphicalUserInterface(eventHub, new TestWindowService(new(800, 600)));
+        var gui = new GraphicalUserInterface(eventHub, new TestGraphicsSystem(), new TestWindowService(new(800, 600)));
         var layoutCount = 0;
         var childArrangementCount = 0;
         var root = new LayoutProbeElement(
@@ -316,10 +346,7 @@ public class GraphicalUserInterfaceTests
             arrange: (_, _) => initiallyDiscoveredChildArrangementCount++
         );
         root.AddChild(initiallyDiscoveredChild);
-        var scene = new Scene(SceneRegistryTestHelper.ServiceProvider)
-        {
-            MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
-        };
+        var scene = new Scene(SceneRegistryTestHelper.ServiceProvider);
         scene.Children.Add(root);
         ActivateScene(scene);
         gui.Initialize();
@@ -373,16 +400,13 @@ public class GraphicalUserInterfaceTests
     public void ElementInputMaps_registerByLifecycleAndHitTestMouseInput()
     {
         var eventHub = new EventHub();
-        var gui = new GraphicalUserInterface(eventHub);
+        var gui = new GraphicalUserInterface(eventHub, new TestGraphicsSystem());
         var element = new Element { Bounds = new Rectangle<float>(new(10f, 20f), new(100f, 50f)) };
         var mouse = new TestMouse(1);
         var pressCount = 0;
         element.InputMap.OnMouseButtonPressed(MouseButtonEnum.Left).Invoke(() => pressCount++);
 
-        var scene = new Scene(SceneRegistryTestHelper.ServiceProvider)
-        {
-            MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
-        };
+        var scene = new Scene(SceneRegistryTestHelper.ServiceProvider);
         scene.Children.Add(element);
         ActivateScene(scene);
         gui.Initialize();
@@ -414,7 +438,7 @@ public class GraphicalUserInterfaceTests
     public void AncestorVisibilityAndEnabledState_gateInputAndClearFocus()
     {
         var eventHub = new EventHub();
-        var gui = new GraphicalUserInterface(eventHub);
+        var gui = new GraphicalUserInterface(eventHub, new TestGraphicsSystem());
         var parent = new LayoutProbeElement();
         var child = new LayoutProbeElement
         {
@@ -427,10 +451,7 @@ public class GraphicalUserInterfaceTests
         child.InputMap.OnMouseButtonPressed(MouseButtonEnum.Left).Invoke(() => pressCount++);
         child.InputMap.OnMouseButtonReleased(MouseButtonEnum.Left).Invoke(() => releaseCount++);
         parent.AddChild(child);
-        var scene = new Scene(SceneRegistryTestHelper.ServiceProvider)
-        {
-            MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
-        };
+        var scene = new Scene(SceneRegistryTestHelper.ServiceProvider);
         scene.Children.Add(parent);
         ActivateScene(scene);
         gui.Initialize();
@@ -461,17 +482,14 @@ public class GraphicalUserInterfaceTests
     public void Focus_requiresCanFocusAndRaisesGainedAndLostEvents()
     {
         var eventHub = new EventHub();
-        var gui = new GraphicalUserInterface(eventHub);
+        var gui = new GraphicalUserInterface(eventHub, new TestGraphicsSystem());
         var element = new LayoutProbeElement { CanFocus = true };
         var nonFocusableElement = new LayoutProbeElement();
         var gainedCount = 0;
         var lostCount = 0;
         element.FocusGained += (_, _) => gainedCount++;
         element.FocusLost += (_, _) => lostCount++;
-        var scene = new Scene(SceneRegistryTestHelper.ServiceProvider)
-        {
-            MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
-        };
+        var scene = new Scene(SceneRegistryTestHelper.ServiceProvider);
         scene.Children.Add(element);
         scene.Children.Add(nonFocusableElement);
         ActivateScene(scene);
@@ -503,14 +521,11 @@ public class GraphicalUserInterfaceTests
     public void Focus_clearsWhenElementBecomesIneligibleOrIsDeactivated()
     {
         var eventHub = new EventHub();
-        var gui = new GraphicalUserInterface(eventHub);
+        var gui = new GraphicalUserInterface(eventHub, new TestGraphicsSystem());
         var element = new LayoutProbeElement { CanFocus = true };
         var lostCount = 0;
         element.FocusLost += (_, _) => lostCount++;
-        var scene = new Scene(SceneRegistryTestHelper.ServiceProvider)
-        {
-            MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
-        };
+        var scene = new Scene(SceneRegistryTestHelper.ServiceProvider);
         scene.Children.Add(element);
         ActivateScene(scene);
         gui.Initialize();
@@ -540,14 +555,11 @@ public class GraphicalUserInterfaceTests
     public void MoveFocus_traversesFocusableElementsInChildOrderAndWraps()
     {
         var eventHub = new EventHub();
-        var gui = new GraphicalUserInterface(eventHub);
+        var gui = new GraphicalUserInterface(eventHub, new TestGraphicsSystem());
         var first = new LayoutProbeElement { CanFocus = true };
         var skipped = new LayoutProbeElement();
         var last = new LayoutProbeElement { CanFocus = true };
-        var scene = new Scene(SceneRegistryTestHelper.ServiceProvider)
-        {
-            MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
-        };
+        var scene = new Scene(SceneRegistryTestHelper.ServiceProvider);
         scene.Children.Add(first);
         scene.Children.Add(skipped);
         scene.Children.Add(last);
@@ -571,12 +583,9 @@ public class GraphicalUserInterfaceTests
     public void MoveFocus_returnsFalseWhenNoFocusableElementsExist()
     {
         var eventHub = new EventHub();
-        var gui = new GraphicalUserInterface(eventHub);
+        var gui = new GraphicalUserInterface(eventHub, new TestGraphicsSystem());
         var element = new LayoutProbeElement();
-        var scene = new Scene(SceneRegistryTestHelper.ServiceProvider)
-        {
-            MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
-        };
+        var scene = new Scene(SceneRegistryTestHelper.ServiceProvider);
         scene.Children.Add(element);
         ActivateScene(scene);
         gui.Initialize();
@@ -641,7 +650,7 @@ public class GraphicalUserInterfaceTests
     public void InitialLayout_measuresAndArrangesAgainstScreen()
     {
         var eventHub = new EventHub();
-        var gui = new GraphicalUserInterface(eventHub, new TestWindowService(new(1920, 1080)));
+        var gui = new GraphicalUserInterface(eventHub, new TestGraphicsSystem(), new TestWindowService(new(1920, 1080)));
         Vector2D<float>? measuredSize = null;
         Rectangle<float>? arrangedBounds = null;
         var element = new LayoutProbeElement(
@@ -652,10 +661,7 @@ public class GraphicalUserInterfaceTests
             },
             arrange: (_, bounds) => arrangedBounds = bounds
         );
-        var scene = new Scene(SceneRegistryTestHelper.ServiceProvider)
-        {
-            MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
-        };
+        var scene = new Scene(SceneRegistryTestHelper.ServiceProvider);
         scene.Children.Add(element);
         ActivateScene(scene);
         gui.Initialize();
@@ -673,15 +679,12 @@ public class GraphicalUserInterfaceTests
     public void MarginsChange_invalidatesLayout()
     {
         var eventHub = new EventHub();
-        var gui = new GraphicalUserInterface(eventHub, new TestWindowService(new(100, 80)));
+        var gui = new GraphicalUserInterface(eventHub, new TestGraphicsSystem(), new TestWindowService(new(100, 80)));
         var arrangementCount = 0;
         var element = new LayoutProbeElement(
             arrange: (_, _) => arrangementCount++
         );
-        var scene = new Scene(SceneRegistryTestHelper.ServiceProvider)
-        {
-            MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
-        };
+        var scene = new Scene(SceneRegistryTestHelper.ServiceProvider);
         scene.Children.Add(element);
         ActivateScene(scene);
         gui.Initialize();
@@ -722,7 +725,7 @@ public class GraphicalUserInterfaceTests
     public void InvalidationDuringLayout_isProcessedOnNextUpdate()
     {
         var eventHub = new EventHub();
-        var gui = new GraphicalUserInterface(eventHub, new TestWindowService(new(800, 600)));
+        var gui = new GraphicalUserInterface(eventHub, new TestGraphicsSystem(), new TestWindowService(new(800, 600)));
         var arrangementCount = 0;
         var element = new LayoutProbeElement(
             arrange: (currentElement, bounds) =>
@@ -732,10 +735,7 @@ public class GraphicalUserInterfaceTests
                     currentElement.Width = 100;
             }
         );
-        var scene = new Scene(SceneRegistryTestHelper.ServiceProvider)
-        {
-            MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
-        };
+        var scene = new Scene(SceneRegistryTestHelper.ServiceProvider);
         scene.Children.Add(element);
         ActivateScene(scene);
         gui.Initialize();
@@ -756,13 +756,10 @@ public class GraphicalUserInterfaceTests
     {
         var eventHub = new EventHub();
         var windowService = new TestWindowService(new(800, 600));
-        var gui = new GraphicalUserInterface(eventHub, windowService);
+        var gui = new GraphicalUserInterface(eventHub, new TestGraphicsSystem(), windowService);
         var arrangedBounds = new List<Rectangle<float>>();
         var element = new LayoutProbeElement(arrange: (_, bounds) => arrangedBounds.Add(bounds));
-        var scene = new Scene(SceneRegistryTestHelper.ServiceProvider)
-        {
-            MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
-        };
+        var scene = new Scene(SceneRegistryTestHelper.ServiceProvider);
         scene.Children.Add(element);
         element.Activate();
         ActivateScene(scene);

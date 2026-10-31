@@ -97,7 +97,7 @@ public partial class ImageElement : Element
     private Color _color = Colors.White;
 
     [Observable]
-    private ulong _renderLayerMask = RenderLayers.All;
+    private ulong _renderLayerMask = RenderLayers.DefaultUI;
     private readonly TextureRenderer _imageComponent;
 
     /// <summary>Initializes an image element with an inactive owned texture renderer.</summary>

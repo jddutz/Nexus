@@ -190,7 +190,7 @@ public class BasicRuntimeTests
             "Next",
             () =>
             {
-                var scene = new Scene(SceneRegistryTestHelper.ServiceProvider) { MainCamera = camera };
+                var scene = new Scene(SceneRegistryTestHelper.ServiceProvider);
                 scene.Children.Add(view);
                 return scene;
             }
@@ -452,7 +452,6 @@ public class BasicRuntimeTests
                 () =>
                     new Scene(SceneRegistryTestHelper.ServiceProvider)
                     {
-                        MainCamera = new Nexus.Graphics.Cameras.StaticCamera(),
                     }
             );
         return registry;
@@ -595,6 +594,10 @@ public class BasicRuntimeTests
         public void Initialize() { }
 
         public void Render() { }
+
+        public void RegisterView(ViewRenderer view) { }
+
+        public void UnregisterView(ViewRenderer view) { }
 
         public bool CanActivate<TComponent>(TComponent component)
             where TComponent : class, IRenderer => false;

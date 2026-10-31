@@ -74,7 +74,6 @@ public sealed class BreakoutScene : Scene
         _windowService = windowService;
         _eventHub = eventHub;
         _world = physics.CreateWorld2D();
-        MainCamera = _camera;
         _windowSize = windowService.GetMainWindow().Size;
         _bounds = new(MathF.Max(1f, _windowSize.X), MathF.Max(1f, _windowSize.Y));
         _paddle = new Paddle(RectangleMesh, _world.Id);
