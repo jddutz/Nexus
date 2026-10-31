@@ -72,17 +72,6 @@ public partial class TextElement : Element
         AddComponent(_textComponent);
     }
 
-    /// <summary>Initializes a text element with initial text and optional style data.</summary>
-    /// <param name="text">The initial source text.</param>
-    /// <param name="style">The optional text style.</param>
-    public TextElement(string text, ITextStyle? style)
-        : this()
-    {
-        ArgumentNullException.ThrowIfNull(text);
-        Text = text;
-        Style = style;
-    }
-
     /// <inheritdoc />
     public override Vector2D<float> Measure(Vector2D<float> constraint)
     {

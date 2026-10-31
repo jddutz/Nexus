@@ -49,11 +49,10 @@ public sealed class SettingsScene : Scene
             Rows = [GridSize.Relative(), GridSize.Relative(), GridSize.Relative()],
             Columns = [GridSize.Relative(), GridSize.Relative(), GridSize.Relative()],
         };
-        grid[1, 1] = new TextElement(
-            $"Settings Count: {_menuSettings.SettingsCount}",
-            _textStyles.GetOrCreate(BuiltInFonts.Default, 24f)
-        )
+        grid[1, 1] = new TextElement
         {
+            Text = $"Settings Count: {_menuSettings.SettingsCount}",
+            Style = _textStyles.GetOrCreate(BuiltInFonts.Default, 24f),
             HorizontalAlignment = AlignHorizontal.Center,
             VerticalAlignment = AlignVertical.Center,
         };

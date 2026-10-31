@@ -71,17 +71,25 @@ public sealed class RichTextElement : FlowLayout
             foreach (var run in line)
             {
                 var style = run.Style.Bold
-                    ? run.Style.Italic ? _boldItalicStyle : _boldStyle
-                    : run.Style.Italic ? _italicStyle : _regularStyle;
+                    ? run.Style.Italic
+                        ? _boldItalicStyle
+                        : _boldStyle
+                    : run.Style.Italic
+                        ? _italicStyle
+                        : _regularStyle;
                 foreach (var token in SplitIntoWords(run.Text))
                 {
-                    layout.Children.Add(new TextElement(token, style)
-                    {
-                        Color = run.Style.Color ?? _textColor,
-                        HorizontalAlignment = AlignHorizontal.Left,
-                        VerticalAlignment = AlignVertical.Top,
-                        RenderLayerMask = _renderLayerMask,
-                    });
+                    layout.Children.Add(
+                        new TextElement()
+                        {
+                            Text = token,
+                            Style = style,
+                            Color = run.Style.Color ?? _textColor,
+                            HorizontalAlignment = AlignHorizontal.Left,
+                            VerticalAlignment = AlignVertical.Top,
+                            RenderLayerMask = _renderLayerMask,
+                        }
+                    );
                 }
             }
 
@@ -118,7 +126,7 @@ public sealed class RichTextElement : FlowLayout
         }
 
         markup = markup.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n');
-        for (var index = 0; index < markup.Length;)
+        for (var index = 0; index < markup.Length; )
         {
             if (markup[index] != '[')
             {
@@ -182,7 +190,9 @@ public sealed class RichTextElement : FlowLayout
             }
             else
             {
-                throw new FormatException($"Unsupported markup tag '[{tag}]' at character {index}.");
+                throw new FormatException(
+                    $"Unsupported markup tag '[{tag}]' at character {index}."
+                );
             }
 
             index = closingBracket + 1;
@@ -204,8 +214,13 @@ public sealed class RichTextElement : FlowLayout
         void CloseTag(string name, int position)
         {
             FlushText();
-            if (!openTags.TryPop(out var frame) || !frame.Name.Equals(name, StringComparison.Ordinal))
-                throw new FormatException($"Unexpected closing tag '[/{name}]' at character {position}.");
+            if (
+                !openTags.TryPop(out var frame)
+                || !frame.Name.Equals(name, StringComparison.Ordinal)
+            )
+                throw new FormatException(
+                    $"Unexpected closing tag '[/{name}]' at character {position}."
+                );
             style = frame.PreviousStyle;
         }
     }
@@ -244,7 +259,7 @@ public sealed class RichTextElement : FlowLayout
     /// <returns>Ordered non-empty tokens that preserve the original text.</returns>
     private static IEnumerable<string> SplitIntoWords(string text)
     {
-        for (var start = 0; start < text.Length;)
+        for (var start = 0; start < text.Length; )
         {
             var whitespace = char.IsWhiteSpace(text[start]);
             var end = start + 1;

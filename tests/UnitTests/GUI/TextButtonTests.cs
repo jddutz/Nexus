@@ -679,14 +679,12 @@ public sealed class TextButtonTests
     /// <param name="label">The initial label for the button.</param>
     /// <returns>The configured button.</returns>
     private static TextButton CreateButton(string label) =>
-        new(
-            new TestTextStyle(),
-            new Texture("button", 8, 8, new Color[64]),
-            horizontalPadding: 4f,
-            verticalPadding: 3f,
-            sourceBorders: new Vector4D<float>(1f, 1f, 1f, 1f)
-        )
+        new()
         {
+            Style = new TestTextStyle(),
+            Texture = new Texture("button", 8, 8, new Color[64]),
+            SourceBorders = new Vector4D<float>(1f, 1f, 1f, 1f),
+            Padding = new(4f),
             Label = label,
         };
 

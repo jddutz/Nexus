@@ -21,10 +21,15 @@ public partial class TextButton : Element
         get => _icon;
         set
         {
-            if (ReferenceEquals(_icon, value)) return;
+            if (ReferenceEquals(_icon, value))
+                return;
             if (value?.Parent is not null)
-                throw new ArgumentException("Detach the icon from its current parent first.", nameof(value));
-            if (_icon is not null) RemoveChild(_icon);
+                throw new ArgumentException(
+                    "Detach the icon from its current parent first.",
+                    nameof(value)
+                );
+            if (_icon is not null)
+                RemoveChild(_icon);
             _icon = value;
             if (value is not null)
             {
@@ -194,38 +199,6 @@ public partial class TextButton : Element
         CreateVisualComponents();
     }
 
-    /// <summary>
-    /// Initializes a text button with its initial visual resources and layout settings.
-    /// </summary>
-    /// <param name="textStyle">The shared font and text style.</param>
-    /// <param name="texture">The shared nine-patch texture.</param>
-    /// <param name="horizontalPadding">The horizontal label padding.</param>
-    /// <param name="verticalPadding">The vertical label padding.</param>
-    /// <param name="renderLayerMask">The render-layer mask shared by the background and text.</param>
-    /// <param name="sourceBorders">The source texture border widths.</param>
-    /// <param name="samplingBehavior">The texture sampling behavior.</param>
-    public TextButton(
-        ITextStyle textStyle,
-        ITexture texture,
-        float horizontalPadding = 16f,
-        float verticalPadding = 10f,
-        ulong renderLayerMask = RenderLayers.All,
-        Vector4D<float>? sourceBorders = null,
-        ISamplingBehavior? samplingBehavior = null
-    )
-        : this()
-    {
-        ArgumentNullException.ThrowIfNull(textStyle);
-        ArgumentNullException.ThrowIfNull(texture);
-
-        Style = textStyle;
-        Texture = texture;
-        Padding = new(horizontalPadding, verticalPadding);
-        RenderLayerMask = renderLayerMask;
-        SourceBorders = sourceBorders ?? new Vector4D<float>(12f, 12f, 12f, 12f);
-        SamplingBehavior = samplingBehavior ?? SamplingBehaviors.PixelPerfect;
-    }
-
     /// <summary>Invokes the action assigned to this button, if any.</summary>
     private void InvokeAction() => Action?.Invoke(this);
 
@@ -358,7 +331,9 @@ public partial class TextButton : Element
             MathF.Max(0f, contentConstraint.X - Padding.Left - Padding.Right),
             MathF.Max(0f, contentConstraint.Y - Padding.Top - Padding.Bottom)
         );
-        var labelSize = Style is null ? Vector2D<float>.Zero : _text!.Measure(textConstraint - LabelMargins) + LabelMargins;
+        var labelSize = Style is null
+            ? Vector2D<float>.Zero
+            : _text!.Measure(textConstraint - LabelMargins) + LabelMargins;
         var iconSize = Icon?.Measure(textConstraint) ?? Vector2D<float>.Zero;
         labelSize = new(MathF.Max(labelSize.X, iconSize.X), MathF.Max(labelSize.Y, iconSize.Y));
         return new Vector2D<float>(
@@ -402,8 +377,19 @@ public partial class TextButton : Element
         );
         _text.Destination = innerBounds - LabelMargins;
         _text.Alignment = new Vector2D<float>(
-            LabelHorizontalAlignment switch { AlignHorizontal.Left => 0f, AlignHorizontal.Right => 1f, _ => 0.5f },
-            LabelVerticalAlignment switch { AlignVertical.Top => 0f, AlignVertical.Bottom => 1f, _ => 0.5f });
+            LabelHorizontalAlignment switch
+            {
+                AlignHorizontal.Left => 0f,
+                AlignHorizontal.Right => 1f,
+                _ => 0.5f,
+            },
+            LabelVerticalAlignment switch
+            {
+                AlignVertical.Top => 0f,
+                AlignVertical.Bottom => 1f,
+                _ => 0.5f,
+            }
+        );
         _text.DrawOrder = SortOrder + 1;
         if (Icon is not null)
         {

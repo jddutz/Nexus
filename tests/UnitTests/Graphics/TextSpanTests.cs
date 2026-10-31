@@ -62,7 +62,7 @@ public sealed class TextSpanTests
     [Fact]
     public void Render_layer_mask_is_applied_to_existing_and_future_spans()
     {
-        var element = new TextElement("A", CreateStyle());
+        var element = new TextElement { Text = "A", Style = CreateStyle() };
         element.Arrange(new Rectangle<float>(0f, 0f, 2f, 1f));
         var first = DrawableTestData.TextDrawable(element);
 
@@ -79,7 +79,7 @@ public sealed class TextSpanTests
     [Fact]
     public void Arrange_preserves_destination_placement_after_owner_and_text_changes()
     {
-        var element = new TextElement("AB", CreateStyle());
+        var element = new TextElement { Text = "AB", Style = CreateStyle() };
         var owner = new GameObject2D { Position = new(100f, 200f) };
         owner.AddChild(element);
         element.Arrange(new Rectangle<float>(3f, 4f, 2f, 1f));
@@ -101,7 +101,7 @@ public sealed class TextSpanTests
     [Fact]
     public void Arrange_updates_instances_without_recreating_span()
     {
-        var element = new TextElement("A", CreateStyle());
+        var element = new TextElement { Text = "A", Style = CreateStyle() };
         element.Arrange(new Rectangle<float>(0f, 0f, 1f, 1f));
         var span = DrawableTestData.TextDrawable(element);
         var changes = 0;
@@ -228,7 +228,7 @@ public sealed class TextSpanTests
     [Fact]
     public void Text_changes_reuse_existing_prepared_span()
     {
-        var element = new TextElement("A", CreateStyle());
+        var element = new TextElement { Text = "A", Style = CreateStyle() };
         element.Arrange(new Rectangle<float>(0f, 0f, 1f, 1f));
         var graphics = DrawableTestData.TextGraphics(element);
         var previous = Assert.Single(graphics.Drawables);
@@ -249,7 +249,7 @@ public sealed class TextSpanTests
     [Fact]
     public void Text_changes_notify_observers_including_empty_text()
     {
-        var element = new TextElement(string.Empty, CreateStyle());
+        var element = new TextElement { Text = string.Empty, Style = CreateStyle() };
         var properties = new List<string>();
         element.PropertyChanged += properties.Add;
 
@@ -265,7 +265,7 @@ public sealed class TextSpanTests
     [InlineData("?")]
     public void Text_without_known_glyphs_removes_drawable(string text)
     {
-        var element = new TextElement(text, CreateStyle());
+        var element = new TextElement { Text = text, Style = CreateStyle() };
         element.Arrange(new Rectangle<float>(0f, 0f, 2f, 1f));
         var graphics = Assert.Single(element.Components.OfType<IRenderer>());
 
@@ -276,7 +276,7 @@ public sealed class TextSpanTests
     [Fact]
     public void Initial_empty_text_has_no_drawable()
     {
-        var element = new TextElement(string.Empty, CreateStyle());
+        var element = new TextElement { Text = string.Empty, Style = CreateStyle() };
 
         Assert.Empty(Assert.Single(element.Components.OfType<IRenderer>()).Drawables);
     }
@@ -285,7 +285,7 @@ public sealed class TextSpanTests
     [Fact]
     public void Text_transitions_replace_prepared_drawables()
     {
-        var element = new TextElement("A", CreateStyle());
+        var element = new TextElement { Text = "A", Style = CreateStyle() };
         element.Arrange(new Rectangle<float>(0f, 0f, 1f, 1f));
         var original = DrawableTestData.TextDrawable(element);
         var graphics = Assert.Single(element.Components.OfType<IRenderer>());
@@ -877,8 +877,10 @@ public sealed class TextSpanTests
     /// <returns>The prepared span.</returns>
     private static TextSpan CreateSpan(ITextStyle style, string text)
     {
-        var element = new TextElement(text, style)
+        var element = new TextElement
         {
+            Text = text,
+            Style = style,
             HorizontalAlignment = AlignHorizontal.Left,
             VerticalAlignment = AlignVertical.Top,
         };

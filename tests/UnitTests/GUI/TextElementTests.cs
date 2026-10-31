@@ -168,7 +168,7 @@ public sealed class TextElementTests
     [Fact]
     public void Arrange_omitsTextWhenLineBoxExceedsAvailableHeight()
     {
-        var element = new TextElement("A", new TestTextStyle(lineHeight: 2));
+        var element = new TextElement { Text = "A", Style = new TestTextStyle(lineHeight: 2) };
         var measuredSize = element.Measure(new(10f, 1f));
 
         element.Arrange(new Rectangle<float>(0f, 0f, measuredSize.X, measuredSize.Y));
@@ -268,7 +268,8 @@ public sealed class TextElementTests
     /// <summary>Creates a text element with deterministic in-memory font data.</summary>
     /// <param name="text">The initial text.</param>
     /// <returns>The configured text element.</returns>
-    private static TextElement CreateTextElement(string text) => new(text, new TestTextStyle());
+    private static TextElement CreateTextElement(string text) =>
+        new() { Text = text, Style = new TestTextStyle() };
 
     /// <summary>Provides deterministic single-cell glyphs for layout tests.</summary>
     private sealed class TestTextStyle : ITextStyle

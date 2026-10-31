@@ -73,7 +73,7 @@ public partial class Element : GameObject, IElement
     /// Initializes an element with its owned components.
     /// </summary>
     /// <param name="components">The components owned by the element.</param>
-    public Element(IEnumerable<Nexus.Core.IComponent>? components = null)
+    public Element(IEnumerable<IComponent>? components = null)
         : base(components ?? [])
     {
         ComponentAdded += OnComponentAdded;
