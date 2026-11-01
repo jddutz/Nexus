@@ -234,6 +234,27 @@ public class GraphicalUserInterfaceTests
     }
 
     [Fact]
+    public void TouchEnded_dispatchesOnlyForCapturedTouchThatStayedInsideTarget()
+    {
+        var map = new InputMap(hitTest: position =>
+            position.X >= 0 && position.X < 100 && position.Y >= 0 && position.Y < 100
+        );
+        var touchScreen = new TestTouchScreen(1);
+        var taps = 0;
+        map.OnTouchEnded().Invoke(() => taps++);
+
+        map.Handle(new TouchEndedEvent(touchScreen, 0, new(20, 20)));
+        map.Handle(new TouchStartedEvent(touchScreen, 1, new(20, 20)));
+        map.Handle(new TouchEndedEvent(touchScreen, 1, new(20, 20)));
+        Assert.Equal(1, taps);
+
+        map.Handle(new TouchStartedEvent(touchScreen, 2, new(20, 20)));
+        map.Handle(new TouchMovedEvent(touchScreen, 2, new(120, 20)));
+        map.Handle(new TouchEndedEvent(touchScreen, 2, new(20, 20)));
+        Assert.Equal(1, taps);
+    }
+
+    [Fact]
     public void SceneUnload_releasesModalScope_withoutChangingExplicitSuppression()
     {
         var hub = new EventHub();
@@ -641,6 +662,13 @@ public class GraphicalUserInterfaceTests
 
         /// <inheritdoc />
         public bool IsButtonDown(MouseButtonEnum button) => false;
+    }
+
+    private sealed class TestTouchScreen(ulong id) : ITouchScreenInputDevice
+    {
+        public InputDeviceId Id { get; } = id;
+        public string Name => "Test touch screen";
+        public bool IsConnected => true;
     }
 
     /// <summary>

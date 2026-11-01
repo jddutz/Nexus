@@ -95,6 +95,8 @@ public sealed class InputMap
     public void CancelPointerCapture()
     {
         _capturedMousePointerId = null;
+        _capturedTouchPointer = null;
+        _touchCanceled = false;
         _holdElapsed = 0;
     }
 
