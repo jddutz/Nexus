@@ -1,6 +1,7 @@
 namespace Nexus.Input;
 
 using Nexus.Input.Events;
+using Nexus.Input.Devices;
 
 /// <summary>
 /// Translates global input events into callbacks configured for a scene or GUI element.
@@ -10,10 +11,13 @@ public sealed class InputMap
     private IEventHub? _eventHub;
     private readonly Func<Vector2D<float>, bool>? _hitTest;
     private InputDeviceId? _capturedMousePointerId;
+    private (ITouchScreenInputDevice TouchScreen, int TouchId)? _capturedTouchPointer;
+    private bool _touchCanceled;
     private readonly Dictionary<KeyEnum, List<Action>> _keyPressedBindings = [];
     private readonly Dictionary<KeyEnum, List<Action>> _keyReleasedBindings = [];
     private readonly Dictionary<MouseButtonEnum, List<Action>> _mousePressedBindings = [];
     private readonly Dictionary<MouseButtonEnum, List<Action>> _mouseReleasedBindings = [];
+    private readonly List<Action> _touchEndedBindings = [];
     private readonly List<Action> _mouseWheelBindings = [];
     private readonly Dictionary<string, List<Action>> _controllerSemanticPressedBindings = [];
     private readonly Dictionary<string, List<Action>> _controllerSemanticReleasedBindings = [];
@@ -39,6 +43,22 @@ public sealed class InputMap
     {
         _eventHub = eventHub;
         _hitTest = hitTest;
+    }
+
+    /// <summary>Configures effects for a touch point ending inside the target.</summary>
+    public sealed class TouchEndedBinding
+    {
+        private readonly InputMap _inputMap;
+
+        internal TouchEndedBinding(InputMap inputMap) => _inputMap = inputMap;
+
+        /// <summary>Adds a callback to invoke when a touch ends inside the target.</summary>
+        public InputMap Invoke(Action callback)
+        {
+            ArgumentNullException.ThrowIfNull(callback);
+            _inputMap._touchEndedBindings.Add(callback);
+            return _inputMap;
+        }
     }
 
     /// <summary>Registers this map with an event hub and associates it with that hub.</summary>
@@ -175,6 +195,9 @@ public sealed class InputMap
     /// <returns>A builder for adding effects to the button release.</returns>
     public MouseButtonBinding OnMouseButtonReleased(MouseButtonEnum button) =>
         new(this, _mouseReleasedBindings, button);
+
+    /// <summary>Selects touch completion for binding configuration.</summary>
+    public TouchEndedBinding OnTouchEnded() => new(this);
 
     /// <summary>
     /// Selects mouse-wheel movement for binding configuration.
@@ -339,6 +362,51 @@ public sealed class InputMap
             && ContainsMousePosition(message.Position)
         )
             Dispatch(_mouseReleasedBindings, message.Button);
+    }
+
+    /// <summary>Captures a touch point when it starts inside this map's target.</summary>
+    public void Handle(TouchStartedEvent message)
+    {
+        if (
+            IsSuppressed
+            || _capturedTouchPointer.HasValue
+            || _touchEndedBindings.Count == 0
+            || !ContainsMousePosition(message.Position)
+        )
+            return;
+
+        _capturedTouchPointer = (message.TouchScreen, message.TouchId);
+        _touchCanceled = false;
+    }
+
+    /// <summary>Cancels a captured touch when it leaves this map's target.</summary>
+    public void Handle(TouchMovedEvent message)
+    {
+        if (
+            _capturedTouchPointer is not { } captured
+            || !ReferenceEquals(captured.TouchScreen, message.TouchScreen)
+            || captured.TouchId != message.TouchId
+        )
+            return;
+
+        if (!ContainsMousePosition(message.Position))
+            _touchCanceled = true;
+    }
+
+    /// <summary>Dispatches touch-completion bindings for a captured point released on this target.</summary>
+    public void Handle(TouchEndedEvent message)
+    {
+        if (
+            _capturedTouchPointer is not { } captured
+            || !ReferenceEquals(captured.TouchScreen, message.TouchScreen)
+            || captured.TouchId != message.TouchId
+        )
+            return;
+
+        _capturedTouchPointer = null;
+        if (!IsSuppressed && !_touchCanceled && ContainsMousePosition(message.Position))
+            foreach (var callback in _touchEndedBindings.ToArray())
+                callback();
     }
 
     /// <summary>
