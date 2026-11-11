@@ -125,6 +125,17 @@ public sealed class TileMapData
         _cellBounds = cellBounds;
     }
 
+    /// <summary>Creates an empty map with the specified size from (0,0) to (width,height).</summary>
+    /// <param name="width">The size of the map in the X direction, must be positive.</param>
+    /// <param name="height">The size of the map in the Y direction, must be positive.</param>
+    /// <exception cref="ArgumentOutOfRangeException">The bounds have a negative size.</exception>
+    public TileMapData(int width, int height)
+    {
+        var bounds = new Rectangle<int>(0, 0, width, height);
+        ValidateBounds(bounds);
+        _cellBounds = bounds;
+    }
+
     /// <summary>Inserts or replaces the contents of an in-bounds cell.</summary>
     /// <param name="column">The cell's horizontal coordinate.</param>
     /// <param name="row">The cell's vertical coordinate.</param>
