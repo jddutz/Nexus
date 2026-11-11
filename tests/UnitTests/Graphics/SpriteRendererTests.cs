@@ -83,7 +83,13 @@ public sealed class SpriteRendererTests
         first.Color = new Color(1f, 0f, 0f, 1f);
         second.Size = new(3, 2);
         Assert.Equal(2UL, drawable.InstanceCount);
-        Assert.Equal(second.TexCoord, MemoryMarshal.Read<Vector4D<float>>(Read(renderer).AsSpan(160)));
+        var packedTexCoord = MemoryMarshal.Read<Vector4D<float>>(Read(renderer).AsSpan(160));
+        Assert.Equal(new Vector4D<float>(
+            second.TexCoord.Origin.X,
+            second.TexCoord.Origin.Y,
+            second.TexCoord.Size.X,
+            second.TexCoord.Size.Y
+        ), packedTexCoord);
         Assert.True(renderer.Remove(firstId));
         Assert.Same(second, renderer.Instances[secondId]);
         Assert.Same(drawable, Assert.Single(renderer.Drawables));
@@ -156,13 +162,13 @@ public sealed class SpriteRendererTests
         var once = new SpriteAnimationPlayer(second, new SpriteAnimation(frames, false));
         var drawable = Assert.Single(renderer.Drawables);
         looping.Advance(TimeSpan.FromMilliseconds(100));
-        Assert.Equal(frames[1].TexCoord, first.TexCoord);
-        Assert.Equal(frames[0].TexCoord, second.TexCoord);
+        Assert.Equal(new Rectangle<float>(frames[1].TexCoord.X, frames[1].TexCoord.Y, frames[1].TexCoord.Z, frames[1].TexCoord.W), first.TexCoord);
+        Assert.Equal(new Rectangle<float>(frames[0].TexCoord.X, frames[0].TexCoord.Y, frames[0].TexCoord.Z, frames[0].TexCoord.W), second.TexCoord);
         looping.Advance(TimeSpan.FromMilliseconds(800));
-        Assert.Equal(frames[0].TexCoord, first.TexCoord);
+        Assert.Equal(new Rectangle<float>(frames[0].TexCoord.X, frames[0].TexCoord.Y, frames[0].TexCoord.Z, frames[0].TexCoord.W), first.TexCoord);
         once.Advance(TimeSpan.FromSeconds(10));
         Assert.True(once.IsCompleted);
-        Assert.Equal(frames[1].TexCoord, second.TexCoord);
+        Assert.Equal(new Rectangle<float>(frames[1].TexCoord.X, frames[1].TexCoord.Y, frames[1].TexCoord.Z, frames[1].TexCoord.W), second.TexCoord);
         Assert.Same(drawable, Assert.Single(renderer.Drawables));
         once.Restart();
         Assert.False(once.IsCompleted);

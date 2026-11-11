@@ -12,7 +12,7 @@ public partial class SpriteInstance : IObservable
     [Observable(PublicSetter = true)]
     private Vector2D<float> _anchor;
     [Observable(PublicSetter = true)]
-    private Vector4D<float> _texCoord = new(0f, 0f, 1f, 1f);
+    private Rectangle<float> _texCoord = new(0f, 0f, 1f, 1f);
     [Observable(PublicSetter = true)]
     private Color _color = Colors.White;
     [Observable(PublicSetter = true)]

@@ -35,7 +35,7 @@ public sealed class SpriteAnimationPlayer
     {
         ArgumentNullException.ThrowIfNull(instance);
         ArgumentNullException.ThrowIfNull(animation);
-        _player = new(value => instance.TexCoord = value);
+        _player = new(value => instance.TexCoord = new(value.X, value.Y, value.Z, value.W));
         _animation = new(animation.Frames.Select(frame => new AnimationFrame<Vector4D<float>>(frame.TexCoord, frame.Duration)), animation.Loop);
         Restart();
     }

@@ -90,10 +90,16 @@ public partial class SpriteDrawable : IDrawable
                 * instance.Transform * _worldTransform;
             transform.M43 = DrawOrder;
             var texCoord = instance.TexCoord;
+            var packedTexCoord = new Vector4D<float>(
+                texCoord.Origin.X,
+                texCoord.Origin.Y,
+                texCoord.Size.X,
+                texCoord.Size.Y
+            );
             var color = instance.Color;
             var record = target.Slice(checked((int)index * InstanceDataSize), InstanceDataSize);
             MemoryMarshal.Write(record, in transform);
-            MemoryMarshal.Write(record[64..], in texCoord);
+            MemoryMarshal.Write(record[64..], in packedTexCoord);
             MemoryMarshal.Write(record[80..], in color);
         }
     }
