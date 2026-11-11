@@ -4,7 +4,7 @@ namespace Nexus.Graphics;
 /// Represents a color with red, green, blue, and alpha components in the 0.0 to 1.0 range.
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
-public readonly struct Color(float red, float green, float blue, float alpha = 1.0f)
+public readonly struct Color(float red, float green, float blue, float alpha = 1.0f) : IEquatable<Color>
 {
     public readonly float R = red;
     public readonly float G = green;
@@ -13,6 +13,36 @@ public readonly struct Color(float red, float green, float blue, float alpha = 1
 
     public Color(byte red, byte green, byte blue, byte alpha = byte.MaxValue)
         : this(red / 255f, green / 255f, blue / 255f, alpha / 255f) { }
+
+    /// <summary>
+    /// Determines whether this color has the same channel values as another color.
+    /// </summary>
+    /// <param name="other">The color to compare with this color.</param>
+    /// <returns><see langword="true"/> if all channel values are equal; otherwise, <see langword="false"/>.</returns>
+    public bool Equals(Color other) =>
+        R.Equals(other.R) && G.Equals(other.G) && B.Equals(other.B) && A.Equals(other.A);
+
+    /// <inheritdoc/>
+    public override bool Equals(object? obj) => obj is Color other && Equals(other);
+
+    /// <inheritdoc/>
+    public override int GetHashCode() => HashCode.Combine(R, G, B, A);
+
+    /// <summary>
+    /// Determines whether two colors have the same channel values.
+    /// </summary>
+    /// <param name="left">The first color to compare.</param>
+    /// <param name="right">The second color to compare.</param>
+    /// <returns><see langword="true"/> if all channel values are equal; otherwise, <see langword="false"/>.</returns>
+    public static bool operator ==(Color left, Color right) => left.Equals(right);
+
+    /// <summary>
+    /// Determines whether two colors have different channel values.
+    /// </summary>
+    /// <param name="left">The first color to compare.</param>
+    /// <param name="right">The second color to compare.</param>
+    /// <returns><see langword="true"/> if any channel values differ; otherwise, <see langword="false"/>.</returns>
+    public static bool operator !=(Color left, Color right) => !left.Equals(right);
 
     public Color WithTransparency(float a) => new(R, G, B, a);
 
