@@ -6,7 +6,7 @@ using System.Collections.ObjectModel;
 public readonly record struct TileMapCell
 {
     /// <summary>Gets the normalized texture region sampled for this cell.</summary>
-    public Vector4D<float> TextureRegion { get; }
+    public Rectangle<float> TextureRegion { get; }
 
     /// <summary>Gets the tint applied to this cell.</summary>
     public Color Color { get; }
@@ -17,8 +17,9 @@ public readonly record struct TileMapCell
     /// <summary>Creates a cell with a normalized texture region and tint.</summary>
     /// <param name="textureRegion">The normalized atlas region in (x, y, width, height) form.</param>
     /// <param name="color">The normalized color tint.</param>
+    /// <param name="rotation">The clockwise quarter turns applied to the cell artwork.</param>
     /// <exception cref="ArgumentOutOfRangeException">A region or color channel is invalid.</exception>
-    public TileMapCell(Vector4D<float> textureRegion, Color color, int rotation = 0)
+    public TileMapCell(Rectangle<float> textureRegion, Color color, int rotation = 0)
     {
         TextureRegion = textureRegion;
         Color = color;
@@ -31,16 +32,16 @@ public readonly record struct TileMapCell
     internal void EnsureValid()
     {
         if (
-            !float.IsFinite(TextureRegion.X)
-            || !float.IsFinite(TextureRegion.Y)
-            || !float.IsFinite(TextureRegion.Z)
-            || !float.IsFinite(TextureRegion.W)
-            || TextureRegion.X < 0f
-            || TextureRegion.Y < 0f
-            || TextureRegion.Z <= 0f
-            || TextureRegion.W <= 0f
-            || TextureRegion.X + TextureRegion.Z > 1f
-            || TextureRegion.Y + TextureRegion.W > 1f
+            !float.IsFinite(TextureRegion.Origin.X)
+            || !float.IsFinite(TextureRegion.Origin.Y)
+            || !float.IsFinite(TextureRegion.Size.X)
+            || !float.IsFinite(TextureRegion.Size.Y)
+            || TextureRegion.Origin.X < 0f
+            || TextureRegion.Origin.Y < 0f
+            || TextureRegion.Size.X <= 0f
+            || TextureRegion.Size.Y <= 0f
+            || TextureRegion.Origin.X + TextureRegion.Size.X > 1f
+            || TextureRegion.Origin.Y + TextureRegion.Size.Y > 1f
         )
             throw new ArgumentOutOfRangeException(nameof(TextureRegion));
 

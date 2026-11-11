@@ -356,7 +356,7 @@ public sealed class SnakeGameScene : Scene
             _boardData.SetCell(
                 tile.X,
                 tile.Y,
-                new TileMapCell(new Vector4D<float>(0f, 0f, 1f, 1f), color)
+                new TileMapCell(new Rectangle<float>(0f, 0f, 1f, 1f), color)
             );
         }
 

@@ -108,7 +108,12 @@ public partial class TileMapDrawable : IDrawable
         {
             var instance = instances[checked((int)(start + offset))];
             var transform = instance.Transform;
-            var textureRegion = instance.TextureRegion;
+            var textureRegion = new Vector4D<float>(
+                instance.TextureRegion.Origin.X,
+                instance.TextureRegion.Origin.Y,
+                instance.TextureRegion.Size.X,
+                instance.TextureRegion.Size.Y
+            );
             var color = instance.Color;
             transform.M43 = DrawOrder;
             var record = target.Slice(checked((int)(offset * InstanceDataSize)), InstanceDataSize);
@@ -167,6 +172,6 @@ public partial class TileMapDrawable : IDrawable
 /// <param name="Color">The tint applied to the tile.</param>
 public readonly record struct TileMapInstance(
     Matrix4X4<float> Transform,
-    Vector4D<float> TextureRegion,
+    Rectangle<float> TextureRegion,
     Color Color
 );

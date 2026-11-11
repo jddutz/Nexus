@@ -84,7 +84,7 @@ public sealed class TileMapElementTests
         var map = new TileMapData(bounds);
         if (bounds.Size.X > 0 && bounds.Size.Y > 0)
             map.SetCell(bounds.Origin.X, bounds.Origin.Y, new TileMapCell(
-                new Vector4D<float>(0f, 0f, 1f, 1f),
+                new Rectangle<float>(0f, 0f, 1f, 1f),
                 Colors.White
             ));
 

@@ -23,7 +23,7 @@ public sealed class TileMapRendererTests
     public void Rotated_cells_preserve_bounds(int rotation)
     {
         var map = new TileMapData(new Rectangle<int>(2, 3, 1, 1));
-        var cell = new TileMapCell(new Vector4D<float>(0f, 0f, 1f, 1f), Colors.White, rotation);
+        var cell = new TileMapCell(new Rectangle<float>(0f, 0f, 1f, 1f), Colors.White, rotation);
         Assert.Equal((rotation % 4 + 4) % 4, cell.Rotation);
         map.SetCell(2, 3, cell);
         var renderer = new TileMapRenderer { Map = map, CellSize = new Vector2D<float>(8f, 6f) };
@@ -47,7 +47,7 @@ public sealed class TileMapRendererTests
     }
 
     private static readonly TileMapCell WhiteCell = new(
-        new Vector4D<float>(0f, 0f, 1f, 1f),
+        new Rectangle<float>(0f, 0f, 1f, 1f),
         Colors.White
     );
 
@@ -63,7 +63,7 @@ public sealed class TileMapRendererTests
         Assert.Equal(1, map.Revision);
         map.SetCell(-2, 3, WhiteCell);
         Assert.Equal(1, map.Revision);
-        map.SetCell(-2, 3, new TileMapCell(new Vector4D<float>(0f, 0f, 1f, 1f), Colors.Red));
+        map.SetCell(-2, 3, new TileMapCell(new Rectangle<float>(0f, 0f, 1f, 1f), Colors.Red));
         Assert.Equal(2, map.Revision);
         Assert.False(map.RemoveCell(1, 4));
         Assert.Equal(2, map.Revision);
@@ -182,7 +182,7 @@ public sealed class TileMapRendererTests
     [Fact]
     public void Drawable_serializes_cell_texture_region_and_tint()
     {
-        var region = new Vector4D<float>(0.25f, 0.5f, 0.125f, 0.25f);
+        var region = new Rectangle<float>(0.25f, 0.5f, 0.125f, 0.25f);
         var cell = new TileMapCell(region, Colors.Red);
         var map = new TileMapData(new Rectangle<int>(0, 0, 1, 1));
         map.SetCell(0, 0, cell);
@@ -199,10 +199,34 @@ public sealed class TileMapRendererTests
         );
 
         Assert.Equal(
-            region,
+            new Vector4D<float>(0.25f, 0.5f, 0.125f, 0.25f),
             MemoryMarshal.Read<Vector4D<float>>(new ReadOnlySpan<byte>(record, 64, 16))
         );
         Assert.Equal(Colors.Red, MemoryMarshal.Read<Color>(new ReadOnlySpan<byte>(record, 80, 16)));
+    }
+
+    /// <summary>Verifies rectangle origins and sizes retain normalized-region validation.</summary>
+    /// <param name="x">The horizontal origin.</param>
+    /// <param name="y">The vertical origin.</param>
+    /// <param name="width">The region width.</param>
+    /// <param name="height">The region height.</param>
+    [Theory]
+    [InlineData(-0.1f, 0f, 0.5f, 0.5f)]
+    [InlineData(0f, -0.1f, 0.5f, 0.5f)]
+    [InlineData(0f, 0f, 0f, 0.5f)]
+    [InlineData(0f, 0f, 0.5f, -0.1f)]
+    [InlineData(0.75f, 0f, 0.5f, 0.5f)]
+    [InlineData(0f, 0.75f, 0.5f, 0.5f)]
+    [InlineData(float.NaN, 0f, 0.5f, 0.5f)]
+    [InlineData(0f, float.PositiveInfinity, 0.5f, 0.5f)]
+    [InlineData(0f, 0f, float.PositiveInfinity, 0.5f)]
+    [InlineData(0f, 0f, 0.5f, float.NaN)]
+    public void Cell_rejects_invalid_texture_rectangles(float x, float y, float width, float height)
+    {
+        var exception = Assert.Throws<ArgumentOutOfRangeException>(() =>
+            new TileMapCell(new Rectangle<float>(x, y, width, height), Colors.White)
+        );
+        Assert.Equal(nameof(TileMapCell.TextureRegion), exception.ParamName);
     }
 
     /// <summary>Verifies reactivation synchronizes changes made while inactive.</summary>
