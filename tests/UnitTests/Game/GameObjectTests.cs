@@ -127,6 +127,107 @@ public class GameObjectTests
         Assert.Same(first, Assert.Single(parent.Children));
     }
 
+    /// <summary>Verifies descendant lookup is type-indexed and tracks hierarchy changes.</summary>
+    [Fact]
+    public void Find_tracksDescendantTypesAndHierarchyChanges()
+    {
+        var root = new GameObject();
+        var child = new FindableGameObject();
+        var leaf = new GameObject();
+        root.AddChild(child);
+        child.AddChild(leaf);
+
+        Assert.Equal(2, root.Find<GameObject>().Count());
+        Assert.Equal(2, root.Find<ISceneNode>().Count());
+        Assert.Equal(2, root.Find<IGameObject>().Count());
+        Assert.Same(child, Assert.Single(root.Find<FindableGameObject>()));
+        Assert.Same(child, Assert.Single(root.Find<FindableBaseGameObject>()));
+        Assert.Same(leaf, Assert.Single(root.Find<GameObject>(node => ReferenceEquals(node, leaf))));
+        Assert.Empty(root.Find<Scene>());
+
+        var laterChild = new FindableGameObject();
+        child.AddChild(laterChild);
+        Assert.Equal(2, root.Find<FindableGameObject>().Count());
+        Assert.Equal(3, root.Find<ISceneNode>().Count());
+
+        Assert.True(child.RemoveChild(leaf));
+        Assert.DoesNotContain(leaf, root.Find<GameObject>());
+        Assert.Equal(2, root.Find<GameObject>().Count());
+    }
+
+    /// <summary>Verifies game-object and scene lookup is deferred and stops at the first result.</summary>
+    [Fact]
+    public void Find_enumeratesLazilyAndStopsAfterFirstMatch()
+    {
+        var root = new GameObject();
+        root.AddChild(new GameObject());
+        root.AddChild(new GameObject());
+        var scene = new Scene(SceneRegistryTestHelper.ServiceProvider);
+        scene.Children.Add(root);
+
+        var gameObjectPredicateCalls = 0;
+        var gameObjectResults = root.Find<GameObject>(_ =>
+        {
+            gameObjectPredicateCalls++;
+            return true;
+        });
+
+        Assert.Equal(0, gameObjectPredicateCalls);
+        Assert.NotNull(gameObjectResults.First());
+        Assert.Equal(1, gameObjectPredicateCalls);
+
+        var scenePredicateCalls = 0;
+        var sceneResults = scene.Find<GameObject>(_ =>
+        {
+            scenePredicateCalls++;
+            return true;
+        });
+
+        Assert.Equal(0, scenePredicateCalls);
+        Assert.NotNull(sceneResults.First());
+        Assert.Equal(1, scenePredicateCalls);
+    }
+
+    /// <summary>
+    /// Verifies reparenting a subtree updates both parent indexes and the containing scene index.
+    /// </summary>
+    [Fact]
+    public void ReparentingSubtree_updatesParentAndSceneIndexes()
+    {
+        var scene = new Scene(SceneRegistryTestHelper.ServiceProvider);
+        var firstParent = new GameObject();
+        var secondParent = new GameObject();
+        var movedNode = new FindableGameObject();
+        var leaf = new GameObject();
+        movedNode.AddChild(leaf);
+
+        scene.Children.Add(firstParent);
+        scene.Children.Add(secondParent);
+        firstParent.AddChild(movedNode);
+
+        Assert.Contains(movedNode, firstParent.Find<FindableGameObject>());
+        Assert.Contains(leaf, firstParent.Find<GameObject>());
+        Assert.Empty(secondParent.Find<GameObject>());
+        Assert.Equal(4, scene.Find<GameObject>().Count());
+
+        Assert.True(firstParent.RemoveChild(movedNode));
+
+        Assert.Empty(firstParent.Find<GameObject>());
+        Assert.Empty(scene.Find<FindableGameObject>());
+        Assert.Equal(2, scene.Find<GameObject>().Count());
+
+        secondParent.AddChild(movedNode);
+
+        Assert.Empty(firstParent.Find<GameObject>());
+        Assert.Contains(movedNode, secondParent.Find<FindableGameObject>());
+        Assert.Contains(leaf, secondParent.Find<GameObject>());
+        Assert.Equal(4, scene.Find<GameObject>().Count());
+        Assert.Same(movedNode, Assert.Single(scene.Find<FindableGameObject>()));
+        Assert.Same(leaf, Assert.Single(scene.Find<GameObject>(node => node.Id == leaf.Id)));
+        Assert.Same(scene, movedNode.Root);
+        Assert.Same(secondParent, movedNode.Parent);
+    }
+
     /// <summary>
     /// Verifies scene activation raises notifications without activating its unowned static camera.
     /// </summary>
@@ -185,10 +286,15 @@ public class GameObjectTests
         Assert.Same(root, scene.GetSceneNode(root.Id));
         Assert.Same(child, scene.GetSceneNode(child.Id));
         Assert.Same(leaf, scene.GetSceneNode(leaf.Id));
+        Assert.Equal(3, scene.Find<GameObject>().Count());
+        Assert.Equal(3, scene.Find<ISceneNode>().Count());
+        Assert.Same(child, Assert.Single(scene.Find<GameObject>(node => node.Id == child.Id)));
 
         var laterChild = new GameObject(13);
         child.AddChild(laterChild);
         Assert.Same(laterChild, scene.GetSceneNode(laterChild.Id));
+        Assert.Equal(4, scene.Find<GameObject>().Count());
+        Assert.Equal(4, scene.Find<ISceneNode>().Count());
 
         Assert.True(scene.Children.Remove(root));
 
@@ -196,6 +302,7 @@ public class GameObjectTests
         Assert.Null(scene.GetSceneNode(child.Id));
         Assert.Null(scene.GetSceneNode(leaf.Id));
         Assert.Null(scene.GetSceneNode(laterChild.Id));
+        Assert.Empty(scene.Find<GameObject>());
         Assert.Null(root.Root);
         Assert.Null(root.Parent);
         Assert.Same(child, leaf.Parent);
@@ -641,4 +748,10 @@ public class GameObjectTests
         /// <inheritdoc />
         public override int GetHashCode() => 0;
     }
+
+    /// <summary>A base game object subtype used to verify inherited type lookup.</summary>
+    private class FindableBaseGameObject : GameObject;
+
+    /// <summary>A game object subtype used to verify concrete and base type lookup.</summary>
+    private sealed class FindableGameObject : FindableBaseGameObject;
 }

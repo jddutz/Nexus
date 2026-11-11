@@ -9,6 +9,10 @@ public partial class GameObject : IGameObject
     private readonly ObservableCollection<ISceneNode> _children = new(
         ReferenceEqualityComparer.Instance
     );
+    private readonly Dictionary<Type, HashSet<ISceneNode>> _descendantsByType = [];
+    private readonly HashSet<ISceneNode> _indexedDescendants = new(
+        ReferenceEqualityComparer.Instance
+    );
 
     [Observable(PublicSetter = true)]
     private ISceneNode? _root;
@@ -99,6 +103,21 @@ public partial class GameObject : IGameObject
     /// </summary>
     public IObservableCollection<ISceneNode> Children => _children;
 
+    /// <inheritdoc />
+    public IEnumerable<TNode> Find<TNode>(Predicate<TNode>? predicate = null)
+        where TNode : ISceneNode
+    {
+        if (!_descendantsByType.TryGetValue(typeof(TNode), out var descendants))
+            yield break;
+
+        foreach (var descendant in descendants)
+        {
+            var typedDescendant = (TNode)descendant;
+            if (predicate is null || predicate(typedDescendant))
+                yield return typedDescendant;
+        }
+    }
+
     /// <summary>
     /// Determines whether a node can be added without creating duplicate ownership or a cycle.
     /// </summary>
@@ -147,18 +166,109 @@ public partial class GameObject : IGameObject
             child.OnSceneHierarchyChanged();
     }
 
+    /// <summary>
+    /// Indexes a new child subtree after assigning its parent.
+    /// </summary>
+    /// <param name="node">The child node that was added.</param>
     private void OnChildAdded(ISceneNode node)
     {
         ArgumentNullException.ThrowIfNull(node);
         node.Parent = this;
+        OnDescendantAdded(node);
     }
 
+    /// <summary>
+    /// Removes a child subtree from the index after detaching it.
+    /// </summary>
+    /// <param name="node">The child node that was removed.</param>
     private void OnChildRemoved(ISceneNode node)
     {
         ArgumentNullException.ThrowIfNull(node);
 
         if (ReferenceEquals(node.Parent, this) && !_children.Contains(node))
             node.Parent = null;
+
+        OnDescendantRemoved(node);
+    }
+
+    /// <summary>
+    /// Indexes a new descendant and subscribes to its child changes.
+    /// </summary>
+    /// <param name="node">The descendant node that was added.</param>
+    private void OnDescendantAdded(ISceneNode node)
+    {
+        if (!_indexedDescendants.Add(node))
+            return;
+
+        var types = new HashSet<Type>();
+        var nodeType = node.GetType();
+        for (
+            Type? currentType = nodeType;
+            currentType is not null && typeof(ISceneNode).IsAssignableFrom(currentType);
+            currentType = currentType.BaseType
+        )
+            types.Add(currentType);
+
+        foreach (var interfaceType in nodeType.GetInterfaces())
+        {
+            if (typeof(ISceneNode).IsAssignableFrom(interfaceType))
+                types.Add(interfaceType);
+        }
+
+        foreach (var type in types)
+        {
+            if (!_descendantsByType.TryGetValue(type, out var descendants))
+            {
+                descendants = new HashSet<ISceneNode>(ReferenceEqualityComparer.Instance);
+                _descendantsByType.Add(type, descendants);
+            }
+
+            descendants.Add(node);
+        }
+
+        node.Children.ItemAdded += OnDescendantAdded;
+        node.Children.ItemRemoved += OnDescendantRemoved;
+        foreach (var child in node.Children)
+            OnDescendantAdded(child);
+    }
+
+    /// <summary>
+    /// Removes a descendant subtree from this object's type index and child subscriptions.
+    /// </summary>
+    /// <param name="node">The descendant node that was removed.</param>
+    private void OnDescendantRemoved(ISceneNode node)
+    {
+        if (!_indexedDescendants.Remove(node))
+            return;
+
+        foreach (var child in node.Children)
+            OnDescendantRemoved(child);
+
+        node.Children.ItemAdded -= OnDescendantAdded;
+        node.Children.ItemRemoved -= OnDescendantRemoved;
+
+        var types = new HashSet<Type>();
+        var nodeType = node.GetType();
+        for (
+            Type? currentType = nodeType;
+            currentType is not null && typeof(ISceneNode).IsAssignableFrom(currentType);
+            currentType = currentType.BaseType
+        )
+            types.Add(currentType);
+
+        foreach (var interfaceType in nodeType.GetInterfaces())
+        {
+            if (typeof(ISceneNode).IsAssignableFrom(interfaceType))
+                types.Add(interfaceType);
+        }
+
+        foreach (var type in types)
+        {
+            var descendants = _descendantsByType[type];
+            descendants.Remove(node);
+            if (descendants.Count == 0)
+                _descendantsByType.Remove(type);
+        }
     }
 
     /// <summary>

@@ -26,6 +26,15 @@ public interface ISceneNode
     IObservableCollection<ISceneNode> Children { get; }
 
     /// <summary>
+    /// Looks up descendants of this node using an index.
+    /// </summary>
+    /// <typeparam name="TNode">The type of nodes to look up.</typeparam>
+    /// <param name="predicate">Predicate used to filter results.</param>
+    /// <returns>The matching descendants, or an empty sequence when no nodes match.</returns>
+    IEnumerable<TNode> Find<TNode>(Predicate<TNode>? predicate = null)
+        where TNode : ISceneNode;
+
+    /// <summary>
     /// Called when this node's parent or ancestor chain changes,
     /// including when its subtree is detached from a scene.
     /// Implementations update their hierarchy-dependent state,

@@ -13,6 +13,7 @@ public partial class Scene : IScene
         ReferenceEqualityComparer.Instance
     );
     private readonly Dictionary<NodeId, ISceneNode> _allNodes = [];
+    private readonly Dictionary<Type, HashSet<ISceneNode>> _nodesByType = [];
     private ISceneObjectFactory? _factory;
 
     /// <summary>Initializes a scene with a generated identifier.</summary>
@@ -85,6 +86,21 @@ public partial class Scene : IScene
 
     /// <inheritdoc />
     public IObservableCollection<ISceneNode> Children => _children;
+
+    /// <inheritdoc />
+    public IEnumerable<TNode> Find<TNode>(Predicate<TNode>? predicate = null)
+        where TNode : ISceneNode
+    {
+        if (!_nodesByType.TryGetValue(typeof(TNode), out var nodes))
+            yield break;
+
+        foreach (var node in nodes)
+        {
+            var typedNode = (TNode)node;
+            if (predicate is null || predicate(typedNode))
+                yield return typedNode;
+        }
+    }
 
     public ISceneObjectFactory Factory
     {
@@ -266,6 +282,31 @@ public partial class Scene : IScene
         node.Children.ItemRemoved += Unregister;
 
         _allNodes.Add(node.Id, node);
+        var types = new HashSet<Type>();
+        var nodeType = node.GetType();
+        for (
+            Type? currentType = nodeType;
+            currentType is not null && typeof(ISceneNode).IsAssignableFrom(currentType);
+            currentType = currentType.BaseType
+        )
+            types.Add(currentType);
+
+        foreach (var interfaceType in nodeType.GetInterfaces())
+        {
+            if (typeof(ISceneNode).IsAssignableFrom(interfaceType))
+                types.Add(interfaceType);
+        }
+
+        foreach (var type in types)
+        {
+            if (!_nodesByType.TryGetValue(type, out var nodes))
+            {
+                nodes = new HashSet<ISceneNode>(ReferenceEqualityComparer.Instance);
+                _nodesByType.Add(type, nodes);
+            }
+
+            nodes.Add(node);
+        }
 
         foreach (var child in node.Children)
             Register(child);
@@ -295,6 +336,29 @@ public partial class Scene : IScene
         node.Children.ItemRemoved -= Unregister;
 
         _allNodes.Remove(node.Id);
+        var types = new HashSet<Type>();
+        var nodeType = node.GetType();
+        for (
+            Type? currentType = nodeType;
+            currentType is not null && typeof(ISceneNode).IsAssignableFrom(currentType);
+            currentType = currentType.BaseType
+        )
+            types.Add(currentType);
+
+        foreach (var interfaceType in nodeType.GetInterfaces())
+        {
+            if (typeof(ISceneNode).IsAssignableFrom(interfaceType))
+                types.Add(interfaceType);
+        }
+
+        foreach (var type in types)
+        {
+            var nodes = _nodesByType[type];
+            nodes.Remove(node);
+            if (nodes.Count == 0)
+                _nodesByType.Remove(type);
+        }
+
         node.OnSceneHierarchyChanged();
     }
 }

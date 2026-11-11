@@ -248,6 +248,7 @@ An element supplies the arranged visual placement to its graphics component. A d
 - The scheduler and default lifecycle delegation must compose without updating a node twice. The implementation must make traversal ownership explicit.
 - Duplicate children are disallowed. Transfer between scenes requires detachment before attaching to the destination.
 - Hierarchy changes propagate down the affected subtree through `OnSceneHierarchyChanged`. Root changes alone do not describe every ancestry change.
+- Each `GameObject` and `Scene` maintains its own descendant type index, including inherited node types. Hierarchy changes update the affected indexes.
 
 ### Transforms and layout
 
