@@ -3,7 +3,6 @@ namespace Nexus.GUI.Elements;
 using Nexus.Graphics;
 using Nexus.Graphics.Cameras;
 using Nexus.Graphics.Components;
-using Nexus.GUI.Events;
 using Nexus.Input;
 using Nexus.Input.Devices;
 using Nexus.Input.Events;
@@ -89,7 +88,10 @@ public partial class View : Element
         if (!IsEffectivelyVisible || Camera is null || viewport.Size.X <= 0 || viewport.Size.Y <= 0)
             return false;
 
-        var clip = Vector4D.Transform(new Vector4D<float>(worldPoint, 1f), Camera.ViewProjectionMatrix);
+        var clip = Vector4D.Transform(
+            new Vector4D<float>(worldPoint, 1f),
+            Camera.ViewProjectionMatrix
+        );
         if (!float.IsFinite(clip.W) || clip.W <= 0f)
             return false;
 
@@ -271,7 +273,7 @@ public partial class View : Element
         UpdateMouseRegion(message, inside, ray);
         if (inside)
         {
-            PublishInputEvent(new ViewMouseMovedEvent(this, message, ray));
+            PublishInputEvent(new ViewMouseMovedEvent(message, ray));
             return;
         }
 
@@ -280,7 +282,7 @@ public partial class View : Element
             && _mouseInteractions.Keys.Any(key => ReferenceEquals(key.Mouse, message.Mouse))
             && TryProjectWorldRay(message.Position, out ray)
         )
-            PublishInputEvent(new ViewMouseMovedEvent(this, message, ray));
+            PublishInputEvent(new ViewMouseMovedEvent(message, ray));
     }
 
     /// <summary>Updates one mouse's region membership without changing its captured interactions.</summary>
@@ -289,13 +291,15 @@ public partial class View : Element
     /// <param name="ray">The projected ray when the pointer is inside.</param>
     private void UpdateMouseRegion(MouseMovedEvent message, bool inside, Ray3D<float> ray)
     {
-        var previousIndex = _hoveringMice.FindIndex(item => ReferenceEquals(item.Mouse, message.Mouse));
+        var previousIndex = _hoveringMice.FindIndex(item =>
+            ReferenceEquals(item.Mouse, message.Mouse)
+        );
         if (inside)
         {
             if (previousIndex < 0)
             {
                 _hoveringMice.Add(message);
-                PublishInputEvent(new ViewMouseEnteredEvent(this, message, ray));
+                PublishInputEvent(new ViewMouseEnteredEvent(message, ray));
             }
             else
             {
@@ -308,7 +312,7 @@ public partial class View : Element
         if (previousIndex >= 0)
         {
             _hoveringMice.RemoveAt(previousIndex);
-            PublishInputEvent(new ViewMouseExitedEvent(this, message));
+            PublishInputEvent(new ViewMouseExitedEvent(message));
         }
     }
 
@@ -321,7 +325,7 @@ public partial class View : Element
         {
             UpdateMouseRegion(new MouseMovedEvent(message.Mouse, message.Position), true, ray);
             _mouseInteractions[(message.Mouse, message.Button)] = (ray, message.Position);
-            PublishInputEvent(new ViewMouseButtonPressedEvent(this, message, ray));
+            PublishInputEvent(new ViewMouseButtonPressedEvent(message, ray));
         }
     }
 
@@ -338,12 +342,12 @@ public partial class View : Element
             var releaseRay = TryProjectWorldRay(message.Position, out var projectedRay)
                 ? projectedRay
                 : interaction.StartRay;
-            PublishInputEvent(new ViewMouseButtonReleasedEvent(this, message, releaseRay));
+            PublishInputEvent(new ViewMouseButtonReleasedEvent(message, releaseRay));
             return;
         }
 
         if (TryCreateWorldRay(message.Position, out var ray))
-            PublishInputEvent(new ViewMouseButtonReleasedEvent(this, message, ray));
+            PublishInputEvent(new ViewMouseButtonReleasedEvent(message, ray));
     }
 
     /// <summary>Publishes a world-ray event for mouse-wheel movement inside this view.</summary>
@@ -352,7 +356,7 @@ public partial class View : Element
     {
         UpdateMouseInteractionPositions(message.Mouse, message.Position);
         if (TryCreateWorldRay(message.Position, out var ray))
-            PublishInputEvent(new ViewMouseWheelEvent(this, message, ray));
+            PublishInputEvent(new ViewMouseWheelEvent(message, ray));
     }
 
     /// <summary>Cancels all accepted interactions for the source mouse regardless of its position.</summary>
@@ -363,7 +367,7 @@ public partial class View : Element
             UpdateMouseRegion(new MouseMovedEvent(message.Mouse, message.Position), false, default);
 
         if (!CancelMouseInteractions(message) && TryCreateWorldRay(message.Position, out var ray))
-            PublishInputEvent(new ViewMouseCanceledEvent(this, message, ray));
+            PublishInputEvent(new ViewMouseCanceledEvent(message, ray));
     }
 
     /// <summary>Exits and cancels this view's interactions for a disconnected mouse.</summary>
@@ -382,8 +386,8 @@ public partial class View : Element
         if (_mouseInteractions.Count == 0)
             return;
 
-        var keys = _mouseInteractions.Keys
-            .Where(key => ReferenceEquals(key.Mouse, mouse))
+        var keys = _mouseInteractions
+            .Keys.Where(key => ReferenceEquals(key.Mouse, mouse))
             .ToArray();
         foreach (var key in keys)
             _mouseInteractions[key] = (_mouseInteractions[key].StartRay, position);
@@ -405,7 +409,7 @@ public partial class View : Element
             var cancellationRay = TryProjectWorldRay(message.Position, out var projectedRay)
                 ? projectedRay
                 : interactions[^1].Value.StartRay;
-            PublishInputEvent(new ViewMouseCanceledEvent(this, message, cancellationRay));
+            PublishInputEvent(new ViewMouseCanceledEvent(message, cancellationRay));
             return true;
         }
 
@@ -416,22 +420,23 @@ public partial class View : Element
     private void CancelAllInteractions()
     {
         foreach (var interaction in _mouseInteractions.ToArray())
-            CancelMouseInteractions(new MouseCanceledEvent(
-                interaction.Key.Mouse, interaction.Value.Position
-            ));
+            CancelMouseInteractions(
+                new MouseCanceledEvent(interaction.Key.Mouse, interaction.Value.Position)
+            );
 
         foreach (var interaction in _touchInteractions)
         {
             var ray = TryProjectWorldRay(interaction.Value.Position, out var projectedRay)
                 ? projectedRay
                 : interaction.Value.StartRay;
-            PublishInputEvent(new ViewTouchCanceledEvent(
-                this,
-                interaction.Key.TouchScreen,
-                interaction.Key.TouchId,
-                interaction.Value.Position,
-                ray
-            ));
+            PublishInputEvent(
+                new ViewTouchCanceledEvent(
+                    interaction.Key.TouchScreen,
+                    interaction.Key.TouchId,
+                    interaction.Value.Position,
+                    ray
+                )
+            );
         }
         _touchInteractions.Clear();
     }
@@ -444,7 +449,7 @@ public partial class View : Element
         {
             _touchInteractions[(message.TouchScreen, message.TouchId)] = (ray, message.Position);
             _insideTouches[(message.TouchScreen, message.TouchId)] = message.Position;
-            PublishInputEvent(new ViewTouchStartedEvent(this, message, ray));
+            PublishInputEvent(new ViewTouchStartedEvent(message, ray));
         }
     }
 
@@ -461,15 +466,21 @@ public partial class View : Element
         if (inside)
         {
             _insideTouches[key] = message.Position;
-            PublishInputEvent(new ViewTouchMovedEvent(this, message, ray));
+            PublishInputEvent(new ViewTouchMovedEvent(message, ray));
             return;
         }
 
         if (_insideTouches.Remove(key))
-            PublishInputEvent(new ViewTouchExitedEvent(this, message.TouchScreen, message.TouchId, message.Position));
+            PublishInputEvent(
+                new ViewTouchExitedEvent(
+                    message.TouchScreen,
+                    message.TouchId,
+                    message.Position
+                )
+            );
 
         if (IsInputActive && TryProjectWorldRay(message.Position, out ray))
-            PublishInputEvent(new ViewTouchMovedEvent(this, message, ray));
+            PublishInputEvent(new ViewTouchMovedEvent(message, ray));
     }
 
     /// <summary>Terminates a touch interaction this view accepted, regardless of its current position.</summary>
@@ -482,7 +493,7 @@ public partial class View : Element
             var endRay = TryProjectWorldRay(message.Position, out var projectedRay)
                 ? projectedRay
                 : interaction.StartRay;
-            PublishInputEvent(new ViewTouchEndedEvent(this, message, endRay));
+            PublishInputEvent(new ViewTouchEndedEvent(message, endRay));
         }
     }
 
@@ -500,7 +511,7 @@ public partial class View : Element
                 continue;
 
             _hoveringMice.RemoveAt(index);
-            PublishInputEvent(new ViewMouseExitedEvent(this, message));
+            PublishInputEvent(new ViewMouseExitedEvent(message));
         }
 
         foreach (var touch in _insideTouches.ToArray())
@@ -509,9 +520,13 @@ public partial class View : Element
                 continue;
 
             _insideTouches.Remove(touch.Key);
-            PublishInputEvent(new ViewTouchExitedEvent(
-                this, touch.Key.TouchScreen, touch.Key.TouchId, touch.Value
-            ));
+            PublishInputEvent(
+                new ViewTouchExitedEvent(
+                    touch.Key.TouchScreen,
+                    touch.Key.TouchId,
+                    touch.Value
+                )
+            );
         }
     }
 
@@ -519,13 +534,17 @@ public partial class View : Element
     private void ExitAllPointers()
     {
         foreach (var message in _hoveringMice)
-            PublishInputEvent(new ViewMouseExitedEvent(this, message));
+            PublishInputEvent(new ViewMouseExitedEvent(message));
         _hoveringMice.Clear();
 
         foreach (var touch in _insideTouches)
-            PublishInputEvent(new ViewTouchExitedEvent(
-                this, touch.Key.TouchScreen, touch.Key.TouchId, touch.Value
-            ));
+            PublishInputEvent(
+                new ViewTouchExitedEvent(
+                    touch.Key.TouchScreen,
+                    touch.Key.TouchId,
+                    touch.Value
+                )
+            );
         _insideTouches.Clear();
     }
 
@@ -570,7 +589,8 @@ public partial class View : Element
         )
             return false;
 
-        var localPosition = screenPosition - new Vector2D<float>(viewport.Origin.X, viewport.Origin.Y);
+        var localPosition =
+            screenPosition - new Vector2D<float>(viewport.Origin.X, viewport.Origin.Y);
         var worldRay = Camera.ScreenToWorldRay(localPosition, viewport.Size.X, viewport.Size.Y);
         if (
             !IsFinite(worldRay.Origin)

@@ -142,7 +142,7 @@ dotnet run
 Run `dotnet test` from the repository root to execute the solution's tests.
 Pointer propagation from GUI `View` elements is opt-in through `PropagateInputEvents`
 (default `false`). Views subscribe directly to `IInputSystem` mouse and touch notifications
-and queue ray-bearing `Nexus.GUI.Events` messages for the next EventHub drain.
+and queue ray-bearing `Nexus.Input.Events` messages for the next EventHub drain.
 GUI hit-testing blocks view propagation beneath visible panels and controls
 (including disabled controls), higher rendered views, and modal/input-scope restrictions.
 Non-rendering layout containers do not block view input.

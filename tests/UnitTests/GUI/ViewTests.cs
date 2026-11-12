@@ -5,7 +5,6 @@ using Nexus.Graphics;
 using Nexus.Graphics.Cameras;
 using Nexus.Graphics.Textures;
 using Nexus.GUI;
-using Nexus.GUI.Events;
 using Nexus.GUI.Elements;
 using Nexus.Input;
 using Nexus.Input.Devices;
@@ -148,7 +147,6 @@ public sealed class ViewTests
         eventHub.Drain();
 
         var mouseEvent = Assert.Single(collector.MouseMoved);
-        Assert.Same(view, mouseEvent.View);
         Assert.Equal(Vector3D<float>.Zero, mouseEvent.WorldRay.Origin);
         Assert.Equal(-Vector3D<float>.UnitZ, mouseEvent.WorldRay.Direction);
 
@@ -409,9 +407,11 @@ public sealed class ViewTests
             PropagateInputEvents = true,
             SizingMode = ViewSizingMode.Stretch,
         };
+        var secondCamera = new OrthoCamera();
+        secondCamera.Translate(new Vector3D<float>(10f, 0f, 0f));
         var second = new View
         {
-            Camera = new OrthoCamera(),
+            Camera = secondCamera,
             PropagateInputEvents = true,
             SizingMode = ViewSizingMode.Stretch,
         };
@@ -428,13 +428,13 @@ public sealed class ViewTests
 
         inputSystem.ReportTouchStarted(started);
         eventHub.Drain();
-        Assert.Same(second, Assert.Single(collector.TouchStarted).View);
+        Assert.Equal(10f, Assert.Single(collector.TouchStarted).WorldRay.Origin.X);
 
         first.RenderOrder = 1;
         inputSystem.ReportTouchStarted(started);
         eventHub.Drain();
         Assert.Equal(2, collector.TouchStarted.Count);
-        Assert.Same(first, collector.TouchStarted[1].View);
+        Assert.Equal(0f, collector.TouchStarted[1].WorldRay.Origin.X);
 
         first.PropagateInputEvents = false;
         inputSystem.ReportTouchStarted(started);
