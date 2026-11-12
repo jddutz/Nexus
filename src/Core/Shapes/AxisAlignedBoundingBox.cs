@@ -21,24 +21,17 @@ public partial class AxisAlignedBoundingBox : Component, IShape
     public AxisAlignedBoundingBox() { }
 
     /// <summary>Creates a box with offsets in the X and Y directions and zero Z extent.</summary>
-    public AxisAlignedBoundingBox(
-        Vector2D<float> minimumOffset,
-        Vector2D<float> maximumOffset
-    )
-        : this(
-            new Vector3D<float>(minimumOffset.X, minimumOffset.Y, 0f),
-            new Vector3D<float>(maximumOffset.X, maximumOffset.Y, 0f)
-        )
-    { }
+    public AxisAlignedBoundingBox(params Vector2D<float>[] points)
+    {
+        MinimumOffset = new(points.Min(p => p.X), points.Min(p => p.Y), 0.0f);
+        MaximumOffset = new(points.Max(p => p.X), points.Max(p => p.Y), 0.0f);
+    }
 
     /// <summary>Creates a box with offsets in the X, Y, and Z directions.</summary>
-    public AxisAlignedBoundingBox(
-        Vector3D<float> minimumOffset,
-        Vector3D<float> maximumOffset
-    )
+    public AxisAlignedBoundingBox(params Vector3D<float>[] points)
     {
-        MinimumOffset = minimumOffset;
-        MaximumOffset = maximumOffset;
+        MinimumOffset = new(points.Min(p => p.X), points.Min(p => p.Y), points.Min(p => p.Z));
+        MaximumOffset = new(points.Max(p => p.X), points.Max(p => p.Y), points.Max(p => p.Z));
     }
 
     /// <summary>Gets the box translated to its owner's current world-space origin.</summary>
@@ -46,14 +39,13 @@ public partial class AxisAlignedBoundingBox : Component, IShape
     {
         get
         {
-            var origin =
-                Owner is ISpatialObject spatial
-                    ? new Vector3D<float>(
-                        spatial.WorldTransform.M41,
-                        spatial.WorldTransform.M42,
-                        spatial.WorldTransform.M43
-                    )
-                    : Vector3D<float>.Zero;
+            var origin = Owner is ISpatialObject spatial
+                ? new Vector3D<float>(
+                    spatial.WorldTransform.M41,
+                    spatial.WorldTransform.M42,
+                    spatial.WorldTransform.M43
+                )
+                : Vector3D<float>.Zero;
 
             return new Box3D<float>(origin + MinimumOffset, origin + MaximumOffset);
         }
@@ -78,9 +70,9 @@ public partial class AxisAlignedBoundingBox : Component, IShape
     public bool IntersectsWith(MathSphere value) => Intersection.Intersects(Bounds, value);
 
     /// <inheritdoc/>
-    public bool IntersectsWith(Ray3D<float> ray, out float distance) => Intersection.Intersects(Bounds, ray, out distance);
+    public bool IntersectsWith(Ray3D<float> ray, out float distance) =>
+        Intersection.Intersects(Bounds, ray, out distance);
 
     /// <inheritdoc/>
     public bool IntersectsWith(IShape other) => Intersection.Intersects(this, other);
-
 }
