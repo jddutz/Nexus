@@ -115,6 +115,47 @@ public sealed class ViewTests
         Assert.Equal(projection, camera.ProjectionMatrix);
     }
 
+    /// <summary>Verifies derived views receive mouse-button data and the projected world ray.</summary>
+    [Fact]
+    public void MouseButtonPressed_invokesProtectedCallback()
+    {
+        var eventHub = new EventHub();
+        var inputSystem = DispatchProxy.Create<IInputSystem, TestInputSystem>();
+        var inputProxy = (TestInputSystem)(object)inputSystem;
+        var gui = new GraphicalUserInterface(
+            eventHub,
+            new TestGraphicsSystem(),
+            inputSystem: inputSystem
+        );
+        var camera = new OrthoCamera();
+        camera.SetSize(200f, 100f);
+        var view = new MouseButtonCallbackView
+        {
+            Camera = camera,
+            PropagateInputEvents = true,
+            SizingMode = ViewSizingMode.Stretch,
+        };
+        view.Arrange(new Rectangle<float>(100f, 50f, 200f, 100f));
+        view.Initialize();
+        view.Activate();
+        gui.Handle(new GameObjectActivatedEvent(view));
+
+        var mouse = DispatchProxy.Create<IMouseInputDevice, TestInputSystem>();
+        var position = new Vector2D<float>(200f, 100f);
+        inputProxy.RaiseMouseButtonPressed(
+            new MouseButtonPressedEvent(mouse, MouseButtonEnum.Left, position)
+        );
+
+        Assert.Same(mouse, view.PressedMouse);
+        Assert.True(view.PressedButton.HasValue);
+        Assert.Equal(MouseButtonEnum.Left, view.PressedButton.Value);
+        Assert.True(view.PressedPosition.HasValue);
+        Assert.Equal(position, view.PressedPosition.Value);
+        Assert.True(view.PressedWorldRay.HasValue);
+        Assert.Equal(Vector3D<float>.Zero, view.PressedWorldRay.Value.Origin);
+        Assert.Equal(-Vector3D<float>.UnitZ, view.PressedWorldRay.Value.Direction);
+    }
+
     /// <summary>Verifies active views publish camera rays for mouse and touch positions.</summary>
     [Fact]
     public void ActiveView_publishesWorldRaysForMouseAndTouchInput()
@@ -1147,5 +1188,35 @@ public sealed class ViewTests
         /// <summary>Collects a touch cancellation.</summary>
         /// <param name="message">The event to collect.</param>
         public void Handle(ViewTouchCanceledEvent message) => TouchCanceled.Add(message);
+    }
+
+    /// <summary>Captures the mouse-button callback for a derived-view test.</summary>
+    private sealed class MouseButtonCallbackView : View
+    {
+        /// <summary>Gets the mouse passed to the pressed callback.</summary>
+        public IMouseInputDevice? PressedMouse { get; private set; }
+
+        /// <summary>Gets the button passed to the pressed callback.</summary>
+        public MouseButtonEnum? PressedButton { get; private set; }
+
+        /// <summary>Gets the position passed to the pressed callback.</summary>
+        public Vector2D<float>? PressedPosition { get; private set; }
+
+        /// <summary>Gets the world ray passed to the pressed callback.</summary>
+        public Ray3D<float>? PressedWorldRay { get; private set; }
+
+        /// <inheritdoc/>
+        protected override void OnMouseButtonPressed(
+            IMouseInputDevice mouse,
+            MouseButtonEnum button,
+            Vector2D<float> position,
+            Ray3D<float> worldRay
+        )
+        {
+            PressedMouse = mouse;
+            PressedButton = button;
+            PressedPosition = position;
+            PressedWorldRay = worldRay;
+        }
     }
 }

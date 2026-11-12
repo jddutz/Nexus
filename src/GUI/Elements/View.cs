@@ -264,6 +264,135 @@ public partial class View : Element
         _inputSubscriptionsRegistered = false;
     }
 
+    /// <summary>Called when a mouse enters this view's interactive region.</summary>
+    /// <param name="mouse">The mouse that entered the region.</param>
+    /// <param name="position">The absolute screen-space pointer position.</param>
+    /// <param name="worldRay">The camera ray through the pointer position.</param>
+    protected virtual void OnMouseEntered(
+        IMouseInputDevice mouse,
+        Vector2D<float> position,
+        Ray3D<float> worldRay
+    ) { }
+
+    /// <summary>Called when a mouse leaves this view's interactive region.</summary>
+    /// <param name="mouse">The mouse that left the region.</param>
+    /// <param name="position">The absolute screen-space pointer position.</param>
+    protected virtual void OnMouseExited(IMouseInputDevice mouse, Vector2D<float> position) { }
+
+    /// <summary>Called when mouse movement is published from this view.</summary>
+    /// <param name="mouse">The mouse that moved.</param>
+    /// <param name="position">The absolute screen-space pointer position.</param>
+    /// <param name="worldRay">The camera ray through the pointer position.</param>
+    protected virtual void OnMouseMoved(
+        IMouseInputDevice mouse,
+        Vector2D<float> position,
+        Ray3D<float> worldRay
+    ) { }
+
+    /// <summary>Called when a mouse-button press is published from this view.</summary>
+    /// <param name="mouse">The mouse that reported the press.</param>
+    /// <param name="button">The pressed button.</param>
+    /// <param name="position">The absolute screen-space pointer position.</param>
+    /// <param name="worldRay">The camera ray through the pointer position.</param>
+    protected virtual void OnMouseButtonPressed(
+        IMouseInputDevice mouse,
+        MouseButtonEnum button,
+        Vector2D<float> position,
+        Ray3D<float> worldRay
+    ) { }
+
+    /// <summary>Called when a mouse-button release is published from this view.</summary>
+    /// <param name="mouse">The mouse that reported the release.</param>
+    /// <param name="button">The released button.</param>
+    /// <param name="position">The absolute screen-space pointer position.</param>
+    /// <param name="worldRay">The camera ray through the pointer position.</param>
+    protected virtual void OnMouseButtonReleased(
+        IMouseInputDevice mouse,
+        MouseButtonEnum button,
+        Vector2D<float> position,
+        Ray3D<float> worldRay
+    ) { }
+
+    /// <summary>Called when mouse-wheel movement is published from this view.</summary>
+    /// <param name="mouse">The mouse that reported the wheel movement.</param>
+    /// <param name="delta">The scroll delta.</param>
+    /// <param name="position">The absolute screen-space pointer position.</param>
+    /// <param name="worldRay">The camera ray through the pointer position.</param>
+    protected virtual void OnMouseWheel(
+        IMouseInputDevice mouse,
+        Vector2D<float> delta,
+        Vector2D<float> position,
+        Ray3D<float> worldRay
+    ) { }
+
+    /// <summary>Called when a mouse interaction cancellation is published from this view.</summary>
+    /// <param name="mouse">The mouse whose interaction was canceled.</param>
+    /// <param name="position">The absolute screen-space pointer position.</param>
+    /// <param name="worldRay">The camera ray through the pointer position or retained press ray.</param>
+    protected virtual void OnMouseCanceled(
+        IMouseInputDevice mouse,
+        Vector2D<float> position,
+        Ray3D<float> worldRay
+    ) { }
+
+    /// <summary>Called when a touch start is published from this view.</summary>
+    /// <param name="touchScreen">The touch device that reported the start.</param>
+    /// <param name="touchId">The device-local identifier of the touch.</param>
+    /// <param name="position">The absolute screen-space touch position.</param>
+    /// <param name="worldRay">The camera ray through the touch position.</param>
+    protected virtual void OnTouchStarted(
+        ITouchScreenInputDevice touchScreen,
+        int touchId,
+        Vector2D<float> position,
+        Ray3D<float> worldRay
+    ) { }
+
+    /// <summary>Called when an owned touch leaves this view's interactive region.</summary>
+    /// <param name="touchScreen">The touch device that owns the touch.</param>
+    /// <param name="touchId">The device-local identifier of the touch.</param>
+    /// <param name="position">The absolute screen-space touch position.</param>
+    protected virtual void OnTouchExited(
+        ITouchScreenInputDevice touchScreen,
+        int touchId,
+        Vector2D<float> position
+    ) { }
+
+    /// <summary>Called when touch movement is published from this view.</summary>
+    /// <param name="touchScreen">The touch device that owns the touch.</param>
+    /// <param name="touchId">The device-local identifier of the touch.</param>
+    /// <param name="position">The absolute screen-space touch position.</param>
+    /// <param name="worldRay">The camera ray through the touch position.</param>
+    protected virtual void OnTouchMoved(
+        ITouchScreenInputDevice touchScreen,
+        int touchId,
+        Vector2D<float> position,
+        Ray3D<float> worldRay
+    ) { }
+
+    /// <summary>Called when a touch end is published from this view.</summary>
+    /// <param name="touchScreen">The touch device that owns the touch.</param>
+    /// <param name="touchId">The device-local identifier of the touch.</param>
+    /// <param name="position">The absolute screen-space touch position.</param>
+    /// <param name="worldRay">The camera ray through the touch position or retained start ray.</param>
+    protected virtual void OnTouchEnded(
+        ITouchScreenInputDevice touchScreen,
+        int touchId,
+        Vector2D<float> position,
+        Ray3D<float> worldRay
+    ) { }
+
+    /// <summary>Called when a touch interaction cancellation is published from this view.</summary>
+    /// <param name="touchScreen">The touch device that owns the touch.</param>
+    /// <param name="touchId">The device-local identifier of the touch.</param>
+    /// <param name="position">The last absolute screen-space touch position.</param>
+    /// <param name="worldRay">The camera ray through the last position or retained start ray.</param>
+    protected virtual void OnTouchCanceled(
+        ITouchScreenInputDevice touchScreen,
+        int touchId,
+        Vector2D<float> position,
+        Ray3D<float> worldRay
+    ) { }
+
     /// <summary>Reports hover transitions and movement inside the view or during a captured drag.</summary>
     /// <param name="message">The source mouse movement.</param>
     private void OnMouseMoved(MouseMovedEvent message)
@@ -273,6 +402,7 @@ public partial class View : Element
         UpdateMouseRegion(message, inside, ray);
         if (inside)
         {
+            OnMouseMoved(message.Mouse, message.Position, ray);
             PublishInputEvent(new ViewMouseMovedEvent(message, ray));
             return;
         }
@@ -282,7 +412,10 @@ public partial class View : Element
             && _mouseInteractions.Keys.Any(key => ReferenceEquals(key.Mouse, message.Mouse))
             && TryProjectWorldRay(message.Position, out ray)
         )
+        {
+            OnMouseMoved(message.Mouse, message.Position, ray);
             PublishInputEvent(new ViewMouseMovedEvent(message, ray));
+        }
     }
 
     /// <summary>Updates one mouse's region membership without changing its captured interactions.</summary>
@@ -299,6 +432,7 @@ public partial class View : Element
             if (previousIndex < 0)
             {
                 _hoveringMice.Add(message);
+                OnMouseEntered(message.Mouse, message.Position, ray);
                 PublishInputEvent(new ViewMouseEnteredEvent(message, ray));
             }
             else
@@ -312,6 +446,7 @@ public partial class View : Element
         if (previousIndex >= 0)
         {
             _hoveringMice.RemoveAt(previousIndex);
+            OnMouseExited(message.Mouse, message.Position);
             PublishInputEvent(new ViewMouseExitedEvent(message));
         }
     }
@@ -325,6 +460,7 @@ public partial class View : Element
         {
             UpdateMouseRegion(new MouseMovedEvent(message.Mouse, message.Position), true, ray);
             _mouseInteractions[(message.Mouse, message.Button)] = (ray, message.Position);
+            OnMouseButtonPressed(message.Mouse, message.Button, message.Position, ray);
             PublishInputEvent(new ViewMouseButtonPressedEvent(message, ray));
         }
     }
@@ -342,12 +478,16 @@ public partial class View : Element
             var releaseRay = TryProjectWorldRay(message.Position, out var projectedRay)
                 ? projectedRay
                 : interaction.StartRay;
+            OnMouseButtonReleased(message.Mouse, message.Button, message.Position, releaseRay);
             PublishInputEvent(new ViewMouseButtonReleasedEvent(message, releaseRay));
             return;
         }
 
         if (TryCreateWorldRay(message.Position, out var ray))
+        {
+            OnMouseButtonReleased(message.Mouse, message.Button, message.Position, ray);
             PublishInputEvent(new ViewMouseButtonReleasedEvent(message, ray));
+        }
     }
 
     /// <summary>Publishes a world-ray event for mouse-wheel movement inside this view.</summary>
@@ -356,7 +496,10 @@ public partial class View : Element
     {
         UpdateMouseInteractionPositions(message.Mouse, message.Position);
         if (TryCreateWorldRay(message.Position, out var ray))
+        {
+            OnMouseWheel(message.Mouse, message.Delta, message.Position, ray);
             PublishInputEvent(new ViewMouseWheelEvent(message, ray));
+        }
     }
 
     /// <summary>Cancels all accepted interactions for the source mouse regardless of its position.</summary>
@@ -367,7 +510,10 @@ public partial class View : Element
             UpdateMouseRegion(new MouseMovedEvent(message.Mouse, message.Position), false, default);
 
         if (!CancelMouseInteractions(message) && TryCreateWorldRay(message.Position, out var ray))
+        {
+            OnMouseCanceled(message.Mouse, message.Position, ray);
             PublishInputEvent(new ViewMouseCanceledEvent(message, ray));
+        }
     }
 
     /// <summary>Exits and cancels this view's interactions for a disconnected mouse.</summary>
@@ -409,6 +555,7 @@ public partial class View : Element
             var cancellationRay = TryProjectWorldRay(message.Position, out var projectedRay)
                 ? projectedRay
                 : interactions[^1].Value.StartRay;
+            OnMouseCanceled(message.Mouse, message.Position, cancellationRay);
             PublishInputEvent(new ViewMouseCanceledEvent(message, cancellationRay));
             return true;
         }
@@ -429,6 +576,12 @@ public partial class View : Element
             var ray = TryProjectWorldRay(interaction.Value.Position, out var projectedRay)
                 ? projectedRay
                 : interaction.Value.StartRay;
+            OnTouchCanceled(
+                interaction.Key.TouchScreen,
+                interaction.Key.TouchId,
+                interaction.Value.Position,
+                ray
+            );
             PublishInputEvent(
                 new ViewTouchCanceledEvent(
                     interaction.Key.TouchScreen,
@@ -449,6 +602,7 @@ public partial class View : Element
         {
             _touchInteractions[(message.TouchScreen, message.TouchId)] = (ray, message.Position);
             _insideTouches[(message.TouchScreen, message.TouchId)] = message.Position;
+            OnTouchStarted(message.TouchScreen, message.TouchId, message.Position, ray);
             PublishInputEvent(new ViewTouchStartedEvent(message, ray));
         }
     }
@@ -466,11 +620,14 @@ public partial class View : Element
         if (inside)
         {
             _insideTouches[key] = message.Position;
+            OnTouchMoved(message.TouchScreen, message.TouchId, message.Position, ray);
             PublishInputEvent(new ViewTouchMovedEvent(message, ray));
             return;
         }
 
         if (_insideTouches.Remove(key))
+        {
+            OnTouchExited(message.TouchScreen, message.TouchId, message.Position);
             PublishInputEvent(
                 new ViewTouchExitedEvent(
                     message.TouchScreen,
@@ -478,9 +635,13 @@ public partial class View : Element
                     message.Position
                 )
             );
+        }
 
         if (IsInputActive && TryProjectWorldRay(message.Position, out ray))
+        {
+            OnTouchMoved(message.TouchScreen, message.TouchId, message.Position, ray);
             PublishInputEvent(new ViewTouchMovedEvent(message, ray));
+        }
     }
 
     /// <summary>Terminates a touch interaction this view accepted, regardless of its current position.</summary>
@@ -493,6 +654,7 @@ public partial class View : Element
             var endRay = TryProjectWorldRay(message.Position, out var projectedRay)
                 ? projectedRay
                 : interaction.StartRay;
+            OnTouchEnded(message.TouchScreen, message.TouchId, message.Position, endRay);
             PublishInputEvent(new ViewTouchEndedEvent(message, endRay));
         }
     }
@@ -511,6 +673,7 @@ public partial class View : Element
                 continue;
 
             _hoveringMice.RemoveAt(index);
+            OnMouseExited(message.Mouse, message.Position);
             PublishInputEvent(new ViewMouseExitedEvent(message));
         }
 
@@ -520,6 +683,7 @@ public partial class View : Element
                 continue;
 
             _insideTouches.Remove(touch.Key);
+            OnTouchExited(touch.Key.TouchScreen, touch.Key.TouchId, touch.Value);
             PublishInputEvent(
                 new ViewTouchExitedEvent(
                     touch.Key.TouchScreen,
@@ -534,10 +698,15 @@ public partial class View : Element
     private void ExitAllPointers()
     {
         foreach (var message in _hoveringMice)
+        {
+            OnMouseExited(message.Mouse, message.Position);
             PublishInputEvent(new ViewMouseExitedEvent(message));
+        }
         _hoveringMice.Clear();
 
         foreach (var touch in _insideTouches)
+        {
+            OnTouchExited(touch.Key.TouchScreen, touch.Key.TouchId, touch.Value);
             PublishInputEvent(
                 new ViewTouchExitedEvent(
                     touch.Key.TouchScreen,
@@ -545,6 +714,7 @@ public partial class View : Element
                     touch.Value
                 )
             );
+        }
         _insideTouches.Clear();
     }
 
