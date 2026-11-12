@@ -37,6 +37,63 @@ public sealed class InputSystem : IInputSystem, IDisposable
     /// <summary>Gets the currently registered controllers in connection order.</summary>
     public IReadOnlyCollection<IController> Controllers => _controllerView;
 
+    /// <inheritdoc />
+    public event Action<KeyboardConnectedEvent>? KeyboardConnected;
+
+    /// <inheritdoc />
+    public event Action<KeyboardDisconnectedEvent>? KeyboardDisconnected;
+
+    /// <inheritdoc />
+    public event Action<KeyPressedEvent>? KeyPressed;
+
+    /// <inheritdoc />
+    public event Action<KeyReleasedEvent>? KeyReleased;
+
+    /// <inheritdoc />
+    public event Action<MouseConnectedEvent>? MouseConnected;
+
+    /// <inheritdoc />
+    public event Action<MouseDisconnectedEvent>? MouseDisconnected;
+
+    /// <inheritdoc />
+    public event Action<MouseMovedEvent>? MouseMoved;
+
+    /// <inheritdoc />
+    public event Action<MouseButtonPressedEvent>? MouseButtonPressed;
+
+    /// <inheritdoc />
+    public event Action<MouseButtonReleasedEvent>? MouseButtonReleased;
+
+    /// <inheritdoc />
+    public event Action<MouseWheelEvent>? MouseWheel;
+
+    /// <inheritdoc />
+    public event Action<MouseCanceledEvent>? MouseCanceled;
+
+    /// <inheritdoc />
+    public event Action<TouchStartedEvent>? TouchStarted;
+
+    /// <inheritdoc />
+    public event Action<TouchMovedEvent>? TouchMoved;
+
+    /// <inheritdoc />
+    public event Action<TouchEndedEvent>? TouchEnded;
+
+    /// <inheritdoc />
+    public event Action<ControllerConnectedEvent>? ControllerConnected;
+
+    /// <inheritdoc />
+    public event Action<ControllerDisconnectedEvent>? ControllerDisconnected;
+
+    /// <inheritdoc />
+    public event Action<ControllerButtonPressedEvent>? ControllerButtonPressed;
+
+    /// <inheritdoc />
+    public event Action<ControllerButtonReleasedEvent>? ControllerButtonReleased;
+
+    /// <inheritdoc />
+    public event Action<ControllerAnalogChangedEvent>? ControllerAnalogChanged;
+
     /// <summary>
     /// Initializes the input system with an event hub and an optional input adapter.
     /// </summary>
@@ -109,6 +166,40 @@ public sealed class InputSystem : IInputSystem, IDisposable
     /// <inheritdoc />
     public void Update(double deltaTime) => _inputAdapter?.Update(deltaTime);
 
+    /// <inheritdoc />
+    public void ReportTouchStarted(TouchStartedEvent inputEvent)
+    {
+        ValidateTouchReport(inputEvent);
+        PublishInputEvent(inputEvent, TouchStarted);
+    }
+
+    /// <inheritdoc />
+    public void ReportTouchMoved(TouchMovedEvent inputEvent)
+    {
+        ValidateTouchReport(inputEvent);
+        PublishInputEvent(inputEvent, TouchMoved);
+    }
+
+    /// <inheritdoc />
+    public void ReportTouchEnded(TouchEndedEvent inputEvent)
+    {
+        ValidateTouchReport(inputEvent);
+        PublishInputEvent(inputEvent, TouchEnded);
+    }
+
+    /// <summary>Rejects touch reporting outside the input lifecycle or with a null payload.</summary>
+    /// <param name="inputEvent">The touch event to report.</param>
+    /// <exception cref="ArgumentNullException">The event is null.</exception>
+    /// <exception cref="InvalidOperationException">The input system has not been initialized.</exception>
+    /// <exception cref="ObjectDisposedException">The input system has been disposed.</exception>
+    private void ValidateTouchReport(IEvent inputEvent)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(inputEvent);
+        if (!_initialized)
+            throw new InvalidOperationException("Initialize the input system before reporting touch input.");
+    }
+
     /// <summary>
     /// Releases adapter event subscriptions without taking ownership of the adapter.
     /// </summary>
@@ -170,7 +261,7 @@ public sealed class InputSystem : IInputSystem, IDisposable
 
         UnsubscribeFromKeyboard(registeredKeyboard);
         _keyboard.Unregister(registeredKeyboard);
-        _eventHub.Publish(new KeyboardDisconnectedEvent(registeredKeyboard));
+        PublishInputEvent(new KeyboardDisconnectedEvent(registeredKeyboard), KeyboardDisconnected);
     }
 
     /// <summary>
@@ -186,7 +277,7 @@ public sealed class InputSystem : IInputSystem, IDisposable
         _keyboard.Register(keyboard);
         keyboard.KeyPressed += OnKeyPressed;
         keyboard.KeyReleased += OnKeyReleased;
-        _eventHub.Publish(new KeyboardConnectedEvent(keyboard));
+        PublishInputEvent(new KeyboardConnectedEvent(keyboard), KeyboardConnected);
     }
 
     /// <summary>
@@ -197,7 +288,7 @@ public sealed class InputSystem : IInputSystem, IDisposable
     private void OnKeyPressed(IKeyboardInputDevice keyboard, KeyEnum key)
     {
         if (_keyboards.ContainsKey(keyboard.Id))
-            _eventHub.Publish(new KeyPressedEvent(keyboard, key));
+            PublishInputEvent(new KeyPressedEvent(keyboard, key), KeyPressed);
     }
 
     /// <summary>
@@ -208,7 +299,7 @@ public sealed class InputSystem : IInputSystem, IDisposable
     private void OnKeyReleased(IKeyboardInputDevice keyboard, KeyEnum key)
     {
         if (_keyboards.ContainsKey(keyboard.Id))
-            _eventHub.Publish(new KeyReleasedEvent(keyboard, key));
+            PublishInputEvent(new KeyReleasedEvent(keyboard, key), KeyReleased);
     }
 
     /// <summary>
@@ -238,7 +329,10 @@ public sealed class InputSystem : IInputSystem, IDisposable
 
         UnsubscribeFromMouse(registeredMouse);
         _mouse.Unregister(registeredMouse);
-        _eventHub.Publish(new MouseDisconnectedEvent(registeredMouse, registeredMouse.Position));
+        PublishInputEvent(
+            new MouseDisconnectedEvent(registeredMouse, registeredMouse.Position),
+            MouseDisconnected
+        );
     }
 
     /// <summary>
@@ -256,7 +350,7 @@ public sealed class InputSystem : IInputSystem, IDisposable
         mouse.ButtonPressed += OnMouseButtonPressed;
         mouse.ButtonReleased += OnMouseButtonReleased;
         mouse.WheelMoved += OnMouseWheelMoved;
-        _eventHub.Publish(new MouseConnectedEvent(mouse, mouse.Position));
+        PublishInputEvent(new MouseConnectedEvent(mouse, mouse.Position), MouseConnected);
     }
 
     /// <summary>
@@ -267,7 +361,7 @@ public sealed class InputSystem : IInputSystem, IDisposable
     private void OnMouseMoved(IMouseInputDevice mouse, Vector2D<float> position)
     {
         if (_mice.ContainsKey(mouse.Id))
-            _eventHub.Publish(new MouseMovedEvent(mouse, position));
+            PublishInputEvent(new MouseMovedEvent(mouse, position), MouseMoved);
     }
 
     /// <summary>
@@ -278,7 +372,10 @@ public sealed class InputSystem : IInputSystem, IDisposable
     private void OnMouseButtonPressed(IMouseInputDevice mouse, MouseButtonEnum button)
     {
         if (_mice.ContainsKey(mouse.Id))
-            _eventHub.Publish(new MouseButtonPressedEvent(mouse, button, mouse.Position));
+            PublishInputEvent(
+                new MouseButtonPressedEvent(mouse, button, mouse.Position),
+                MouseButtonPressed
+            );
     }
 
     /// <summary>
@@ -289,7 +386,10 @@ public sealed class InputSystem : IInputSystem, IDisposable
     private void OnMouseButtonReleased(IMouseInputDevice mouse, MouseButtonEnum button)
     {
         if (_mice.ContainsKey(mouse.Id))
-            _eventHub.Publish(new MouseButtonReleasedEvent(mouse, button, mouse.Position));
+            PublishInputEvent(
+                new MouseButtonReleasedEvent(mouse, button, mouse.Position),
+                MouseButtonReleased
+            );
     }
 
     /// <summary>
@@ -300,7 +400,7 @@ public sealed class InputSystem : IInputSystem, IDisposable
     private void OnMouseWheelMoved(IMouseInputDevice mouse, Vector2D<float> delta)
     {
         if (_mice.ContainsKey(mouse.Id))
-            _eventHub.Publish(new MouseWheelEvent(mouse, delta, mouse.Position));
+            PublishInputEvent(new MouseWheelEvent(mouse, delta, mouse.Position), MouseWheel);
     }
 
     /// <summary>Cancels current mouse interactions when the application window loses focus.</summary>
@@ -310,8 +410,8 @@ public sealed class InputSystem : IInputSystem, IDisposable
         if (isFocused)
             return;
 
-        foreach (var mouse in _mice.Values)
-            _eventHub.Publish(new MouseCanceledEvent(mouse, mouse.Position));
+        foreach (var mouse in _mice.Values.ToArray())
+            PublishInputEvent(new MouseCanceledEvent(mouse, mouse.Position), MouseCanceled);
     }
 
     /// <summary>
@@ -339,7 +439,10 @@ public sealed class InputSystem : IInputSystem, IDisposable
 
         UnsubscribeFromController(registeredController);
         _controllerList.Remove(registeredController);
-        _eventHub.Publish(new ControllerDisconnectedEvent(registeredController));
+        PublishInputEvent(
+            new ControllerDisconnectedEvent(registeredController),
+            ControllerDisconnected
+        );
     }
 
     /// <summary>Adds a controller and subscribes to its logical control transitions.</summary>
@@ -354,7 +457,7 @@ public sealed class InputSystem : IInputSystem, IDisposable
         controller.ButtonPressed += OnControllerButtonPressed;
         controller.ButtonReleased += OnControllerButtonReleased;
         controller.AnalogChanged += OnControllerAnalogChanged;
-        _eventHub.Publish(new ControllerConnectedEvent(controller));
+        PublishInputEvent(new ControllerConnectedEvent(controller), ControllerConnected);
     }
 
     /// <summary>Publishes a button-press event for a registered controller.</summary>
@@ -363,7 +466,10 @@ public sealed class InputSystem : IInputSystem, IDisposable
     private void OnControllerButtonPressed(IController controller, IButtonInput button)
     {
         if (IsRegisteredController(controller))
-            _eventHub.Publish(new ControllerButtonPressedEvent(controller, button));
+            PublishInputEvent(
+                new ControllerButtonPressedEvent(controller, button),
+                ControllerButtonPressed
+            );
     }
 
     /// <summary>Publishes a button-release event for a registered controller.</summary>
@@ -372,7 +478,10 @@ public sealed class InputSystem : IInputSystem, IDisposable
     private void OnControllerButtonReleased(IController controller, IButtonInput button)
     {
         if (IsRegisteredController(controller))
-            _eventHub.Publish(new ControllerButtonReleasedEvent(controller, button));
+            PublishInputEvent(
+                new ControllerButtonReleasedEvent(controller, button),
+                ControllerButtonReleased
+            );
     }
 
     /// <summary>Publishes a captured analog position for a registered controller.</summary>
@@ -386,7 +495,21 @@ public sealed class InputSystem : IInputSystem, IDisposable
     )
     {
         if (IsRegisteredController(controller))
-            _eventHub.Publish(new ControllerAnalogChangedEvent(controller, analogInput, position));
+            PublishInputEvent(
+                new ControllerAnalogChangedEvent(controller, analogInput, position),
+                ControllerAnalogChanged
+            );
+    }
+
+    /// <summary>Queues an input event and synchronously notifies its direct subscribers.</summary>
+    /// <typeparam name="TEvent">The type of input event.</typeparam>
+    /// <param name="inputEvent">The event to queue and forward.</param>
+    /// <param name="immediateHandler">The subscribers to notify immediately.</param>
+    private void PublishInputEvent<TEvent>(TEvent inputEvent, Action<TEvent>? immediateHandler)
+        where TEvent : IEvent
+    {
+        _eventHub.Publish(inputEvent);
+        immediateHandler?.Invoke(inputEvent);
     }
 
     /// <summary>Removes this system's callbacks from a concrete controller wrapper.</summary>

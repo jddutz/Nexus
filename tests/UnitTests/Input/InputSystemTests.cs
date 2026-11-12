@@ -472,6 +472,137 @@ public class InputSystemTests
     }
 
     /// <summary>
+    /// Verifies direct input events fire synchronously while EventHub delivery remains deferred.
+    /// </summary>
+    [Fact]
+    public void InputSystem_eventsNotifyImmediatelyAndStillQueueEventHubMessages()
+    {
+        var keyboard = new FakeKeyboard(16);
+        var eventHub = new EventHub();
+        var collector = new InputEventCollector();
+        var immediateConnections = new List<KeyboardConnectedEvent>();
+        var immediatePresses = new List<KeyPressedEvent>();
+        eventHub.Register(collector);
+        using var inputSystem = new InputSystem(eventHub, new FakeInputAdapter(keyboard));
+        inputSystem.KeyboardConnected += immediateConnections.Add;
+        inputSystem.KeyPressed += immediatePresses.Add;
+
+        inputSystem.Initialize();
+
+        Assert.Collection(
+            immediateConnections,
+            message => Assert.Same(keyboard, message.Keyboard)
+        );
+        Assert.Empty(collector.Connected);
+
+        keyboard.Press(KeyEnum.A);
+
+        var immediatePress = Assert.Single(immediatePresses);
+        Assert.Same(keyboard, immediatePress.Keyboard);
+        Assert.Equal(KeyEnum.A, immediatePress.Key);
+        Assert.Empty(collector.Pressed);
+
+        eventHub.Drain();
+
+        Assert.Same(immediatePress, Assert.Single(collector.Pressed));
+        Assert.Same(Assert.Single(immediateConnections), Assert.Single(collector.Connected));
+    }
+
+    /// <summary>Verifies all touch phases notify synchronously and retain their original queued payload.</summary>
+    [Fact]
+    public void TouchReports_notifyImmediatelyAndQueueOriginalEventsOnce()
+    {
+        var eventHub = new EventHub();
+        using var inputSystem = new InputSystem(eventHub);
+        IInputSystem input = inputSystem;
+        var immediateEvents = new List<IEvent>();
+        var collector = new TouchEventCollector();
+        eventHub.Register(collector);
+        input.TouchStarted += immediateEvents.Add;
+        input.TouchMoved += immediateEvents.Add;
+        input.TouchEnded += immediateEvents.Add;
+        input.Initialize();
+        var started = new TouchStartedEvent(null!, 7, new(10f, 20f));
+        var moved = new TouchMovedEvent(null!, 7, new(30f, 40f));
+        var ended = new TouchEndedEvent(null!, 7, new(50f, 60f));
+
+        input.ReportTouchStarted(started);
+        Assert.Same(started, Assert.Single(immediateEvents));
+        input.ReportTouchMoved(moved);
+        Assert.Same(moved, immediateEvents[1]);
+        input.ReportTouchEnded(ended);
+        Assert.Same(ended, immediateEvents[2]);
+        Assert.Empty(collector.Events);
+
+        eventHub.Drain();
+        Assert.Equal(3, immediateEvents.Count);
+        Assert.Collection(
+            collector.Events,
+            message => Assert.Same(started, message),
+            message => Assert.Same(moved, message),
+            message => Assert.Same(ended, message)
+        );
+        eventHub.Drain();
+        Assert.Equal(3, collector.Events.Count);
+    }
+
+    /// <summary>Verifies invalid touch reports fail explicitly without notifications or queued events.</summary>
+    /// <param name="phase">The touch phase to report: start, movement, or end.</param>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void TouchReports_rejectNullAndInvalidLifecycle(int phase)
+    {
+        var eventHub = new EventHub();
+        using var inputSystem = new InputSystem(eventHub);
+        var collector = new TouchEventCollector();
+        eventHub.Register(collector);
+        inputSystem.TouchStarted += collector.Handle;
+        inputSystem.TouchMoved += collector.Handle;
+        inputSystem.TouchEnded += collector.Handle;
+        Action report = phase switch
+        {
+            0 => () => inputSystem.ReportTouchStarted(new TouchStartedEvent(null!, 1, default)),
+            1 => () => inputSystem.ReportTouchMoved(new TouchMovedEvent(null!, 1, default)),
+            _ => () => inputSystem.ReportTouchEnded(new TouchEndedEvent(null!, 1, default)),
+        };
+        Action reportNull = phase switch
+        {
+            0 => () => inputSystem.ReportTouchStarted(null!),
+            1 => () => inputSystem.ReportTouchMoved(null!),
+            _ => () => inputSystem.ReportTouchEnded(null!),
+        };
+
+        Assert.Throws<InvalidOperationException>(report);
+        inputSystem.Initialize();
+        Assert.Throws<ArgumentNullException>(reportNull);
+        inputSystem.Dispose();
+        Assert.Throws<ObjectDisposedException>(report);
+        eventHub.Drain();
+        Assert.Empty(collector.Events);
+    }
+
+    /// <summary>Collects the original touch payloads dispatched by the event hub.</summary>
+    private sealed class TouchEventCollector
+    {
+        /// <summary>Gets the touch events in delivery order.</summary>
+        public List<IEvent> Events { get; } = [];
+
+        /// <summary>Records a touch start.</summary>
+        /// <param name="message">The event to record.</param>
+        public void Handle(TouchStartedEvent message) => Events.Add(message);
+
+        /// <summary>Records a touch movement.</summary>
+        /// <param name="message">The event to record.</param>
+        public void Handle(TouchMovedEvent message) => Events.Add(message);
+
+        /// <summary>Records a touch end.</summary>
+        /// <param name="message">The event to record.</param>
+        public void Handle(TouchEndedEvent message) => Events.Add(message);
+    }
+
+    /// <summary>
     /// Verifies a key remains down while any connected keyboard reports it down.
     /// </summary>
     [Fact]

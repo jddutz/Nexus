@@ -140,6 +140,30 @@ dotnet run
 ```
 
 Run `dotnet test` from the repository root to execute the solution's tests.
+Pointer propagation from GUI `View` elements is opt-in through `PropagateInputEvents`
+(default `false`). Views subscribe directly to `IInputSystem` mouse and touch notifications
+and queue ray-bearing `Nexus.GUI.Events` messages for the next EventHub drain.
+GUI hit-testing blocks view propagation beneath visible panels and controls
+(including disabled controls), higher rendered views, and modal/input-scope restrictions.
+Non-rendering layout containers do not block view input.
+Accepted mouse presses and touch starts retain per-device interaction ownership:
+their releases, touch ends, and mouse cancellations reach the originating view even
+outside its bounds or beneath an overlay. Termination rays use the current projection,
+or the accepted start ray if projection is unavailable. Disabling propagation or
+unregistering the view cancels retained interactions before removing subscriptions:
+one `ViewMouseCanceledEvent` per captured mouse and one `ViewTouchCanceledEvent`
+per owned touch. Mouse disconnection also exits and cancels that mouse immediately.
+These notifications remain queued for the next EventHub drain.
+`ViewMouseEnteredEvent` and ray-free `ViewMouseExitedEvent` report per-mouse
+interactive-region transitions, including GUI occlusion and view unavailability.
+Owned touches report ray-free `ViewTouchExitedEvent`; touches that start elsewhere
+are not adopted. Captured mouse and touch movement continues outside the region
+while the view remains active, visible, and enabled; exits do not release capture.
+Platform touch producers call `ReportTouchStarted`, `ReportTouchMoved`, and
+`ReportTouchEnded` on the initialized input system, on the runtime input thread;
+the original touch messages remain queued for existing UI handlers.
+The current Silk.NET adapter does not produce native touch input.
+
 The solution includes only projects present in this repository; Landfall is not
 included. If VS Code reports no launchable target, check that
 `dotnet sln Nexus.slnx list` succeeds. Missing or duplicate project entries prevent

@@ -3,6 +3,10 @@ namespace Nexus.GUI.Elements;
 using Nexus.Graphics;
 using Nexus.Graphics.Cameras;
 using Nexus.Graphics.Components;
+using Nexus.GUI.Events;
+using Nexus.Input;
+using Nexus.Input.Devices;
+using Nexus.Input.Events;
 
 /// <summary>
 /// Defines a rendering viewport whose screen area is determined by layout.
@@ -11,6 +15,23 @@ using Nexus.Graphics.Components;
 public partial class View : Element
 {
     private readonly List<IObservable> _visibilityAncestors = [];
+    private IEventHub? _inputEventHub;
+    private IInputSystem? _inputSystem;
+    private Func<Vector2D<float>, bool>? _pointerHitTest;
+    private bool _inputSubscriptionsRegistered;
+    private readonly List<MouseMovedEvent> _hoveringMice = [];
+    private readonly Dictionary<
+        (ITouchScreenInputDevice TouchScreen, int TouchId),
+        Vector2D<float>
+    > _insideTouches = [];
+    private readonly Dictionary<
+        (IMouseInputDevice Mouse, MouseButtonEnum Button),
+        (Ray3D<float> StartRay, Vector2D<float> Position)
+    > _mouseInteractions = [];
+    private readonly Dictionary<
+        (ITouchScreenInputDevice TouchScreen, int TouchId),
+        (Ray3D<float> StartRay, Vector2D<float> Position)
+    > _touchInteractions = [];
 
     /// <summary>Gets or sets the camera used to project selected scene content.</summary>
     [Observable]
@@ -35,6 +56,10 @@ public partial class View : Element
     /// <summary>Gets or sets how the camera projection is mapped into the arranged bounds.</summary>
     [Observable(PublicSetter = true)]
     private ViewSizingMode _sizingMode = ViewSizingMode.Fit;
+
+    /// <summary>Gets or sets whether this view forwards pointer input as world-ray events.</summary>
+    [Observable(PublicSetter = true)]
+    private bool _propagateInputEvents;
 
     /// <summary>Gets the renderer owned by this view.</summary>
     public ViewRenderer ViewComponent { get; }
@@ -110,6 +135,11 @@ public partial class View : Element
     protected virtual partial void AfterSizingModeChanges(ViewSizingMode previousValue) =>
         UpdateViewport();
 
+    /// <summary>Updates input subscriptions when propagation is toggled.</summary>
+    /// <param name="previousValue">The previous propagation setting.</param>
+    protected virtual partial void AfterPropagateInputEventsChanges(bool previousValue) =>
+        UpdateInputSubscriptions();
+
     /// <summary>Updates the clipping rectangle when the arranged element bounds change.</summary>
     /// <param name="previousValue">The bounds before the layout change.</param>
     protected override void AfterBoundsChanges(Rectangle<float> previousValue)
@@ -140,6 +170,441 @@ public partial class View : Element
         UpdateViewport();
     }
 
+    /// <summary>Associates this active view with the services used for direct pointer input.</summary>
+    /// <param name="inputSystem">The input system providing immediate pointer events, if available.</param>
+    /// <param name="eventHub">The event hub that dispatches view-ray events.</param>
+    /// <param name="pointerHitTest">Determines whether the GUI permits this view to receive a pointer event.</param>
+    internal void RegisterInput(
+        IInputSystem? inputSystem,
+        IEventHub eventHub,
+        Func<Vector2D<float>, bool> pointerHitTest
+    )
+    {
+        ArgumentNullException.ThrowIfNull(eventHub);
+        ArgumentNullException.ThrowIfNull(pointerHitTest);
+        if (_inputEventHub is not null)
+            throw new InvalidOperationException("The view is already registered for input.");
+
+        _inputEventHub = eventHub;
+        _inputSystem = inputSystem;
+        _pointerHitTest = pointerHitTest;
+        UpdateInputSubscriptions();
+    }
+
+    /// <summary>Removes this view's direct pointer input subscriptions.</summary>
+    internal void UnregisterInput()
+    {
+        ExitAllPointers();
+        CancelAllInteractions();
+        if (_inputSubscriptionsRegistered)
+        {
+            if (_inputSystem is not null)
+            {
+                _inputSystem.MouseMoved -= OnMouseMoved;
+                _inputSystem.MouseButtonPressed -= OnMouseButtonPressed;
+                _inputSystem.MouseButtonReleased -= OnMouseButtonReleased;
+                _inputSystem.MouseWheel -= OnMouseWheel;
+                _inputSystem.MouseCanceled -= OnMouseCanceled;
+                _inputSystem.MouseDisconnected -= OnMouseDisconnected;
+                _inputSystem.TouchStarted -= OnTouchStarted;
+                _inputSystem.TouchMoved -= OnTouchMoved;
+                _inputSystem.TouchEnded -= OnTouchEnded;
+            }
+
+            _inputSubscriptionsRegistered = false;
+        }
+
+        _inputSystem = null;
+        _inputEventHub = null;
+        _pointerHitTest = null;
+    }
+
+    /// <summary>Synchronizes input subscriptions with the propagation setting.</summary>
+    private void UpdateInputSubscriptions()
+    {
+        if (_inputEventHub is null || PropagateInputEvents == _inputSubscriptionsRegistered)
+            return;
+
+        if (PropagateInputEvents)
+        {
+            if (_inputSystem is not null)
+            {
+                _inputSystem.MouseMoved += OnMouseMoved;
+                _inputSystem.MouseButtonPressed += OnMouseButtonPressed;
+                _inputSystem.MouseButtonReleased += OnMouseButtonReleased;
+                _inputSystem.MouseWheel += OnMouseWheel;
+                _inputSystem.MouseCanceled += OnMouseCanceled;
+                _inputSystem.MouseDisconnected += OnMouseDisconnected;
+                _inputSystem.TouchStarted += OnTouchStarted;
+                _inputSystem.TouchMoved += OnTouchMoved;
+                _inputSystem.TouchEnded += OnTouchEnded;
+            }
+
+            _inputSubscriptionsRegistered = true;
+            return;
+        }
+
+        ExitAllPointers();
+        CancelAllInteractions();
+        if (_inputSystem is not null)
+        {
+            _inputSystem.MouseMoved -= OnMouseMoved;
+            _inputSystem.MouseButtonPressed -= OnMouseButtonPressed;
+            _inputSystem.MouseButtonReleased -= OnMouseButtonReleased;
+            _inputSystem.MouseWheel -= OnMouseWheel;
+            _inputSystem.MouseCanceled -= OnMouseCanceled;
+            _inputSystem.MouseDisconnected -= OnMouseDisconnected;
+            _inputSystem.TouchStarted -= OnTouchStarted;
+            _inputSystem.TouchMoved -= OnTouchMoved;
+            _inputSystem.TouchEnded -= OnTouchEnded;
+        }
+
+        _inputSubscriptionsRegistered = false;
+    }
+
+    /// <summary>Reports hover transitions and movement inside the view or during a captured drag.</summary>
+    /// <param name="message">The source mouse movement.</param>
+    private void OnMouseMoved(MouseMovedEvent message)
+    {
+        UpdateMouseInteractionPositions(message.Mouse, message.Position);
+        var inside = TryCreateWorldRay(message.Position, out var ray);
+        UpdateMouseRegion(message, inside, ray);
+        if (inside)
+        {
+            PublishInputEvent(new ViewMouseMovedEvent(this, message, ray));
+            return;
+        }
+
+        if (
+            IsInputActive
+            && _mouseInteractions.Keys.Any(key => ReferenceEquals(key.Mouse, message.Mouse))
+            && TryProjectWorldRay(message.Position, out ray)
+        )
+            PublishInputEvent(new ViewMouseMovedEvent(this, message, ray));
+    }
+
+    /// <summary>Updates one mouse's region membership without changing its captured interactions.</summary>
+    /// <param name="message">The current mouse position.</param>
+    /// <param name="inside">Whether the GUI-aware interactive region contains the pointer.</param>
+    /// <param name="ray">The projected ray when the pointer is inside.</param>
+    private void UpdateMouseRegion(MouseMovedEvent message, bool inside, Ray3D<float> ray)
+    {
+        var previousIndex = _hoveringMice.FindIndex(item => ReferenceEquals(item.Mouse, message.Mouse));
+        if (inside)
+        {
+            if (previousIndex < 0)
+            {
+                _hoveringMice.Add(message);
+                PublishInputEvent(new ViewMouseEnteredEvent(this, message, ray));
+            }
+            else
+            {
+                _hoveringMice[previousIndex] = message;
+            }
+
+            return;
+        }
+
+        if (previousIndex >= 0)
+        {
+            _hoveringMice.RemoveAt(previousIndex);
+            PublishInputEvent(new ViewMouseExitedEvent(this, message));
+        }
+    }
+
+    /// <summary>Publishes a world-ray event for a mouse button press inside this view.</summary>
+    /// <param name="message">The source mouse button press.</param>
+    private void OnMouseButtonPressed(MouseButtonPressedEvent message)
+    {
+        UpdateMouseInteractionPositions(message.Mouse, message.Position);
+        if (TryCreateWorldRay(message.Position, out var ray))
+        {
+            UpdateMouseRegion(new MouseMovedEvent(message.Mouse, message.Position), true, ray);
+            _mouseInteractions[(message.Mouse, message.Button)] = (ray, message.Position);
+            PublishInputEvent(new ViewMouseButtonPressedEvent(this, message, ray));
+        }
+    }
+
+    /// <summary>Publishes a release inside this view or terminates a mouse interaction it accepted.</summary>
+    /// <param name="message">The source mouse button release.</param>
+    private void OnMouseButtonReleased(MouseButtonReleasedEvent message)
+    {
+        UpdateMouseInteractionPositions(message.Mouse, message.Position);
+        if (!TryCreateWorldRay(message.Position, out _))
+            UpdateMouseRegion(new MouseMovedEvent(message.Mouse, message.Position), false, default);
+
+        if (_mouseInteractions.Remove((message.Mouse, message.Button), out var interaction))
+        {
+            var releaseRay = TryProjectWorldRay(message.Position, out var projectedRay)
+                ? projectedRay
+                : interaction.StartRay;
+            PublishInputEvent(new ViewMouseButtonReleasedEvent(this, message, releaseRay));
+            return;
+        }
+
+        if (TryCreateWorldRay(message.Position, out var ray))
+            PublishInputEvent(new ViewMouseButtonReleasedEvent(this, message, ray));
+    }
+
+    /// <summary>Publishes a world-ray event for mouse-wheel movement inside this view.</summary>
+    /// <param name="message">The source mouse-wheel movement.</param>
+    private void OnMouseWheel(MouseWheelEvent message)
+    {
+        UpdateMouseInteractionPositions(message.Mouse, message.Position);
+        if (TryCreateWorldRay(message.Position, out var ray))
+            PublishInputEvent(new ViewMouseWheelEvent(this, message, ray));
+    }
+
+    /// <summary>Cancels all accepted interactions for the source mouse regardless of its position.</summary>
+    /// <param name="message">The source mouse-cancellation event.</param>
+    private void OnMouseCanceled(MouseCanceledEvent message)
+    {
+        if (!TryCreateWorldRay(message.Position, out _))
+            UpdateMouseRegion(new MouseMovedEvent(message.Mouse, message.Position), false, default);
+
+        if (!CancelMouseInteractions(message) && TryCreateWorldRay(message.Position, out var ray))
+            PublishInputEvent(new ViewMouseCanceledEvent(this, message, ray));
+    }
+
+    /// <summary>Exits and cancels this view's interactions for a disconnected mouse.</summary>
+    /// <param name="message">The disconnected device and its final pointer position.</param>
+    private void OnMouseDisconnected(MouseDisconnectedEvent message)
+    {
+        UpdateMouseRegion(new MouseMovedEvent(message.Mouse, message.Position), false, default);
+        CancelMouseInteractions(new MouseCanceledEvent(message.Mouse, message.Position));
+    }
+
+    /// <summary>Retains the latest reported position for every captured button on a mouse.</summary>
+    /// <param name="mouse">The mouse reporting the position.</param>
+    /// <param name="position">The absolute screen-space pointer position.</param>
+    private void UpdateMouseInteractionPositions(IMouseInputDevice mouse, Vector2D<float> position)
+    {
+        if (_mouseInteractions.Count == 0)
+            return;
+
+        var keys = _mouseInteractions.Keys
+            .Where(key => ReferenceEquals(key.Mouse, mouse))
+            .ToArray();
+        foreach (var key in keys)
+            _mouseInteractions[key] = (_mouseInteractions[key].StartRay, position);
+    }
+
+    /// <summary>Cancels all captured buttons for one mouse with a single notification.</summary>
+    /// <param name="message">The device and pointer position associated with cancellation.</param>
+    /// <returns>Whether any captured interactions were canceled.</returns>
+    private bool CancelMouseInteractions(MouseCanceledEvent message)
+    {
+        var interactions = _mouseInteractions
+            .Where(item => ReferenceEquals(item.Key.Mouse, message.Mouse))
+            .ToArray();
+        if (interactions.Length > 0)
+        {
+            foreach (var interaction in interactions)
+                _mouseInteractions.Remove(interaction.Key);
+
+            var cancellationRay = TryProjectWorldRay(message.Position, out var projectedRay)
+                ? projectedRay
+                : interactions[^1].Value.StartRay;
+            PublishInputEvent(new ViewMouseCanceledEvent(this, message, cancellationRay));
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>Notifies consumers before discarding interactions when input subscriptions are removed.</summary>
+    private void CancelAllInteractions()
+    {
+        foreach (var interaction in _mouseInteractions.ToArray())
+            CancelMouseInteractions(new MouseCanceledEvent(
+                interaction.Key.Mouse, interaction.Value.Position
+            ));
+
+        foreach (var interaction in _touchInteractions)
+        {
+            var ray = TryProjectWorldRay(interaction.Value.Position, out var projectedRay)
+                ? projectedRay
+                : interaction.Value.StartRay;
+            PublishInputEvent(new ViewTouchCanceledEvent(
+                this,
+                interaction.Key.TouchScreen,
+                interaction.Key.TouchId,
+                interaction.Value.Position,
+                ray
+            ));
+        }
+        _touchInteractions.Clear();
+    }
+
+    /// <summary>Publishes a world-ray event for a touch starting inside this view.</summary>
+    /// <param name="message">The source touch-start event.</param>
+    private void OnTouchStarted(TouchStartedEvent message)
+    {
+        if (TryCreateWorldRay(message.Position, out var ray))
+        {
+            _touchInteractions[(message.TouchScreen, message.TouchId)] = (ray, message.Position);
+            _insideTouches[(message.TouchScreen, message.TouchId)] = message.Position;
+            PublishInputEvent(new ViewTouchStartedEvent(this, message, ray));
+        }
+    }
+
+    /// <summary>Reports boundary exits and movement only for touch interactions this view owns.</summary>
+    /// <param name="message">The source touch-movement event.</param>
+    private void OnTouchMoved(TouchMovedEvent message)
+    {
+        var key = (message.TouchScreen, message.TouchId);
+        if (!_touchInteractions.TryGetValue(key, out var interaction))
+            return;
+
+        _touchInteractions[key] = (interaction.StartRay, message.Position);
+        var inside = TryCreateWorldRay(message.Position, out var ray);
+        if (inside)
+        {
+            _insideTouches[key] = message.Position;
+            PublishInputEvent(new ViewTouchMovedEvent(this, message, ray));
+            return;
+        }
+
+        if (_insideTouches.Remove(key))
+            PublishInputEvent(new ViewTouchExitedEvent(this, message.TouchScreen, message.TouchId, message.Position));
+
+        if (IsInputActive && TryProjectWorldRay(message.Position, out ray))
+            PublishInputEvent(new ViewTouchMovedEvent(this, message, ray));
+    }
+
+    /// <summary>Terminates a touch interaction this view accepted, regardless of its current position.</summary>
+    /// <param name="message">The source touch-end event.</param>
+    private void OnTouchEnded(TouchEndedEvent message)
+    {
+        _insideTouches.Remove((message.TouchScreen, message.TouchId));
+        if (_touchInteractions.Remove((message.TouchScreen, message.TouchId), out var interaction))
+        {
+            var endRay = TryProjectWorldRay(message.Position, out var projectedRay)
+                ? projectedRay
+                : interaction.StartRay;
+            PublishInputEvent(new ViewTouchEndedEvent(this, message, endRay));
+        }
+    }
+
+    /// <summary>Gets whether this view can publish pointer movement or start new interactions.</summary>
+    private bool IsInputActive =>
+        PropagateInputEvents && IsActivated && IsEffectivelyVisible && IsEffectivelyEnabled;
+
+    /// <summary>Reports exits when layout, GUI targeting, or view state invalidates a known pointer position.</summary>
+    internal void RefreshPointerRegions()
+    {
+        for (var index = _hoveringMice.Count - 1; index >= 0; index--)
+        {
+            var message = _hoveringMice[index];
+            if (TryCreateWorldRay(message.Position, out _))
+                continue;
+
+            _hoveringMice.RemoveAt(index);
+            PublishInputEvent(new ViewMouseExitedEvent(this, message));
+        }
+
+        foreach (var touch in _insideTouches.ToArray())
+        {
+            if (TryCreateWorldRay(touch.Value, out _))
+                continue;
+
+            _insideTouches.Remove(touch.Key);
+            PublishInputEvent(new ViewTouchExitedEvent(
+                this, touch.Key.TouchScreen, touch.Key.TouchId, touch.Value
+            ));
+        }
+    }
+
+    /// <summary>Reports all remaining boundary exits before the view stops observing pointer input.</summary>
+    private void ExitAllPointers()
+    {
+        foreach (var message in _hoveringMice)
+            PublishInputEvent(new ViewMouseExitedEvent(this, message));
+        _hoveringMice.Clear();
+
+        foreach (var touch in _insideTouches)
+            PublishInputEvent(new ViewTouchExitedEvent(
+                this, touch.Key.TouchScreen, touch.Key.TouchId, touch.Value
+            ));
+        _insideTouches.Clear();
+    }
+
+    /// <summary>Creates a camera ray for a screen point visible through this view.</summary>
+    /// <param name="screenPosition">The absolute screen-space pointer position.</param>
+    /// <param name="ray">The projected world-space ray, or the default value when invalid.</param>
+    /// <returns>Whether the position maps to a valid ray inside the view.</returns>
+    private bool TryCreateWorldRay(Vector2D<float> screenPosition, out Ray3D<float> ray)
+    {
+        ray = default;
+        var viewport = ViewComponent.ViewportRegion;
+        if (
+            !IsInputActive
+            || Camera is null
+            || viewport.Size.X <= 0
+            || viewport.Size.Y <= 0
+            || !float.IsFinite(screenPosition.X)
+            || !float.IsFinite(screenPosition.Y)
+            || !ContainsScreenPosition(ViewComponent.ClippingRegion, screenPosition)
+            || !ContainsScreenPosition(viewport, screenPosition)
+            || _pointerHitTest?.Invoke(screenPosition) != true
+        )
+            return false;
+
+        return TryProjectWorldRay(screenPosition, out ray);
+    }
+
+    /// <summary>Projects a pointer position without containment or GUI targeting restrictions.</summary>
+    /// <param name="screenPosition">The absolute pointer position, which may be outside the viewport.</param>
+    /// <param name="ray">The projected world ray when the camera and position remain valid.</param>
+    /// <returns>Whether a valid ray can be projected; termination handlers otherwise use the interaction's start ray.</returns>
+    private bool TryProjectWorldRay(Vector2D<float> screenPosition, out Ray3D<float> ray)
+    {
+        ray = default;
+        var viewport = ViewComponent.ViewportRegion;
+        if (
+            Camera is null
+            || viewport.Size.X <= 0
+            || viewport.Size.Y <= 0
+            || !float.IsFinite(screenPosition.X)
+            || !float.IsFinite(screenPosition.Y)
+        )
+            return false;
+
+        var localPosition = screenPosition - new Vector2D<float>(viewport.Origin.X, viewport.Origin.Y);
+        var worldRay = Camera.ScreenToWorldRay(localPosition, viewport.Size.X, viewport.Size.Y);
+        if (
+            !IsFinite(worldRay.Origin)
+            || !IsFinite(worldRay.Direction)
+            || worldRay.Direction.LengthSquared <= 0f
+        )
+            return false;
+
+        ray = worldRay;
+        return true;
+    }
+
+    /// <summary>Determines whether an absolute screen position lies within an integer viewport.</summary>
+    /// <param name="region">The viewport or clipping region.</param>
+    /// <param name="position">The absolute screen position.</param>
+    /// <returns>Whether the region contains the position.</returns>
+    private static bool ContainsScreenPosition(Rectangle<int> region, Vector2D<float> position) =>
+        region.Size.X > 0
+        && region.Size.Y > 0
+        && position.X >= region.Origin.X
+        && position.X < (double)region.Origin.X + region.Size.X
+        && position.Y >= region.Origin.Y
+        && position.Y < (double)region.Origin.Y + region.Size.Y;
+
+    /// <summary>Determines whether every component of a vector is finite.</summary>
+    /// <param name="vector">The vector to check.</param>
+    /// <returns>Whether all components are finite.</returns>
+    private static bool IsFinite(Vector3D<float> vector) =>
+        float.IsFinite(vector.X) && float.IsFinite(vector.Y) && float.IsFinite(vector.Z);
+
+    /// <summary>Queues a projected input notification for non-UI event subscribers.</summary>
+    /// <param name="inputEvent">The view-specific event to queue.</param>
+    private void PublishInputEvent(IEvent inputEvent) => _inputEventHub?.Publish(inputEvent);
+
     /// <summary>Subscribes to visibility changes throughout the current ancestor chain.</summary>
     private void UpdateVisibilityAncestorSubscriptions()
     {
@@ -163,6 +628,8 @@ public partial class View : Element
     {
         if (propertyName is "" or nameof(IsVisible))
             UpdateViewport();
+        else if (propertyName == nameof(IsEnabled))
+            RefreshPointerRegions();
     }
 
     /// <summary>Synchronizes the renderer's clipping rectangle with visible arranged bounds.</summary>
@@ -174,6 +641,7 @@ public partial class View : Element
         var clippingRegion = ToClippingRegion(bounds);
         ViewComponent.ClippingRegion = clippingRegion;
         ViewComponent.ViewportRegion = CalculateViewportRegion(clippingRegion);
+        RefreshPointerRegions();
     }
 
     /// <summary>Calculates the pixel viewport while retaining the camera projection aspect ratio.</summary>

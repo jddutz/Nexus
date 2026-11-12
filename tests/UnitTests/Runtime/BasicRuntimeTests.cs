@@ -12,6 +12,7 @@ using Nexus.Graphics.Vulkan;
 using Nexus.GUI;
 using Nexus.Input;
 using Nexus.Input.Devices;
+using Nexus.Input.Events;
 using Nexus.Physics;
 using Nexus.Runtime;
 using Nexus.Testing;
@@ -549,6 +550,148 @@ public class BasicRuntimeTests
 
         /// <summary>Gets the currently available controllers.</summary>
         public IReadOnlyCollection<IController> Controllers { get; } = [];
+
+        /// <inheritdoc />
+        public event Action<KeyboardConnectedEvent>? KeyboardConnected
+        {
+            add { }
+            remove { }
+        }
+
+        /// <inheritdoc />
+        public event Action<KeyboardDisconnectedEvent>? KeyboardDisconnected
+        {
+            add { }
+            remove { }
+        }
+
+        /// <inheritdoc />
+        public event Action<KeyPressedEvent>? KeyPressed
+        {
+            add { }
+            remove { }
+        }
+
+        /// <inheritdoc />
+        public event Action<KeyReleasedEvent>? KeyReleased
+        {
+            add { }
+            remove { }
+        }
+
+        /// <inheritdoc />
+        public event Action<MouseConnectedEvent>? MouseConnected
+        {
+            add { }
+            remove { }
+        }
+
+        /// <inheritdoc />
+        public event Action<MouseDisconnectedEvent>? MouseDisconnected
+        {
+            add { }
+            remove { }
+        }
+
+        /// <inheritdoc />
+        public event Action<MouseMovedEvent>? MouseMoved
+        {
+            add { }
+            remove { }
+        }
+
+        /// <inheritdoc />
+        public event Action<MouseButtonPressedEvent>? MouseButtonPressed
+        {
+            add { }
+            remove { }
+        }
+
+        /// <inheritdoc />
+        public event Action<MouseButtonReleasedEvent>? MouseButtonReleased
+        {
+            add { }
+            remove { }
+        }
+
+        /// <inheritdoc />
+        public event Action<MouseWheelEvent>? MouseWheel
+        {
+            add { }
+            remove { }
+        }
+
+        /// <inheritdoc />
+        public event Action<MouseCanceledEvent>? MouseCanceled
+        {
+            add { }
+            remove { }
+        }
+
+        /// <inheritdoc />
+        public event Action<TouchStartedEvent>? TouchStarted
+        {
+            add { }
+            remove { }
+        }
+
+        /// <inheritdoc />
+        public event Action<TouchMovedEvent>? TouchMoved
+        {
+            add { }
+            remove { }
+        }
+
+        /// <inheritdoc />
+        public event Action<TouchEndedEvent>? TouchEnded
+        {
+            add { }
+            remove { }
+        }
+
+        /// <inheritdoc />
+        public void ReportTouchStarted(TouchStartedEvent inputEvent) { }
+
+        /// <inheritdoc />
+        public void ReportTouchMoved(TouchMovedEvent inputEvent) { }
+
+        /// <inheritdoc />
+        public void ReportTouchEnded(TouchEndedEvent inputEvent) { }
+
+        /// <inheritdoc />
+        public event Action<ControllerConnectedEvent>? ControllerConnected
+        {
+            add { }
+            remove { }
+        }
+
+        /// <inheritdoc />
+        public event Action<ControllerDisconnectedEvent>? ControllerDisconnected
+        {
+            add { }
+            remove { }
+        }
+
+        /// <inheritdoc />
+        public event Action<ControllerButtonPressedEvent>? ControllerButtonPressed
+        {
+            add { }
+            remove { }
+        }
+
+        /// <inheritdoc />
+        public event Action<ControllerButtonReleasedEvent>? ControllerButtonReleased
+        {
+            add { }
+            remove { }
+        }
+
+        /// <inheritdoc />
+        public event Action<ControllerAnalogChangedEvent>? ControllerAnalogChanged
+        {
+            add { }
+            remove { }
+        }
 
         /// <summary>Looks up a controller; this no-op system never registers one.</summary>
         /// <param name="id">The controller identifier.</param>

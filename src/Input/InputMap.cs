@@ -100,7 +100,8 @@ public sealed class InputMap
         _holdElapsed = 0;
     }
 
-    private bool IsSuppressed => SuppressSceneInputEvents || !InputScope.Allows(_eventHub, this);
+    /// <summary>Gets whether explicit suppression or an active input scope prevents input processing.</summary>
+    public bool IsSuppressed => SuppressSceneInputEvents || !InputScope.Allows(_eventHub, this);
     private Action? _longPress;
     private double _holdDuration = 0.5;
     private double _holdElapsed;

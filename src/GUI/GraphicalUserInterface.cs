@@ -4,6 +4,7 @@ using Nexus.Core.Performance;
 using Nexus.Graphics;
 using Nexus.Graphics.Cameras;
 using Nexus.Graphics.Components;
+using Nexus.Input;
 
 namespace Nexus.GUI;
 
@@ -14,6 +15,7 @@ public sealed class GraphicalUserInterface : IGraphicalUserInterface
 {
     private readonly IEventHub _eventHub;
     private readonly IGraphicsSystem _graphicsSystem;
+    private readonly IInputSystem? _inputSystem;
     private readonly IWindowService? _windowService;
     private readonly IPerformanceTelemetry? _telemetry;
     private readonly bool _diagnosticsEnabled;
@@ -38,12 +40,14 @@ public sealed class GraphicalUserInterface : IGraphicalUserInterface
     /// <param name="windowService">The main-window service, or null in a headless runtime.</param>
     /// <param name="diagnostics">Optional diagnostics settings used to enable layout logging.</param>
     /// <param name="telemetry">The optional performance telemetry sink.</param>
+    /// <param name="inputSystem">The optional input system used for immediate mouse and touch input.</param>
     public GraphicalUserInterface(
         IEventHub eventHub,
         IGraphicsSystem graphicsSystem,
         IWindowService? windowService = null,
         IOptions<DiagnosticsSettings>? diagnostics = null,
-        IPerformanceTelemetry? telemetry = null
+        IPerformanceTelemetry? telemetry = null,
+        IInputSystem? inputSystem = null
     )
     {
         ArgumentNullException.ThrowIfNull(eventHub);
@@ -51,6 +55,7 @@ public sealed class GraphicalUserInterface : IGraphicalUserInterface
 
         _eventHub = eventHub;
         _graphicsSystem = graphicsSystem;
+        _inputSystem = inputSystem;
         _windowService = windowService;
         _telemetry = telemetry;
         _diagnosticsEnabled = (diagnostics?.Value ?? new DiagnosticsSettings())
@@ -79,6 +84,7 @@ public sealed class GraphicalUserInterface : IGraphicalUserInterface
         _modal = dialog;
         _modalScope = new InputScope(_eventHub, dialog.ContainsMap);
         _scene.Children.Add(dialog);
+        RefreshViewPointerRegions();
         InvalidateLayout("modal.open");
         return dialog;
     }
@@ -128,6 +134,7 @@ public sealed class GraphicalUserInterface : IGraphicalUserInterface
     {
         foreach (var element in _subscribedElements.ToArray())
             element.InputMap.Update(deltaTime);
+        RefreshViewPointerRegions();
         if (_scene is null || _windowService is null)
             return;
 
@@ -158,6 +165,7 @@ public sealed class GraphicalUserInterface : IGraphicalUserInterface
         // invalidation: target transforms and camera matrices can change each frame.
         foreach (var annotation in _subscribedElements.OfType<ViewAnnotation>().ToArray())
             annotation.Arrange(default);
+        RefreshViewPointerRegions();
     }
 
     /// <inheritdoc />
@@ -330,8 +338,83 @@ public sealed class GraphicalUserInterface : IGraphicalUserInterface
                 _propertyChangedHandlers.Add(element, handler);
                 element.PropertyChanged += handler;
                 element.InputMap.Register(_eventHub);
+                if (element is View view)
+                    view.RegisterInput(
+                        _inputSystem,
+                        _eventHub,
+                        position => CanViewReceivePointer(view, position)
+                    );
             }
         }
+
+        RefreshViewPointerRegions();
+    }
+
+    /// <summary>Determines whether a view is an eligible pointer target beneath the GUI.</summary>
+    /// <param name="view">The view requesting pointer input.</param>
+    /// <param name="position">The absolute screen-space pointer position.</param>
+    /// <returns>Whether no GUI overlay, higher view, or input restriction blocks the view.</returns>
+    private bool CanViewReceivePointer(View view, Vector2D<float> position)
+    {
+        if (
+            !_subscribedElements.Contains(view)
+            || view.InputMap.IsSuppressed
+            || (_modal is not null && !_modal.ContainsElement(view))
+        )
+            return false;
+
+        foreach (var element in _subscribedElements)
+        {
+            if (
+                ReferenceEquals(element, view)
+                || !element.IsActivated
+                || !element.IsEffectivelyVisible
+                || !ContainsPointerPosition(element.Bounds, position)
+            )
+                continue;
+
+            if (element is View otherView)
+            {
+                if (
+                    otherView.Camera is not null
+                    && (
+                        otherView.RenderOrder > view.RenderOrder
+                        || (
+                            otherView.RenderOrder == view.RenderOrder
+                            && otherView.ViewComponent.Id.Value > view.ViewComponent.Id.Value
+                        )
+                    )
+                )
+                    return false;
+
+                continue;
+            }
+
+            // The default UI pass renders above scene views, including disabled controls.
+            if (element.Components.OfType<IRenderer>().Any(renderer => renderer.IsVisible))
+                return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>Checks an element's arranged bounds using the same edge convention as input maps.</summary>
+    /// <param name="bounds">The element's absolute screen-space bounds.</param>
+    /// <param name="position">The pointer position to test.</param>
+    /// <returns>Whether the position lies inside the nonempty bounds.</returns>
+    private static bool ContainsPointerPosition(Rectangle<float> bounds, Vector2D<float> position) =>
+        bounds.Size.X > 0f
+        && bounds.Size.Y > 0f
+        && position.X >= bounds.Origin.X
+        && position.X < bounds.Max.X
+        && position.Y >= bounds.Origin.Y
+        && position.Y < bounds.Max.Y;
+
+    /// <summary>Refreshes known pointer regions after GUI state or input restrictions change.</summary>
+    private void RefreshViewPointerRegions()
+    {
+        foreach (var view in _subscribedElements.OfType<View>())
+            view.RefreshPointerRegions();
     }
 
     /// <summary>
@@ -349,9 +432,13 @@ public sealed class GraphicalUserInterface : IGraphicalUserInterface
 
                 if (_propertyChangedHandlers.Remove(element, out var handler))
                     element.PropertyChanged -= handler;
+                if (element is View view)
+                    view.UnregisterInput();
                 element.InputMap.Unregister(_eventHub);
             }
         }
+
+        RefreshViewPointerRegions();
     }
 
     /// <summary>
@@ -361,6 +448,7 @@ public sealed class GraphicalUserInterface : IGraphicalUserInterface
     /// <param name="propertyName">The name of the changed property.</param>
     private void OnElementPropertyChanged(Element changedElement, string propertyName)
     {
+        RefreshViewPointerRegions();
         if (propertyName is nameof(Element.IsVisible) or nameof(Element.IsEnabled))
         {
             foreach (var affectedElement in EnumerateElements([changedElement]))
