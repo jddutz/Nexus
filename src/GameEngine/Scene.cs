@@ -7,8 +7,6 @@ namespace Nexus.GameEngine;
 /// </summary>
 public partial class Scene : IScene
 {
-    private readonly IServiceProvider _serviceProvider;
-
     private readonly ObservableCollection<ISceneNode> _children = new(
         ReferenceEqualityComparer.Instance
     );
@@ -17,17 +15,15 @@ public partial class Scene : IScene
     private ISceneObjectFactory? _factory;
 
     /// <summary>Initializes a scene with a generated identifier.</summary>
-    public Scene(IServiceProvider serviceProvider)
-        : this(NodeId.New(), serviceProvider) { }
+    public Scene()
+        : this(NodeId.New()) { }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="Scene"/> class with the specified identifier.
     /// </summary>
     /// <param name="id">The node identifier for the scene.</param>
-    public Scene(NodeId id, IServiceProvider serviceProvider)
+    public Scene(NodeId id)
     {
-        _serviceProvider = serviceProvider;
-
         Id = id;
 
         _children.ValidationRules += ValidateChild;
