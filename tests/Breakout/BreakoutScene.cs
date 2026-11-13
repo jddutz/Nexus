@@ -3,13 +3,13 @@ namespace Nexus.Samples.Breakout;
 using Nexus.Core;
 using Nexus.Core.Events;
 using Nexus.GameEngine;
-using Nexus.GUI;
-using Nexus.GUI.Elements;
 using Nexus.Graphics;
 using Nexus.Graphics.Cameras;
 using Nexus.Graphics.Components;
 using Nexus.Graphics.Geometry;
 using Nexus.Graphics.Text;
+using Nexus.GUI;
+using Nexus.GUI.Elements;
 using Nexus.Input;
 using Nexus.Physics;
 using Nexus.Physics.Components;
@@ -57,15 +57,12 @@ public sealed class BreakoutScene : Scene
     /// <param name="eventHub">Dispatches key transitions.</param>
     /// <param name="windowService">Provides the current window size.</param>
     /// <param name="physics">Owns the scene's simulation world.</param>
-    /// <param name="serviceProvider">Provides services used by the scene.</param>
     public BreakoutScene(
         ITextStyleRegistry textStyles,
         IEventHub eventHub,
         IWindowService windowService,
-        IPhysicsSystem physics,
-        IServiceProvider serviceProvider
+        IPhysicsSystem physics
     )
-        : base(serviceProvider)
     {
         ArgumentNullException.ThrowIfNull(textStyles);
         ArgumentNullException.ThrowIfNull(eventHub);
@@ -140,7 +137,8 @@ public sealed class BreakoutScene : Scene
             is not (BreakoutRoundState.Paused or BreakoutRoundState.Won or BreakoutRoundState.Lost)
         )
         {
-            var direction = (IsHeld(KeyEnum.Right) || IsHeld(KeyEnum.D) ? 1f : 0f)
+            var direction =
+                (IsHeld(KeyEnum.Right) || IsHeld(KeyEnum.D) ? 1f : 0f)
                 - (IsHeld(KeyEnum.Left) || IsHeld(KeyEnum.A) ? 1f : 0f);
             var paddleX = Math.Clamp(
                 _paddle.Position.X + direction * PaddleSpeed * (float)Math.Max(0d, deltaTime),
@@ -276,20 +274,20 @@ public sealed class BreakoutScene : Scene
             new(0.1f, 0.4f, 1f),
         ];
         for (var row = 0; row < rows; row++)
-            for (var column = 0; column < columns; column++)
-            {
-                var brick = new Brick(
-                    RectangleMesh,
-                    new(gap + column * (brickWidth + gap), 70f + row * 32f, brickWidth, 24f),
-                    _world.Id,
-                    row,
-                    column,
-                    rowColors[row]
-                );
-                _bricks.Add(brick);
-                if (IsInitialized)
-                    Children.Add(brick);
-            }
+        for (var column = 0; column < columns; column++)
+        {
+            var brick = new Brick(
+                RectangleMesh,
+                new(gap + column * (brickWidth + gap), 70f + row * 32f, brickWidth, 24f),
+                _world.Id,
+                row,
+                column,
+                rowColors[row]
+            );
+            _bricks.Add(brick);
+            if (IsInitialized)
+                Children.Add(brick);
+        }
     }
 
     /// <summary>Positions the stationary ball above the paddle using the authoritative physics pose.</summary>
@@ -354,11 +352,7 @@ public sealed class BreakoutScene : Scene
     /// <param name="ball">The ball from the overlap pair.</param>
     /// <param name="brick">The contacted brick.</param>
     /// <param name="contact">The optional swept-contact data.</param>
-    private void HandleBrickCollision(
-        Ball ball,
-        Brick brick,
-        PhysicsCollisionContact? contact
-    )
+    private void HandleBrickCollision(Ball ball, Brick brick, PhysicsCollisionContact? contact)
     {
         if (!ReferenceEquals(ball, _ball) || !_bricks.Contains(brick))
             return;
@@ -386,13 +380,15 @@ public sealed class BreakoutScene : Scene
             return;
 
         var hasBallContact = IsBallContact(ball, contact);
-        var velocity = hasBallContact && contact is { } ballContact
-            ? ballContact.IncomingVelocity
-            : ball.Body.Velocity;
-        var movingIntoPaddleTop = hasBallContact && contact is { } paddleContact
-            ? paddleContact.Normal.Y < 0f
-            : HasPositiveOverlap(ball.Bounds, _paddle.Bounds)
-                && ball.Bounds.Origin.Y < _paddle.Bounds.Origin.Y;
+        var velocity =
+            hasBallContact && contact is { } ballContact
+                ? ballContact.IncomingVelocity
+                : ball.Body.Velocity;
+        var movingIntoPaddleTop =
+            hasBallContact && contact is { } paddleContact
+                ? paddleContact.Normal.Y < 0f
+                : HasPositiveOverlap(ball.Bounds, _paddle.Bounds)
+                    && ball.Bounds.Origin.Y < _paddle.Bounds.Origin.Y;
         if (velocity.Y > 0f && movingIntoPaddleTop)
         {
             var position = ball.Position;
@@ -455,16 +451,18 @@ public sealed class BreakoutScene : Scene
         if (!HasPositiveOverlap(bounds, surface))
             return false;
 
-        var overlapX = MathF.Min(bounds.Max.X, surface.Max.X) - MathF.Max(bounds.Origin.X, surface.Origin.X);
-        var overlapY = MathF.Min(bounds.Max.Y, surface.Max.Y) - MathF.Max(bounds.Origin.Y, surface.Origin.Y);
+        var overlapX =
+            MathF.Min(bounds.Max.X, surface.Max.X) - MathF.Max(bounds.Origin.X, surface.Origin.X);
+        var overlapY =
+            MathF.Min(bounds.Max.Y, surface.Max.Y) - MathF.Max(bounds.Origin.Y, surface.Origin.Y);
         var position = ball.Position;
         var velocity = ball.Body.Velocity;
         if (overlapX < overlapY)
         {
             var ballCenterX = bounds.Origin.X + bounds.Size.X / 2f;
             var surfaceCenterX = surface.Origin.X + surface.Size.X / 2f;
-            var isLeft = ballCenterX < surfaceCenterX
-                || (ballCenterX == surfaceCenterX && velocity.X >= 0f);
+            var isLeft =
+                ballCenterX < surfaceCenterX || (ballCenterX == surfaceCenterX && velocity.X >= 0f);
             position.X = isLeft ? surface.Origin.X - bounds.Size.X : surface.Max.X;
             if ((isLeft && velocity.X > 0f) || (!isLeft && velocity.X < 0f))
                 velocity.X = -velocity.X;
@@ -473,8 +471,8 @@ public sealed class BreakoutScene : Scene
         {
             var ballCenterY = bounds.Origin.Y + bounds.Size.Y / 2f;
             var surfaceCenterY = surface.Origin.Y + surface.Size.Y / 2f;
-            var isAbove = ballCenterY < surfaceCenterY
-                || (ballCenterY == surfaceCenterY && velocity.Y >= 0f);
+            var isAbove =
+                ballCenterY < surfaceCenterY || (ballCenterY == surfaceCenterY && velocity.Y >= 0f);
             position.Y = isAbove ? surface.Origin.Y - bounds.Size.Y : surface.Max.Y;
             if ((isAbove && velocity.Y > 0f) || (!isAbove && velocity.Y < 0f))
                 velocity.Y = -velocity.Y;
@@ -567,11 +565,13 @@ public sealed class BreakoutScene : Scene
                     DrawOrder = 10,
                 }
             );
-            AddComponent(new PhysicsCollider2D
-            {
-                WorldId = worldId,
-                Shape = new RectangleShape2D(new(1f, 1f), new(0.5f, 0.5f)),
-            });
+            AddComponent(
+                new PhysicsCollider2D
+                {
+                    WorldId = worldId,
+                    Shape = new RectangleShape2D(new(1f, 1f), new(0.5f, 0.5f)),
+                }
+            );
         }
 
         /// <summary>Gets the current collision rectangle.</summary>
@@ -607,11 +607,13 @@ public sealed class BreakoutScene : Scene
                 }
             );
             Body = new PhysicsBody2D { WorldId = worldId };
-            AddComponent(new PhysicsCollider2D
-            {
-                WorldId = worldId,
-                Shape = new RectangleShape2D(new(1f, 1f), new(0.5f, 0.5f)),
-            });
+            AddComponent(
+                new PhysicsCollider2D
+                {
+                    WorldId = worldId,
+                    Shape = new RectangleShape2D(new(1f, 1f), new(0.5f, 0.5f)),
+                }
+            );
             AddComponent(Body);
         }
 
@@ -664,11 +666,13 @@ public sealed class BreakoutScene : Scene
                     DrawOrder = 5,
                 }
             );
-            AddComponent(new PhysicsCollider2D
-            {
-                WorldId = worldId,
-                Shape = new RectangleShape2D(new(1f, 1f), new(0.5f, 0.5f)),
-            });
+            AddComponent(
+                new PhysicsCollider2D
+                {
+                    WorldId = worldId,
+                    Shape = new RectangleShape2D(new(1f, 1f), new(0.5f, 0.5f)),
+                }
+            );
         }
 
         /// <summary>Gets the current collision rectangle.</summary>

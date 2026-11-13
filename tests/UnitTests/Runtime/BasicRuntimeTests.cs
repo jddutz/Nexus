@@ -191,7 +191,7 @@ public class BasicRuntimeTests
             "Next",
             () =>
             {
-                var scene = new Scene(SceneRegistryTestHelper.ServiceProvider);
+                var scene = new Scene();
                 scene.Children.Add(view);
                 return scene;
             }
@@ -451,7 +451,7 @@ public class BasicRuntimeTests
             registry.Register(
                 sceneName,
                 () =>
-                    new Scene(SceneRegistryTestHelper.ServiceProvider)
+                    new Scene()
                     {
                     }
             );

@@ -22,8 +22,7 @@ public class SceneRegistryTests
         var existingNode = new GameObject();
         var existingChild = new GameObject();
         existingNode.Children.Add(existingChild);
-        using var services = new ServiceCollection().BuildServiceProvider();
-        var scene = new Scene(NodeId.New(), services);
+        var scene = new Scene(NodeId.New());
         scene.Children.Add(existingNode);
 
         Assert.Equal(0, registry.SceneCount);
@@ -54,7 +53,7 @@ public class SceneRegistryTests
         registry.Register(
             sceneName,
             () =>
-                new Scene(NodeId.New(), SceneRegistryTestHelper.ServiceProvider)
+                new Scene(NodeId.New())
                 {
                 }
         );
@@ -63,7 +62,7 @@ public class SceneRegistryTests
             registry.Register(
                 sceneName,
                 () =>
-                    new Scene(NodeId.New(), SceneRegistryTestHelper.ServiceProvider)
+                    new Scene(NodeId.New())
                     {
                     }
             )
@@ -113,9 +112,8 @@ public class SceneRegistryTests
     public sealed class UnattributedDiscoveredScene : Scene
     {
         /// <summary>Creates a scene used to verify default name discovery.</summary>
-        /// <param name="serviceProvider">The services used by the scene.</param>
-        public UnattributedDiscoveredScene(IServiceProvider serviceProvider)
-            : base(serviceProvider) { }
+        public UnattributedDiscoveredScene()
+            : base() { }
     }
 
     /// <summary>A scene whose discovery name is overridden by its attribute.</summary>
@@ -123,8 +121,7 @@ public class SceneRegistryTests
     public sealed class OverriddenDiscoveredScene : Scene
     {
         /// <summary>Creates a scene used to verify attribute name overrides.</summary>
-        /// <param name="serviceProvider">The services used by the scene.</param>
-        public OverriddenDiscoveredScene(IServiceProvider serviceProvider)
-            : base(serviceProvider) { }
+        public OverriddenDiscoveredScene()
+            : base() { }
     }
 }

@@ -20,7 +20,7 @@ public class SceneManagerTests
         Assert.True(sceneManager.IsSceneChangePending);
         Assert.Equal("MainMenu", sceneManager.PendingSceneId);
 
-        var loadedScene = new MainMenuScene(SceneRegistryTestHelper.ServiceProvider)
+        var loadedScene = new MainMenuScene()
         {
         };
         eventHub.Publish(new SceneLoadedEvent(loadedScene));
@@ -105,7 +105,7 @@ public class SceneManagerTests
         var sceneManager = new SceneManager(eventHub, logger);
         sceneManager.LoadScene("ExpectedScene");
 
-        var loadedScene = new OtherScene(SceneRegistryTestHelper.ServiceProvider)
+        var loadedScene = new OtherScene()
         {
         };
         eventHub.Publish(new SceneLoadedEvent(loadedScene));
@@ -129,7 +129,7 @@ public class SceneManagerTests
         eventHub.Publish(
             new SceneLoadedEvent
             (
-                new OtherScene(SceneRegistryTestHelper.ServiceProvider)
+                new OtherScene()
                 {
                 }
             )
@@ -145,9 +145,8 @@ public class SceneManagerTests
     private sealed class OtherScene : Scene
     {
         /// <summary>Creates a scene used to verify type-name identification.</summary>
-        /// <param name="serviceProvider">The services used by the scene.</param>
-        public OtherScene(IServiceProvider serviceProvider)
-            : base(serviceProvider) { }
+        public OtherScene()
+            : base() { }
     }
 
     /// <summary>A scene whose registration name is used to test matching loaded events.</summary>
@@ -155,9 +154,8 @@ public class SceneManagerTests
     private sealed class MainMenuScene : Scene
     {
         /// <summary>Creates a scene used to verify attribute-name identification.</summary>
-        /// <param name="serviceProvider">The services used by the scene.</param>
-        public MainMenuScene(IServiceProvider serviceProvider)
-            : base(serviceProvider) { }
+        public MainMenuScene()
+            : base() { }
     }
 
     /// <summary>Captures warning-level messages from the scene manager.</summary>

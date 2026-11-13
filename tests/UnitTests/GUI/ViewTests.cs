@@ -391,7 +391,7 @@ public sealed class ViewTests
             PropagateInputEvents = true,
             SizingMode = ViewSizingMode.Stretch,
         };
-        var scene = new Scene(SceneRegistryTestHelper.ServiceProvider);
+        var scene = new Scene();
         scene.Children.Add(view);
         scene.Initialize();
         scene.Activate();

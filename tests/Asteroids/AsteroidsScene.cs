@@ -44,8 +44,9 @@ public sealed class AsteroidsScene : Scene
     private static readonly Mesh[] AsteroidMeshes = CreateAsteroidMeshes();
     private static readonly TriangleMeshShape2D ShipShape = CreatePhysicsShape(ShipMesh);
     private static readonly TriangleMeshShape2D BulletShape = CreatePhysicsShape(BulletMesh);
-    private static readonly TriangleMeshShape2D[] AsteroidShapes =
-        AsteroidMeshes.Select(CreatePhysicsShape).ToArray();
+    private static readonly TriangleMeshShape2D[] AsteroidShapes = AsteroidMeshes
+        .Select(CreatePhysicsShape)
+        .ToArray();
 
     private readonly IWindowService _windowService;
     private readonly IEventHub _eventHub;
@@ -69,15 +70,12 @@ public sealed class AsteroidsScene : Scene
     /// <param name="eventHub">Dispatches key transitions.</param>
     /// <param name="windowService">Provides the current window size.</param>
     /// <param name="physics">Owns the scene's simulation world.</param>
-    /// <param name="serviceProvider">Provides services used by the scene.</param>
     public AsteroidsScene(
         ITextStyleRegistry textStyles,
         IEventHub eventHub,
         IWindowService windowService,
-        IPhysicsSystem physics,
-        IServiceProvider serviceProvider
+        IPhysicsSystem physics
     )
-        : base(serviceProvider)
     {
         _windowService = windowService;
         _eventHub = eventHub;
@@ -147,9 +145,11 @@ public sealed class AsteroidsScene : Scene
         base.Update(deltaTime);
 
         _statusText.Text = _finished
-            ? (_lives == 0
-                ? "Game Over - Press R to restart"
-                : "Field Cleared - Press R to restart")
+            ? (
+                _lives == 0
+                    ? "Game Over - Press R to restart"
+                    : "Field Cleared - Press R to restart"
+            )
             : string.Empty;
         _scoreText.Text = $"Score: {_score}";
         _livesText.Text = $"Lives: {_lives}";
@@ -181,7 +181,11 @@ public sealed class AsteroidsScene : Scene
         {
             var ship = firstOwner as Ship ?? secondOwner as Ship;
             var asteroid = firstOwner as Asteroid ?? secondOwner as Asteroid;
-            if (ReferenceEquals(ship, _ship) && asteroid is not null && _asteroids.Contains(asteroid))
+            if (
+                ReferenceEquals(ship, _ship)
+                && asteroid is not null
+                && _asteroids.Contains(asteroid)
+            )
                 HandleShipHit();
         }
     }
@@ -253,7 +257,14 @@ public sealed class AsteroidsScene : Scene
     /// <param name="spawn">The transformed muzzle state.</param>
     private void OnShipFired(ShipSpawn spawn)
     {
-        var bullet = new Bullet(BulletMesh, BulletColor, spawn.Position, spawn.Rotation, spawn.Velocity, _worldId)
+        var bullet = new Bullet(
+            BulletMesh,
+            BulletColor,
+            spawn.Position,
+            spawn.Rotation,
+            spawn.Velocity,
+            _worldId
+        )
         {
             Bounds = _ship.Bounds,
         };
@@ -275,12 +286,22 @@ public sealed class AsteroidsScene : Scene
         {
             var direction = Normalize(target.Velocity);
             var perpendicular = new Vector2D<float>(-direction.Y, direction.X);
-            AddAsteroid(target.Position, target.Generation + 1, target.Radius * 0.62f,
-                75f + target.Generation * 12f, target.Variant + 1,
-                target.Velocity + perpendicular * 32f);
-            AddAsteroid(target.Position, target.Generation + 1, target.Radius * 0.62f,
-                75f + target.Generation * 12f, target.Variant + 3,
-                target.Velocity - perpendicular * 32f);
+            AddAsteroid(
+                target.Position,
+                target.Generation + 1,
+                target.Radius * 0.62f,
+                75f + target.Generation * 12f,
+                target.Variant + 1,
+                target.Velocity + perpendicular * 32f
+            );
+            AddAsteroid(
+                target.Position,
+                target.Generation + 1,
+                target.Radius * 0.62f,
+                75f + target.Generation * 12f,
+                target.Variant + 3,
+                target.Velocity - perpendicular * 32f
+            );
         }
 
         if (_asteroids.Count == 0)
@@ -406,12 +427,19 @@ public sealed class AsteroidsScene : Scene
             {
                 var angle = index * MathF.PI * 2f / 12f;
                 var radius = 0.78f + (float)random.NextDouble() * 0.42f;
-                vertices[index + 1] = new(new(MathF.Cos(angle) * radius, MathF.Sin(angle) * radius, 0f));
+                vertices[index + 1] = new(
+                    new(MathF.Cos(angle) * radius, MathF.Sin(angle) * radius, 0f)
+                );
                 indices[index * 3] = 0;
                 indices[index * 3 + 1] = (uint)(index + 1);
                 indices[index * 3 + 2] = (uint)(index == 11 ? 1 : index + 2);
             }
-            meshes[variant] = new Mesh($"Asteroid{variant}", PrimitiveTopologyEnum.TriangleList, vertices, indices);
+            meshes[variant] = new Mesh(
+                $"Asteroid{variant}",
+                PrimitiveTopologyEnum.TriangleList,
+                vertices,
+                indices
+            );
         }
         return meshes;
     }
@@ -428,22 +456,31 @@ public sealed class AsteroidsScene : Scene
     {
         /// <summary>Gets or sets whether the Left key is held.</summary>
         public bool Left { get; set; }
+
         /// <summary>Gets or sets whether the Right key is held.</summary>
         public bool Right { get; set; }
+
         /// <summary>Gets or sets whether the A key is held.</summary>
         public bool A { get; set; }
+
         /// <summary>Gets or sets whether the D key is held.</summary>
         public bool D { get; set; }
+
         /// <summary>Gets or sets whether the Up key is held.</summary>
         public bool Up { get; set; }
+
         /// <summary>Gets or sets whether the W key is held.</summary>
         public bool W { get; set; }
+
         /// <summary>Gets whether counterclockwise rotation is held.</summary>
         public bool RotateLeft => Left || A;
+
         /// <summary>Gets whether clockwise rotation is held.</summary>
         public bool RotateRight => Right || D;
+
         /// <summary>Gets whether thrust is held.</summary>
         public bool Thrust => Up || W;
+
         /// <summary>Gets or sets whether firing is held.</summary>
         public bool Fire { get; set; }
     }
@@ -476,7 +513,12 @@ public sealed class AsteroidsScene : Scene
         public Ship(ShipInput input, Mesh mesh, Color color, PhysicsWorldId worldId)
         {
             _input = input;
-            _renderer = new UniformColorMeshRenderer { Mesh = mesh, Color = color, DrawOrder = 100 };
+            _renderer = new UniformColorMeshRenderer
+            {
+                Mesh = mesh,
+                Color = color,
+                DrawOrder = 100,
+            };
             AddComponent(_renderer);
             Scale = new(ShipScale, ShipScale);
             Children.Add(_muzzle);
@@ -494,10 +536,13 @@ public sealed class AsteroidsScene : Scene
 
         /// <summary>Gets or sets the current movement bounds.</summary>
         public Vector2D<float> Bounds { get; set; }
+
         /// <summary>Gets whether the ship is currently crash-invulnerable.</summary>
         public bool IsInvulnerable => _invulnerability > 0f;
+
         /// <summary>Raised after the muzzle transform is current and a shot is fired.</summary>
         public event Action<ShipSpawn>? Fired;
+
         /// <summary>Gets the CPU mesh collider used for ship contacts.</summary>
         public PhysicsCollider2D Collider => _collider;
 
@@ -513,7 +558,9 @@ public sealed class AsteroidsScene : Scene
             {
                 var forward = new Vector2D<float>(MathF.Cos(Rotation), MathF.Sin(Rotation));
                 _body.Acceleration = forward * 260f;
-                var speed = MathF.Sqrt(_body.Velocity.X * _body.Velocity.X + _body.Velocity.Y * _body.Velocity.Y);
+                var speed = MathF.Sqrt(
+                    _body.Velocity.X * _body.Velocity.X + _body.Velocity.Y * _body.Velocity.Y
+                );
                 if (speed > 300f)
                     _body.Velocity *= 300f / speed;
             }
@@ -523,14 +570,16 @@ public sealed class AsteroidsScene : Scene
             base.Update(deltaTime);
             _fireTimer = MathF.Max(0f, _fireTimer - elapsed);
             _invulnerability = MathF.Max(0f, _invulnerability - elapsed);
-            _renderer.Color = IsInvulnerable && (int)(_invulnerability * 12f) % 2 == 0
-                ? Colors.Red
-                : ShipColor;
+            _renderer.Color =
+                IsInvulnerable && (int)(_invulnerability * 12f) % 2 == 0 ? Colors.Red : ShipColor;
 
             if (!_isFrozen && _input.Fire && _fireTimer <= 0f)
             {
                 var forward = new Vector2D<float>(MathF.Cos(Rotation), MathF.Sin(Rotation));
-                var muzzlePosition = new Vector2D<float>(_muzzle.WorldTransform.M41, _muzzle.WorldTransform.M42);
+                var muzzlePosition = new Vector2D<float>(
+                    _muzzle.WorldTransform.M41,
+                    _muzzle.WorldTransform.M42
+                );
                 Fired?.Invoke(new(muzzlePosition, _body.Velocity + forward * 560f, Rotation));
                 _fireTimer = FireCooldown;
             }
@@ -592,7 +641,12 @@ public sealed class AsteroidsScene : Scene
             PhysicsWorldId worldId
         )
         {
-            _renderer = new UniformColorMeshRenderer { Mesh = mesh, Color = color, DrawOrder = 5 };
+            _renderer = new UniformColorMeshRenderer
+            {
+                Mesh = mesh,
+                Color = color,
+                DrawOrder = 5,
+            };
             AddComponent(_renderer);
             Position = position;
             Rotation = rotation;
@@ -600,7 +654,12 @@ public sealed class AsteroidsScene : Scene
             Radius = radius;
             Generation = generation;
             Variant = variant;
-            _body = new() { WorldId = worldId, Velocity = velocity, AngularVelocity = 0.3f + variant * 0.07f };
+            _body = new()
+            {
+                WorldId = worldId,
+                Velocity = velocity,
+                AngularVelocity = 0.3f + variant * 0.07f,
+            };
             _collider = new()
             {
                 WorldId = worldId,
@@ -613,16 +672,22 @@ public sealed class AsteroidsScene : Scene
 
         /// <summary>Gets or sets the current movement bounds.</summary>
         public Vector2D<float> Bounds { get; set; }
+
         /// <summary>Gets the current velocity.</summary>
         public Vector2D<float> Velocity => _body.Velocity;
+
         /// <summary>Gets the visual and collision radius.</summary>
         public float Radius { get; }
+
         /// <summary>Gets the collision radius.</summary>
         public float CollisionRadius => Radius;
+
         /// <summary>Gets the splitting generation.</summary>
         public int Generation { get; }
+
         /// <summary>Gets the mesh variant identifier.</summary>
         public int Variant { get; }
+
         /// <summary>Gets the CPU mesh collider used for asteroid contacts.</summary>
         public PhysicsCollider2D Collider => _collider;
 
@@ -649,11 +714,18 @@ public sealed class AsteroidsScene : Scene
     /// <returns>The local-space physics triangles.</returns>
     private static PhysicsTriangle2D[] ToPhysicsTriangles(Mesh mesh)
     {
-        var indices = mesh.Indices.Count == 0
-            ? Enumerable.Range(0, checked((int)mesh.VertexCount)).Select(index => (uint)index).ToArray()
-            : mesh.Indices;
+        var indices =
+            mesh.Indices.Count == 0
+                ? Enumerable
+                    .Range(0, checked((int)mesh.VertexCount))
+                    .Select(index => (uint)index)
+                    .ToArray()
+                : mesh.Indices;
         if (mesh.Topology != PrimitiveTopologyEnum.TriangleList || indices.Count % 3 != 0)
-            throw new ArgumentException("Physics geometry requires a triangle-list mesh.", nameof(mesh));
+            throw new ArgumentException(
+                "Physics geometry requires a triangle-list mesh.",
+                nameof(mesh)
+            );
 
         var triangles = new PhysicsTriangle2D[indices.Count / 3];
         for (var index = 0; index < triangles.Length; index++)
@@ -661,7 +733,11 @@ public sealed class AsteroidsScene : Scene
             var first = mesh.Vertices[checked((int)indices[index * 3])].Position;
             var second = mesh.Vertices[checked((int)indices[index * 3 + 1])].Position;
             var third = mesh.Vertices[checked((int)indices[index * 3 + 2])].Position;
-            triangles[index] = new(new(first.X, first.Y), new(second.X, second.Y), new(third.X, third.Y));
+            triangles[index] = new(
+                new(first.X, first.Y),
+                new(second.X, second.Y),
+                new(third.X, third.Y)
+            );
         }
         return triangles;
     }
@@ -695,7 +771,12 @@ public sealed class AsteroidsScene : Scene
             PhysicsWorldId worldId
         )
         {
-            _renderer = new UniformColorMeshRenderer { Mesh = mesh, Color = color, DrawOrder = 110 };
+            _renderer = new UniformColorMeshRenderer
+            {
+                Mesh = mesh,
+                Color = color,
+                DrawOrder = 110,
+            };
             AddComponent(_renderer);
             Position = position;
             Rotation = rotation;
@@ -714,14 +795,19 @@ public sealed class AsteroidsScene : Scene
 
         /// <summary>Gets or sets the current movement bounds.</summary>
         public Vector2D<float> Bounds { get; set; }
+
         /// <summary>Gets the bullet velocity.</summary>
         public Vector2D<float> Velocity => _body.Velocity;
+
         /// <summary>Gets the circular collision radius.</summary>
         public float CollisionRadius => 6f;
+
         /// <summary>Gets the remaining lifetime.</summary>
         public float Lifetime { get; private set; }
+
         /// <summary>Raised when the bullet reaches the end of its lifetime.</summary>
         public event Action<Bullet>? Expired;
+
         /// <summary>Gets the CPU mesh collider used for bullet contacts.</summary>
         public PhysicsCollider2D Collider => _collider;
 

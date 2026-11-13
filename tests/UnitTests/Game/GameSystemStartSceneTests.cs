@@ -145,7 +145,7 @@ public class GameSystemStartSceneTests
     /// <summary>Creates a scene with the required main camera.</summary>
     /// <returns>A new scene.</returns>
     private static Scene CreateScene() =>
-        new(SceneRegistryTestHelper.ServiceProvider)
+        new()
         {
         };
 

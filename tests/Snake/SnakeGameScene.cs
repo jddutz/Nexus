@@ -67,10 +67,7 @@ public sealed class SnakeGameScene : Scene
     private readonly TileMapData _boardData = new(
         new Rectangle<int>(0, 0, SnakeGameState.BoardSize, SnakeGameState.BoardSize)
     );
-    private readonly TileMapRenderer _boardRenderer = new()
-    {
-        Texture = BuiltInTextures.Uniform,
-    };
+    private readonly TileMapRenderer _boardRenderer = new() { Texture = BuiltInTextures.Uniform };
     private readonly GameObject2D _boardObject;
     private readonly TextElement _scoreText;
     private readonly TextElement _promptText;
@@ -85,23 +82,21 @@ public sealed class SnakeGameScene : Scene
     /// <param name="eventHub">Dispatches scene input events.</param>
     /// <param name="windowService">Provides the main window size for responsive layout.</param>
     /// <param name="diagnostics">Optional diagnostics settings used to enable game logging.</param>
-    /// <param name="serviceProvider">Provides services used by the scene.</param>
     public SnakeGameScene(
         ITextStyleRegistry textStyles,
         IEventHub eventHub,
         IWindowService windowService,
-        IServiceProvider serviceProvider,
         IOptions<DiagnosticsSettings>? diagnostics = null
     )
-        : base(serviceProvider)
     {
         ArgumentNullException.ThrowIfNull(textStyles);
         ArgumentNullException.ThrowIfNull(eventHub);
         ArgumentNullException.ThrowIfNull(windowService);
 
         _windowService = windowService;
-        _diagnosticsEnabled = (diagnostics?.Value ?? new DiagnosticsSettings())
-            .GraphicsInstrumentationEnabled;
+        _diagnosticsEnabled = (
+            diagnostics?.Value ?? new DiagnosticsSettings()
+        ).GraphicsInstrumentationEnabled;
         _boardRenderer.Map = _boardData;
         _boardObject = new GameObject2D([_boardRenderer]);
         _scoreText = new TextElement
@@ -343,8 +338,7 @@ public sealed class SnakeGameScene : Scene
         );
         for (var index = 0; index < _game.Snake.Count; index++)
         {
-            desiredTiles[_game.Snake[index]] =
-                index == 0 ? Colors.BrightGreen : Colors.DarkGreen;
+            desiredTiles[_game.Snake[index]] = index == 0 ? Colors.BrightGreen : Colors.DarkGreen;
         }
 
         if (_game.Target is { } target)

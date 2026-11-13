@@ -226,7 +226,7 @@ public sealed class TextButtonTests
     [Fact]
     public void Visibility_togglesAndRetainsVisualComponents()
     {
-        var scene = new Scene(SceneRegistryTestHelper.ServiceProvider);
+        var scene = new Scene();
         var parent = new Element();
         var button = CreateButton("AB");
         var bounds = new Rectangle<float>(4f, 5f, 60f, 24f);
@@ -445,7 +445,7 @@ public sealed class TextButtonTests
     [Fact]
     public void AddChild_registersButtonInScene()
     {
-        var scene = new Scene(SceneRegistryTestHelper.ServiceProvider);
+        var scene = new Scene();
         var parent = new GameObject();
         scene.Children.Add(parent);
         scene.Activate();
@@ -639,7 +639,7 @@ public sealed class TextButtonTests
         var gui = new GraphicalUserInterface(eventHub, new TestGraphicsSystem());
         var button = CreateButton("A");
         button.Arrange(new Rectangle<float>(4f, 5f, 60f, 24f));
-        var scene = new Scene(SceneRegistryTestHelper.ServiceProvider);
+        var scene = new Scene();
         scene.Children.Add(button);
         scene.Activate();
         button.Activate();

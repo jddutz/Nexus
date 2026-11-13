@@ -264,7 +264,7 @@ public class GameSystemLifecycleTests
     /// </summary>
     /// <param name="calls">The list recording lifecycle calls.</param>
     private sealed class LifecycleScene(List<string> calls)
-        : Scene(NodeId.New(), SceneRegistryTestHelper.ServiceProvider)
+        : Scene(NodeId.New())
     {
         /// <inheritdoc />
         public override void Update(double deltaTime)
