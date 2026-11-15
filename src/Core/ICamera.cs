@@ -1,9 +1,7 @@
-namespace Nexus.Graphics.Cameras;
+namespace Nexus.Core;
 
 /// <summary>
-/// Defines the common contract shared by all camera components. Cameras are activated by the
-/// graphics system but contribute no render items; their responsibility ends at exposing camera
-/// state, particularly <see cref="ViewProjectionMatrix"/>.
+/// Defines the camera state and projection operations used by scenes and rendering contexts.
 /// </summary>
 public interface ICamera
 {

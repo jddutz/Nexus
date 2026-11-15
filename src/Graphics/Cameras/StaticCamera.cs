@@ -29,7 +29,7 @@ public partial class StaticCamera : Component, ICamera
     public IReadOnlyList<IDrawable> Renderables => [];
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="ICamera"/> class with a default 1x1
+    /// Initializes a new instance of the <see cref="StaticCamera"/> class with a default 1x1
     /// viewport. Call <see cref="SetViewportSize"/> before rendering.
     /// </summary>
     public StaticCamera()

@@ -2,7 +2,6 @@ using System.Diagnostics;
 using Microsoft.Extensions.Options;
 using Nexus.Core.Performance;
 using Nexus.Graphics;
-using Nexus.Graphics.Cameras;
 using Nexus.Graphics.Components;
 using Nexus.Input;
 
@@ -19,7 +18,6 @@ public sealed class GraphicalUserInterface : IGraphicalUserInterface
     private readonly IWindowService? _windowService;
     private readonly IPerformanceTelemetry? _telemetry;
     private readonly bool _diagnosticsEnabled;
-    private readonly StaticCamera _defaultCamera = new();
     private readonly ViewRenderer _defaultView;
     private readonly HashSet<Element> _subscribedElements = [];
     private readonly Dictionary<Element, Action<string>> _propertyChangedHandlers = [];
@@ -62,7 +60,6 @@ public sealed class GraphicalUserInterface : IGraphicalUserInterface
             .GraphicsInstrumentationEnabled;
         _defaultView = new ViewRenderer
         {
-            Camera = _defaultCamera,
             LayerMask = RenderLayers.DefaultUI,
             HasExplicitClippingRegion = true,
             RenderOrder = int.MaxValue,
@@ -243,7 +240,12 @@ public sealed class GraphicalUserInterface : IGraphicalUserInterface
     {
         _modal?.Dispose();
         UnsubscribeFromElements(_subscribedElements.ToArray());
+        if (_scene is not null)
+            _scene.PropertyChanged -= OnScenePropertyChanged;
+        UnregisterDefaultView();
         _scene = message.Scene;
+        _scene.PropertyChanged += OnScenePropertyChanged;
+        _defaultView.Camera = _scene.MainCamera;
         UpdateDefaultViewViewport(
             _windowService?.GetMainWindow().Size ?? new Vector2D<int>(1, 1)
         );
@@ -282,7 +284,9 @@ public sealed class GraphicalUserInterface : IGraphicalUserInterface
     public void Handle(SceneUnloadedEvent message)
     {
         if (!ReferenceEquals(message.Scene, _scene)) return;
+        _scene.PropertyChanged -= OnScenePropertyChanged;
         UnregisterDefaultView();
+        _defaultView.Camera = null;
         _savedFocus = null;
         _modal?.Dispose();
         UnsubscribeFromElements(_subscribedElements.ToArray());
@@ -307,10 +311,21 @@ public sealed class GraphicalUserInterface : IGraphicalUserInterface
     /// <param name="size">The window dimensions in pixels.</param>
     private void UpdateDefaultViewViewport(Vector2D<int> size)
     {
-        _defaultCamera.SetViewportSize(size.X, size.Y);
+        _defaultView.Camera?.SetViewportSize(size.X, size.Y);
         var viewport = new Rectangle<int>(Vector2D<int>.Zero, size);
         _defaultView.ViewportRegion = viewport;
         _defaultView.ClippingRegion = viewport;
+    }
+
+    /// <summary>Synchronizes the owned view when the scene replaces its main camera.</summary>
+    private void OnScenePropertyChanged(string propertyName)
+    {
+        if (propertyName is not (nameof(IScene.MainCamera) or "") || _scene is null)
+            return;
+
+        _defaultView.Camera = _scene.MainCamera;
+        var size = _defaultView.ViewportRegion.Size;
+        _defaultView.Camera.SetViewportSize(size.X, size.Y);
     }
 
     /// <summary>Removes the default UI view from the active graphics system when registered.</summary>

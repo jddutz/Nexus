@@ -38,6 +38,22 @@ public partial class Scene : IScene
     /// <inheritdoc />
     public event Action<string>? PropertyChanged;
 
+    private ICamera _mainCamera = new StaticCamera();
+
+    /// <summary>Gets or sets the camera used by the engine-managed full-screen scene view.</summary>
+    public ICamera MainCamera
+    {
+        get => _mainCamera;
+        set
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            if (ReferenceEquals(_mainCamera, value))
+                return;
+            _mainCamera = value;
+            PropertyChanged?.Invoke(nameof(MainCamera));
+        }
+    }
+
     [Observable(PublicSetter = true)]
     private RenderLayerCollection _renderLayers = new();
 

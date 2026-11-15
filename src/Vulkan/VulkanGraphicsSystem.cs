@@ -808,7 +808,7 @@ public unsafe class VulkanGraphicsSystem(
     private void RecordViewDiagnostics(
         ViewRenderer view,
         (int X, int Y, uint Width, uint Height) clip,
-        Nexus.Graphics.Cameras.ICamera? camera,
+        ICamera? camera,
         int selectedDrawableCount,
         int preparedBatchCount,
         int preparedCommandCount,

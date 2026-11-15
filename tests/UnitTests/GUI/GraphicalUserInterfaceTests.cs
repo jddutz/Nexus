@@ -20,6 +20,17 @@ namespace Tests;
 /// </summary>
 public class GraphicalUserInterfaceTests
 {
+    /// <summary>Verifies every scene owns a non-null default camera.</summary>
+    [Fact]
+    public void Scene_MainCamera_defaultsToAnIndependentStaticCameraAndRejectsNull()
+    {
+        var scene = new Scene();
+        var camera = Assert.IsType<Nexus.Graphics.Cameras.StaticCamera>(scene.MainCamera);
+        Assert.NotSame(camera, new Scene().MainCamera);
+        Assert.Throws<ArgumentNullException>(() => scene.MainCamera = null!);
+        Assert.Same(camera, scene.MainCamera);
+    }
+
     /// <summary>Verifies GUI element renderers default to the dedicated UI layer.</summary>
     [Fact]
     public void GuiElements_defaultToDefaultUiLayer()
@@ -49,6 +60,7 @@ public class GraphicalUserInterfaceTests
 
         var view = Assert.Single(graphicsSystem.RegisteredViews);
         var camera = Assert.IsType<Nexus.Graphics.Cameras.StaticCamera>(view.Camera);
+        Assert.Same(scene.MainCamera, camera);
         Assert.Equal(RenderLayers.DefaultUI, view.LayerMask);
         Assert.Equal(new Rectangle<int>(0, 0, 800, 600), view.ViewportRegion);
         Assert.Equal(new Rectangle<int>(0, 0, 800, 600), view.ClippingRegion);
@@ -61,9 +73,18 @@ public class GraphicalUserInterfaceTests
         Assert.Equal(new Rectangle<int>(0, 0, 1280, 720), view.ClippingRegion);
         Assert.Equal(1280f / 720f, camera.AspectRatio);
 
+        var replacement = new Nexus.Graphics.Cameras.StaticCamera();
+        scene.MainCamera = replacement;
+        Assert.Same(replacement, view.Camera);
+        Assert.Single(graphicsSystem.RegisteredViews);
+        Assert.Equal(1280f / 720f, replacement.AspectRatio);
+
         eventHub.Publish(new SceneUnloadedEvent(scene));
         eventHub.Drain();
         Assert.Empty(graphicsSystem.RegisteredViews);
+        Assert.Null(view.Camera);
+        scene.MainCamera = new Nexus.Graphics.Cameras.StaticCamera();
+        Assert.Null(view.Camera);
     }
 
     [Theory]
