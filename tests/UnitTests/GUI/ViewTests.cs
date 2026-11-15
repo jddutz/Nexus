@@ -375,6 +375,58 @@ public sealed class ViewTests
         Assert.Equal(2, collector.TouchEvents.Count + collector.MouseReleased.Count);
     }
 
+    /// <summary>Only renderers in the default UI pass block pointer input to scene views.</summary>
+    [Theory]
+    [InlineData(0UL, false)]
+    [InlineData(2UL, false)]
+    [InlineData(RenderLayers.DefaultUI, true)]
+    [InlineData(RenderLayers.DefaultUI | 2UL, true)]
+    public void BackgroundLayer_doesNotBlockViewInput(ulong layerMask, bool blocksInput)
+    {
+        var eventHub = new EventHub();
+        var inputSystem = DispatchProxy.Create<IInputSystem, TestInputSystem>();
+        var inputProxy = (TestInputSystem)(object)inputSystem;
+        var gui = new GraphicalUserInterface(
+            eventHub, new TestGraphicsSystem(), inputSystem: inputSystem
+        );
+        var view = new View
+        {
+            Camera = new OrthoCamera(),
+            PropagateInputEvents = true,
+            SizingMode = ViewSizingMode.Stretch,
+        };
+        var background = new ImageElement
+        {
+            Texture = BuiltInTextures.Uniform,
+            SizingMode = ImageSizingMode.Stretch,
+            RenderLayerMask = layerMask,
+        };
+        var layout = new Element();
+        layout.Children.Add(background);
+        layout.Children.Add(view);
+        layout.Initialize();
+        layout.Activate();
+        background.Activate();
+        view.Activate();
+        background.Arrange(new Rectangle<float>(0f, 0f, 800f, 600f));
+        view.Arrange(new Rectangle<float>(100f, 50f, 200f, 100f));
+        gui.Handle(new GameObjectActivatedEvent(layout));
+        var collector = new ViewInputEventCollector();
+        eventHub.Register(collector);
+        var position = new Vector2D<float>(200f, 100f);
+
+        inputProxy.RaiseMouseMoved(new MouseMovedEvent(null!, position));
+        inputProxy.RaiseMouseButtonPressed(new MouseButtonPressedEvent(null!, MouseButtonEnum.Left, position));
+        inputProxy.RaiseMouseButtonReleased(new MouseButtonReleasedEvent(null!, MouseButtonEnum.Left, position));
+        inputProxy.RaiseTouchStarted(new TouchStartedEvent(null!, 1, position));
+        eventHub.Drain();
+
+        Assert.Equal(blocksInput ? 0 : 1, collector.MouseMoved.Count);
+        Assert.Equal(blocksInput ? 0 : 1, collector.MousePressed.Count);
+        Assert.Equal(blocksInput ? 0 : 1, collector.MouseReleased.Count);
+        Assert.Equal(blocksInput ? 0 : 1, collector.TouchEvents.Count);
+    }
+
     /// <summary>Verifies modal and explicit input restrictions also apply to direct view input.</summary>
     [Fact]
     public void ModalAndInputScopes_blockDirectViewInputAndRestoreItOnClose()

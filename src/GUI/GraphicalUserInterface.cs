@@ -406,7 +406,9 @@ public sealed class GraphicalUserInterface : IGraphicalUserInterface
             }
 
             // The default UI pass renders above scene views, including disabled controls.
-            if (element.Components.OfType<IRenderer>().Any(renderer => renderer.IsVisible))
+            if (element.Components.OfType<IRenderer>().Any(renderer =>
+                renderer.IsVisible && renderer.Drawables.Any(drawable =>
+                    (drawable.RenderLayerMask & RenderLayers.DefaultUI) != 0)))
                 return false;
         }
 
