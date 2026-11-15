@@ -532,7 +532,57 @@ public sealed class ViewTests
         first.PropagateInputEvents = false;
         inputSystem.ReportTouchStarted(started);
         eventHub.Drain();
-        Assert.Equal(2, collector.TouchStarted.Count);
+        Assert.Equal(3, collector.TouchStarted.Count);
+        Assert.Equal(10f, collector.TouchStarted[2].WorldRay.Origin.X);
+    }
+
+    /// <summary>Decorative views never receive or block pointer input, even above interactive views.</summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public void DecorativeView_doesNotParticipateInPointerHitTesting(int renderOrder)
+    {
+        var eventHub = new EventHub();
+        var inputSystem = DispatchProxy.Create<IInputSystem, TestInputSystem>();
+        var inputProxy = (TestInputSystem)(object)inputSystem;
+        var gui = new GraphicalUserInterface(
+            eventHub, new TestGraphicsSystem(), inputSystem: inputSystem
+        );
+        var world = new View
+        {
+            Camera = new OrthoCamera(),
+            PropagateInputEvents = true,
+            SizingMode = ViewSizingMode.Stretch,
+        };
+        var backgroundCamera = new OrthoCamera();
+        backgroundCamera.Translate(new Vector3D<float>(10f, 0f, 0f));
+        var background = new View
+        {
+            Camera = backgroundCamera,
+            PropagateInputEvents = false,
+            RenderOrder = renderOrder,
+            SizingMode = ViewSizingMode.Stretch,
+        };
+        foreach (var view in new[] { world, background })
+        {
+            view.Initialize();
+            view.Activate();
+            view.Arrange(new Rectangle<float>(0f, 0f, 200f, 100f));
+            gui.Handle(new GameObjectActivatedEvent(view));
+        }
+        var collector = new ViewInputEventCollector();
+        eventHub.Register(collector);
+        var position = new Vector2D<float>(100f, 50f);
+        inputProxy.RaiseMouseMoved(new MouseMovedEvent(null!, position));
+        inputProxy.RaiseMouseButtonPressed(new MouseButtonPressedEvent(null!, MouseButtonEnum.Left, position));
+        inputProxy.RaiseMouseButtonReleased(new MouseButtonReleasedEvent(null!, MouseButtonEnum.Left, position));
+        inputProxy.RaiseTouchStarted(new TouchStartedEvent(null!, 1, position));
+        eventHub.Drain();
+
+        Assert.Equal(0f, Assert.Single(collector.MouseMoved).WorldRay.Origin.X);
+        Assert.Equal(0f, Assert.Single(collector.MousePressed).WorldRay.Origin.X);
+        Assert.Equal(0f, Assert.Single(collector.MouseReleased).WorldRay.Origin.X);
+        Assert.Equal(0f, Assert.Single(collector.TouchStarted).WorldRay.Origin.X);
     }
 
     /// <summary>Verifies mouse interactions terminate outside the viewport or after targeting changes.</summary>

@@ -391,7 +391,10 @@ public sealed class GraphicalUserInterface : IGraphicalUserInterface
             if (element is View otherView)
             {
                 if (
-                    otherView.Camera is not null
+                    otherView.PropagateInputEvents
+                    && otherView.IsEffectivelyEnabled
+                    && !otherView.InputMap.IsSuppressed
+                    && otherView.Camera is not null
                     && (
                         otherView.RenderOrder > view.RenderOrder
                         || (
