@@ -1,6 +1,7 @@
 namespace Nexus.Graphics.Vulkan.Commands;
 
 using Nexus.Graphics.Components;
+using Nexus.Core;
 
 /// <summary>
 /// Creates the Vulkan commands required to render a drawable.
@@ -36,6 +37,42 @@ public unsafe class CommandFactory(
     );
 
     private readonly Dictionary<DrawableId, DrawableAllocation> _allocations = [];
+    private readonly Dictionary<ComponentId, ViewAllocation> _views = [];
+
+    public void ActivateView(ViewRenderer view) =>
+        _views.Add(view.Id, new ViewAllocation(bufferManager.CreateUniformBuffer(64)));
+
+    public void ReleaseView(ViewRenderer view)
+    {
+        if (!_views.Remove(view.Id, out var resources)) return;
+        foreach (var set in resources.Sets.Values) descriptorSetPool.Release(set);
+        bufferManager.DestroyBuffer(resources.Buffer);
+    }
+
+    // Current shader contract: the entire uniform block is one 64-byte View matrix
+    // at set 0, binding 0. Mixed uniform inputs stay drawable-owned; their offsets
+    // cannot be inferred from descriptor schemas. Other bindings in set 0 are retained.
+    private static bool UsesStandaloneViewUniform(VertexShader shader) =>
+        shader.UniformLayout is [{ Semantic: InputSemantics.View, Size: 64 }];
+
+    private sealed class ViewAllocation(VkBuffer buffer)
+    {
+        public VkBuffer Buffer { get; } = buffer;
+        public Dictionary<(PipelineId, DrawableId?), VkDescriptorSet> Sets { get; } = [];
+    }
+
+    // Release queues a deferred free; submitted commands may still reference these sets.
+    // The caller must replace retained View commands before the next submission (the
+    // graphics system does this in ApplyDrawableCommands/RefreshDrawableViewCommands).
+    private void ReleaseDrawableViewSets(DrawableId id)
+    {
+        foreach (var view in _views.Values)
+        foreach (var key in view.Sets.Keys.Where(key => key.Item2 == id).ToArray())
+        {
+            descriptorSetPool.Release(view.Sets[key]);
+            view.Sets.Remove(key);
+        }
+    }
     private readonly PerformanceDiagnostics? _diagnostics = diagnostics;
 
     /// <inheritdoc />
@@ -136,6 +173,11 @@ public unsafe class CommandFactory(
                 setSchema.Set
             );
 
+            if (setSchema.Set == 0 && UsesStandaloneViewUniform(vertexShader) && setSchema.Bindings.Length == 1)
+            {
+                allocation.DescriptorSets.Add(default);
+                continue;
+            }
             var descriptorSet = descriptorSetPool.Allocate(layout);
             descriptorSets[setSchema.Set] = descriptorSet;
             allocation.DescriptorSets.Add(descriptorSet);
@@ -149,6 +191,8 @@ public unsafe class CommandFactory(
                 switch (binding.DescriptorType)
                 {
                     case DescriptorType.UniformBuffer:
+                        if (setSchema.Set == 0 && binding.Binding == 0 && UsesStandaloneViewUniform(vertexShader))
+                            break;
                         var uniformData = new byte[
                             checked(vertexShader.UniformLayout.Sum(input => input.Size))
                         ];
@@ -286,8 +330,6 @@ public unsafe class CommandFactory(
             view.DepthComparison
         );
 
-        if (state == DefaultViewRenderState)
-            return allocation.Commands.ToArray();
 
         if (!allocation.PipelineVariants.TryGetValue(state, out var variant))
         {
@@ -312,7 +354,28 @@ public unsafe class CommandFactory(
             RecordPipelineSnapshot(drawable, definition, variant.Pipeline, variant.PipelineLayout);
         }
 
-        return CreateCommands(allocation, variant);
+        var sets = allocation.DescriptorSets.ToArray();
+        if (UsesStandaloneViewUniform(allocation.VertexShader) && sets.Length > 0)
+        {
+            var resources = _views[view.Id];
+            var definition = CreatePipelineDefinition(drawable, RenderPasses.Main, allocation.VertexShader, state);
+            var schema = definition.DescriptorSchema.GetValueOrDefault().Sets[0];
+            var key = (variant.PipelineId, schema.Bindings.Length == 1 ? (DrawableId?)null : drawable.Id);
+            if (!resources.Sets.TryGetValue(key, out var set))
+            {
+                set = descriptorSetPool.Allocate(pipelineRegistry.GetDescriptorSetLayout(variant.PipelineId, 0));
+                descriptorSetPool.WriteUniformBuffer(set, 0, resources.Buffer, 0, 64);
+                foreach (var binding in allocation.ImageSamplerBindings.Where(binding =>
+                    binding.DescriptorSet.Handle == allocation.DescriptorSets[0].Handle))
+                    descriptorSetPool.WriteCombinedImageSampler(set, binding.Binding,
+                        imageRegistry.Get(allocation.Texture), samplerRegistry.Get(binding.SamplingBehavior.Id));
+                foreach (var uniform in allocation.UniformBuffers.Where(uniform => uniform.SetNumber == 0))
+                    descriptorSetPool.WriteUniformBuffer(set, uniform.Binding, uniform.Buffer, 0, uniform.Capacity);
+                resources.Sets.Add(key, set);
+            }
+            sets[0] = set;
+        }
+        return CreateCommands(allocation, variant, sets);
     }
 
     /// <inheritdoc />
@@ -356,6 +419,7 @@ public unsafe class CommandFactory(
     /// <inheritdoc />
     public IEnumerable<IVulkanCommand> UpdateUniformData(IDrawable drawable)
     {
+        ReleaseDrawableViewSets(drawable.Id);
         var allocation = GetAllocation(drawable);
 
         for (var index = 0; index < allocation.UniformBuffers.Count; index++)
@@ -410,37 +474,13 @@ public unsafe class CommandFactory(
 
     /// <inheritdoc />
     public IEnumerable<IVulkanCommand> CreateViewProjectionCommands(
-        IDrawable drawable,
+        ViewRenderer view,
         Matrix4X4<float> viewProjectionMatrix
     )
     {
-        ArgumentNullException.ThrowIfNull(drawable);
-
-        var allocation = GetAllocation(drawable);
         var data = new byte[64];
         MemoryMarshal.Write(data.AsSpan(), in viewProjectionMatrix);
-
-        foreach (var uniform in allocation.UniformBuffers)
-        {
-            if (
-                uniform.Layout.Length != 1
-                || uniform.Layout[0] is not { Semantic: InputSemantics.View, Size: 64 }
-                || uniform.Capacity < (ulong)data.Length
-            )
-                continue;
-
-            RecordUniformSnapshot(
-                drawable,
-                uniform.SetNumber,
-                uniform.DescriptorSet,
-                uniform.Binding,
-                uniform.Buffer,
-                data,
-                "View",
-                "Final"
-            );
-            yield return new UpdateUniformBufferCommand(uniform.Buffer, data);
-        }
+        yield return new UpdateUniformBufferCommand(_views[view.Id].Buffer, data);
     }
 
     /// <summary>Captures drawable identity and shader intent without retaining the drawable.</summary>
@@ -853,6 +893,7 @@ public unsafe class CommandFactory(
     /// <inheritdoc />
     public IEnumerable<IVulkanCommand> UpdateTexture(IDrawable drawable)
     {
+        ReleaseDrawableViewSets(drawable.Id);
         var allocation = GetAllocation(drawable);
         var texture = drawable.Texture;
         if (drawable.FragmentShader is null)
@@ -926,94 +967,22 @@ public unsafe class CommandFactory(
     /// <inheritdoc />
     public IEnumerable<IVulkanCommand> UpdateShaders(IDrawable drawable)
     {
-        var allocation = GetAllocation(drawable);
-        var vertexShader =
-            drawable.VertexShader
-            ?? throw new InvalidOperationException("Drawables must define a vertex shader.");
-        if (drawable.FragmentShader is null)
-            throw new InvalidOperationException("Drawables must define a fragment shader.");
-
-        var previousPipelineIds = allocation
-            .PipelineVariants.Values.Select(variant => variant.PipelineId)
-            .Distinct()
-            .ToArray();
-        var pipelineDefinition = CreatePipelineDefinition(
-            drawable,
-            RenderPasses.Main,
-            vertexShader
-        );
-
-        if (vertexShader.VertexFormat.Id != allocation.VertexFormat.Id)
-        {
-            vertexBufferRegistry.Create(drawable.Mesh, vertexShader.VertexFormat);
-            vertexBufferRegistry.Release(allocation.Mesh, allocation.VertexFormat);
-            allocation.Mesh = drawable.Mesh;
-            allocation.VertexFormat = vertexShader.VertexFormat;
-        }
-
-        if (!vertexShader.InstanceLayout.SequenceEqual(allocation.InstanceLayout ?? []))
-        {
-            if (vertexShader.InstanceLayout.Length == 0)
-                instanceBufferRegistry.Release(drawable.Id);
-            else
-                instanceBufferRegistry.Create(drawable, vertexShader.InstanceLayout);
-
-            allocation.InstanceLayout =
-                vertexShader.InstanceLayout.Length == 0 ? null : vertexShader.InstanceLayout;
-        }
-
-        var (pipeline, pipelineLayout) = pipelineRegistry.GetOrCreate(pipelineDefinition);
-        allocation.VertexShader = vertexShader;
-        allocation.PipelineId = pipelineDefinition.Id;
-        allocation.Pipeline = pipeline;
-        allocation.PipelineLayout = pipelineLayout;
-        RecordDrawableSnapshot(drawable, pipelineDefinition, pipeline, pipelineLayout);
-        RecordPipelineSnapshot(drawable, pipelineDefinition, pipeline, pipelineLayout);
-        RecordVertexBufferSnapshot(
-            drawable,
-            vertexBufferRegistry.Get(allocation.Mesh.Id, allocation.VertexFormat.Id),
-            allocation.VertexFormat
-        );
-        if (allocation.InstanceLayout is not null)
-            RecordInstanceBufferSnapshot(
-                drawable,
-                instanceBufferRegistry.Get(drawable.Id),
-                allocation.InstanceLayout
-            );
-
-        UpdateUniformData(drawable);
-        foreach (var binding in allocation.ImageSamplerBindings)
-        {
-            descriptorSetPool.WriteCombinedImageSampler(
-                binding.DescriptorSet,
-                binding.Binding,
-                imageRegistry.Get(allocation.Texture),
-                samplerRegistry.Get(binding.SamplingBehavior.Id)
-            );
-        }
-
-        foreach (var pipelineId in previousPipelineIds)
-            pipelineRegistry.Release(pipelineId);
-
-        allocation.PipelineVariants.Clear();
-        allocation.PipelineVariants.Add(
-            DefaultViewRenderState,
-            new PipelineVariant(pipelineDefinition.Id, pipeline, pipelineLayout)
-        );
-
-        return RebuildCommands(allocation);
+        // Shader changes may change descriptor schemas, so rebuild all shader-owned resources.
+        var release = Release(drawable).ToArray();
+        return release.Concat(Create(drawable)).ToArray();
     }
 
     /// <inheritdoc />
     public IEnumerable<IVulkanCommand> Release(IDrawable drawable)
     {
+        ReleaseDrawableViewSets(drawable.Id);
         ArgumentNullException.ThrowIfNull(drawable);
 
         if (!_allocations.Remove(drawable.Id, out var allocation))
             return [];
 
         foreach (var descriptorSet in allocation.DescriptorSets)
-            descriptorSetPool.Release(descriptorSet);
+            if (descriptorSet.Handle != 0) descriptorSetPool.Release(descriptorSet);
 
         foreach (var uniformBuffer in allocation.UniformBuffers)
             bufferManager.DestroyBuffer(uniformBuffer.Buffer);
@@ -1249,7 +1218,8 @@ public unsafe class CommandFactory(
     /// <returns>The persistent commands for the variant.</returns>
     private IReadOnlyList<IVulkanCommand> CreateCommands(
         DrawableAllocation allocation,
-        PipelineVariant variant
+        PipelineVariant variant,
+        VkDescriptorSet[] descriptorSets
     )
     {
         var commands = new List<IVulkanCommand>
@@ -1265,7 +1235,7 @@ public unsafe class CommandFactory(
                 variant.PipelineId,
                 allocation.Drawable,
                 variant.PipelineLayout,
-                allocation.DescriptorSets
+                descriptorSets
             ),
             new BindVertexBufferCommand(
                 RenderPasses.Main,

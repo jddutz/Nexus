@@ -49,6 +49,11 @@ public sealed class UpdateUniformBufferCommand : IVulkanCommand
     /// <inheritdoc />
     public unsafe void Record(Vk vk, CommandBuffer commandBuffer)
     {
+        // All reads and updates are submitted through CommandRecorder to Context.GraphicsQueue.
+        // The first barrier waits for earlier vertex shader reads in submission order,
+        // including reads in previous frames. The second makes this transfer visible to
+        // subsequent draws. Thus a View buffer can be reused across overlapping frames
+        // without CPU writes or permanently captured per-frame descriptor sets.
         var barrier = new BufferMemoryBarrier
         {
             SType = StructureType.BufferMemoryBarrier,

@@ -39,14 +39,51 @@ public class SpriteVisibilityLifecycleTests
         Assert.Equal(2, probe.Releases);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ViewChangesRebuildOnlyTheChangedViewAndUnsubscribeOnRemoval(bool pipelineChange)
+    {
+        var factory = DispatchProxy.Create<ICommandFactory, FactoryProxy>();
+        var probe = (FactoryProxy)(object)factory;
+        var graphics = new VulkanGraphicsSystem(null!, null!, null!, null!, new EventHub(), factory, null!, null!, null!);
+        var first = new ViewRenderer { LayerMask = RenderLayers.All };
+        var second = new ViewRenderer { LayerMask = RenderLayers.All };
+        graphics.RegisterView(first);
+        graphics.RegisterView(second);
+        var renderer = new SpriteRenderer { Texture = new Texture("overlay", 1, 1, [Colors.White]) };
+        renderer.Add(new SpriteInstance());
+        graphics.Handle(new ComponentActivatedEvent(renderer));
+        probe.ViewCommands.Clear();
+
+        if (pipelineChange) first.EnableDepthTest = !first.EnableDepthTest;
+        else first.LayerMask = RenderLayers.All ^ (1UL << 63);
+        Assert.NotEmpty(probe.ViewCommands);
+        Assert.All(probe.ViewCommands, view => Assert.Same(first, view));
+
+        graphics.UnregisterView(first);
+        probe.ViewCommands.Clear();
+        first.EnableDepthWrite = !first.EnableDepthWrite;
+        Assert.Empty(probe.ViewCommands);
+        second.EnableDepthWrite = !second.EnableDepthWrite;
+        Assert.NotEmpty(probe.ViewCommands);
+        Assert.All(probe.ViewCommands, view => Assert.Same(second, view));
+        graphics.UnregisterView(second);
+    }
+
     public class FactoryProxy : DispatchProxy
     {
+        public List<ViewRenderer> ViewCommands = [];
         public int Creates;
         public int Releases;
         public Color LastTint;
         public HashSet<DrawableId> Active = [];
         protected override object? Invoke(MethodInfo? method, object?[]? args)
         {
+            if (method!.Name is nameof(ICommandFactory.ActivateView) or nameof(ICommandFactory.ReleaseView))
+                return null;
+            if (method.Name == nameof(ICommandFactory.CreateViewCommands))
+                ViewCommands.Add((ViewRenderer)args![1]!);
             var drawable = (IDrawable)args![0]!;
             switch (method!.Name)
             {

@@ -37,6 +37,7 @@ public unsafe class VulkanGraphicsSystem(
     private readonly RenderBatchCollection _setupBatches = CreateSetupBatchCollection();
     private readonly Dictionary<ComponentId, RenderBatchCollection> _batches = [];
     private readonly List<ViewRenderer> _activeViews = [];
+    private readonly Dictionary<ComponentId, Action<string>> _viewPropertyChangedHandlers = [];
     private readonly Dictionary<DrawableId, DrawableRegistration> _drawables = [];
     private readonly Dictionary<DrawableId, Action<string>> _drawablePropertyChangedHandlers = [];
     private readonly Dictionary<IRenderer, Action<bool, bool>> _rendererVisibilityChangedHandlers =
@@ -122,10 +123,13 @@ public unsafe class VulkanGraphicsSystem(
         if (_batches.ContainsKey(view.Id))
             throw new InvalidOperationException($"View {view.Id} is already active.");
 
+        commandFactory.ActivateView(view);
         var batches = CreateRenderBatchCollection(view);
         _activeViews.Add(view);
         _batches.Add(view.Id, batches);
-        view.PropertyChanged += OnViewPropertyChanged;
+        Action<string> propertyChanged = propertyName => OnViewPropertyChanged(view, propertyName);
+        _viewPropertyChangedHandlers.Add(view.Id, propertyChanged);
+        view.PropertyChanged += propertyChanged;
 
         Debug.WriteLine(
             $"View activated. ComponentId={view.Id}, LayerMask={view.LayerMask}, RenderPassMask={view.RenderPassMask}, ClippingRegion={view.ClippingRegion}, CameraType={view.Camera?.GetType().Name}{_diagnostics?.FrameCountLogSuffix}"
@@ -146,8 +150,10 @@ public unsafe class VulkanGraphicsSystem(
     {
         if (_batches.Remove(view.Id))
         {
-            view.PropertyChanged -= OnViewPropertyChanged;
+            if (_viewPropertyChangedHandlers.Remove(view.Id, out var propertyChanged))
+                view.PropertyChanged -= propertyChanged;
             _activeViews.Remove(view);
+            commandFactory.ReleaseView(view);
             foreach (var registration in _drawables.Values)
                 registration.ViewCommands.Remove(view.Id);
         }
@@ -232,31 +238,27 @@ public unsafe class VulkanGraphicsSystem(
         }
     }
 
-    /// <summary>Applies view mutations to membership or pass configuration.</summary>
+    /// <summary>Applies mutations only to the View that raised the event.</summary>
+    /// <param name="view">The View that changed.</param>
     /// <param name="propertyName">The changed property name.</param>
-    private void OnViewPropertyChanged(string propertyName)
+    private void OnViewPropertyChanged(ViewRenderer view, string propertyName)
     {
-        foreach (var view in _activeViews)
-        {
-            if (!_batches.ContainsKey(view.Id))
-                continue;
+        if (!_batches.ContainsKey(view.Id))
+            return;
 
-            switch (propertyName)
-            {
-                case nameof(ViewRenderer.LayerMask):
-                    RebuildViewBatches(view, replaceCollection: false);
-                    break;
-                case nameof(ViewRenderer.RenderPassMask):
-                    RebuildViewBatches(view, replaceCollection: true);
-                    break;
-                case nameof(ViewRenderer.PreserveDrawOrder):
-                case nameof(ViewRenderer.BlendMode):
-                case nameof(ViewRenderer.EnableDepthTest):
-                case nameof(ViewRenderer.EnableDepthWrite):
-                case nameof(ViewRenderer.DepthComparison):
-                    RebuildViewBatches(view, replaceCollection: true);
-                    break;
-            }
+        switch (propertyName)
+        {
+            case nameof(ViewRenderer.LayerMask):
+                RebuildViewBatches(view, replaceCollection: false);
+                break;
+            case nameof(ViewRenderer.RenderPassMask):
+            case nameof(ViewRenderer.PreserveDrawOrder):
+            case nameof(ViewRenderer.BlendMode):
+            case nameof(ViewRenderer.EnableDepthTest):
+            case nameof(ViewRenderer.EnableDepthWrite):
+            case nameof(ViewRenderer.DepthComparison):
+                RebuildViewBatches(view, replaceCollection: true);
+                break;
         }
     }
 
@@ -733,15 +735,8 @@ public unsafe class VulkanGraphicsSystem(
                     )
                 );
 
-                foreach (var registration in selectedDrawables)
-                {
-                    var viewProjectionCommands = commandFactory
-                        .CreateViewProjectionCommands(registration.Drawable, viewProjectionMatrix)
-                        .ToArray();
-
-                    foreach (var command in viewProjectionCommands)
-                        AddToBatches(batches, command);
-                }
+                foreach (var command in commandFactory.CreateViewProjectionCommands(view, viewProjectionMatrix))
+                    AddToBatches(batches, command);
 
                 AddToBatches(
                     batches,
@@ -903,7 +898,11 @@ public unsafe class VulkanGraphicsSystem(
         _components.Clear();
 
         foreach (var view in _activeViews)
-            view.PropertyChanged -= OnViewPropertyChanged;
+        {
+            if (_viewPropertyChangedHandlers.Remove(view.Id, out var propertyChanged))
+                view.PropertyChanged -= propertyChanged;
+            commandFactory.ReleaseView(view);
+        }
         _activeViews.Clear();
 
         foreach (

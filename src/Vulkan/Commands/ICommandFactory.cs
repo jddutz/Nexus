@@ -9,6 +9,12 @@ public interface ICommandFactory
     /// <param name="drawable">The drawable to allocate.</param>
     IEnumerable<IVulkanCommand> Create(IDrawable drawable);
 
+    /// <summary>Registers the GPU buffer for an active View.</summary>
+    void ActivateView(ViewRenderer view);
+
+    /// <summary>Releases a View after its retained commands have been removed.</summary>
+    void ReleaseView(ViewRenderer view);
+
     /// <summary>Creates commands using the pipeline configuration owned by a view.</summary>
     /// <param name="drawable">The drawable to render.</param>
     /// <param name="view">The view whose rendering policy configures the pipeline.</param>
@@ -27,11 +33,11 @@ public interface ICommandFactory
     /// <param name="drawable">The drawable whose uniform data changed.</param>
     IEnumerable<IVulkanCommand> UpdateUniformData(IDrawable drawable);
 
-    /// <summary>Creates commands that update a drawable's view-projection uniform.</summary>
-    /// <param name="drawable">The drawable whose uniform buffer is updated.</param>
+    /// <summary>Creates one command that updates a View's projection uniform.</summary>
+    /// <param name="view">The view whose uniform buffer is updated.</param>
     /// <param name="viewProjectionMatrix">The view-projection matrix for the active view.</param>
     IEnumerable<IVulkanCommand> CreateViewProjectionCommands(
-        IDrawable drawable,
+        ViewRenderer view,
         Matrix4X4<float> viewProjectionMatrix
     );
 

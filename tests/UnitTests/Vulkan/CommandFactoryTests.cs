@@ -19,6 +19,75 @@ using VkSampler = Silk.NET.Vulkan.Sampler;
 
 public class CommandFactoryTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Views_own_projection_buffers_and_preserve_texture_bindings(bool mixedSet)
+    {
+        var dependencies = new TestDependencies();
+        dependencies.PipelineDefinition = CreatePipelineDefinition(
+            mixedSet ? DescriptorSchemas.Text : DescriptorSchemas.Textured);
+        var factory = CreateFactory(dependencies);
+        var first = new ViewRenderer();
+        var second = new ViewRenderer();
+        factory.ActivateView(first);
+        factory.ActivateView(second);
+        var drawable = CreateDrawable(useViewMatrix: true);
+        factory.Create(drawable).ToArray();
+        Assert.Equal(2, dependencies.Buffers.CreateUniformBufferCount);
+        Assert.Equal(0, dependencies.Buffers.UpdateBufferCount);
+        var firstCommands = factory.CreateViewCommands(drawable, first).ToArray();
+        var secondCommands = factory.CreateViewCommands(drawable, second).ToArray();
+        Assert.Single(firstCommands.OfType<BindDescriptorSetsCommand>());
+        Assert.Single(secondCommands.OfType<BindDescriptorSetsCommand>());
+        var writes = dependencies.Descriptors.UniformWriteCount;
+        factory.CreateViewCommands(drawable, first).ToArray();
+        Assert.Equal(writes, dependencies.Descriptors.UniformWriteCount);
+        Assert.Equal(2, writes);
+        var firstBinding = Assert.Single(firstCommands.OfType<BindDescriptorSetsCommand>());
+        var secondBinding = Assert.Single(secondCommands.OfType<BindDescriptorSetsCommand>());
+        Assert.NotEqual(firstBinding.DescriptorSets[0], secondBinding.DescriptorSets[0]);
+        Assert.Equal(mixedSet ? 3 : 1, dependencies.Descriptors.ImageSamplerWriteCount);
+        var matrix = Matrix4X4<float>.Identity;
+        var update = Assert.IsType<UpdateUniformBufferCommand>(
+            Assert.Single(factory.CreateViewProjectionCommands(first, matrix)));
+        var other = Assert.IsType<UpdateUniformBufferCommand>(
+            Assert.Single(factory.CreateViewProjectionCommands(second, default)));
+        Assert.NotEqual(update.BufferHandle, other.BufferHandle);
+        Assert.NotEqual(update.Data.ToArray(), other.Data.ToArray());
+        factory.ReleaseView(first);
+        Assert.Equal(1, dependencies.Buffers.DestroyBufferCount);
+        Assert.Equal(1, dependencies.Descriptors.ReleaseCount);
+        Assert.Single(factory.CreateViewProjectionCommands(second, matrix));
+        factory.ReleaseView(second);
+        Assert.Equal(2, dependencies.Buffers.DestroyBufferCount);
+    }
+
+    [Fact]
+    public void UpdatingTextureReplacesMixedViewDescriptorBindingsOnRefresh()
+    {
+        var dependencies = new TestDependencies
+        {
+            PipelineDefinition = CreatePipelineDefinition(DescriptorSchemas.Text),
+        };
+        var factory = CreateFactory(dependencies);
+        var view = new ViewRenderer();
+        factory.ActivateView(view);
+        var drawable = CreateDrawable(useViewMatrix: true);
+        factory.Create(drawable).ToArray();
+        var oldBinding = Assert.Single(factory.CreateViewCommands(drawable, view)
+            .OfType<BindDescriptorSetsCommand>());
+        drawable.Texture = new TestTexture();
+        factory.UpdateTexture(drawable).ToArray();
+        Assert.Equal(1, dependencies.Descriptors.ReleaseCount);
+        // Mirrors the graphics system's immediate RefreshDrawableViewCommands call.
+        var newBinding = Assert.Single(factory.CreateViewCommands(drawable, view)
+            .OfType<BindDescriptorSetsCommand>());
+        Assert.NotEqual(oldBinding.DescriptorSets[0], newBinding.DescriptorSets[0]);
+        Assert.Equal(4, dependencies.Descriptors.ImageSamplerWriteCount);
+        Assert.Equal(1, dependencies.Buffers.CreateUniformBufferCount);
+    }
+
     [Fact]
     public void ToVulkanAttributes_maps_msdf_distance_range_as_scalar_at_expected_offset()
     {
@@ -309,7 +378,8 @@ public class CommandFactoryTests
         IShaderContract? tessellationControlShader = null,
         IShaderContract? tessellationEvalShader = null,
         IShaderContract? geometryShader = null,
-        bool includeInstanceLayout = false
+        bool includeInstanceLayout = false,
+        bool useViewMatrix = false
     )
     {
         var format = new VertexFormat([VertexSemanticEnum.Position]);
@@ -327,7 +397,7 @@ public class CommandFactoryTests
                     "vertex.spv",
                     PrimitiveTopologyEnum.TriangleList,
                     format,
-                    [new ShaderInput(0, 16)],
+                    useViewMatrix ? [new ShaderInput(InputSemantics.View, 64)] : [new ShaderInput(0, 16)],
                     includeInstanceLayout ? [new ShaderInput(0, 16)] : []
                 )
                 : null,
@@ -620,7 +690,7 @@ public class CommandFactoryTests
         public VkBuffer CreateUniformBuffer(ulong size)
         {
             CreateUniformBufferCount++;
-            return new(3);
+            return new((ulong)(3 + CreateUniformBufferCount));
         }
 
         public VkBuffer CreateStorageBuffer(ulong size) => new(4);

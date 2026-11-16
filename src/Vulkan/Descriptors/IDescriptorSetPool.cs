@@ -50,7 +50,8 @@ public interface IDescriptorSetPool : IDisposable
     );
 
     /// <summary>
-    /// Releases a descriptor set back to the pool it was allocated from.
+    /// Queues a descriptor set for release after its last submitted frame completes.
+    /// Callers must remove retained bindings before submitting another frame.
     /// </summary>
     /// <param name="descriptorSet">The descriptor set to release.</param>
     void Release(DescriptorSet descriptorSet);
