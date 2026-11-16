@@ -138,18 +138,6 @@ public partial class GameObject : IGameObject
     }
 
     /// <summary>
-    /// Ensures a parent assignment is part of adding this node to the parent's child collection.
-    /// </summary>
-    /// <param name="value">The proposed parent.</param>
-    private void BeforeParentChanges(ISceneNode? value)
-    {
-        if (value is not null && !value.Children.Contains(this))
-            throw new InvalidOperationException(
-                "A parent can only be assigned by adding the node to its Children collection."
-            );
-    }
-
-    /// <summary>
     /// Removes this object from its previous parent's child collection after its parent changes.
     /// </summary>
     /// <param name="previousValue">The parent before the change.</param>
@@ -357,28 +345,31 @@ public partial class GameObject : IGameObject
                 component.Initialize();
         }
 
-        foreach (var child in _children)
-            if (child is GameObject gameObject && !gameObject.IsInitialized)
-                gameObject.Initialize();
-
         IsInitialized = true;
     }
 
     /// <inheritdoc />
-    public virtual bool CanActivate() => true;
+    public virtual bool CanActivate() => _components.All(c => c.CanActivate());
 
     /// <inheritdoc />
-    public virtual void Activate()
+    public virtual List<IManagedEntity> Activate()
     {
         if (IsActivated || !CanActivate())
-            return;
+            return [];
 
-        IsActivated = true;
-        foreach (var component in _components)
+        var activated = _components.SelectMany(c => c.Activate()).ToList();
+
+        IsActivated = _components.All(c => c.IsActivated);
+
+        if (!IsActivated)
         {
-            component.Activate();
-            ComponentAdded?.Invoke(component);
+            foreach (var entity in activated)
+                entity.Deactivate();
+
+            return [];
         }
+
+        return [.. activated, this];
     }
 
     /// <inheritdoc />
@@ -388,9 +379,16 @@ public partial class GameObject : IGameObject
     }
 
     /// <inheritdoc />
-    public virtual void Deactivate()
+    public virtual List<IManagedEntity> Deactivate()
     {
+        if (!IsActivated)
+            return [];
+
+        var deactivated = _components.SelectMany(c => c.Deactivate());
+
         IsActivated = false;
+
+        return [.. deactivated, this];
     }
 
     /// <summary>

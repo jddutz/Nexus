@@ -28,8 +28,9 @@ public interface IManagedEntity
 
     /// <summary>
     /// Activates this entity.
+    /// <returns>Collection of entities that were activated.</returns>
     /// </summary>
-    void Activate();
+    List<IManagedEntity> Activate();
 
     /// <summary>
     /// Updates this entity using the elapsed time since its previous update.
@@ -39,6 +40,7 @@ public interface IManagedEntity
 
     /// <summary>
     /// Deactivates this entity from its managing system.
+    /// <returns>Collection of entities that were deactivated.</returns>
     /// </summary>
-    void Deactivate();
+    List<IManagedEntity> Deactivate();
 }

@@ -1,5 +1,3 @@
-using Silk.NET.Maths;
-
 namespace Nexus.GameEngine;
 
 /// <summary>
@@ -33,26 +31,15 @@ public partial class Scene : IScene
         _allNodes.Add(Id, this);
 
         RenderLayers.Create("GUI", RenderPasses.Main);
+
+        _renderer = new() { Camera = new StaticCamera(), RenderPassMask = RenderPasses.All };
     }
 
     /// <inheritdoc />
     public event Action<string>? PropertyChanged;
 
-    private ICamera _mainCamera = new StaticCamera();
-
-    /// <summary>Gets or sets the camera used by the engine-managed full-screen scene view.</summary>
-    public ICamera MainCamera
-    {
-        get => _mainCamera;
-        set
-        {
-            ArgumentNullException.ThrowIfNull(value);
-            if (ReferenceEquals(_mainCamera, value))
-                return;
-            _mainCamera = value;
-            PropertyChanged?.Invoke(nameof(MainCamera));
-        }
-    }
+    private readonly ViewRenderer _renderer;
+    public ViewRenderer Renderer => _renderer;
 
     [Observable(PublicSetter = true)]
     private RenderLayerCollection _renderLayers = new();
@@ -186,8 +173,8 @@ public partial class Scene : IScene
     /// <inheritdoc />
     public virtual void Initialize()
     {
-        if (IsInitialized)
-            return;
+        if (!Renderer.IsInitialized)
+            Renderer.Initialize();
 
         IsInitialized = true;
     }
@@ -196,27 +183,38 @@ public partial class Scene : IScene
     private bool _isActivated = false;
 
     /// <inheritdoc />
-    public virtual bool CanActivate() => true;
+    public virtual bool CanActivate() => Renderer.CanActivate();
 
     /// <inheritdoc />
-    public virtual void Activate()
+    public virtual List<IManagedEntity> Activate()
     {
         if (IsActivated || !CanActivate())
-            return;
+            return [];
 
-        IsActivated = true;
+        Renderer.Activate();
+
+        IsActivated = Renderer.IsActivated;
+
+        if (!IsActivated)
+            return [];
+
+        return [Renderer, this];
     }
 
     /// <inheritdoc />
     public virtual void Update(double deltaTime) { }
 
     /// <inheritdoc />
-    public virtual void Deactivate()
+    public virtual List<IManagedEntity> Deactivate()
     {
         if (!IsActivated)
-            return;
+            return [];
+
+        Renderer.Deactivate();
 
         IsActivated = false;
+
+        return [Renderer, this];
     }
 
     private void OnChildAdded(ISceneNode node)

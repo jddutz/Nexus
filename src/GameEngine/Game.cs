@@ -13,8 +13,9 @@ public partial class Game(
     IEventHub eventHub,
     ILogger<Game> logger,
     IPerformanceTelemetry? telemetry = null
-) : IGameSystem, IObservable
+) : IGameSystem, ISceneManager, IObservable
 {
+    private readonly object _syncRoot = new();
     private readonly IEventHub _eventHub = eventHub;
     private readonly ILogger<Game> _logger = logger;
     private readonly HashSet<ISceneNode> _subscribedSceneNodes = [];
@@ -32,6 +33,11 @@ public partial class Game(
     /// <inheritdoc />
     public event Action<string>? PropertyChanged;
 
+    /// <summary>
+    /// When not null, identifies the scene to be loaded as soon as a scene transition is allowed.
+    /// </summary>
+    private string? _pendingSceneId;
+
     /// <inheritdoc />
     public bool IsSceneLoaded => CurrentScene is { IsActivated: true };
 
@@ -40,6 +46,8 @@ public partial class Game(
     /// </summary>
     private sealed class LifecycleEntry
     {
+        // TODO: Eliminate LifecycleEntry by ensuring required parameters are in IManagedEntity.
+
         /// <summary>
         /// Initializes a lifecycle entry with its entity and captured ownership.
         /// </summary>
@@ -118,6 +126,9 @@ public partial class Game(
         scene.IsLoaded = true;
         RunLifecycleTraversal(scene, 0, updateEntities: false);
 
+        foreach (var component in scene.Components)
+            ActivateComponent(component);
+
         _eventHub.Publish(new SceneLoadedEvent(scene));
     }
 
@@ -139,12 +150,16 @@ public partial class Game(
         foreach (var child in scene.Children.ToArray().Reverse())
             DeactivateSubtree(child);
 
+        foreach (var component in scene.Components.Reverse())
+            DeactivateComponent(component);
+
         _eventHub.Unregister(scene);
 
         if (scene.IsActivated)
             scene.Deactivate();
 
         UnsubscribeCurrentScene(scene);
+
         _eventHub.Publish(new SceneUnloadedEvent(scene));
 
         if (scene is IDisposable disposableScene)
@@ -153,7 +168,11 @@ public partial class Game(
         }
         else
         {
+            foreach (var component in scene.Components.OfType<IDisposable>())
+                component.Dispose();
+
             var nodesToDispose = new Stack<(ISceneNode Node, bool IsPostOrder)>();
+
             foreach (var child in scene.Children)
                 nodesToDispose.Push((child, false));
 
@@ -351,6 +370,9 @@ public partial class Game(
 
         var entries = new List<LifecycleEntry> { new(scene, scene, null, null, -1) };
 
+        foreach (var component in scene.Components)
+            component.Update(deltaTime);
+
         foreach (var child in scene.Children.ToArray())
             AppendLifecycleEntries(child, scene, 0, entries);
 
@@ -536,6 +558,10 @@ public partial class Game(
     /// <param name="scene">The scene to observe.</param>
     private void SubscribeCurrentScene(IScene scene)
     {
+        // TODO: Collapse this into LoadScene
+        // We don't need to keep track of subscriptions for multiple scenes,
+        // only the current scene.
+
         if (!_subscribedSceneNodes.Contains(scene))
         {
             scene.PropertyChanged += OnCurrentScenePropertyChanged;
@@ -544,7 +570,6 @@ public partial class Game(
 
             SubscribeSceneNode(scene);
         }
-
     }
 
     /// <summary>
@@ -553,6 +578,10 @@ public partial class Game(
     /// <param name="scene">The scene to stop observing.</param>
     private void UnsubscribeCurrentScene(IScene scene)
     {
+        // TODO: Collapse this into LoadScene
+        // We don't need to keep track of subscriptions for multiple scenes,
+        // only the current scene. See SceneManager.
+
         if (!_subscribedSceneNodes.Contains(scene))
             return;
 
@@ -590,6 +619,10 @@ public partial class Game(
     /// <param name="node">The root node of the subtree.</param>
     private bool SubscribeSceneNode(ISceneNode node)
     {
+        // TODO: Collapse this into LoadScene
+        // We don't need to keep track of subscriptions for multiple scenes,
+        // only the current scene.
+
         if (!_subscribedSceneNodes.Add(node))
             return false;
 
@@ -613,6 +646,10 @@ public partial class Game(
     /// <param name="node">The root node of the subtree.</param>
     private void UnsubscribeSceneNode(ISceneNode node)
     {
+        // TODO: Collapse this into LoadScene
+        // We don't need to keep track of subscriptions for multiple scenes,
+        // only the current scene.
+
         if (!_subscribedSceneNodes.Remove(node))
             return;
 
@@ -720,5 +757,37 @@ public partial class Game(
 
         previousMap?.Unregister(_eventHub);
         currentMap?.Register(_eventHub);
+    }
+
+    /// <inheritdoc />
+    public bool IsSceneChangePending
+    {
+        get
+        {
+            lock (_syncRoot)
+                return _pendingSceneId is not null;
+        }
+    }
+
+    /// <inheritdoc />
+    public void LoadScene<TScene>()
+        where TScene : IScene
+    {
+        var sceneId =
+            typeof(TScene).GetCustomAttribute<SceneAttribute>(inherit: false)?.Name
+            ?? typeof(TScene).Name;
+
+        LoadScene(sceneId);
+    }
+
+    /// <inheritdoc />
+    public void LoadScene(string sceneId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sceneId);
+
+        lock (_syncRoot)
+        {
+            _pendingSceneId = sceneId;
+        }
     }
 }

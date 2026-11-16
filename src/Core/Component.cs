@@ -39,12 +39,14 @@ public abstract partial class Component : IComponent
     public virtual bool CanActivate() => true;
 
     /// <inheritdoc />
-    public virtual void Activate()
+    public virtual List<IManagedEntity> Activate()
     {
         if (IsActivated || !CanActivate())
-            return;
+            return [];
 
         IsActivated = true;
+
+        return [this];
     }
 
     /// <inheritdoc />
@@ -54,12 +56,14 @@ public abstract partial class Component : IComponent
     }
 
     /// <inheritdoc />
-    public virtual void Deactivate()
+    public virtual List<IManagedEntity> Deactivate()
     {
         if (!IsActivated)
-            return;
+            return [];
 
         IsActivated = false;
+
+        return [this];
     }
 
     /// <summary>
