@@ -91,6 +91,40 @@ public class EventHubTests
     }
 
     /// <summary>
+    /// Verifies diagnostic payloads contain the coordinates of supported Silk.NET maths values.
+    /// </summary>
+    /// <param name="value">The value included in the event.</param>
+    /// <param name="expectedJson">The expected JSON representation.</param>
+    [Theory]
+    [MemberData(nameof(MathValues))]
+    public void Drain_logsMathValues(object value, string expectedJson)
+    {
+        var logger = new CapturingLogger<EventHub>();
+        var eventHub = new EventHub(logger, diagnosticsEnabled: true);
+
+        eventHub.Publish(new MathProbeEvent(value));
+        eventHub.Drain();
+
+        var logMessage = Assert.Single(logger.Messages);
+        Assert.Contains($"\"Value\":{expectedJson}", logMessage);
+    }
+
+    /// <summary>
+    /// Gets supported math values and their expected diagnostic representations.
+    /// </summary>
+    public static TheoryData<object, string> MathValues => new()
+    {
+        { new Vector2D<float>(-1.5f, 2.25f), "{\"X\":-1.5,\"Y\":2.25}" },
+        { new Vector2D<int>(-1, 2), "{\"X\":-1,\"Y\":2}" },
+        { new Vector3D<float>(-1.5f, 2.25f, 3.5f), "{\"X\":-1.5,\"Y\":2.25,\"Z\":3.5}" },
+        { new Vector3D<int>(-1, 2, 3), "{\"X\":-1,\"Y\":2,\"Z\":3}" },
+        { new Vector4D<float>(-1.5f, 2.25f, 3.5f, 4.75f), "{\"X\":-1.5,\"Y\":2.25,\"Z\":3.5,\"W\":4.75}" },
+        { new Vector4D<int>(-1, 2, 3, 4), "{\"X\":-1,\"Y\":2,\"Z\":3,\"W\":4}" },
+        { new Rectangle<float>(-1.5f, 2.25f, 3.5f, 4.75f), "{\"Origin\":{\"X\":-1.5,\"Y\":2.25},\"Size\":{\"X\":3.5,\"Y\":4.75}}" },
+        { new Rectangle<int>(-1, 2, 3, 4), "{\"Origin\":{\"X\":-1,\"Y\":2},\"Size\":{\"X\":3,\"Y\":4}}" },
+    };
+
+    /// <summary>
     /// Verifies an event type is suppressed after the count limit without suppressing dispatch or other event types.
     /// </summary>
     [Fact]
@@ -173,6 +207,17 @@ public class EventHubTests
     /// Represents an event with an independent diagnostic suppression identity.
     /// </summary>
     private sealed class OtherProbeEvent : IEvent { }
+
+    /// <summary>
+    /// Represents an event carrying a math value.
+    /// </summary>
+    private sealed class MathProbeEvent(object value) : IEvent
+    {
+        /// <summary>
+        /// Gets the math value to serialize.
+        /// </summary>
+        public object Value { get; } = value;
+    }
 
     /// <summary>
     /// Counts handled probe events.

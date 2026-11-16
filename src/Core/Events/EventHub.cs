@@ -1,4 +1,5 @@
 using System.Linq.Expressions;
+using System.Numerics;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -16,7 +17,17 @@ public sealed class EventHub : IEventHub
     private static readonly JsonSerializerOptions EventJsonOptions = new()
     {
         ReferenceHandler = ReferenceHandler.IgnoreCycles,
-        Converters = { new Vector2JsonConverter() },
+        Converters =
+        {
+            new Vector2JsonConverter<float>(),
+            new Vector2JsonConverter<int>(),
+            new Vector3JsonConverter<float>(),
+            new Vector3JsonConverter<int>(),
+            new Vector4JsonConverter<float>(),
+            new Vector4JsonConverter<int>(),
+            new RectangleJsonConverter<float>(),
+            new RectangleJsonConverter<int>(),
+        },
     };
 
     private readonly ILogger<EventHub>? _logger;
@@ -259,16 +270,12 @@ public sealed class EventHub : IEventHub
     /// <summary>
     /// Serializes a vector using explicit coordinate fields instead of derived length properties.
     /// </summary>
-    private sealed class Vector2JsonConverter : JsonConverter<Vector2D<float>>
+    /// <typeparam name="T">The coordinate type.</typeparam>
+    private sealed class Vector2JsonConverter<T> : JsonConverter<Vector2D<T>>
+        where T : unmanaged, INumber<T>
     {
-        /// <summary>
-        /// Reads a vector from its X and Y coordinates.
-        /// </summary>
-        /// <param name="reader">The JSON reader positioned at the vector object.</param>
-        /// <param name="typeToConvert">The vector type.</param>
-        /// <param name="options">The serializer options.</param>
-        /// <returns>The vector represented by the JSON object.</returns>
-        public override Vector2D<float> Read(
+        /// <inheritdoc />
+        public override Vector2D<T> Read(
             ref Utf8JsonReader reader,
             Type typeToConvert,
             JsonSerializerOptions options
@@ -276,27 +283,147 @@ public sealed class EventHub : IEventHub
         {
             using var document = JsonDocument.ParseValue(ref reader);
             var root = document.RootElement;
-            return new Vector2D<float>(
-                root.GetProperty("X").GetSingle(),
-                root.GetProperty("Y").GetSingle()
+            return new Vector2D<T>(
+                root.GetProperty("X").Deserialize<T>(options),
+                root.GetProperty("Y").Deserialize<T>(options)
             );
         }
 
-        /// <summary>
-        /// Writes a vector as explicit X and Y coordinates.
-        /// </summary>
-        /// <param name="writer">The JSON writer.</param>
-        /// <param name="value">The vector to write.</param>
-        /// <param name="options">The serializer options.</param>
+        /// <inheritdoc />
         public override void Write(
             Utf8JsonWriter writer,
-            Vector2D<float> value,
+            Vector2D<T> value,
             JsonSerializerOptions options
         )
         {
             writer.WriteStartObject();
-            writer.WriteNumber("X", value.X);
-            writer.WriteNumber("Y", value.Y);
+            writer.WritePropertyName("X");
+            JsonSerializer.Serialize(writer, value.X, options);
+            writer.WritePropertyName("Y");
+            JsonSerializer.Serialize(writer, value.Y, options);
+            writer.WriteEndObject();
+        }
+    }
+
+    /// <summary>
+    /// Serializes a three-dimensional vector using its coordinate fields.
+    /// </summary>
+    /// <typeparam name="T">The coordinate type.</typeparam>
+    private sealed class Vector3JsonConverter<T> : JsonConverter<Vector3D<T>>
+        where T : unmanaged, INumber<T>
+    {
+        /// <inheritdoc />
+        public override Vector3D<T> Read(
+            ref Utf8JsonReader reader,
+            Type typeToConvert,
+            JsonSerializerOptions options
+        )
+        {
+            using var document = JsonDocument.ParseValue(ref reader);
+            var root = document.RootElement;
+            return new Vector3D<T>(
+                root.GetProperty("X").Deserialize<T>(options),
+                root.GetProperty("Y").Deserialize<T>(options),
+                root.GetProperty("Z").Deserialize<T>(options)
+            );
+        }
+
+        /// <inheritdoc />
+        public override void Write(
+            Utf8JsonWriter writer,
+            Vector3D<T> value,
+            JsonSerializerOptions options
+        )
+        {
+            writer.WriteStartObject();
+            writer.WritePropertyName("X");
+            JsonSerializer.Serialize(writer, value.X, options);
+            writer.WritePropertyName("Y");
+            JsonSerializer.Serialize(writer, value.Y, options);
+            writer.WritePropertyName("Z");
+            JsonSerializer.Serialize(writer, value.Z, options);
+            writer.WriteEndObject();
+        }
+    }
+
+    /// <summary>
+    /// Serializes a four-dimensional vector using its coordinate fields.
+    /// </summary>
+    /// <typeparam name="T">The coordinate type.</typeparam>
+    private sealed class Vector4JsonConverter<T> : JsonConverter<Vector4D<T>>
+        where T : unmanaged, INumber<T>
+    {
+        /// <inheritdoc />
+        public override Vector4D<T> Read(
+            ref Utf8JsonReader reader,
+            Type typeToConvert,
+            JsonSerializerOptions options
+        )
+        {
+            using var document = JsonDocument.ParseValue(ref reader);
+            var root = document.RootElement;
+            return new Vector4D<T>(
+                root.GetProperty("X").Deserialize<T>(options),
+                root.GetProperty("Y").Deserialize<T>(options),
+                root.GetProperty("Z").Deserialize<T>(options),
+                root.GetProperty("W").Deserialize<T>(options)
+            );
+        }
+
+        /// <inheritdoc />
+        public override void Write(
+            Utf8JsonWriter writer,
+            Vector4D<T> value,
+            JsonSerializerOptions options
+        )
+        {
+            writer.WriteStartObject();
+            writer.WritePropertyName("X");
+            JsonSerializer.Serialize(writer, value.X, options);
+            writer.WritePropertyName("Y");
+            JsonSerializer.Serialize(writer, value.Y, options);
+            writer.WritePropertyName("Z");
+            JsonSerializer.Serialize(writer, value.Z, options);
+            writer.WritePropertyName("W");
+            JsonSerializer.Serialize(writer, value.W, options);
+            writer.WriteEndObject();
+        }
+    }
+
+    /// <summary>
+    /// Serializes a rectangle using its origin and size vectors.
+    /// </summary>
+    /// <typeparam name="T">The coordinate type.</typeparam>
+    private sealed class RectangleJsonConverter<T> : JsonConverter<Rectangle<T>>
+        where T : unmanaged, INumber<T>
+    {
+        /// <inheritdoc />
+        public override Rectangle<T> Read(
+            ref Utf8JsonReader reader,
+            Type typeToConvert,
+            JsonSerializerOptions options
+        )
+        {
+            using var document = JsonDocument.ParseValue(ref reader);
+            var root = document.RootElement;
+            return new Rectangle<T>(
+                root.GetProperty("Origin").Deserialize<Vector2D<T>>(options),
+                root.GetProperty("Size").Deserialize<Vector2D<T>>(options)
+            );
+        }
+
+        /// <inheritdoc />
+        public override void Write(
+            Utf8JsonWriter writer,
+            Rectangle<T> value,
+            JsonSerializerOptions options
+        )
+        {
+            writer.WriteStartObject();
+            writer.WritePropertyName("Origin");
+            JsonSerializer.Serialize(writer, value.Origin, options);
+            writer.WritePropertyName("Size");
+            JsonSerializer.Serialize(writer, value.Size, options);
             writer.WriteEndObject();
         }
     }
